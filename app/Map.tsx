@@ -166,11 +166,7 @@ export default function ValueMap({ state }: { state: MapState }) {
 
 async function setRealData(map: maplibregl.Map, state: MapState, cache: Map<string, any>) {
   // For now: only 25km is uploaded/wired
-  if (state.grid !== "25km") {
-    console.warn("Only 25km is wired right now. Keeping existing layer.");
-    return;
-  }
-
+  
   const cacheKey = `${state.grid}|${state.propertyType}|${state.newBuild}|LATEST`;
   const cached = cache.get(cacheKey);
   if (cached) {
