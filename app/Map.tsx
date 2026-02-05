@@ -27,12 +27,12 @@ type ApiRow = {
   years_stale?: number;
 };
 
-export default function Map({ state }: { state: MapState }) {
+export default function ValueMap({ state }: { state: MapState }) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   // Cache: avoid recomputing polygons when toggling metric only
-  const geoCacheRef = useRef<Map<string, any>>(new Map());
+  const geoCacheRef = useRef<Map<string, any>>(new Map<string, any>());
 
   // Create map once
   useEffect(() => {
@@ -157,7 +157,7 @@ async function setRealData(map: maplibregl.Map, state: MapState, cache: Map<stri
     throw new Error(`API failed ${res.status}: ${txt}`);
   }
 
-  const payload = await res.json();
+  const payload: any = await res.json();
 
   // Your endpoint currently returns either:
   //  A) { rows: [...] }  or

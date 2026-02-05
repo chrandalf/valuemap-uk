@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Map from "./Map";
+import ValueMap from "./Map";
 
 type GridSize = "1km" | "5km" | "10km" | "25km";
 type Metric = "median" | "delta_gbp" | "delta_pct";
@@ -45,7 +45,7 @@ export default function Home() {
 
   return (
     <main style={{ position: "relative", minHeight: "100vh", overflow: "hidden" }}>
-      <Map state={state} />
+      <ValueMap state={state} />
 
       {/* Top-left “product” panel */}
       <div
