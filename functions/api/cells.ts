@@ -1,4 +1,4 @@
-export const onRequestGet: PagesFunction<Env> = async ({ env, request }) => {
+export const onRequestGet = async ({ env, request }: { env: Env; request: Request }) => {
   const url = new URL(request.url);
 
   // ---- query params (match your UI state) ----
