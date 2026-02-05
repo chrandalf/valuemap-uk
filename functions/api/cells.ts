@@ -1,3 +1,5 @@
+import type { R2Bucket } from "@cloudflare/workers-types";
+
 export const onRequestGet = async ({ env, request }: { env: Env; request: Request }) => {
   const url = new URL(request.url);
 
