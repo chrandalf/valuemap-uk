@@ -75,9 +75,9 @@ let CACHE: {
 async function getCached25km(env: Env) {
   if (CACHE) return CACHE;
 
-  const obj = await env.R2.get("v1/grid/25km/full.json.gz");
+  const obj = await env.R2.get("grid_25km_full.json.gz");
   if (!obj) {
-    throw new Error("R2 object not found: v1/grid/25km/full.json.gz");
+    throw new Error("R2 object not found: grid_25km_full.json.gz");
   }
 
   const gz = await obj.arrayBuffer();
