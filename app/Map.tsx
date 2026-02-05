@@ -231,33 +231,36 @@ function rowsToGeoJsonSquares(rows: ApiRow[], g: number) {
 function getFillColorExpression(metric: "median" | "delta_gbp" | "delta_pct") {
   if (metric === "median") {
     return [
-      "interpolate", ["linear"], ["get", "median"],
-      200000, "#1a9850",
-      400000, "#91cf60",
-      600000, "#fee08b",
-      800000, "#fc8d59",
-      1000000, "#d73027",
-    ] as any;
-  }
+    "interpolate", ["linear"], ["get", "median"],
+    100000,  "#2c7bb6", // deep blue (cheap)
+    200000,  "#00a6ca", // cyan
+    300000,  "#00ccbc", // teal
+    400000,  "#90eb9d", // soft green
+    550000,  "#ffffbf", // very light (middle)
+    700000,  "#fdae61", // orange
+    850000,  "#f46d43", // strong orange/red
+    1000000, "#d73027", // deep red (expensive)
+  ] as any;
+}
 
   if (metric === "delta_gbp") {
     return [
       "interpolate", ["linear"], ["get", "delta_gbp"],
-      -200000, "#b2182b",
-      -50000,  "#ef8a62",
-      0,       "#f7f7f7",
-      100000,  "#67a9cf",
-      300000,  "#2166ac",
+      -200000, "#2c7bb6",
+      -50000,  "#00ccbc",
+      0,       "#90eb9d",
+      100000,  "#fdae61",
+      300000,  "#d73027",
     ] as any;
   }
 
   return [
     "interpolate", ["linear"], ["get", "delta_pct"],
-    -30, "#b2182b",
-    -10, "#ef8a62",
-    0,   "#f7f7f7",
-    20,  "#67a9cf",
-    60,  "#2166ac",
+    -20, "#d73027",
+    -10, "#fdae61",
+    0,   "#90eb9d",
+    10,  "#00ccbc",
+    20,  "#2c7bb6",
   ] as any;
 }
 
