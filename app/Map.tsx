@@ -180,7 +180,7 @@ async function setRealData(map: maplibregl.Map, state: MapState, cache: Map<stri
   }
 
   const qs = new URLSearchParams({
-    grid: "25km",
+    grid: state.grid,
     propertyType: state.propertyType ?? "ALL",
     newBuild: state.newBuild ?? "ALL",
     endMonth: "LATEST",
@@ -200,12 +200,21 @@ async function setRealData(map: maplibregl.Map, state: MapState, cache: Map<stri
   const rows: ApiRow[] = Array.isArray(payload) ? payload : payload.rows;
   if (!Array.isArray(rows)) throw new Error("Unexpected API payload shape");
 
-  const fc = rowsToGeoJsonSquares(rows, 25000);
+  const fc = rowsToGeoJsonSquares(rows, gridToMeters(state.grid));
 
   cache.set(cacheKey, fc);
 
   const src = map.getSource("cells") as maplibregl.GeoJSONSource;
   src.setData(fc as any);
+}
+
+function gridToMeters(grid: "1km" | "5km" | "10km" | "25km") {
+  switch (grid) {
+    case "1km": return 1000;
+    case "5km": return 5000;
+    case "10km": return 10000;
+    case "25km": return 25000;
+  }
 }
 
 function rowsToGeoJsonSquares(rows: ApiRow[], g: number) {
