@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "upload:25km": "wrangler r2 object put valuemap-uk/v1/grid/25km/full.json.gz --file ./data_local/grid_25km_full.json.gz"
   },
   "dependencies": {
     "maplibre-gl": "^5.17.0",
