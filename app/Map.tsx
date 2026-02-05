@@ -10,13 +10,29 @@ type Metric = "median" | "delta_gbp" | "delta_pct";
 export type MapState = {
   grid: GridSize;
   metric: Metric;
-  propertyType: string; // unused for mock, but keep it in state
-  newBuild: string;     // unused for mock, but keep it in state
+  propertyType: string;
+  newBuild: string;
+};
+
+type ApiRow = {
+  gx: number;
+  gy: number;
+  end_month: string;
+  property_type: string;
+  new_build: string;
+  median: number;
+  tx_count: number;
+  delta_gbp?: number;
+  delta_pct?: number;
+  years_stale?: number;
 };
 
 export default function Map({ state }: { state: MapState }) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+
+  // Cache: avoid recomputing polygons when toggling metric only
+  const geoCacheRef = useRef<Map<string, any>>(new Map());
 
   // Create map once
   useEffect(() => {
@@ -44,8 +60,7 @@ export default function Map({ state }: { state: MapState }) {
 
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
 
-    map.on("load", () => {
-      // Add empty source up front
+    map.on("load", async () => {
       map.addSource("cells", {
         type: "geojson",
         data: { type: "FeatureCollection", features: [] },
@@ -71,8 +86,8 @@ export default function Map({ state }: { state: MapState }) {
         },
       });
 
-      // Initial mock data
-      setMockData(map, state.grid);
+      // Initial real data load
+      await setRealData(map, state, geoCacheRef.current);
     });
 
     mapRef.current = map;
@@ -84,20 +99,21 @@ export default function Map({ state }: { state: MapState }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Update data when grid changes
+  // Reload data when filters/grid change (not metric)
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     if (!map.isStyleLoaded()) return;
 
-    // If layers/sources aren't ready yet, skip
     const src = map.getSource("cells") as maplibregl.GeoJSONSource | undefined;
     if (!src) return;
 
-    setMockData(map, state.grid);
-  }, [state.grid]);
+    setRealData(map, state, geoCacheRef.current).catch((e) => {
+      console.error("setRealData failed", e);
+    });
+  }, [state.grid, state.propertyType, state.newBuild]);
 
-  // Update colours when metric changes
+  // Update colours when metric changes (no refetch)
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -111,69 +127,98 @@ export default function Map({ state }: { state: MapState }) {
   return <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />;
 }
 
-/** --- Mock data + styling helpers --- **/
+/** ---------------- Real data wiring ---------------- */
 
-function setMockData(map: maplibregl.Map, grid: GridSize) {
-  const fc = generateMockCells(grid);
+async function setRealData(map: maplibregl.Map, state: MapState, cache: Map<string, any>) {
+  // For now: only 25km is uploaded/wired
+  if (state.grid !== "25km") {
+    console.warn("Only 25km is wired right now. Keeping existing layer.");
+    return;
+  }
+
+  const cacheKey = `${state.grid}|${state.propertyType}|${state.newBuild}|LATEST`;
+  const cached = cache.get(cacheKey);
+  if (cached) {
+    const src = map.getSource("cells") as maplibregl.GeoJSONSource;
+    src.setData(cached);
+    return;
+  }
+
+  const qs = new URLSearchParams({
+    grid: "25km",
+    propertyType: state.propertyType ?? "ALL",
+    newBuild: state.newBuild ?? "ALL",
+    endMonth: "LATEST",
+  });
+
+  const res = await fetch(`/api/cells?${qs.toString()}`);
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`API failed ${res.status}: ${txt}`);
+  }
+
+  const payload = await res.json();
+
+  // Your endpoint currently returns either:
+  //  A) { rows: [...] }  or
+  //  B) [...]  (raw list)
+  const rows: ApiRow[] = Array.isArray(payload) ? payload : payload.rows;
+  if (!Array.isArray(rows)) throw new Error("Unexpected API payload shape");
+
+  const fc = rowsToGeoJsonSquares(rows, 25000);
+
+  cache.set(cacheKey, fc);
+
   const src = map.getSource("cells") as maplibregl.GeoJSONSource;
   src.setData(fc as any);
 }
 
-function generateMockCells(grid: GridSize) {
-  // Rough UK-ish bbox
-  const lonMin = -8.6, lonMax = 1.9;
-  const latMin = 49.8, latMax = 60.9;
-
-  // Cell size in km for mock
-  const km = grid === "1km" ? 1 : grid === "5km" ? 5 : grid === "10km" ? 10 : 25;
-
-  // Convert km to degrees (approx) - good enough for a mock
-  const latStep = km / 111;
-  const midLat = 55;
-  const lonStep = km / (111 * Math.cos((midLat * Math.PI) / 180));
-
-  // Control density (keep it smooth in browser)
-  const count =
-    grid === "1km" ? 900 :
-    grid === "5km" ? 650 :
-    grid === "10km" ? 450 : 250;
-
+function rowsToGeoJsonSquares(rows: ApiRow[], g: number) {
   const features: any[] = [];
-  const rnd = mulberry32(hashStringToInt(grid)); // deterministic per grid
 
-  for (let i = 0; i < count; i++) {
-    const lon = lerp(lonMin, lonMax, rnd());
-    const lat = lerp(latMin, latMax, rnd());
+  for (const r of rows) {
+    const x0 = r.gx;
+    const y0 = r.gy;
+    const x1 = x0 + g;
+    const y1 = y0 + g;
 
-    const x0 = lon;
-    const y0 = lat;
-    const x1 = lon + lonStep;
-    const y1 = lat + latStep;
+    const [lon00, lat00] = osgbToWgs84(x0, y0);
+    const [lon10, lat10] = osgbToWgs84(x1, y0);
+    const [lon11, lat11] = osgbToWgs84(x1, y1);
+    const [lon01, lat01] = osgbToWgs84(x0, y1);
 
-    const median = Math.round(200_000 + rnd() * 800_000);              // £200k..£1m
-    const delta_gbp = Math.round(-200_000 + rnd() * 500_000);          // -200k..+300k
-    const delta_pct = Math.round((-30 + rnd() * 90) * 10) / 10;        // -30..+60
-    const tx_count = Math.round(10 + rnd() * 220);                     // 10..230
-    const years_stale = Math.round(rnd() * 3);                         // 0..3
+    // Cheap UK-ish clip (optional but helps if anything weird leaks in)
+    if (
+      lon00 < -11 || lon00 > 5 || lat00 < 48.5 || lat00 > 62.8 ||
+      lon11 < -11 || lon11 > 5 || lat11 < 48.5 || lat11 > 62.8
+    ) {
+      continue;
+    }
+
+    const id = `${x0}_${y0}`;
 
     features.push({
       type: "Feature",
+      id,
       geometry: {
         type: "Polygon",
         coordinates: [[
-          [x0, y0],
-          [x1, y0],
-          [x1, y1],
-          [x0, y1],
-          [x0, y0],
+          [lon00, lat00],
+          [lon10, lat10],
+          [lon11, lat11],
+          [lon01, lat01],
+          [lon00, lat00],
         ]],
       },
       properties: {
-        median,
-        delta_gbp,
-        delta_pct,
-        tx_count,
-        years_stale,
+        ...r,
+        // normalize names to your existing styling expressions
+        // (your fill expression looks for "median"/"delta_gbp"/"delta_pct")
+        median: r.median,
+        delta_gbp: r.delta_gbp ?? 0,
+        delta_pct: r.delta_pct ?? 0,
+        tx_count: r.tx_count,
+        years_stale: r.years_stale ?? 0,
       },
     });
   }
@@ -181,10 +226,10 @@ function generateMockCells(grid: GridSize) {
   return { type: "FeatureCollection", features };
 }
 
+/** ---------------- Styling helpers (unchanged) ---------------- */
+
 function getFillColorExpression(metric: "median" | "delta_gbp" | "delta_pct") {
-  // MapLibre expression, returned as any for simplicity
   if (metric === "median") {
-    // green -> yellow -> red (higher price = red)
     return [
       "interpolate", ["linear"], ["get", "median"],
       200000, "#1a9850",
@@ -196,7 +241,6 @@ function getFillColorExpression(metric: "median" | "delta_gbp" | "delta_pct") {
   }
 
   if (metric === "delta_gbp") {
-    // red (down) -> white -> blue (up)
     return [
       "interpolate", ["linear"], ["get", "delta_gbp"],
       -200000, "#b2182b",
@@ -207,7 +251,6 @@ function getFillColorExpression(metric: "median" | "delta_gbp" | "delta_pct") {
     ] as any;
   }
 
-  // delta_pct
   return [
     "interpolate", ["linear"], ["get", "delta_pct"],
     -30, "#b2182b",
@@ -218,23 +261,126 @@ function getFillColorExpression(metric: "median" | "delta_gbp" | "delta_pct") {
   ] as any;
 }
 
-/** deterministic random */
-function mulberry32(a: number) {
-  return function () {
-    let t = (a += 0x6d2b79f5);
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
+/** ---------------- OSGB36 (EPSG:27700) -> WGS84 (EPSG:4326) ----------------
+ * Self-contained conversion (no deps).
+ * Accuracy: plenty for grid visualisation.
+ */
+
+// Ellipsoid / datum constants
+const a = 6377563.396; // Airy 1830 major axis
+const b = 6356256.909; // Airy 1830 minor axis
+const F0 = 0.9996012717; // scale factor on central meridian
+const lat0 = degToRad(49);
+const lon0 = degToRad(-2);
+const N0 = -100000;
+const E0 = 400000;
+const e2 = 1 - (b * b) / (a * a);
+const n = (a - b) / (a + b);
+
+function osgbToWgs84(E: number, N: number): [number, number] {
+  // 1) Easting/Northing -> OSGB36 lat/lon
+  const [lat, lon] = enToLatLonOSGB36(E, N);
+
+  // 2) OSGB36 lat/lon -> cartesian (Airy 1830)
+  const [x1, y1, z1] = latLonToCartesian(lat, lon, 0, a, b);
+
+  // 3) Helmert transform to WGS84 cartesian
+  const [x2, y2, z2] = helmertOSGB36ToWGS84(x1, y1, z1);
+
+  // 4) cartesian -> WGS84 lat/lon
+  const [latW, lonW] = cartesianToLatLon(x2, y2, z2, 6378137.0, 6356752.3141);
+
+  return [radToDeg(lonW), radToDeg(latW)];
 }
-function hashStringToInt(s: string) {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
+
+function enToLatLonOSGB36(E: number, N: number): [number, number] {
+  let lat = lat0;
+  let M = 0;
+
+  do {
+    lat = (N - N0 - M) / (a * F0) + lat;
+
+    const Ma = (1 + n + (5 / 4) * n * n + (5 / 4) * n * n * n) * (lat - lat0);
+    const Mb = (3 * n + 3 * n * n + (21 / 8) * n * n * n) * Math.sin(lat - lat0) * Math.cos(lat + lat0);
+    const Mc = ((15 / 8) * n * n + (15 / 8) * n * n * n) * Math.sin(2 * (lat - lat0)) * Math.cos(2 * (lat + lat0));
+    const Md = (35 / 24) * n * n * n * Math.sin(3 * (lat - lat0)) * Math.cos(3 * (lat + lat0));
+    M = b * F0 * (Ma - Mb + Mc - Md);
+  } while (Math.abs(N - N0 - M) >= 0.00001); // 0.01mm
+
+  const sinLat = Math.sin(lat);
+  const cosLat = Math.cos(lat);
+  const tanLat = Math.tan(lat);
+
+  const nu = a * F0 / Math.sqrt(1 - e2 * sinLat * sinLat);
+  const rho = a * F0 * (1 - e2) / Math.pow(1 - e2 * sinLat * sinLat, 1.5);
+  const eta2 = nu / rho - 1;
+
+  const dE = E - E0;
+
+  const VII = tanLat / (2 * rho * nu);
+  const VIII = (tanLat / (24 * rho * Math.pow(nu, 3))) * (5 + 3 * tanLat * tanLat + eta2 - 9 * eta2 * tanLat * tanLat);
+  const IX = (tanLat / (720 * rho * Math.pow(nu, 5))) * (61 + 90 * tanLat * tanLat + 45 * Math.pow(tanLat, 4));
+
+  const X = 1 / (cosLat * nu);
+  const XI = (1 / (6 * cosLat * Math.pow(nu, 3))) * (nu / rho + 2 * tanLat * tanLat);
+  const XII = (1 / (120 * cosLat * Math.pow(nu, 5))) * (5 + 28 * tanLat * tanLat + 24 * Math.pow(tanLat, 4));
+  const XIIA = (1 / (5040 * cosLat * Math.pow(nu, 7))) * (61 + 662 * tanLat * tanLat + 1320 * Math.pow(tanLat, 4) + 720 * Math.pow(tanLat, 6));
+
+  const lat1 = lat - VII * dE * dE + VIII * Math.pow(dE, 4) - IX * Math.pow(dE, 6);
+  const lon1 = lon0 + X * dE - XI * Math.pow(dE, 3) + XII * Math.pow(dE, 5) - XIIA * Math.pow(dE, 7);
+
+  return [lat1, lon1];
+}
+
+function latLonToCartesian(lat: number, lon: number, h: number, a_: number, b_: number): [number, number, number] {
+  const e2_ = 1 - (b_ * b_) / (a_ * a_);
+  const sinLat = Math.sin(lat);
+  const cosLat = Math.cos(lat);
+  const sinLon = Math.sin(lon);
+  const cosLon = Math.cos(lon);
+
+  const nu = a_ / Math.sqrt(1 - e2_ * sinLat * sinLat);
+  const x = (nu + h) * cosLat * cosLon;
+  const y = (nu + h) * cosLat * sinLon;
+  const z = ((1 - e2_) * nu + h) * sinLat;
+
+  return [x, y, z];
+}
+
+function helmertOSGB36ToWGS84(x: number, y: number, z: number): [number, number, number] {
+  // Helmert transform parameters (OSGB36 -> WGS84)
+  const tx = 446.448;
+  const ty = -125.157;
+  const tz = 542.060;
+  const s = 0.0000204894; // ppm -> scale (20.4894e-6)
+  const rx = degToRad(0.00004172222);
+  const ry = degToRad(0.00006861111);
+  const rz = degToRad(0.00023391666);
+
+  const x2 = tx + (1 + s) * x + (-rz) * y + (ry) * z;
+  const y2 = ty + (rz) * x + (1 + s) * y + (-rx) * z;
+  const z2 = tz + (-ry) * x + (rx) * y + (1 + s) * z;
+
+  return [x2, y2, z2];
+}
+
+function cartesianToLatLon(x: number, y: number, z: number, a_: number, b_: number): [number, number] {
+  const e2_ = 1 - (b_ * b_) / (a_ * a_);
+  const p = Math.sqrt(x * x + y * y);
+
+  let lat = Math.atan2(z, p * (1 - e2_));
+  let latPrev = 2 * Math.PI;
+
+  while (Math.abs(lat - latPrev) > 1e-12) {
+    latPrev = lat;
+    const sinLat = Math.sin(lat);
+    const nu = a_ / Math.sqrt(1 - e2_ * sinLat * sinLat);
+    lat = Math.atan2(z + e2_ * nu * sinLat, p);
   }
-  return h >>> 0;
+
+  const lon = Math.atan2(y, x);
+  return [lat, lon];
 }
-function lerp(a: number, b: number, t: number) {
-  return a + (b - a) * t;
-}
+
+function degToRad(d: number) { return (d * Math.PI) / 180; }
+function radToDeg(r: number) { return (r * 180) / Math.PI; }
