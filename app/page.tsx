@@ -45,7 +45,7 @@ export default function Home() {
 
   return (
     <main style={{ position: "relative", minHeight: "100vh", overflow: "hidden" }}>
-      <Map />
+      <Map state={state} />
 
       {/* Top-left “product” panel */}
       <div
