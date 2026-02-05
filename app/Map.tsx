@@ -64,31 +64,66 @@ export default function ValueMap({ state }: { state: MapState }) {
       map.addSource("cells", {
         type: "geojson",
         data: { type: "FeatureCollection", features: [] },
-      });
+  });
 
-      map.addLayer({
-        id: "cells-fill",
-        type: "fill",
-        source: "cells",
-        paint: {
-          "fill-color": getFillColorExpression(state.metric),
-          "fill-opacity": 0.42,
-        },
-      });
+  map.addLayer({
+    id: "cells-fill",
+    type: "fill",
+    source: "cells",
+    paint: {
+      "fill-color": getFillColorExpression(state.metric),
+      "fill-opacity": 0.42,
+    },
+  });
 
-      map.addLayer({
-        id: "cells-outline",
-        type: "line",
-        source: "cells",
-        paint: {
-          "line-color": "rgba(0,0,0,0.85)",
-          "line-width": 1.2,
-        },
-      });
+  map.addLayer({
+    id: "cells-outline",
+    type: "line",
+    source: "cells",
+    paint: {
+      "line-color": "rgba(0,0,0,0.85)",
+      "line-width": 1.2,
+    },
+  });
 
-      // Initial real data load
-      await setRealData(map, state, geoCacheRef.current);
-    });
+  // ✅ ADD HOVER TOOLTIP HERE (after layers exist)
+  const popup = new maplibregl.Popup({
+    closeButton: false,
+    closeOnClick: false,
+    offset: 10,
+  });
+
+  map.on("mousemove", "cells-fill", (e) => {
+    map.getCanvas().style.cursor = "pointer";
+
+    const f = e.features?.[0] as any;
+    if (!f) return;
+
+    const p = f.properties || {};
+    const median = Number(p.median ?? 0);
+    const tx = Number(p.tx_count ?? 0);
+    const stale = Number(p.years_stale ?? 0);
+
+    popup
+      .setLngLat(e.lngLat)
+      .setHTML(`
+        <div style="font-family: system-ui; font-size: 12px; line-height: 1.25;">
+          <div style="font-weight: 700; margin-bottom: 4px;">£${median.toLocaleString()}</div>
+          <div>Tx: <b>${tx}</b></div>
+          <div>Stale: <b>${stale}</b>y</div>
+        </div>
+      `)
+      .addTo(map);
+  });
+
+  map.on("mouseleave", "cells-fill", () => {
+    map.getCanvas().style.cursor = "";
+    popup.remove();
+  });
+
+  // Initial real data load
+  await setRealData(map, state, geoCacheRef.current);
+});
 
     mapRef.current = map;
 
