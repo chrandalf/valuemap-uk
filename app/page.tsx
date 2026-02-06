@@ -51,6 +51,7 @@ export default function Home() {
     state.metric !== "median" && legend && legend.kind === "delta" && legend.metric === state.metric
       ? legend
       : null;
+  const [filtersOpen, setFiltersOpen] = useState(true);
 
   return (
     <main style={{ position: "relative", minHeight: "100vh", overflow: "hidden" }}>
@@ -77,12 +78,34 @@ export default function Home() {
         <div style={{ fontSize: 12, letterSpacing: 0.6, opacity: 0.8 }}>VALUEMAP UK</div>
         <div style={{ fontSize: 28, fontWeight: 700, marginTop: 6 }}>UK House Price Grid</div>
         <div style={{ marginTop: 4, fontSize: 12, opacity: 0.8 }}>By Chris Randall</div>
+        <button
+          type="button"
+          className="panel-toggle"
+          onClick={() => setFiltersOpen((v) => !v)}
+          style={{
+            marginTop: 8,
+            padding: "6px 10px",
+            borderRadius: 8,
+            border: "1px solid rgba(255,255,255,0.14)",
+            background: "rgba(255,255,255,0.08)",
+            color: "white",
+            fontSize: 12,
+            cursor: "pointer",
+            display: "none",
+          }}
+        >
+          {filtersOpen ? "Hide filters" : "Show filters"}
+        </button>
         <div style={{ marginTop: 8, opacity: 0.85, lineHeight: 1.35 }}>
           Grid-based medians and deltas (trailing 12 months). Data layer next.
         </div>
 
         {/* Controls */}
-        <div className="controls" style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10, marginTop: 14 }}>
+        <div
+          className="controls"
+          data-open={filtersOpen ? "true" : "false"}
+          style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10, marginTop: 14 }}
+        >
           <ControlRow label="Grid">
             <Segment
               options={state.metric === "median" ? ["1km", "5km", "10km", "25km"] : ["5km", "10km", "25km"]}
@@ -144,13 +167,13 @@ export default function Home() {
         </div>
 
         {/* Quick debug so you can see it working */}
-        <div style={{ marginTop: 10, fontSize: 12, opacity: 0.65 }}>
+        <div className="panel-debug" style={{ marginTop: 10, fontSize: 12, opacity: 0.65 }}>
           {`Selected: ${state.grid} - ${METRIC_LABEL[state.metric]} - ${PROPERTY_LABEL[state.propertyType]} - ${NEWBUILD_LABEL[state.newBuild]} - ${state.endMonth ?? "LATEST"}`}
         </div>
 
         {/* Deltas explanation */}
         {state.metric !== "median" && (
-          <div style={{ marginTop: 12, padding: 10, borderRadius: 8, background: "rgba(255,255,255,0.08)", borderLeft: "3px solid #fdae61", fontSize: 11, lineHeight: 1.4, opacity: 0.9 }}>
+          <div className="panel-delta" style={{ marginTop: 12, padding: 10, borderRadius: 8, background: "rgba(255,255,255,0.08)", borderLeft: "3px solid #fdae61", fontSize: 11, lineHeight: 1.4, opacity: 0.9 }}>
             <div style={{ fontWeight: 600, marginBottom: 6 }}>Price change</div>
             <div style={{ marginBottom: 6 }}>
               Comparing <b>earliest available month (Dec 2021)</b> to <b>latest month (Dec 2025)</b>.
@@ -194,7 +217,7 @@ export default function Home() {
                   <div style={{ textAlign: "left", fontSize: 13, opacity: 0.75 }}>
                     {formatCurrency(medianLegend.breaks[0])}
                   </div>
-                  <div style={{ display: "flex", height: 50, gap: 2 }}>
+                  <div className="legend-bars" style={{ display: "flex", height: 50, gap: 2 }}>
                     {medianLegend.colors.map((c, i) => (
                       <div key={i} style={{ flex: 1, backgroundColor: c, borderRadius: 3 }} />
                     ))}
@@ -226,7 +249,7 @@ export default function Home() {
                   <div style={{ textAlign: "left", fontSize: 13, opacity: 0.75 }}>
                     {formatDeltaValue(state.metric, deltaLegend.stops[0])}
                   </div>
-                  <div style={{ display: "flex", height: 50, gap: 2, minWidth: 240 }}>
+                  <div className="legend-bars" style={{ display: "flex", height: 50, gap: 2, minWidth: 240 }}>
                     {deltaLegend.colors.map((c, i) => (
                       <div key={i} style={{ flex: 1, backgroundColor: c, borderRadius: 3 }} />
                     ))}
@@ -320,8 +343,18 @@ export function Styles() {
           width: auto !important;
           max-width: none !important;
           padding: 12px !important;
-          max-height: 45vh !important;
-          overflow: auto !important;
+          max-height: 55vh !important;
+          overflow: hidden !important;
+        }
+        .panel-toggle {
+          display: inline-block !important;
+        }
+        .controls[data-open="false"] {
+          display: none !important;
+        }
+        .panel-debug,
+        .panel-delta {
+          display: none !important;
         }
         .controls {
           gap: 8px !important;
@@ -343,8 +376,11 @@ export function Styles() {
           left: 12px !important;
           width: auto !important;
           max-width: none !important;
-          padding: 14px 16px !important;
+          padding: 8px 12px !important;
           bottom: 12px !important;
+        }
+        .legend .legend-bars {
+          height: 28px !important;
         }
       }
     `}</style>
