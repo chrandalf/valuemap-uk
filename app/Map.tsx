@@ -64,6 +64,7 @@ export default function ValueMap({
   const [postcodeOffset, setPostcodeOffset] = useState(0);
   const [postcodeLoading, setPostcodeLoading] = useState(false);
   const [postcodeError, setPostcodeError] = useState<string | null>(null);
+  const fetchPostcodesRef = useRef<(cell: string, offset: number, append: boolean) => void>(() => {});
 
   useEffect(() => {
     stateRef.current = state;
@@ -210,8 +211,8 @@ export default function ValueMap({
       if (!res.ok) {
         throw new Error(`Failed to load postcodes (${res.status})`);
       }
-      const data = await res.json();
-      const items = Array.isArray(data.postcodes) ? data.postcodes : [];
+      const data = (await res.json()) as { postcodes?: unknown; total?: unknown };
+      const items = Array.isArray(data.postcodes) ? (data.postcodes as string[]) : [];
       const total = Number(data.total ?? items.length);
       setPostcodeTotal(total);
       setPostcodeOffset(offset);
@@ -222,6 +223,7 @@ export default function ValueMap({
       setPostcodeLoading(false);
     }
   };
+  fetchPostcodesRef.current = fetchPostcodes;
 
   map.on("click", "cells-fill", (e) => {
     const f = e.features?.[0] as any;
@@ -229,7 +231,7 @@ export default function ValueMap({
     const cellId = (f.id ?? f.properties?.id ?? `${f.properties?.gx}_${f.properties?.gy}`) as string | number;
     const cell = String(cellId);
     if (!cell || cell === "undefined_undefined") return;
-    void fetchPostcodes(cell, 0, false);
+    void fetchPostcodesRef.current(cell, 0, false);
   });
 
   // Initial real data load
@@ -374,7 +376,7 @@ export default function ValueMap({
               {postcodeItems.length < postcodeTotal && (
                 <button
                   type="button"
-                  onClick={() => void fetchPostcodes(postcodeCell, postcodeOffset + 10, true)}
+                  onClick={() => void fetchPostcodesRef.current(postcodeCell, postcodeOffset + 10, true)}
                   style={{
                     marginTop: 8,
                     cursor: "pointer",
