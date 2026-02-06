@@ -15,12 +15,22 @@ export type MapState = {
   endMonth?: string;
 };
 
-export type QuantileLegend = {
-  metric: "median";
-  breaks: number[];
-  colors: string[];
-  probs: number[];
-};
+export type LegendData =
+  | {
+      kind: "median";
+      breaks: number[];
+      colors: string[];
+      probs: number[];
+    }
+  | {
+      kind: "delta";
+      metric: "delta_gbp" | "delta_pct";
+      min: number;
+      max: number;
+      maxAbs: number;
+      stops: number[];
+      colors: string[];
+    };
 
 type ApiRow = {
   gx: number;
@@ -40,7 +50,7 @@ export default function ValueMap({
   onLegendChange,
 }: {
   state: MapState;
-  onLegendChange?: (legend: QuantileLegend | null) => void;
+  onLegendChange?: (legend: LegendData | null) => void;
 }) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -61,7 +71,7 @@ export default function ValueMap({
             type: "raster",
             tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
             tileSize: 256,
-            attribution: "© OpenStreetMap contributors",
+            attribution: "(c) OpenStreetMap contributors",
           },
         },
         layers: [{ id: "osm", type: "raster", source: "osm" }],
@@ -105,7 +115,7 @@ export default function ValueMap({
     type: "symbol",
     source: "cells",
     layout: {
-      "text-field": "✕",
+      "text-field": "x",
       "text-size": 24,
       "text-anchor": "center",
       "text-offset": [0, 0],
@@ -116,7 +126,7 @@ export default function ValueMap({
     filter: ["==", ["get", "tx_count"], 0],
   });
 
-  // ✅ ADD HOVER TOOLTIP HERE (after layers exist)
+  // Add hover tooltip (after layers exist)
   const popup = new maplibregl.Popup({
     closeButton: false,
     closeOnClick: false,
@@ -141,15 +151,15 @@ export default function ValueMap({
       const sign = dg > 0 ? "+" : dg < 0 ? "-" : "";
       html = `
         <div style="font-family: system-ui; font-size: 12px; line-height: 1.25;">
-          <div style="font-weight: 700; margin-bottom: 4px;">${sign}£${Math.abs(dg).toLocaleString()}</div>
-          <div>Δ%: <b>${dp.toFixed(1)}%</b></div>
+          <div style="font-weight: 700; margin-bottom: 4px;">${sign}GBP ${Math.abs(dg).toLocaleString()}</div>
+          <div>Change %: <b>${dp.toFixed(1)}%</b></div>
           <div>Sales: <b>${tx}</b></div>
         </div>
       `;
     } else {
       html = `
         <div style="font-family: system-ui; font-size: 12px; line-height: 1.25;">
-          <div style="font-weight: 700; margin-bottom: 4px;">£${median.toLocaleString()}</div>
+          <div style="font-weight: 700; margin-bottom: 4px;">GBP ${median.toLocaleString()}</div>
           <div>Sales: <b>${tx}</b></div>
         </div>
       `;
@@ -245,7 +255,7 @@ async function setRealData(
   state: MapState,
   cache: Map<string, any>,
   signal?: AbortSignal,
-  onLegendChange?: (legend: QuantileLegend | null) => void
+  onLegendChange?: (legend: LegendData | null) => void
 ) {
   // Determine if we're fetching delta or regular data
   const isDelta = state.metric === "delta_gbp" || state.metric === "delta_pct";
@@ -318,21 +328,45 @@ function normalizeDeltaRows(rows: any[], grid: GridSize): ApiRow[] {
 }
 
 const QUANTILE_PROBS = [0,0.01,0.02,0.03,0.04,0.05,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,0.95,0.96,0.97,0.98,0.99,1];
+const DELTA_COLORS = ["#4a0080", "#d73027", "#f46d43", "#f7f7f7", "#1a9850", "#238b45", "#08519c"];
+const DELTA_STOP_WEIGHTS = [-1, -0.5, -0.2, 0, 0.2, 0.5, 1];
 
 async function ensureAggregatesAndUpdate(
   map: maplibregl.Map,
   state: MapState,
   cache: Map<string, any>,
-  onLegendChange?: (legend: QuantileLegend | null) => void
+  onLegendChange?: (legend: LegendData | null) => void
 ) {
   try {
     // For delta metrics, apply simple linear color mapping (quantiles can be complex with diverging data)
     const isDelta = state.metric === "delta_gbp" || state.metric === "delta_pct";
     if (isDelta) {
+      const src = map.getSource("cells") as maplibregl.GeoJSONSource | undefined;
+      const srcData: any = src ? (src as any)._data ?? null : null;
+      const stats = computeMinMax(srcData, state.metric);
+      const fallbackMaxAbs = state.metric === "delta_pct" ? 30 : 300000;
+      const maxAbs = stats ? Math.max(Math.abs(stats.min), Math.abs(stats.max)) : 0;
+      const safeMaxAbs = maxAbs > 0 ? maxAbs : fallbackMaxAbs;
+      const stops = buildDeltaStops(safeMaxAbs);
+      const colors = DELTA_COLORS;
+      const expr = buildDeltaColorExpression(state.metric, stops, colors);
+
       if (map.getLayer("cells-fill")) {
-        map.setPaintProperty("cells-fill", "fill-color", getFillColorExpression(state.metric));
+        map.setPaintProperty("cells-fill", "fill-color", expr);
       }
-      if (onLegendChange) onLegendChange(null);
+      if (onLegendChange) {
+        const min = stats ? stats.min : -safeMaxAbs;
+        const max = stats ? stats.max : safeMaxAbs;
+        onLegendChange({
+          kind: "delta",
+          metric: state.metric,
+          min,
+          max,
+          maxAbs: safeMaxAbs,
+          stops,
+          colors,
+        });
+      }
       return;
     }
 
@@ -440,7 +474,7 @@ async function ensureAggregatesAndUpdate(
           map.setPaintProperty("cells-fill", "fill-color", expr);
         }
         if (onLegendChange) {
-          onLegendChange({ metric: "median", breaks, colors, probs: QUANTILE_PROBS });
+          onLegendChange({ kind: "median", breaks, colors, probs: QUANTILE_PROBS });
         }
       } else if (onLegendChange) {
         onLegendChange(null);
@@ -491,6 +525,36 @@ function computeWeightedQuantiles(fc: any, metric: "median" | "delta_gbp" | "del
   return breaks;
 }
 
+function computeMinMax(fc: any, metric: "delta_gbp" | "delta_pct") {
+  const features = (fc?.features ?? []) as any[];
+  let min = Infinity;
+  let max = -Infinity;
+
+  for (const f of features) {
+    const p = f.properties || {};
+    const raw = Number(p[metric] ?? NaN);
+    if (!isFinite(raw)) continue;
+    if (raw < min) min = raw;
+    if (raw > max) max = raw;
+  }
+
+  if (!isFinite(min) || !isFinite(max)) return null;
+  return { min, max };
+}
+
+function buildDeltaStops(maxAbs: number) {
+  return DELTA_STOP_WEIGHTS.map((w) => w * maxAbs);
+}
+
+function buildDeltaColorExpression(metric: string, stops: number[], colors: string[]) {
+  const expr: any[] = ["interpolate", ["linear"], ["get", metric]];
+  for (let i = 0; i < stops.length && i < colors.length; i++) {
+    expr.push(stops[i]);
+    expr.push(colors[i]);
+  }
+  return expr as any;
+}
+
 function buildTailColorExpression(metric: string, breaks: number[], colors: string[]) {
   // build a step expression: start with color for values < first threshold
   const expr: any[] = ["step", ["get", metric], colors[0]];
@@ -533,7 +597,7 @@ function updateOverlayFromFeatureCollection(map: maplibregl.Map, fc: any) {
     let html = `<div style="font-weight:700">Weighted median: N/A</div>`;
     if (sumW > 0) {
       const avg = Math.round(sumWX / sumW);
-      html = `<div style="font-weight:700">Weighted median: £${avg.toLocaleString()}</div>`;
+      html = `<div style="font-weight:700">Weighted median: GBP ${avg.toLocaleString()}</div>`;
       html += `<div style="margin-top:4px">Transactions: <b>${sumW.toLocaleString()}</b></div>`;
     } else {
       html += `<div style="margin-top:4px">Transactions: <b>0</b></div>`;
@@ -772,3 +836,7 @@ function cartesianToLatLon(x: number, y: number, z: number, a_: number, b_: numb
 
 function degToRad(d: number) { return (d * Math.PI) / 180; }
 function radToDeg(r: number) { return (r * 180) / Math.PI; }
+
+
+
+

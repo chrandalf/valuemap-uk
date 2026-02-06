@@ -1,7 +1,7 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
-import ValueMap, { type QuantileLegend } from "./Map";
+import ValueMap, { type LegendData } from "./Map";
 
 type GridSize = "1km" | "5km" | "10km" | "25km";
 type Metric = "median" | "delta_gbp" | "delta_pct";
@@ -18,8 +18,8 @@ type MapState = {
 
 const METRIC_LABEL: Record<Metric, string> = {
   median: "Median",
-  delta_gbp: "Î” Â£",
-  delta_pct: "Î” %",
+  delta_gbp: "Change (GBP)",
+  delta_pct: "Change (%)",
 };
 
 const PROPERTY_LABEL: Record<PropertyType, string> = {
@@ -44,14 +44,19 @@ export default function Home() {
     newBuild: "ALL",
     endMonth: "LATEST",
   });
-  const [quantileLegend, setQuantileLegend] = useState<QuantileLegend | null>(null);
-  const medianLegend = state.metric === "median" ? quantileLegend : null;
+  const [legend, setLegend] = useState<LegendData | null>(null);
+  const medianLegend =
+    state.metric === "median" && legend && legend.kind === "median" ? legend : null;
+  const deltaLegend =
+    state.metric !== "median" && legend && legend.kind === "delta" && legend.metric === state.metric
+      ? legend
+      : null;
 
   return (
     <main style={{ position: "relative", minHeight: "100vh", overflow: "hidden" }}>
-      <ValueMap state={state} onLegendChange={setQuantileLegend} />
+      <ValueMap state={state} onLegendChange={setLegend} />
 
-      {/* Top-left â€œproductâ€ panel */}
+      {/* Top-left product panel */}
       <div
         style={{
           position: "absolute",
@@ -137,13 +142,13 @@ export default function Home() {
 
         {/* Quick debug so you can see it working */}
         <div style={{ marginTop: 10, fontSize: 12, opacity: 0.65 }}>
-          {`Selected: ${state.grid} Â· ${METRIC_LABEL[state.metric]} Â· ${PROPERTY_LABEL[state.propertyType]} Â· ${NEWBUILD_LABEL[state.newBuild]} Â· ${state.endMonth ?? "LATEST"}`}
+          {`Selected: ${state.grid} - ${METRIC_LABEL[state.metric]} - ${PROPERTY_LABEL[state.propertyType]} - ${NEWBUILD_LABEL[state.newBuild]} - ${state.endMonth ?? "LATEST"}`}
         </div>
 
         {/* Deltas explanation */}
         {state.metric !== "median" && (
           <div style={{ marginTop: 12, padding: 10, borderRadius: 8, background: "rgba(255,255,255,0.08)", borderLeft: "3px solid #fdae61", fontSize: 11, lineHeight: 1.4, opacity: 0.9 }}>
-            <div style={{ fontWeight: 600, marginBottom: 6 }}>Price Change (Î”)</div>
+            <div style={{ fontWeight: 600, marginBottom: 6 }}>Price change</div>
             <div style={{ marginBottom: 6 }}>
               Comparing <b>earliest available month (Dec 2021)</b> to <b>latest month (Dec 2025)</b>.
             </div>
@@ -205,36 +210,36 @@ export default function Home() {
           </>
         )}
 
-        {state.metric === "delta_gbp" && (
-          <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ textAlign: "center", fontSize: 13, opacity: 0.75, minWidth: 60 }}>-Â£300k</div>
-            <div style={{ display: "flex", height: 50, flex: 1, gap: 2 }}>
-              {[
-                "#4a0080", "#6b0094", "#8b00a8", "#d73027", "#e74c3c",
-                "#f08080", "#f7f7f7", "#91cf60", "#1a9850", "#238b45",
-                "#08519c", "#05337a"
-              ].map((c, i) => (
-                <div key={i} style={{ flex: 1, backgroundColor: c, borderRadius: 3 }} />
-              ))}
-            </div>
-            <div style={{ textAlign: "center", fontSize: 13, opacity: 0.75, minWidth: 60 }}>+Â£300k</div>
-          </div>
-        )}
-
-        {state.metric === "delta_pct" && (
-          <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ textAlign: "center", fontSize: 13, opacity: 0.75, minWidth: 50 }}>-30%</div>
-            <div style={{ display: "flex", height: 50, flex: 1, gap: 2 }}>
-              {[
-                "#4a0080", "#6b0094", "#8b00a8", "#d73027", "#e74c3c",
-                "#f08080", "#f7f7f7", "#91cf60", "#1a9850", "#238b45",
-                "#08519c", "#05337a"
-              ].map((c, i) => (
-                <div key={i} style={{ flex: 1, backgroundColor: c, borderRadius: 3 }} />
-              ))}
-            </div>
-            <div style={{ textAlign: "center", fontSize: 13, opacity: 0.75, minWidth: 50 }}>+30%</div>
-          </div>
+        {state.metric !== "median" && (
+          <>
+            {!deltaLegend && (
+              <div style={{ fontSize: 13, opacity: 0.75 }}>Loading scale...</div>
+            )}
+            {deltaLegend && (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "90px 1fr 90px", gap: 8, alignItems: "center" }}>
+                  <div style={{ textAlign: "left", fontSize: 13, opacity: 0.75 }}>
+                    {formatDeltaValue(state.metric, deltaLegend.stops[0])}
+                  </div>
+                  <div style={{ display: "flex", height: 50, gap: 2 }}>
+                    {deltaLegend.colors.map((c, i) => (
+                      <div key={i} style={{ flex: 1, backgroundColor: c, borderRadius: 3 }} />
+                    ))}
+                  </div>
+                  <div style={{ textAlign: "right", fontSize: 13, opacity: 0.75 }}>
+                    {formatDeltaValue(state.metric, deltaLegend.stops[deltaLegend.stops.length - 1])}
+                  </div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "90px 1fr 90px", marginTop: 6 }}>
+                  <div />
+                  <div style={{ textAlign: "center", fontSize: 12, opacity: 0.75 }}>
+                    {state.metric === "delta_pct" ? "0%" : "0"}
+                  </div>
+                  <div />
+                </div>
+              </>
+            )}
+          </>
         )}
       </div>
     </main>
@@ -300,12 +305,30 @@ function Segment({
 
 function formatCurrency(value: number) {
   if (!Number.isFinite(value)) return "N/A";
-  return `\u00A3${Math.round(value).toLocaleString()}`;
+  return `GBP ${Math.round(value).toLocaleString()}`;
 }
 
-function getQuantileValue(legend: QuantileLegend, p: number) {
+function formatSignedCurrency(value: number) {
+  if (!Number.isFinite(value)) return "N/A";
+  const sign = value > 0 ? "+" : value < 0 ? "-" : "";
+  return `${sign}GBP ${Math.round(Math.abs(value)).toLocaleString()}`;
+}
+
+function formatPercent(value: number, withSign: boolean) {
+  if (!Number.isFinite(value)) return "N/A";
+  const sign = withSign ? (value > 0 ? "+" : value < 0 ? "-" : "") : "";
+  return `${sign}${Math.abs(value).toFixed(1)}%`;
+}
+
+function formatDeltaValue(metric: Metric, value: number) {
+  return metric === "delta_pct" ? formatPercent(value, true) : formatSignedCurrency(value);
+}
+
+function getQuantileValue(legend: Extract<LegendData, { kind: "median" }>, p: number) {
   const idx = legend.probs.findIndex((v) => v === p);
   if (idx < 0 || idx >= legend.breaks.length) return NaN;
   return legend.breaks[idx];
 }
+
+
 
