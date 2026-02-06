@@ -102,15 +102,13 @@ export default function ValueMap({ state }: { state: MapState }) {
     const p = f.properties || {};
     const median = Number(p.median ?? 0);
     const tx = Number(p.tx_count ?? 0);
-    const stale = Number(p.years_stale ?? 0);
 
     popup
       .setLngLat(e.lngLat)
       .setHTML(`
         <div style="font-family: system-ui; font-size: 12px; line-height: 1.25;">
           <div style="font-weight: 700; margin-bottom: 4px;">£${median.toLocaleString()}</div>
-          <div>Tx: <b>${tx}</b></div>
-          <div>Stale: <b>${stale}</b>y</div>
+          <div>Sales: <b>${tx}</b></div>
         </div>
       `)
       .addTo(map);
