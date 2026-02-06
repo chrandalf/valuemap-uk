@@ -396,12 +396,12 @@ function buildTailColorExpression(metric: string, breaks: number[], colors: stri
 
 function makeTailColors() {
   // bottom tail (5 steps), middle (10), top tail (5)
-  const bottom = ["#04274a","#0b4c6b","#16799a","#2aa3c6","#58c7e6"];
+  const bottom = ["#366ca1","#236686","#16799a","#2aa3c6","#58c7e6"];
   const middle = [
     "#00ccbc","#6dd2a8","#bfeaa3","#ffffbf","#fee08b",
     "#fdae61","#f07a4a","#e04d3b","#d73027","#b30015",
   ];
-  const top = ["#ff6b6b","#ff4c4c","#ff2b2b","#ff0000","#b30000"];
+  const top = ["#3a0480", "#39235b", "#241048", "#140534", "#010001"];
   return [...bottom, ...middle, ...top];
 }
 
