@@ -44,3 +44,8 @@ next-env.d.ts
 *.json.gz
 *.gz
 *.json
+*.txt
+data/
+output/
+pipeline/data/
+pipeline/output/
