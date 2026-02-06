@@ -126,6 +126,7 @@ export default function Home() {
               }}
             />
           </ControlRow>
+        </div>
 
         {/* Quick debug so you can see it working */}
         <div style={{ marginTop: 10, fontSize: 12, opacity: 0.65 }}>
