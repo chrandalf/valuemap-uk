@@ -1,0 +1,5 @@
+TODO (next session)
+- Upload `postcode_grid_outcode_lookup.json.gz` to R2.
+- Update `functions/api/postcodes.ts` default key to the new outcode file name/path.
+- Confirm binding name (R2 vs BRICKGRID_BUCKET) in Pages Functions.
+- Verify map click shows outcode list; adjust UI if needed.
