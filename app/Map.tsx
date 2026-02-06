@@ -15,6 +15,13 @@ export type MapState = {
   endMonth?: string;
 };
 
+export type QuantileLegend = {
+  metric: "median";
+  breaks: number[];
+  colors: string[];
+  probs: number[];
+};
+
 type ApiRow = {
   gx: number;
   gy: number;
@@ -28,7 +35,13 @@ type ApiRow = {
   years_stale?: number;
 };
 
-export default function ValueMap({ state }: { state: MapState }) {
+export default function ValueMap({
+  state,
+  onLegendChange,
+}: {
+  state: MapState;
+  onLegendChange?: (legend: QuantileLegend | null) => void;
+}) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -151,7 +164,7 @@ export default function ValueMap({ state }: { state: MapState }) {
   });
 
   // Initial real data load
-  await setRealData(map, state, geoCacheRef.current);
+  await setRealData(map, state, geoCacheRef.current, undefined, onLegendChange);
 });
 
     mapRef.current = map;
@@ -174,7 +187,7 @@ export default function ValueMap({ state }: { state: MapState }) {
 
     const abortController = new AbortController();
 
-    setRealData(map, state, geoCacheRef.current, abortController.signal).catch((e) => {
+    setRealData(map, state, geoCacheRef.current, abortController.signal, onLegendChange).catch((e) => {
       if (e.name !== "AbortError") {
         console.error("setRealData failed", e);
       }
@@ -193,7 +206,7 @@ export default function ValueMap({ state }: { state: MapState }) {
     if (!map.isStyleLoaded()) return;
 
     // Recompute percentile-based colour mapping using the current grid aggregate
-    ensureAggregatesAndUpdate(map, state, geoCacheRef.current).catch((e) => {
+    ensureAggregatesAndUpdate(map, state, geoCacheRef.current, onLegendChange).catch((e) => {
       // fallback to absolute expression if anything goes wrong
       // eslint-disable-next-line no-console
       console.error('ensureAggregatesAndUpdate failed on metric change', e);
@@ -227,7 +240,13 @@ export default function ValueMap({ state }: { state: MapState }) {
 
 /** ---------------- Real data wiring ---------------- */
 
-async function setRealData(map: maplibregl.Map, state: MapState, cache: Map<string, any>, signal?: AbortSignal) {
+async function setRealData(
+  map: maplibregl.Map,
+  state: MapState,
+  cache: Map<string, any>,
+  signal?: AbortSignal,
+  onLegendChange?: (legend: QuantileLegend | null) => void
+) {
   // Determine if we're fetching delta or regular data
   const isDelta = state.metric === "delta_gbp" || state.metric === "delta_pct";
   const endpoint = isDelta ? "/api/deltas" : "/api/cells";
@@ -238,7 +257,7 @@ async function setRealData(map: maplibregl.Map, state: MapState, cache: Map<stri
   if (cached) {
     const src = map.getSource("cells") as maplibregl.GeoJSONSource;
     src.setData(cached);
-    await ensureAggregatesAndUpdate(map, state, cache);
+    await ensureAggregatesAndUpdate(map, state, cache, onLegendChange);
     return;
   }
 
@@ -275,7 +294,7 @@ async function setRealData(map: maplibregl.Map, state: MapState, cache: Map<stri
 
   const src = map.getSource("cells") as maplibregl.GeoJSONSource;
   src.setData(fc as any);
-  await ensureAggregatesAndUpdate(map, state, cache);
+  await ensureAggregatesAndUpdate(map, state, cache, onLegendChange);
 }
 
 // Normalize delta rows: rename gx_5000/gy_5000 to gx/gy based on grid
@@ -298,7 +317,14 @@ function normalizeDeltaRows(rows: any[], grid: GridSize): ApiRow[] {
   }));
 }
 
-async function ensureAggregatesAndUpdate(map: maplibregl.Map, state: MapState, cache: Map<string, any>) {
+const QUANTILE_PROBS = [0,0.01,0.02,0.03,0.04,0.05,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,0.95,0.96,0.97,0.98,0.99,1];
+
+async function ensureAggregatesAndUpdate(
+  map: maplibregl.Map,
+  state: MapState,
+  cache: Map<string, any>,
+  onLegendChange?: (legend: QuantileLegend | null) => void
+) {
   try {
     // For delta metrics, apply simple linear color mapping (quantiles can be complex with diverging data)
     const isDelta = state.metric === "delta_gbp" || state.metric === "delta_pct";
@@ -306,6 +332,7 @@ async function ensureAggregatesAndUpdate(map: maplibregl.Map, state: MapState, c
       if (map.getLayer("cells-fill")) {
         map.setPaintProperty("cells-fill", "fill-color", getFillColorExpression(state.metric));
       }
+      if (onLegendChange) onLegendChange(null);
       return;
     }
 
@@ -400,23 +427,27 @@ async function ensureAggregatesAndUpdate(map: maplibregl.Map, state: MapState, c
       }
     }
 
-    // 3) compute decile breaks from the current-grid aggregate (or fallback to 25km)
+    // 3) compute quantile breaks from the current-grid aggregate (or fallback to 25km)
     try {
       let breaks: number[] | null = null;
-      const probs = [0,0.01,0.02,0.03,0.04,0.05,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,0.95,0.96,0.97,0.98,0.99,1];
-      if (fcCur) breaks = computeWeightedQuantiles(fcCur, state.metric, probs);
-      else if (fc25) breaks = computeWeightedQuantiles(fc25, state.metric, probs);
+      const sourceFc = fcCur || fc25;
+      if (sourceFc) breaks = computeWeightedQuantiles(sourceFc, state.metric, QUANTILE_PROBS);
 
-      if (breaks) {
+      if (breaks && breaks.length > 0 && breaks.every((v) => Number.isFinite(v))) {
         const colors = makeTailColors();
         const expr = buildTailColorExpression(state.metric, breaks, colors);
         if (map.getLayer("cells-fill")) {
           map.setPaintProperty("cells-fill", "fill-color", expr);
         }
+        if (onLegendChange) {
+          onLegendChange({ metric: "median", breaks, colors, probs: QUANTILE_PROBS });
+        }
+      } else if (onLegendChange) {
+        onLegendChange(null);
       }
     } catch (e) {
       // eslint-disable-next-line no-console
-      console.warn('Failed to apply decile colour mapping', e);
+      console.warn('Failed to apply quantile colour mapping', e);
     }
 
   } catch (e) {
