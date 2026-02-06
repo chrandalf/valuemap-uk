@@ -343,7 +343,7 @@ async function ensureAggregatesAndUpdate(
     if (isDelta) {
       const src = map.getSource("cells") as maplibregl.GeoJSONSource | undefined;
       const srcData: any = src ? (src as any)._data ?? null : null;
-      const stats = computeMinMax(srcData, state.metric);
+      const stats = computeMinMax(srcData, state.metric as "delta_gbp" | "delta_pct");
       const fallbackMaxAbs = state.metric === "delta_pct" ? 30 : 300000;
       const maxAbs = stats ? Math.max(Math.abs(stats.min), Math.abs(stats.max)) : 0;
       const safeMaxAbs = maxAbs > 0 ? maxAbs : fallbackMaxAbs;
