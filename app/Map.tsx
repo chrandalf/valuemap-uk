@@ -209,22 +209,8 @@ export default function ValueMap({
     };
   }, [state.grid, state.propertyType, state.newBuild, state.endMonth, state.metric]);
 
-  // Update colours when metric changes (no refetch)
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    if (!map.isStyleLoaded()) return;
-
-    // Recompute percentile-based colour mapping using the current grid aggregate
-    ensureAggregatesAndUpdate(map, state, geoCacheRef.current, onLegendChange).catch((e) => {
-      // fallback to absolute expression if anything goes wrong
-      // eslint-disable-next-line no-console
-      console.error('ensureAggregatesAndUpdate failed on metric change', e);
-      if (map.getLayer("cells-fill")) {
-        map.setPaintProperty("cells-fill", "fill-color", getFillColorExpression(state.metric));
-      }
-    });
-  }, [state.metric]);
+  // Note: metric changes already trigger setRealData (via deps below).
+  // Avoid a separate recolor effect to prevent stale data/legend during rapid filter changes.
 
   return (
     <div ref={containerRef} style={{ position: "absolute", inset: 0 }}>
