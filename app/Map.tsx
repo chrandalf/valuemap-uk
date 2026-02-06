@@ -56,6 +56,26 @@ export default function ValueMap({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const requestSeqRef = useRef(0);
+  const stateRef = useRef<MapState>(state);
+
+  const [postcodeCell, setPostcodeCell] = useState<string | null>(null);
+  const [postcodeItems, setPostcodeItems] = useState<string[]>([]);
+  const [postcodeTotal, setPostcodeTotal] = useState(0);
+  const [postcodeOffset, setPostcodeOffset] = useState(0);
+  const [postcodeLoading, setPostcodeLoading] = useState(false);
+  const [postcodeError, setPostcodeError] = useState<string | null>(null);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  useEffect(() => {
+    setPostcodeCell(null);
+    setPostcodeItems([]);
+    setPostcodeTotal(0);
+    setPostcodeOffset(0);
+    setPostcodeError(null);
+  }, [state.grid]);
 
   // Cache: avoid recomputing polygons when toggling metric only
   const geoCacheRef = useRef<Map<string, any>>(new Map<string, any>());
@@ -175,6 +195,43 @@ export default function ValueMap({
     popup.remove();
   });
 
+  const fetchPostcodes = async (cell: string, offset: number, append: boolean) => {
+    setPostcodeLoading(true);
+    setPostcodeError(null);
+    setPostcodeCell(cell);
+    try {
+      const qs = new URLSearchParams({
+        grid: stateRef.current.grid,
+        cell,
+        limit: "10",
+        offset: String(offset),
+      });
+      const res = await fetch(`/api/postcodes?${qs.toString()}`);
+      if (!res.ok) {
+        throw new Error(`Failed to load postcodes (${res.status})`);
+      }
+      const data = await res.json();
+      const items = Array.isArray(data.postcodes) ? data.postcodes : [];
+      const total = Number(data.total ?? items.length);
+      setPostcodeTotal(total);
+      setPostcodeOffset(offset);
+      setPostcodeItems((prev) => (append ? [...prev, ...items] : items));
+    } catch (e: any) {
+      setPostcodeError(e?.message || "Failed to load postcodes");
+    } finally {
+      setPostcodeLoading(false);
+    }
+  };
+
+  map.on("click", "cells-fill", (e) => {
+    const f = e.features?.[0] as any;
+    if (!f) return;
+    const cellId = (f.id ?? f.properties?.id ?? `${f.properties?.gx}_${f.properties?.gy}`) as string | number;
+    const cell = String(cellId);
+    if (!cell || cell === "undefined_undefined") return;
+    void fetchPostcodes(cell, 0, false);
+  });
+
   // Initial real data load
   await setRealData(map, state, geoCacheRef.current, undefined, onLegendChange);
 });
@@ -263,6 +320,81 @@ export default function ValueMap({
       >
         Loading...
       </div>
+      {postcodeCell && (
+        <div
+          style={{
+            position: "absolute",
+            left: 12,
+            bottom: 12,
+            background: "rgba(10, 12, 20, 0.92)",
+            color: "white",
+            padding: "10px 12px",
+            borderRadius: 10,
+            boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
+            fontSize: 12,
+            zIndex: 3,
+            maxWidth: 280,
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 6 }}>
+            <div style={{ fontWeight: 600 }}>Postcodes</div>
+            <button
+              type="button"
+              onClick={() => {
+                setPostcodeCell(null);
+                setPostcodeItems([]);
+                setPostcodeTotal(0);
+                setPostcodeOffset(0);
+                setPostcodeError(null);
+              }}
+              style={{
+                cursor: "pointer",
+                border: "none",
+                background: "transparent",
+                color: "rgba(255,255,255,0.7)",
+                fontSize: 12,
+              }}
+            >
+              Close
+            </button>
+          </div>
+          <div style={{ opacity: 0.7, marginBottom: 6 }}>{postcodeCell}</div>
+          {postcodeError && <div style={{ color: "#ff9999" }}>{postcodeError}</div>}
+          {!postcodeError && (
+            <>
+              {postcodeLoading && postcodeItems.length === 0 && <div>Loading...</div>}
+              {postcodeItems.length === 0 && !postcodeLoading && <div>No postcodes found.</div>}
+              {postcodeItems.length > 0 && (
+                <div style={{ display: "grid", gap: 4, maxHeight: 180, overflow: "auto" }}>
+                  {postcodeItems.map((pc, i) => (
+                    <div key={`${pc}-${i}`}>{pc}</div>
+                  ))}
+                </div>
+              )}
+              {postcodeItems.length < postcodeTotal && (
+                <button
+                  type="button"
+                  onClick={() => void fetchPostcodes(postcodeCell, postcodeOffset + 10, true)}
+                  style={{
+                    marginTop: 8,
+                    cursor: "pointer",
+                    border: "1px solid rgba(255,255,255,0.2)",
+                    background: "rgba(255,255,255,0.08)",
+                    color: "white",
+                    padding: "6px 8px",
+                    borderRadius: 6,
+                    fontSize: 12,
+                    width: "100%",
+                  }}
+                  disabled={postcodeLoading}
+                >
+                  {postcodeLoading ? "Loading..." : "Show more"}
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
