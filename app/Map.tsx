@@ -291,27 +291,11 @@ function normalizeDeltaRows(rows: any[], grid: GridSize): ApiRow[] {
 
 async function ensureAggregatesAndUpdate(map: maplibregl.Map, state: MapState, cache: Map<string, any>) {
   try {
-    // For delta metrics, apply percentile-based color mapping (no 25km overlay needed)
+    // For delta metrics, apply simple linear color mapping (quantiles can be complex with diverging data)
     const isDelta = state.metric === "delta_gbp" || state.metric === "delta_pct";
     if (isDelta) {
-      // Get current map source and compute quantiles on delta field
-      try {
-        const src = map.getSource("cells") as maplibregl.GeoJSONSource | undefined;
-        const srcData: any = src ? (src as any)._data ?? null : null;
-        if (srcData && Array.isArray(srcData.features) && srcData.features.length > 0) {
-          const probs = [0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 1];
-          const breaks = computeWeightedQuantiles(srcData, state.metric, probs);
-          const colors = makeDeltaColors();
-          const expr = buildTailColorExpression(state.metric, breaks, colors);
-          if (map.getLayer("cells-fill")) {
-            map.setPaintProperty("cells-fill", "fill-color", expr);
-          }
-        }
-      } catch (e) {
-        // fallback to linear interpolation if quantile fails
-        if (map.getLayer("cells-fill")) {
-          map.setPaintProperty("cells-fill", "fill-color", getFillColorExpression(state.metric));
-        }
+      if (map.getLayer("cells-fill")) {
+        map.setPaintProperty("cells-fill", "fill-color", getFillColorExpression(state.metric));
       }
       return;
     }
@@ -487,16 +471,6 @@ function makeTailColors() {
   ];
   const top = ["#3a0480", "#39235b", "#241048", "#140534", "#010001"];
   return [...bottom, ...middle, ...top];
-}
-
-function makeDeltaColors() {
-  // Diverging palette for deltas: purple (extreme neg) → red (neg) → white (zero) → green (pos) → dark blue (extreme pos)
-  const negExtreme = ["#4a0080", "#6b0094", "#8b00a8"];
-  const neg = ["#d73027", "#e74c3c", "#f08080"];
-  const neutral = ["#f7f7f7", "#ffffff"];
-  const pos = ["#91cf60", "#1a9850", "#238b45"];
-  const posExtreme = ["#08519c", "#05337a"];
-  return [...negExtreme, ...neg, ...neutral, ...pos, ...posExtreme];
 }
 
 function updateOverlayFromFeatureCollection(map: maplibregl.Map, fc: any) {
