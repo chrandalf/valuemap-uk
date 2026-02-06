@@ -54,10 +54,12 @@ export default function Home() {
 
   return (
     <main style={{ position: "relative", minHeight: "100vh", overflow: "hidden" }}>
+      <Styles />
       <ValueMap state={state} onLegendChange={setLegend} />
 
       {/* Top-left product panel */}
       <div
+        className="panel"
         style={{
           position: "absolute",
           top: 18,
@@ -80,7 +82,7 @@ export default function Home() {
         </div>
 
         {/* Controls */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10, marginTop: 14 }}>
+        <div className="controls" style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10, marginTop: 14 }}>
           <ControlRow label="Grid">
             <Segment
               options={state.metric === "median" ? ["1km", "5km", "10km", "25km"] : ["5km", "10km", "25km"]}
@@ -162,6 +164,7 @@ export default function Home() {
 
       {/* Bottom-right legend */}
       <div
+        className="legend"
         style={{
           position: "absolute",
           right: 18,
@@ -250,8 +253,8 @@ export default function Home() {
 
 function ControlRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, alignItems: "center" }}>
-      <div style={{ fontSize: 12, opacity: 0.8 }}>{label}</div>
+    <div className="control-row" style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, alignItems: "center" }}>
+      <div className="control-label" style={{ fontSize: 12, opacity: 0.8 }}>{label}</div>
       {children}
     </div>
   );
@@ -270,6 +273,7 @@ function Segment({
 }) {
   return (
     <div
+      className="segment"
       style={{
         display: "flex",
         borderRadius: 999,
@@ -301,6 +305,46 @@ function Segment({
         );
       })}
     </div>
+  );
+}
+
+/* Responsive tweaks for phones */
+export function Styles() {
+  return (
+    <style jsx global>{`
+      @media (max-width: 640px) {
+        .panel {
+          left: 12px !important;
+          right: 12px !important;
+          top: 12px !important;
+          width: auto !important;
+          max-width: none !important;
+          padding: 12px !important;
+        }
+        .controls {
+          gap: 8px !important;
+        }
+        .control-row {
+          grid-template-columns: 1fr !important;
+          gap: 6px !important;
+        }
+        .control-label {
+          font-size: 11px !important;
+          opacity: 0.7 !important;
+        }
+        .segment {
+          width: 100% !important;
+          flex-wrap: wrap !important;
+        }
+        .legend {
+          right: 12px !important;
+          left: 12px !important;
+          width: auto !important;
+          max-width: none !important;
+          padding: 14px 16px !important;
+        }
+      }
+    `}</style>
   );
 }
 
