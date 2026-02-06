@@ -172,9 +172,18 @@ export default function ValueMap({ state }: { state: MapState }) {
     const src = map.getSource("cells") as maplibregl.GeoJSONSource | undefined;
     if (!src) return;
 
-    setRealData(map, state, geoCacheRef.current).catch((e) => {
-      console.error("setRealData failed", e);
+    const abortController = new AbortController();
+
+    setRealData(map, state, geoCacheRef.current, abortController.signal).catch((e) => {
+      if (e.name !== "AbortError") {
+        console.error("setRealData failed", e);
+      }
     });
+
+    // Cleanup: abort in-flight request if component unmounts or state changes again
+    return () => {
+      abortController.abort();
+    };
   }, [state.grid, state.propertyType, state.newBuild, state.endMonth, state.metric]);
 
   // Update colours when metric changes (no refetch)
@@ -218,7 +227,7 @@ export default function ValueMap({ state }: { state: MapState }) {
 
 /** ---------------- Real data wiring ---------------- */
 
-async function setRealData(map: maplibregl.Map, state: MapState, cache: Map<string, any>) {
+async function setRealData(map: maplibregl.Map, state: MapState, cache: Map<string, any>, signal?: AbortSignal) {
   // Determine if we're fetching delta or regular data
   const isDelta = state.metric === "delta_gbp" || state.metric === "delta_pct";
   const endpoint = isDelta ? "/api/deltas" : "/api/cells";
@@ -244,7 +253,7 @@ async function setRealData(map: maplibregl.Map, state: MapState, cache: Map<stri
     qs.set("endMonth", endMonth!);
   }
 
-  const res = await fetch(`${endpoint}?${qs.toString()}`);
+  const res = await fetch(`${endpoint}?${qs.toString()}`, { signal });
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
     throw new Error(`API failed ${res.status}: ${txt}`);
