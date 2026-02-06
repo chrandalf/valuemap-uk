@@ -158,65 +158,65 @@ export default function Home() {
           position: "absolute",
           right: 18,
           bottom: 18,
-          padding: "12px 16px",
+          padding: "20px 28px",
           borderRadius: 14,
           background: "rgba(10, 12, 20, 0.85)",
           border: "1px solid rgba(255,255,255,0.12)",
           backdropFilter: "blur(10px)",
           color: "white",
-          fontSize: 11,
-          maxWidth: 400,
+          fontSize: 14,
+          maxWidth: 600,
         }}
       >
-        <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 12, opacity: 0.9 }}>
+        <div style={{ fontWeight: 600, marginBottom: 16, fontSize: 18, opacity: 0.9 }}>
           {METRIC_LABEL[state.metric]} Scale
         </div>
         
         {state.metric === "median" && (
-          <div style={{ display: "flex", gap: 2, alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ textAlign: "center", fontSize: 10, opacity: 0.75 }}>£100k</div>
-            <div style={{ display: "flex", height: 20, flex: 1, gap: 1 }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ textAlign: "center", fontSize: 13, opacity: 0.75, minWidth: 50 }}>£100k</div>
+            <div style={{ display: "flex", height: 50, flex: 1, gap: 2 }}>
               {[
                 "#2c7bb6", "#236b8e", "#1b5a8c", "#154b8a", "#0f3a88",
                 "#008b9c", "#00ccbc", "#6dd2a8", "#bfeaa3", "#ffffbf",
                 "#fee08b", "#fdae61", "#f07a4a", "#e04d3b", "#d73027"
               ].map((c, i) => (
-                <div key={i} style={{ flex: 1, backgroundColor: c, borderRadius: 2 }} />
+                <div key={i} style={{ flex: 1, backgroundColor: c, borderRadius: 3 }} />
               ))}
             </div>
-            <div style={{ textAlign: "center", fontSize: 10, opacity: 0.75 }}>£1M+</div>
+            <div style={{ textAlign: "center", fontSize: 13, opacity: 0.75, minWidth: 50 }}>£1M+</div>
           </div>
         )}
 
         {state.metric === "delta_gbp" && (
-          <div style={{ display: "flex", gap: 2, alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ textAlign: "center", fontSize: 10, opacity: 0.75 }}>-£300k</div>
-            <div style={{ display: "flex", height: 20, flex: 1, gap: 1 }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ textAlign: "center", fontSize: 13, opacity: 0.75, minWidth: 60 }}>-£300k</div>
+            <div style={{ display: "flex", height: 50, flex: 1, gap: 2 }}>
               {[
                 "#4a0080", "#6b0094", "#8b00a8", "#d73027", "#e74c3c",
                 "#f08080", "#f7f7f7", "#91cf60", "#1a9850", "#238b45",
                 "#08519c", "#05337a"
               ].map((c, i) => (
-                <div key={i} style={{ flex: 1, backgroundColor: c, borderRadius: 2 }} />
+                <div key={i} style={{ flex: 1, backgroundColor: c, borderRadius: 3 }} />
               ))}
             </div>
-            <div style={{ textAlign: "center", fontSize: 10, opacity: 0.75 }}>+£300k</div>
+            <div style={{ textAlign: "center", fontSize: 13, opacity: 0.75, minWidth: 60 }}>+£300k</div>
           </div>
         )}
 
         {state.metric === "delta_pct" && (
-          <div style={{ display: "flex", gap: 2, alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ textAlign: "center", fontSize: 10, opacity: 0.75 }}>-30%</div>
-            <div style={{ display: "flex", height: 20, flex: 1, gap: 1 }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ textAlign: "center", fontSize: 13, opacity: 0.75, minWidth: 50 }}>-30%</div>
+            <div style={{ display: "flex", height: 50, flex: 1, gap: 2 }}>
               {[
                 "#4a0080", "#6b0094", "#8b00a8", "#d73027", "#e74c3c",
                 "#f08080", "#f7f7f7", "#91cf60", "#1a9850", "#238b45",
                 "#08519c", "#05337a"
               ].map((c, i) => (
-                <div key={i} style={{ flex: 1, backgroundColor: c, borderRadius: 2 }} />
+                <div key={i} style={{ flex: 1, backgroundColor: c, borderRadius: 3 }} />
               ))}
             </div>
-            <div style={{ textAlign: "center", fontSize: 10, opacity: 0.75 }}>+30%</div>
+            <div style={{ textAlign: "center", fontSize: 13, opacity: 0.75, minWidth: 50 }}>+30%</div>
           </div>
         )}
       </div>
