@@ -209,7 +209,14 @@ export default function ValueMap({
       });
       const res = await fetch(`/api/postcodes?${qs.toString()}`);
       if (!res.ok) {
-        throw new Error(`Failed to load postcodes (${res.status})`);
+        let msg = `Failed to load postcodes (${res.status})`;
+        try {
+          const err = (await res.json()) as { message?: string };
+          if (err?.message) msg = `${msg}: ${err.message}`;
+        } catch (e) {
+          // ignore
+        }
+        throw new Error(msg);
       }
       const data = (await res.json()) as { postcodes?: unknown; total?: unknown };
       const items = Array.isArray(data.postcodes) ? (data.postcodes as string[]) : [];

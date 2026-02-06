@@ -1,42 +1,51 @@
 import type { R2Bucket } from "@cloudflare/workers-types";
 
 export const onRequestGet = async ({ env, request }: { env: Env; request: Request }) => {
-  const url = new URL(request.url);
+  try {
+    const url = new URL(request.url);
 
-  const grid = (url.searchParams.get("grid") ?? "25km") as GridKey;
-  const cell = (url.searchParams.get("cell") ?? "").trim();
-  const limit = clampInt(url.searchParams.get("limit"), 10, 1, 100);
-  const offset = clampInt(url.searchParams.get("offset"), 0, 0, 1_000_000);
+    const grid = (url.searchParams.get("grid") ?? "25km") as GridKey;
+    const cell = (url.searchParams.get("cell") ?? "").trim();
+    const limit = clampInt(url.searchParams.get("limit"), 10, 1, 100);
+    const offset = clampInt(url.searchParams.get("offset"), 0, 0, 1_000_000);
+    const key = (url.searchParams.get("key") ?? env.POSTCODE_LOOKUP_KEY ?? "valuemap-uk/postcode_grid_lookup.json.gz").trim();
 
-  if (!isGridKey(grid)) {
-    return Response.json("Invalid grid. Use 1km|5km|10km|25km", { status: 400 });
-  }
-  if (!cell) {
-    return Response.json("Missing cell", { status: 400 });
-  }
-
-  const index = await getCellIndex(env, grid);
-  const list = index.get(cell) ?? [];
-
-  const slice = list.slice(offset, offset + limit);
-  const hasMore = offset + limit < list.length;
-
-  return Response.json(
-    {
-      grid,
-      cell,
-      total: list.length,
-      offset,
-      limit,
-      has_more: hasMore,
-      postcodes: slice,
-    },
-    {
-      headers: {
-        "Cache-Control": "public, max-age=300",
-      },
+    if (!isGridKey(grid)) {
+      return Response.json("Invalid grid. Use 1km|5km|10km|25km", { status: 400 });
     }
-  );
+    if (!cell) {
+      return Response.json("Missing cell", { status: 400 });
+    }
+
+    const index = await getCellIndex(env, grid, key);
+    const list = index.get(cell) ?? [];
+
+    const slice = list.slice(offset, offset + limit);
+    const hasMore = offset + limit < list.length;
+
+    return Response.json(
+      {
+        grid,
+        cell,
+        total: list.length,
+        offset,
+        limit,
+        has_more: hasMore,
+        postcodes: slice,
+      },
+      {
+        headers: {
+          "Cache-Control": "public, max-age=300",
+        },
+      }
+    );
+  } catch (err: any) {
+    const message = err?.message || String(err);
+    return new Response(JSON.stringify({ error: "Postcode lookup failed", message }), {
+      status: 503,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
 };
 
 /* ---------- types ---------- */
@@ -50,6 +59,7 @@ function isGridKey(v: string): v is GridKey {
 interface Env {
   R2: R2Bucket;
   BRICKGRID_BUCKET?: R2Bucket;
+  POSTCODE_LOOKUP_KEY?: string;
 }
 
 type PostcodeRow = {
@@ -65,7 +75,7 @@ type PostcodeRow = {
 
 const INDEX_BY_GRID: Partial<Record<GridKey, Map<string, string[]>>> = {};
 
-async function getCellIndex(env: Env, grid: GridKey): Promise<Map<string, string[]>> {
+async function getCellIndex(env: Env, grid: GridKey, key: string): Promise<Map<string, string[]>> {
   const cached = INDEX_BY_GRID[grid];
   if (cached) return cached;
 
@@ -74,9 +84,9 @@ async function getCellIndex(env: Env, grid: GridKey): Promise<Map<string, string
     throw new Error("R2 binding not found. Expected environment binding `BRICKGRID_BUCKET` or `R2`.");
   }
 
-  const obj = await bucket.get("postcode_grid_lookup.json.gz");
+  const obj = await bucket.get(key);
   if (!obj) {
-    throw new Error("R2 object not found: postcode_grid_lookup.json.gz");
+    throw new Error(`R2 object not found: ${key}`);
   }
 
   const decompressed = await decompressGzip(await obj.arrayBuffer());
