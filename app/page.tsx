@@ -320,6 +320,8 @@ export function Styles() {
           width: auto !important;
           max-width: none !important;
           padding: 12px !important;
+          max-height: 45vh !important;
+          overflow: auto !important;
         }
         .controls {
           gap: 8px !important;
@@ -342,6 +344,7 @@ export function Styles() {
           width: auto !important;
           max-width: none !important;
           padding: 14px 16px !important;
+          bottom: 12px !important;
         }
       }
     `}</style>
