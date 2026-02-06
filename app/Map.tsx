@@ -288,6 +288,15 @@ async function setRealData(
     return;
   }
 
+  // Clear stale data while fetching to avoid showing wrong colors/legend
+  try {
+    const src = map.getSource("cells") as maplibregl.GeoJSONSource;
+    src.setData({ type: "FeatureCollection", features: [] } as any);
+  } catch (e) {
+    // ignore
+  }
+  if (onLegendChange) onLegendChange(null);
+
   const qs = new URLSearchParams({
     grid: state.grid,
     propertyType: state.propertyType ?? "ALL",
@@ -484,7 +493,7 @@ async function ensureAggregatesAndUpdate(
       const sourceFc = fcCur || fc25;
       if (sourceFc) breaks = computeWeightedQuantiles(sourceFc, state.metric, QUANTILE_PROBS);
 
-      if (breaks && breaks.length > 0 && breaks.every((v) => Number.isFinite(v))) {
+      if (breaks && breaks.length > 0 && breaks.every((v) => Number.isFinite(v)) && hasVariance(breaks)) {
         const colors = makeTailColors();
         const expr = buildTailColorExpression(state.metric, breaks, colors);
         if (map.getLayer("cells-fill")) {
@@ -493,8 +502,21 @@ async function ensureAggregatesAndUpdate(
         if (onLegendChange) {
           onLegendChange({ kind: "median", breaks, colors, probs: QUANTILE_PROBS });
         }
-      } else if (onLegendChange) {
-        onLegendChange(null);
+      } else {
+        const colors = makeTailColors();
+        const stats = computeMinMax(sourceFc, "median");
+        if (stats) {
+          const linearBreaks = buildLinearBreaks(stats.min, stats.max, QUANTILE_PROBS.length);
+          const expr = buildTailColorExpression("median", linearBreaks, colors);
+          if (map.getLayer("cells-fill")) {
+            map.setPaintProperty("cells-fill", "fill-color", expr);
+          }
+          if (onLegendChange) {
+            onLegendChange({ kind: "median", breaks: linearBreaks, colors, probs: QUANTILE_PROBS });
+          }
+        } else if (onLegendChange) {
+          onLegendChange(null);
+        }
       }
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -542,7 +564,7 @@ function computeWeightedQuantiles(fc: any, metric: "median" | "delta_gbp" | "del
   return breaks;
 }
 
-function computeMinMax(fc: any, metric: "delta_gbp" | "delta_pct") {
+function computeMinMax(fc: any, metric: "median" | "delta_gbp" | "delta_pct") {
   const features = (fc?.features ?? []) as any[];
   let min = Infinity;
   let max = -Infinity;
@@ -559,6 +581,19 @@ function computeMinMax(fc: any, metric: "delta_gbp" | "delta_pct") {
   return { min, max };
 }
 
+function buildLinearBreaks(min: number, max: number, count: number) {
+  if (!isFinite(min) || !isFinite(max) || count <= 1) return [min, max];
+  if (min === max) return Array.from({ length: count }, () => min);
+  const step = (max - min) / (count - 1);
+  return Array.from({ length: count }, (_, i) => min + step * i);
+}
+
+function hasVariance(breaks: number[]) {
+  if (breaks.length < 2) return false;
+  const min = Math.min(...breaks);
+  const max = Math.max(...breaks);
+  return max > min;
+}
 function buildDeltaStops(maxAbs: number) {
   return DELTA_STOP_WEIGHTS.map((w) => w * maxAbs);
 }
