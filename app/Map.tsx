@@ -191,7 +191,7 @@ async function setRealData(map: maplibregl.Map, state: MapState, cache: Map<stri
   if (cached) {
     const src = map.getSource("cells") as maplibregl.GeoJSONSource;
     src.setData(cached);
-    updateOverlayFromFeatureCollection(map, cached);
+    await ensure25kmAndUpdate(map, state, cache);
     return;
   }
 
@@ -222,7 +222,53 @@ async function setRealData(map: maplibregl.Map, state: MapState, cache: Map<stri
 
   const src = map.getSource("cells") as maplibregl.GeoJSONSource;
   src.setData(fc as any);
-  updateOverlayFromFeatureCollection(map, fc);
+  await ensure25kmAndUpdate(map, state, cache);
+}
+
+async function ensure25kmAndUpdate(map: maplibregl.Map, state: MapState, cache: Map<string, any>) {
+  try {
+    const key25 = `25km|${state.propertyType}|${state.newBuild}|LATEST`;
+    let fc25 = cache.get(key25);
+
+    if (!fc25) {
+      const qs25 = new URLSearchParams({
+        grid: "25km",
+        propertyType: state.propertyType ?? "ALL",
+        newBuild: state.newBuild ?? "ALL",
+        endMonth: "LATEST",
+      });
+
+      const res25 = await fetch(`/api/cells?${qs25.toString()}`);
+      if (res25.ok) {
+        const payload25: any = await res25.json();
+        const rows25: ApiRow[] = Array.isArray(payload25) ? payload25 : payload25.rows;
+        if (Array.isArray(rows25)) {
+          fc25 = rowsToGeoJsonSquares(rows25, gridToMeters("25km"));
+          cache.set(key25, fc25);
+        }
+      } else {
+        // If 25km fetch fails, don't block UI — fallback handled below
+        // eslint-disable-next-line no-console
+        console.warn("Failed to fetch 25km data for overlay", res25.status);
+      }
+    }
+
+    if (fc25) {
+      updateOverlayFromFeatureCollection(map, fc25);
+    } else {
+      // fallback: use any available featurecollection (current map source)
+      try {
+        const src = map.getSource("cells") as maplibregl.GeoJSONSource | undefined;
+        const data: any = src ? (src as any)._data ?? null : null;
+        if (data) updateOverlayFromFeatureCollection(map, data);
+      } catch (e) {
+        // ignore
+      }
+    }
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error("ensure25kmAndUpdate failed", e);
+  }
 }
 
 function updateOverlayFromFeatureCollection(map: maplibregl.Map, fc: any) {
