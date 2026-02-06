@@ -149,7 +149,7 @@ export default function ValueMap({ state }: { state: MapState }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Reload data when filters/grid change (not metric)
+  // Reload data when filters/grid/metric change
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -161,7 +161,7 @@ export default function ValueMap({ state }: { state: MapState }) {
     setRealData(map, state, geoCacheRef.current).catch((e) => {
       console.error("setRealData failed", e);
     });
-  }, [state.grid, state.propertyType, state.newBuild, state.endMonth]);
+  }, [state.grid, state.propertyType, state.newBuild, state.endMonth, state.metric]);
 
   // Update colours when metric changes (no refetch)
   useEffect(() => {
@@ -205,10 +205,12 @@ export default function ValueMap({ state }: { state: MapState }) {
 /** ---------------- Real data wiring ---------------- */
 
 async function setRealData(map: maplibregl.Map, state: MapState, cache: Map<string, any>) {
-  // For now: only 25km is uploaded/wired
-  
-  const endMonth = state.endMonth ?? "LATEST";
-  const cacheKey = `${state.grid}|${state.propertyType}|${state.newBuild}|${endMonth}`;
+  // Determine if we're fetching delta or regular data
+  const isDelta = state.metric === "delta_gbp" || state.metric === "delta_pct";
+  const endpoint = isDelta ? "/api/deltas" : "/api/cells";
+
+  const endMonth = isDelta ? undefined : state.endMonth ?? "LATEST";
+  const cacheKey = `${state.grid}|${state.propertyType}|${state.newBuild}|${state.metric}|${endMonth ?? "LATEST"}`;
   const cached = cache.get(cacheKey);
   if (cached) {
     const src = map.getSource("cells") as maplibregl.GeoJSONSource;
@@ -221,10 +223,14 @@ async function setRealData(map: maplibregl.Map, state: MapState, cache: Map<stri
     grid: state.grid,
     propertyType: state.propertyType ?? "ALL",
     newBuild: state.newBuild ?? "ALL",
-    endMonth: endMonth,
   });
+  
+  // Only add endMonth for non-delta requests
+  if (!isDelta) {
+    qs.set("endMonth", endMonth!);
+  }
 
-  const res = await fetch(`/api/cells?${qs.toString()}`);
+  const res = await fetch(`${endpoint}?${qs.toString()}`);
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
     throw new Error(`API failed ${res.status}: ${txt}`);
@@ -232,11 +238,13 @@ async function setRealData(map: maplibregl.Map, state: MapState, cache: Map<stri
 
   const payload: any = await res.json();
 
-  // Your endpoint currently returns either:
-  //  A) { rows: [...] }  or
-  //  B) [...]  (raw list)
-  const rows: ApiRow[] = Array.isArray(payload) ? payload : payload.rows;
+  // Normalize delta rows to have gx/gy instead of gx_5000/gy_5000 etc
+  let rows: any[] = Array.isArray(payload) ? payload : payload.rows;
   if (!Array.isArray(rows)) throw new Error("Unexpected API payload shape");
+
+  if (isDelta) {
+    rows = normalizeDeltaRows(rows, state.grid);
+  }
 
   const fc = rowsToGeoJsonSquares(rows, gridToMeters(state.grid));
 
@@ -247,11 +255,35 @@ async function setRealData(map: maplibregl.Map, state: MapState, cache: Map<stri
   await ensureAggregatesAndUpdate(map, state, cache);
 }
 
+// Normalize delta rows: rename gx_5000/gy_5000 to gx/gy based on grid
+function normalizeDeltaRows(rows: any[], grid: GridSize): ApiRow[] {
+  const gridMeters = gridToMeters(grid);
+  const gxKey = `gx_${gridMeters}`;
+  const gyKey = `gy_${gridMeters}`;
+
+  return rows.map((r) => ({
+    gx: r[gxKey],
+    gy: r[gyKey],
+    end_month: r.end_month_latest || "N/A",
+    property_type: r.property_type,
+    new_build: r.new_build,
+    median: 0, // Not used for deltas
+    tx_count: r.sales_latest || 0,
+    delta_gbp: r.delta_gbp || 0,
+    delta_pct: r.delta_pct || 0,
+    years_stale: r.years_delta || 0,
+  }));
+}
+
 async function ensureAggregatesAndUpdate(map: maplibregl.Map, state: MapState, cache: Map<string, any>) {
   try {
+    // For delta metrics, skip aggregates (no 25km overlay makes sense)
+    const isDelta = state.metric === "delta_gbp" || state.metric === "delta_pct";
+    if (isDelta) return;
+
     // 1) ensure 25km aggregate for the overlay (unchanged behaviour)
     const endMonth = state.endMonth ?? "LATEST";
-    const key25 = `25km|${state.propertyType}|${state.newBuild}|${endMonth}`;
+    const key25 = `25km|${state.propertyType}|${state.newBuild}|median|${endMonth}`;
     let fc25 = cache.get(key25);
 
     if (!fc25) {
@@ -295,7 +327,7 @@ async function ensureAggregatesAndUpdate(map: maplibregl.Map, state: MapState, c
     }
 
     // 2) ensure current-grid aggregate for colour breaks (per-grid deciles)
-    const keyCur = `${state.grid}|${state.propertyType}|${state.newBuild}|${endMonth}`;
+    const keyCur = `${state.grid}|${state.propertyType}|${state.newBuild}|${state.metric}|${endMonth}`;
     let fcCur = cache.get(keyCur);
 
     if (!fcCur) {
