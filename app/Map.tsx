@@ -289,15 +289,12 @@ function updateOverlayFromFeatureCollection(map: maplibregl.Map, fc: any) {
 
     const el = map.getContainer().querySelector("#median-overlay") as HTMLElement | null;
     let html = `<div style="font-weight:700">Weighted median: N/A</div>`;
-    const cellsWithData = features.filter((f: any) => Number((f.properties || {}).tx_count ?? 0) > 0).length;
     if (sumW > 0) {
       const avg = Math.round(sumWX / sumW);
       html = `<div style="font-weight:700">Weighted median: £${avg.toLocaleString()}</div>`;
       html += `<div style="margin-top:4px">Transactions: <b>${sumW.toLocaleString()}</b></div>`;
-      html += `<div>Cells: <b>${cellsWithData}</b></div>`;
     } else {
       html += `<div style="margin-top:4px">Transactions: <b>0</b></div>`;
-      html += `<div>Cells: <b>0</b></div>`;
     }
 
     if (el) el.innerHTML = html;
