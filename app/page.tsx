@@ -61,6 +61,7 @@ export default function Home() {
       {/* Top-left product panel */}
       <div
         className="panel"
+        data-open={filtersOpen ? "true" : "false"}
         style={{
           position: "absolute",
           top: 18,
@@ -346,7 +347,11 @@ export function Styles() {
           width: auto !important;
           max-width: none !important;
           padding: 12px !important;
-          max-height: 55vh !important;
+          max-height: 60vh !important;
+          overflow: auto !important;
+        }
+        .panel[data-open="false"] {
+          max-height: none !important;
           overflow: hidden !important;
         }
         .panel-toggle {
