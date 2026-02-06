@@ -315,6 +315,7 @@ function Segment({
             key={opt}
             type="button"
             onClick={() => onChange(opt)}
+            className={active ? "segment-btn active" : "segment-btn"}
             style={{
               cursor: "pointer",
               border: "none",
@@ -378,6 +379,17 @@ export function Styles() {
         .segment {
           width: 100% !important;
           flex-wrap: wrap !important;
+        }
+        .segment-btn {
+          flex: 1 1 auto !important;
+          min-width: 64px !important;
+          padding: 8px 12px !important;
+          border: 1px solid transparent !important;
+        }
+        .segment-btn.active {
+          background: rgba(255,255,255,0.25) !important;
+          border-color: rgba(255,255,255,0.45) !important;
+          box-shadow: 0 0 0 1px rgba(0,0,0,0.35) inset !important;
         }
         .legend {
           right: 12px !important;
