@@ -13,6 +13,7 @@ type MapState = {
   metric: Metric;
   propertyType: PropertyType;
   newBuild: NewBuild;
+  endMonth?: string;
 };
 
 const METRIC_LABEL: Record<Metric, string> = {
@@ -41,6 +42,7 @@ export default function Home() {
     metric: "median",
     propertyType: "ALL",
     newBuild: "ALL",
+    endMonth: "LATEST",
   });
 
   return (
@@ -105,11 +107,29 @@ export default function Home() {
               renderOption={(v) => NEWBUILD_LABEL[v as NewBuild]}
             />
           </ControlRow>
-        </div>
+
+          <ControlRow label="Period">
+            <Segment
+              options={["LATEST", "2025-12", "2025-09", "2025-06", "2025-03", "2024-12"]}
+              value={state.endMonth ?? "LATEST"}
+              onChange={(v) => setState((s) => ({ ...s, endMonth: v }))}
+              renderOption={(v) => {
+                const labels: Record<string, string> = {
+                  "LATEST": "Now",
+                  "2025-12": "Dec 2025",
+                  "2025-09": "Sep 2025",
+                  "2025-06": "Jun 2025",
+                  "2025-03": "Mar 2025",
+                  "2024-12": "Dec 2024",
+                };
+                return labels[v] ?? v;
+              }}
+            />
+          </ControlRow>
 
         {/* Quick debug so you can see it working */}
         <div style={{ marginTop: 10, fontSize: 12, opacity: 0.65 }}>
-          {`Selected: ${state.grid} · ${METRIC_LABEL[state.metric]} · ${PROPERTY_LABEL[state.propertyType]} · ${NEWBUILD_LABEL[state.newBuild]}`}
+          {`Selected: ${state.grid} · ${METRIC_LABEL[state.metric]} · ${PROPERTY_LABEL[state.propertyType]} · ${NEWBUILD_LABEL[state.newBuild]} · ${state.endMonth ?? "LATEST"}`}
         </div>
       </div>
 

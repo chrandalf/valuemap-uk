@@ -12,6 +12,7 @@ export type MapState = {
   metric: Metric;
   propertyType: string;
   newBuild: string;
+  endMonth?: string;
 };
 
 type ApiRow = {
@@ -160,7 +161,7 @@ export default function ValueMap({ state }: { state: MapState }) {
     setRealData(map, state, geoCacheRef.current).catch((e) => {
       console.error("setRealData failed", e);
     });
-  }, [state.grid, state.propertyType, state.newBuild]);
+  }, [state.grid, state.propertyType, state.newBuild, state.endMonth]);
 
   // Update colours when metric changes (no refetch)
   useEffect(() => {
@@ -206,7 +207,8 @@ export default function ValueMap({ state }: { state: MapState }) {
 async function setRealData(map: maplibregl.Map, state: MapState, cache: Map<string, any>) {
   // For now: only 25km is uploaded/wired
   
-  const cacheKey = `${state.grid}|${state.propertyType}|${state.newBuild}|LATEST`;
+  const endMonth = state.endMonth ?? "LATEST";
+  const cacheKey = `${state.grid}|${state.propertyType}|${state.newBuild}|${endMonth}`;
   const cached = cache.get(cacheKey);
   if (cached) {
     const src = map.getSource("cells") as maplibregl.GeoJSONSource;
@@ -219,7 +221,7 @@ async function setRealData(map: maplibregl.Map, state: MapState, cache: Map<stri
     grid: state.grid,
     propertyType: state.propertyType ?? "ALL",
     newBuild: state.newBuild ?? "ALL",
-    endMonth: "LATEST",
+    endMonth: endMonth,
   });
 
   const res = await fetch(`/api/cells?${qs.toString()}`);
@@ -248,7 +250,8 @@ async function setRealData(map: maplibregl.Map, state: MapState, cache: Map<stri
 async function ensureAggregatesAndUpdate(map: maplibregl.Map, state: MapState, cache: Map<string, any>) {
   try {
     // 1) ensure 25km aggregate for the overlay (unchanged behaviour)
-    const key25 = `25km|${state.propertyType}|${state.newBuild}|LATEST`;
+    const endMonth = state.endMonth ?? "LATEST";
+    const key25 = `25km|${state.propertyType}|${state.newBuild}|${endMonth}`;
     let fc25 = cache.get(key25);
 
     if (!fc25) {
@@ -256,7 +259,7 @@ async function ensureAggregatesAndUpdate(map: maplibregl.Map, state: MapState, c
         grid: "25km",
         propertyType: state.propertyType ?? "ALL",
         newBuild: state.newBuild ?? "ALL",
-        endMonth: "LATEST",
+        endMonth: endMonth,
       });
 
       try {
@@ -292,7 +295,7 @@ async function ensureAggregatesAndUpdate(map: maplibregl.Map, state: MapState, c
     }
 
     // 2) ensure current-grid aggregate for colour breaks (per-grid deciles)
-    const keyCur = `${state.grid}|${state.propertyType}|${state.newBuild}|LATEST`;
+    const keyCur = `${state.grid}|${state.propertyType}|${state.newBuild}|${endMonth}`;
     let fcCur = cache.get(keyCur);
 
     if (!fcCur) {
@@ -315,7 +318,7 @@ async function ensureAggregatesAndUpdate(map: maplibregl.Map, state: MapState, c
         grid: state.grid,
         propertyType: state.propertyType ?? "ALL",
         newBuild: state.newBuild ?? "ALL",
-        endMonth: "LATEST",
+        endMonth: endMonth,
       });
 
       try {
