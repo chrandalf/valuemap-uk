@@ -13,7 +13,13 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   }
 
   // ---- load + cache delta data (PER GRID) ----
-  const data = await getCachedDeltas(env, grid);
+  let data: DeltaData;
+  try {
+    data = await getCachedDeltas(env, grid);
+  } catch (err: any) {
+    const msg = err?.message || String(err);
+    return new Response(JSON.stringify({ error: "Failed loading delta files", message: msg }), { status: 500 });
+  }
 
   // ---- filter rows by segment ----
   const rows = data.rows.filter(
@@ -90,7 +96,11 @@ async function getCachedDeltas(env: Env, grid: GridKey): Promise<DeltaData> {
 }
 
 async function loadDeltasFromR2(env: Env, grid: GridKey): Promise<DeltaData> {
-  const bucket = env.BRICKGRID_BUCKET as unknown as R2Bucket;
+  // Support either `BRICKGRID_BUCKET` or `R2` binding name (some projects use simply `R2`)
+  const bucket = ((env && ((env as any).BRICKGRID_BUCKET || (env as any).R2)) as unknown) as R2Bucket | undefined;
+  if (!bucket) {
+    throw new Error("R2 binding not found. Expected environment binding `BRICKGRID_BUCKET` or `R2`.");
+  }
 
   const gridLabel = grid === "5km" ? "5km" : grid === "10km" ? "10km" : "25km";
   const objectKey = `deltas_overall_${gridLabel}.json.gz`;

@@ -793,7 +793,9 @@ def build_overall_deltas(grid_annual: pd.DataFrame, min_sales: int = 3) -> pd.Da
         delta_gbp, delta_pct, years_delta]
     """
     d = grid_annual.copy()
+    print(f"DEBUG: build_overall_deltas input: {len(d)} rows, min_sales filter={min_sales}")
     d = d[d["sales_12m"] >= min_sales].copy()
+    print(f"DEBUG: after min_sales filter: {len(d)} rows")
     
     if d.empty:
         return pd.DataFrame()
@@ -801,6 +803,8 @@ def build_overall_deltas(grid_annual: pd.DataFrame, min_sales: int = 3) -> pd.Da
     # Find earliest and latest months available
     earliest_month = d["end_month"].min()
     latest_month = d["end_month"].max()
+    
+    print(f"DEBUG: earliest_month={earliest_month}, latest_month={latest_month}")
     
     if earliest_month == latest_month:
         print(f"Only one month available ({earliest_month}); skipping overall deltas")
@@ -810,7 +814,7 @@ def build_overall_deltas(grid_annual: pd.DataFrame, min_sales: int = 3) -> pd.Da
     earliest_data = d[d["end_month"] == earliest_month].copy()
     latest_data = d[d["end_month"] == latest_month].copy()
     
-    # Determine grid size from column names
+    # Determine grid size from column names (needed for debug output)
     grid_sizes = [g for col in earliest_data.columns if col.startswith("gx_") for g in [int(col.split("_")[1])]]
     if not grid_sizes:
         raise ValueError("No grid columns found (expected gx_*, gy_*)")
@@ -819,6 +823,9 @@ def build_overall_deltas(grid_annual: pd.DataFrame, min_sales: int = 3) -> pd.Da
     gx_col = f"gx_{g}"
     gy_col = f"gy_{g}"
     cell_col = f"cell_{g}"
+    
+    print(f"DEBUG earliest_data rows: {len(earliest_data)}, unique cells: {earliest_data[[gx_col, gy_col]].drop_duplicates().shape[0]}")
+    print(f"DEBUG latest_data rows: {len(latest_data)}, unique cells: {latest_data[[gx_col, gy_col]].drop_duplicates().shape[0]}")
     
     # Group by cell, property_type, new_build at each time point
     earliest_agg = earliest_data.groupby([gx_col, gy_col, "property_type", "new_build"]).agg({
@@ -831,6 +838,9 @@ def build_overall_deltas(grid_annual: pd.DataFrame, min_sales: int = 3) -> pd.Da
         "sales_12m": "first"
     }).reset_index().rename(columns={"median_price_12m": "price_latest", "sales_12m": "sales_latest"})
     
+    print(f"DEBUG: earliest_agg={len(earliest_agg)} unique cell+segment combos")
+    print(f"DEBUG: latest_agg={len(latest_agg)} unique cell+segment combos")
+    
     # Inner join: only cells with data in both periods
     out = earliest_agg.merge(
         latest_agg,
@@ -841,6 +851,14 @@ def build_overall_deltas(grid_annual: pd.DataFrame, min_sales: int = 3) -> pd.Da
     if out.empty:
         print(f"No cells with data in both {earliest_month} and {latest_month}")
         return pd.DataFrame()
+    
+    # DEBUG: Show coordinate distribution
+    unique_cells = out[[gx_col, gy_col]].drop_duplicates()
+    print(f"DEBUG: {len(unique_cells)} unique grid cells")
+    print(f"DEBUG: {gx_col} range: {out[gx_col].min()} to {out[gx_col].max()}")
+    print(f"DEBUG: {gy_col} range: {out[gy_col].min()} to {out[gy_col].max()}")
+    if len(unique_cells) <= 10:
+        print(f"DEBUG: Cells - {unique_cells.values.tolist()}")
     
     # Compute deltas
     out["delta_gbp"] = out["price_latest"] - out["price_earliest"]
@@ -855,11 +873,15 @@ def build_overall_deltas(grid_annual: pd.DataFrame, min_sales: int = 3) -> pd.Da
     out["end_month_earliest"] = earliest_month
     out["end_month_latest"] = latest_month
     out["years_delta"] = (pd.to_datetime(latest_month).year - pd.to_datetime(earliest_month).year)
+    # Also expose generic coordinate columns and a generic cell id for JSON consumers
+    out["gx"] = out[gx_col].astype(float)
+    out["gy"] = out[gy_col].astype(float)
+    out["cell"] = out[cell_col].astype(str)
     
     # Select output columns (clean up grid-specific columns)
     # NOTE: sales_latest retained to contextualize large delta_pct values (sparse vs. robust moves)
     keep_cols = [
-        gx_col, gy_col, cell_col, "property_type", "new_build",
+        gx_col, gy_col, "gx", "gy", cell_col, "cell", "property_type", "new_build",
         "price_earliest", "sales_earliest", "end_month_earliest",
         "price_latest", "sales_latest", "end_month_latest",
         "delta_gbp", "delta_pct", "years_delta"
@@ -917,10 +939,39 @@ for grid_size, grid_annual in [
         print(f"\nTop 10 gainers (%):")
         print(overall_deltas.nlargest(10, "delta_pct")[[cell_col, "property_type", "new_build", "sales_latest", "delta_pct", "delta_gbp"]])
         
+        # Ensure grid coordinate columns are native Python types and add lon/lat center
+        gx_col = f"gx_{grid_size}"
+        gy_col = f"gy_{grid_size}"
+        try:
+            overall_deltas[gx_col] = overall_deltas[gx_col].astype("int64")
+            overall_deltas[gy_col] = overall_deltas[gy_col].astype("int64")
+        except Exception:
+            # best-effort cast
+            overall_deltas[gx_col] = overall_deltas[gx_col].astype(float).round(0).astype("Int64")
+            overall_deltas[gy_col] = overall_deltas[gy_col].astype(float).round(0).astype("Int64")
+
+        overall_deltas["gx"] = overall_deltas["gx"].astype(float).round(0).astype("Int64")
+        overall_deltas["gy"] = overall_deltas["gy"].astype(float).round(0).astype("Int64")
+
+        # Add centre lon/lat for convenience (EPSG:27700 -> EPSG:4326)
+        try:
+            x_cent = overall_deltas[gx_col].astype(float).to_numpy() + (grid_size / 2.0)
+            y_cent = overall_deltas[gy_col].astype(float).to_numpy() + (grid_size / 2.0)
+            lon_c, lat_c = TRANSFORMER.transform(x_cent, y_cent)
+            overall_deltas["lon"] = lon_c
+            overall_deltas["lat"] = lat_c
+        except Exception:
+            overall_deltas["lon"] = None
+            overall_deltas["lat"] = None
+
+        # Convert NaNs to None for JSON and ensure timestamps are strings
+        overall_deltas["end_month_earliest"] = overall_deltas["end_month_earliest"].astype(str)
+        overall_deltas["end_month_latest"] = overall_deltas["end_month_latest"].astype(str)
+
         # Save to JSON (memory-efficient for Kaggle)
         output_path = f"/kaggle/working/deltas_overall_{grid_label}.json.gz"
         with gzip.open(output_path, "wt", encoding="utf-8") as f:
-            json.dump(overall_deltas.to_dict(orient="records"), f)
+            json.dump(overall_deltas.where(pd.notnull(overall_deltas), None).to_dict(orient="records"), f)
         print(f"\nSaved to {output_path}")
     else:
         print(f"\nNo deltas generated for {grid_label}")
