@@ -326,11 +326,13 @@ async function ensureAggregatesAndUpdate(map: maplibregl.Map, state: MapState, c
     // 3) compute decile breaks from the current-grid aggregate (or fallback to 25km)
     try {
       let breaks: number[] | null = null;
-      if (fcCur) breaks = computeDecileBreaks(fcCur, state.metric);
-      else if (fc25) breaks = computeDecileBreaks(fc25, state.metric);
+      const probs = [0,0.01,0.02,0.03,0.04,0.05,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,0.95,0.96,0.97,0.98,0.99,1];
+      if (fcCur) breaks = computeWeightedQuantiles(fcCur, state.metric, probs);
+      else if (fc25) breaks = computeWeightedQuantiles(fc25, state.metric, probs);
 
       if (breaks) {
-        const expr = buildDecileColorExpression(state.metric, breaks);
+        const colors = makeTailColors();
+        const expr = buildTailColorExpression(state.metric, breaks, colors);
         if (map.getLayer("cells-fill")) {
           map.setPaintProperty("cells-fill", "fill-color", expr);
         }
@@ -346,7 +348,7 @@ async function ensureAggregatesAndUpdate(map: maplibregl.Map, state: MapState, c
   }
 }
 
-function computeDecileBreaks(fc: any, metric: "median" | "delta_gbp" | "delta_pct") {
+function computeWeightedQuantiles(fc: any, metric: "median" | "delta_gbp" | "delta_pct", probs: number[]) {
   const features = (fc?.features ?? []) as any[];
   const values: Array<{v: number; w: number}> = [];
 
@@ -359,56 +361,48 @@ function computeDecileBreaks(fc: any, metric: "median" | "delta_gbp" | "delta_pc
   }
 
   if (values.length === 0) {
-    // return some trivial breaks
-    return Array.from({ length: 11 }, (_, i) => i === 0 ? 0 : 1 * i);
+    return probs.map(() => NaN);
   }
 
-  // sort ascending by value
   values.sort((a, b) => a.v - b.v);
-
-  // total weight
   const totalW = values.reduce((s, x) => s + x.w, 0);
-  const quantiles = Array.from({ length: 11 }, (_, i) => i / 10);
-  const breaks: number[] = [];
 
+  const breaks: number[] = [];
   let cum = 0;
-  let qi = 0;
+  let pi = 0;
   for (const entry of values) {
     cum += entry.w;
-    while (qi < quantiles.length && cum / totalW >= quantiles[qi]) {
+    const frac = cum / totalW;
+    while (pi < probs.length && frac >= probs[pi]) {
       breaks.push(entry.v);
-      qi++;
+      pi++;
     }
-    if (qi >= quantiles.length) break;
+    if (pi >= probs.length) break;
   }
-  // pad if needed
-  while (breaks.length < 11) breaks.push(values[values.length - 1].v);
+  while (breaks.length < probs.length) breaks.push(values[values.length - 1].v);
   return breaks;
 }
 
-function buildDecileColorExpression(metric: string, breaks: number[]) {
-  // 10 colours for 10 bins
-  const colors = [
-    "#2c7bb6",
-    "#00a6ca",
-    "#00ccbc",
-    "#90eb9d",
-    "#d9ef8b",
-    "#ffffbf",
-    "#fee08b",
-    "#fdae61",
-    "#f46d43",
-    "#d73027",
-  ];
-
-  // build a step expression: default color for under first break, then break->color
+function buildTailColorExpression(metric: string, breaks: number[], colors: string[]) {
+  // build a step expression: start with color for values < first threshold
   const expr: any[] = ["step", ["get", metric], colors[0]];
-  // use breaks[1]..breaks[9] as thresholds between bins
-  for (let i = 1; i < breaks.length - 1 && i <= 9; i++) {
+  // push threshold,value pairs for remaining colors
+  for (let i = 1; i < breaks.length && i < colors.length; i++) {
     expr.push(breaks[i]);
     expr.push(colors[i]);
   }
   return expr as any;
+}
+
+function makeTailColors() {
+  // bottom tail (5 steps), middle (10), top tail (5)
+  const bottom = ["#04274a","#0b4c6b","#16799a","#2aa3c6","#58c7e6"];
+  const middle = [
+    "#00ccbc","#6dd2a8","#bfeaa3","#ffffbf","#fee08b",
+    "#fdae61","#f07a4a","#e04d3b","#d73027","#b30015",
+  ];
+  const top = ["#ff6b6b","#ff4c4c","#ff2b2b","#ff0000","#b30000"];
+  return [...bottom, ...middle, ...top];
 }
 
 function updateOverlayFromFeatureCollection(map: maplibregl.Map, fc: any) {
