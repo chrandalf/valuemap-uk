@@ -75,11 +75,16 @@ export default function Home() {
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10, marginTop: 14 }}>
           <ControlRow label="Grid">
             <Segment
-              options={["1km", "5km", "10km", "25km"]}
+              options={state.metric === "median" ? ["1km", "5km", "10km", "25km"] : ["5km", "10km", "25km"]}
               value={state.grid}
               onChange={(v) => setState((s) => ({ ...s, grid: v as GridSize }))}
             />
           </ControlRow>
+          {state.metric !== "median" && state.grid === "1km" && (
+            <div style={{ fontSize: 11, color: "#ff9999", fontStyle: "italic", marginTop: -8 }}>
+              1km deltas unavailable
+            </div>
+          )}
 
           <ControlRow label="Metric">
             <Segment
@@ -132,6 +137,19 @@ export default function Home() {
         <div style={{ marginTop: 10, fontSize: 12, opacity: 0.65 }}>
           {`Selected: ${state.grid} · ${METRIC_LABEL[state.metric]} · ${PROPERTY_LABEL[state.propertyType]} · ${NEWBUILD_LABEL[state.newBuild]} · ${state.endMonth ?? "LATEST"}`}
         </div>
+
+        {/* Deltas explanation */}
+        {state.metric !== "median" && (
+          <div style={{ marginTop: 12, padding: 10, borderRadius: 8, background: "rgba(255,255,255,0.08)", borderLeft: "3px solid #fdae61", fontSize: 11, lineHeight: 1.4, opacity: 0.9 }}>
+            <div style={{ fontWeight: 600, marginBottom: 6 }}>Price Change (Δ)</div>
+            <div style={{ marginBottom: 6 }}>
+              Comparing <b>earliest available month (Dec 2021)</b> to <b>latest month (Dec 2025)</b>.
+            </div>
+            <div>
+              <b>Note:</b> Small deltas may reflect differences in which property types sold in each period, not solely price changes in the area. Large transactions or demographic shifts can influence median prices independently of market rates.
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Bottom-right mini legend */}
