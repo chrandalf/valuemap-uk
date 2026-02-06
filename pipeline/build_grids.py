@@ -378,6 +378,33 @@ with gzip.open(out_path, "wt", encoding="utf-8") as f:
 
 print("Wrote:", out_path, "rows:", len(d))
 
+# Extract and store metadata: available date ranges for each dataset
+grid_metadata = {}
+for grid_size, grid_annual in [
+    (1000, grid_1km_annual),
+    (5000, grid_5km_annual),
+    (10000, grid_10km_annual),
+    (25000, grid_25km_annual),
+]:
+    grid_label = f"{grid_size // 1000}km"
+    earliest = pd.to_datetime(grid_annual["end_month"].min()).strftime("%Y-%m-%d")
+    latest = pd.to_datetime(grid_annual["end_month"].max()).strftime("%Y-%m-%d")
+    grid_metadata[grid_label] = {
+        "earliest": earliest,
+        "latest": latest,
+        "available_months": int(grid_annual["end_month"].nunique())
+    }
+
+# Save metadata JSON
+metadata_path = "/kaggle/working/grid_metadata.json"
+with open(metadata_path, "w") as f:
+    json.dump(grid_metadata, f, indent=2)
+
+print(f"\nGrid availability metadata:")
+print(json.dumps(grid_metadata, indent=2))
+print(f"Saved to {metadata_path}")
+
+
 # %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:59:19.568087Z","iopub.execute_input":"2026-02-05T10:59:19.568536Z","iopub.status.idle":"2026-02-05T10:59:22.362539Z","shell.execute_reply.started":"2026-02-05T10:59:19.568502Z","shell.execute_reply":"2026-02-05T10:59:22.361516Z"},"jupyter":{"outputs_hidden":false}}
 g = 25000
 
@@ -920,6 +947,8 @@ plot_delta_map(delta_25, g, metric="delta_pct", opacity=0.6)
 # Example: Compute overall deltas for all property types across 5km, 10km, 25km grids
 # (Skip 1km to avoid excessive data volume)
 
+delta_metadata = {}
+
 for grid_size, grid_annual in [
     (5000, grid_5km_annual),
     (10000, grid_10km_annual),
@@ -968,6 +997,15 @@ for grid_size, grid_annual in [
         overall_deltas["end_month_earliest"] = overall_deltas["end_month_earliest"].astype(str)
         overall_deltas["end_month_latest"] = overall_deltas["end_month_latest"].astype(str)
 
+        # Capture metadata for this grid
+        earliest = overall_deltas["end_month_earliest"].iloc[0]
+        latest = overall_deltas["end_month_latest"].iloc[0]
+        delta_metadata[grid_label] = {
+            "earliest": earliest,
+            "latest": latest,
+            "rows": len(overall_deltas)
+        }
+
         # Save to JSON (memory-efficient for Kaggle)
         output_path = f"/kaggle/working/deltas_overall_{grid_label}.json.gz"
         with gzip.open(output_path, "wt", encoding="utf-8") as f:
@@ -975,4 +1013,14 @@ for grid_size, grid_annual in [
         print(f"\nSaved to {output_path}")
     else:
         print(f"\nNo deltas generated for {grid_label}")
+
+# Save delta metadata file
+if delta_metadata:
+    delta_metadata_path = "/kaggle/working/deltas_metadata.json"
+    with open(delta_metadata_path, "w") as f:
+        json.dump(delta_metadata, f, indent=2)
+    print(f"\n{'='*60}")
+    print("Delta metadata:")
+    print(json.dumps(delta_metadata, indent=2))
+    print(f"Saved to {delta_metadata_path}")
 #plot_top_movers(delta_25, n=20)

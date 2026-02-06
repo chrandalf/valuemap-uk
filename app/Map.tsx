@@ -119,12 +119,12 @@ export default function ValueMap({ state }: { state: MapState }) {
     const p = f.properties || {};
     const median = Number(p.median ?? 0);
     const tx = Number(p.tx_count ?? 0);
+    const dg = Number(p.delta_gbp ?? 0);
+    const dp = Number(p.delta_pct ?? 0);
 
-    // Prefer showing delta metrics when present (delta features set median=0)
+    // Show delta popup only if we're actually looking at delta data (deltas are non-zero)
     let html = "";
-    if (p.delta_gbp !== undefined || p.delta_pct !== undefined) {
-      const dg = Number(p.delta_gbp ?? 0);
-      const dp = Number(p.delta_pct ?? 0);
+    if ((dg !== 0 || dp !== 0) && median === 0) {
       const sign = dg > 0 ? "+" : dg < 0 ? "-" : "";
       html = `
         <div style="font-family: system-ui; font-size: 12px; line-height: 1.25;">
