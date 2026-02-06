@@ -346,7 +346,7 @@ export default function ValueMap({
           }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 6 }}>
-            <div style={{ fontWeight: 600 }}>Postcodes</div>
+            <div style={{ fontWeight: 600 }}>Postcode areas</div>
             <button
               type="button"
               onClick={() => {
@@ -372,7 +372,7 @@ export default function ValueMap({
           {!postcodeError && (
             <>
               {postcodeLoading && postcodeItems.length === 0 && <div>Loading...</div>}
-              {postcodeItems.length === 0 && !postcodeLoading && <div>No postcodes found.</div>}
+          {postcodeItems.length === 0 && !postcodeLoading && <div>No postcode areas found.</div>}
               {postcodeItems.length > 0 && (
                 <div style={{ display: "grid", gap: 4, maxHeight: 180, overflow: "auto" }}>
                   {postcodeItems.map((pc, i) => (

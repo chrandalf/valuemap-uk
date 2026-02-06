@@ -31,7 +31,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
         offset,
         limit,
         has_more: hasMore,
-        postcodes: slice,
+      postcodes: slice,
       },
       {
         headers: {
@@ -93,7 +93,7 @@ async function getCellIndex(env: Env, grid: GridKey, key: string): Promise<Map<s
   const text = new TextDecoder().decode(decompressed);
   const rows = JSON.parse(text) as PostcodeRow[];
 
-  const map = new Map<string, string[]>();
+  const map = new Map<string, Set<string>>();
   const cellKey = grid === "1km" ? "cell_1000"
     : grid === "5km" ? "cell_5000"
     : grid === "10km" ? "cell_10000"
@@ -102,15 +102,22 @@ async function getCellIndex(env: Env, grid: GridKey, key: string): Promise<Map<s
   for (const r of rows) {
     const cell = (r as any)[cellKey] as string | undefined;
     if (!cell) continue;
-    const pc = (r.postcode || r.pc_key || "").toString();
-    if (!pc) continue;
-    const list = map.get(cell);
-    if (list) list.push(pc);
-    else map.set(cell, [pc]);
+    const raw = (r.postcode || r.pc_key || "").toString().trim();
+    if (!raw) continue;
+    const outcode = raw.split(" ")[0].toUpperCase();
+    if (!outcode) continue;
+    const set = map.get(cell);
+    if (set) set.add(outcode);
+    else map.set(cell, new Set([outcode]));
   }
 
-  INDEX_BY_GRID[grid] = map;
-  return map;
+  const out = new Map<string, string[]>();
+  for (const [cell, set] of map.entries()) {
+    out.set(cell, Array.from(set).sort());
+  }
+
+  INDEX_BY_GRID[grid] = out;
+  return out;
 }
 
 function clampInt(v: string | null, fallback: number, min: number, max: number) {

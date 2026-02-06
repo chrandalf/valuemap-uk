@@ -217,19 +217,22 @@ df = df.drop(columns=to_drop)
 
 df = df.merge(lookup, on="pc_key", how="left")
 
-# --- Postcode -> grid cell lookup tables (for UI drilldown) ---
-# This creates a separate lookup table so a map cell can be mapped back to postcodes.
+# --- Postcode area (outcode) -> grid cell lookup tables (for UI drilldown) ---
+# Keep only the outcode (part before the space) to reduce size.
 postcode_lookup = df_en[[
-    "pc_key",
+    "PCDS",
     "cell_1000", "cell_5000", "cell_10000", "cell_25000",
-]].drop_duplicates("pc_key")
-
-# Optional: also keep original formatted postcode for display.
-postcode_lookup["postcode"] = df_en["PCDS"].astype("string")
+]].copy()
+postcode_lookup["outcode"] = (
+    postcode_lookup["PCDS"].astype("string").str.strip().str.split(" ", n=1).str[0].str.upper()
+)
+postcode_lookup = postcode_lookup.dropna(subset=["outcode"]).drop_duplicates(
+    ["outcode", "cell_1000", "cell_5000", "cell_10000", "cell_25000"]
+)
 
 # Save as parquet (compact, fast) and JSON (portable)
-postcode_lookup_out_parquet = "/kaggle/working/postcode_grid_lookup.parquet"
-postcode_lookup_out_json = "/kaggle/working/postcode_grid_lookup.json.gz"
+postcode_lookup_out_parquet = "/kaggle/working/postcode_grid_outcode_lookup.parquet"
+postcode_lookup_out_json = "/kaggle/working/postcode_grid_outcode_lookup.json.gz"
 
 postcode_lookup.to_parquet(postcode_lookup_out_parquet, index=False)
 
