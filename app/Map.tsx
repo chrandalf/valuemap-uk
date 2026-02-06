@@ -159,7 +159,26 @@ export default function ValueMap({ state }: { state: MapState }) {
     }
   }, [state.metric]);
 
-  return <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />;
+  return (
+    <div ref={containerRef} style={{ position: "absolute", inset: 0 }}>
+      <div
+        id="median-overlay"
+        style={{
+          position: "absolute",
+          top: 12,
+          right: 70,
+          background: "rgba(255,255,255,0.95)",
+          padding: "6px 10px",
+          borderRadius: 6,
+          boxShadow: "0 1px 4px rgba(0,0,0,0.2)",
+          fontSize: 13,
+          zIndex: 2,
+        }}
+      >
+        Loading...
+      </div>
+    </div>
+  );
 }
 
 /** ---------------- Real data wiring ---------------- */
@@ -172,6 +191,7 @@ async function setRealData(map: maplibregl.Map, state: MapState, cache: Map<stri
   if (cached) {
     const src = map.getSource("cells") as maplibregl.GeoJSONSource;
     src.setData(cached);
+    updateOverlayFromFeatureCollection(map, cached);
     return;
   }
 
@@ -202,6 +222,38 @@ async function setRealData(map: maplibregl.Map, state: MapState, cache: Map<stri
 
   const src = map.getSource("cells") as maplibregl.GeoJSONSource;
   src.setData(fc as any);
+  updateOverlayFromFeatureCollection(map, fc);
+}
+
+function updateOverlayFromFeatureCollection(map: maplibregl.Map, fc: any) {
+  try {
+    const features = fc?.features ?? [];
+    let sumW = 0;
+    let sumWX = 0;
+
+    for (const f of features) {
+      const p = f.properties || {};
+      const tx = Number(p.tx_count ?? 0);
+      const median = Number(p.median ?? 0);
+      if (tx > 0) {
+        sumW += tx;
+        sumWX += median * tx;
+      }
+    }
+
+    const el = map.getContainer().querySelector("#median-overlay") as HTMLElement | null;
+    let text = "Weighted median: N/A";
+    if (sumW > 0) {
+      const avg = Math.round(sumWX / sumW);
+      text = `Weighted median: £${avg.toLocaleString()}`;
+    }
+
+    if (el) el.innerText = text;
+  } catch (e) {
+    // don't throw; overlay is purely UI
+    // eslint-disable-next-line no-console
+    console.error("updateOverlayFromFeatureCollection failed", e);
+  }
 }
 
 function gridToMeters(grid: "1km" | "5km" | "10km" | "25km") {
