@@ -154,9 +154,15 @@ export default function ValueMap({ state }: { state: MapState }) {
     if (!map) return;
     if (!map.isStyleLoaded()) return;
 
-    if (map.getLayer("cells-fill")) {
-      map.setPaintProperty("cells-fill", "fill-color", getFillColorExpression(state.metric));
-    }
+    // Recompute percentile-based colour mapping using the current grid aggregate
+    ensureAggregatesAndUpdate(map, state, geoCacheRef.current).catch((e) => {
+      // fallback to absolute expression if anything goes wrong
+      // eslint-disable-next-line no-console
+      console.error('ensureAggregatesAndUpdate failed on metric change', e);
+      if (map.getLayer("cells-fill")) {
+        map.setPaintProperty("cells-fill", "fill-color", getFillColorExpression(state.metric));
+      }
+    });
   }, [state.metric]);
 
   return (
@@ -191,7 +197,7 @@ async function setRealData(map: maplibregl.Map, state: MapState, cache: Map<stri
   if (cached) {
     const src = map.getSource("cells") as maplibregl.GeoJSONSource;
     src.setData(cached);
-    await ensure25kmAndUpdate(map, state, cache);
+    await ensureAggregatesAndUpdate(map, state, cache);
     return;
   }
 
@@ -222,11 +228,12 @@ async function setRealData(map: maplibregl.Map, state: MapState, cache: Map<stri
 
   const src = map.getSource("cells") as maplibregl.GeoJSONSource;
   src.setData(fc as any);
-  await ensure25kmAndUpdate(map, state, cache);
+  await ensureAggregatesAndUpdate(map, state, cache);
 }
 
-async function ensure25kmAndUpdate(map: maplibregl.Map, state: MapState, cache: Map<string, any>) {
+async function ensureAggregatesAndUpdate(map: maplibregl.Map, state: MapState, cache: Map<string, any>) {
   try {
+    // 1) ensure 25km aggregate for the overlay (unchanged behaviour)
     const key25 = `25km|${state.propertyType}|${state.newBuild}|LATEST`;
     let fc25 = cache.get(key25);
 
@@ -238,18 +245,22 @@ async function ensure25kmAndUpdate(map: maplibregl.Map, state: MapState, cache: 
         endMonth: "LATEST",
       });
 
-      const res25 = await fetch(`/api/cells?${qs25.toString()}`);
-      if (res25.ok) {
-        const payload25: any = await res25.json();
-        const rows25: ApiRow[] = Array.isArray(payload25) ? payload25 : payload25.rows;
-        if (Array.isArray(rows25)) {
-          fc25 = rowsToGeoJsonSquares(rows25, gridToMeters("25km"));
-          cache.set(key25, fc25);
+      try {
+        const res25 = await fetch(`/api/cells?${qs25.toString()}`);
+        if (res25.ok) {
+          const payload25: any = await res25.json();
+          const rows25: ApiRow[] = Array.isArray(payload25) ? payload25 : payload25.rows;
+          if (Array.isArray(rows25)) {
+            fc25 = rowsToGeoJsonSquares(rows25, gridToMeters("25km"));
+            cache.set(key25, fc25);
+          }
+        } else {
+          // eslint-disable-next-line no-console
+          console.warn("Failed to fetch 25km data for overlay", res25.status);
         }
-      } else {
-        // If 25km fetch fails, don't block UI — fallback handled below
+      } catch (e) {
         // eslint-disable-next-line no-console
-        console.warn("Failed to fetch 25km data for overlay", res25.status);
+        console.warn("Error fetching 25km data for overlay", e);
       }
     }
 
@@ -265,10 +276,139 @@ async function ensure25kmAndUpdate(map: maplibregl.Map, state: MapState, cache: 
         // ignore
       }
     }
+
+    // 2) ensure current-grid aggregate for colour breaks (per-grid deciles)
+    const keyCur = `${state.grid}|${state.propertyType}|${state.newBuild}|LATEST`;
+    let fcCur = cache.get(keyCur);
+
+    if (!fcCur) {
+      // try to reuse the current map source data before fetching
+      try {
+        const src = map.getSource("cells") as maplibregl.GeoJSONSource | undefined;
+        const srcData: any = src ? (src as any)._data ?? null : null;
+        if (srcData && Array.isArray(srcData.features) && srcData.features.length > 0) {
+          fcCur = srcData;
+          cache.set(keyCur, fcCur);
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    if (!fcCur) {
+      // fetch current grid as a fallback
+      const qsCur = new URLSearchParams({
+        grid: state.grid,
+        propertyType: state.propertyType ?? "ALL",
+        newBuild: state.newBuild ?? "ALL",
+        endMonth: "LATEST",
+      });
+
+      try {
+        const resCur = await fetch(`/api/cells?${qsCur.toString()}`);
+        if (resCur.ok) {
+          const payloadCur: any = await resCur.json();
+          const rowsCur: ApiRow[] = Array.isArray(payloadCur) ? payloadCur : payloadCur.rows;
+          if (Array.isArray(rowsCur)) {
+            fcCur = rowsToGeoJsonSquares(rowsCur, gridToMeters(state.grid));
+            cache.set(keyCur, fcCur);
+          }
+        } else {
+          // eslint-disable-next-line no-console
+          console.warn("Failed to fetch current grid data for colour mapping", resCur.status);
+        }
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn("Error fetching current grid data for colour mapping", e);
+      }
+    }
+
+    // 3) compute decile breaks from the current-grid aggregate (or fallback to 25km)
+    try {
+      let breaks: number[] | null = null;
+      if (fcCur) breaks = computeDecileBreaks(fcCur, state.metric);
+      else if (fc25) breaks = computeDecileBreaks(fc25, state.metric);
+
+      if (breaks) {
+        const expr = buildDecileColorExpression(state.metric, breaks);
+        if (map.getLayer("cells-fill")) {
+          map.setPaintProperty("cells-fill", "fill-color", expr);
+        }
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('Failed to apply decile colour mapping', e);
+    }
+
   } catch (e) {
     // eslint-disable-next-line no-console
-    console.error("ensure25kmAndUpdate failed", e);
+    console.error("ensureAggregatesAndUpdate failed", e);
   }
+}
+
+function computeDecileBreaks(fc: any, metric: "median" | "delta_gbp" | "delta_pct") {
+  const features = (fc?.features ?? []) as any[];
+  const values: Array<{v: number; w: number}> = [];
+
+  for (const f of features) {
+    const p = f.properties || {};
+    const raw = Number(p[metric] ?? NaN);
+    if (!isFinite(raw)) continue;
+    const weight = Number(p.tx_count ?? 0) > 0 ? Number(p.tx_count) : 1;
+    values.push({ v: raw, w: weight });
+  }
+
+  if (values.length === 0) {
+    // return some trivial breaks
+    return Array.from({ length: 11 }, (_, i) => i === 0 ? 0 : 1 * i);
+  }
+
+  // sort ascending by value
+  values.sort((a, b) => a.v - b.v);
+
+  // total weight
+  const totalW = values.reduce((s, x) => s + x.w, 0);
+  const quantiles = Array.from({ length: 11 }, (_, i) => i / 10);
+  const breaks: number[] = [];
+
+  let cum = 0;
+  let qi = 0;
+  for (const entry of values) {
+    cum += entry.w;
+    while (qi < quantiles.length && cum / totalW >= quantiles[qi]) {
+      breaks.push(entry.v);
+      qi++;
+    }
+    if (qi >= quantiles.length) break;
+  }
+  // pad if needed
+  while (breaks.length < 11) breaks.push(values[values.length - 1].v);
+  return breaks;
+}
+
+function buildDecileColorExpression(metric: string, breaks: number[]) {
+  // 10 colours for 10 bins
+  const colors = [
+    "#2c7bb6",
+    "#00a6ca",
+    "#00ccbc",
+    "#90eb9d",
+    "#d9ef8b",
+    "#ffffbf",
+    "#fee08b",
+    "#fdae61",
+    "#f46d43",
+    "#d73027",
+  ];
+
+  // build a step expression: default color for under first break, then break->color
+  const expr: any[] = ["step", ["get", metric], colors[0]];
+  // use breaks[1]..breaks[9] as thresholds between bins
+  for (let i = 1; i < breaks.length - 1 && i <= 9; i++) {
+    expr.push(breaks[i]);
+    expr.push(colors[i]);
+  }
+  return expr as any;
 }
 
 function updateOverlayFromFeatureCollection(map: maplibregl.Map, fc: any) {
@@ -353,8 +493,6 @@ function rowsToGeoJsonSquares(rows: ApiRow[], g: number) {
       },
       properties: {
         ...r,
-        // normalize names to your existing styling expressions
-        // (your fill expression looks for "median"/"delta_gbp"/"delta_pct")
         median: r.median,
         delta_gbp: r.delta_gbp ?? 0,
         delta_pct: r.delta_pct ?? 0,
