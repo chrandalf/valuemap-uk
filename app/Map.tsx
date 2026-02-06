@@ -120,15 +120,29 @@ export default function ValueMap({ state }: { state: MapState }) {
     const median = Number(p.median ?? 0);
     const tx = Number(p.tx_count ?? 0);
 
-    popup
-      .setLngLat(e.lngLat)
-      .setHTML(`
+    // Prefer showing delta metrics when present (delta features set median=0)
+    let html = "";
+    if (p.delta_gbp !== undefined || p.delta_pct !== undefined) {
+      const dg = Number(p.delta_gbp ?? 0);
+      const dp = Number(p.delta_pct ?? 0);
+      const sign = dg > 0 ? "+" : dg < 0 ? "-" : "";
+      html = `
+        <div style="font-family: system-ui; font-size: 12px; line-height: 1.25;">
+          <div style="font-weight: 700; margin-bottom: 4px;">${sign}£${Math.abs(dg).toLocaleString()}</div>
+          <div>Δ%: <b>${dp.toFixed(1)}%</b></div>
+          <div>Sales: <b>${tx}</b></div>
+        </div>
+      `;
+    } else {
+      html = `
         <div style="font-family: system-ui; font-size: 12px; line-height: 1.25;">
           <div style="font-weight: 700; margin-bottom: 4px;">£${median.toLocaleString()}</div>
           <div>Sales: <b>${tx}</b></div>
         </div>
-      `)
-      .addTo(map);
+      `;
+    }
+
+    popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
   });
 
   map.on("mouseleave", "cells-fill", () => {
@@ -279,7 +293,13 @@ async function ensureAggregatesAndUpdate(map: maplibregl.Map, state: MapState, c
   try {
     // For delta metrics, skip aggregates (no 25km overlay makes sense)
     const isDelta = state.metric === "delta_gbp" || state.metric === "delta_pct";
-    if (isDelta) return;
+    if (isDelta) {
+      // Ensure paint property uses delta metric fields instead of median (features have median=0 for deltas)
+      if (map.getLayer("cells-fill")) {
+        map.setPaintProperty("cells-fill", "fill-color", getFillColorExpression(state.metric));
+      }
+      return;
+    }
 
     // 1) ensure 25km aggregate for the overlay (unchanged behaviour)
     const endMonth = state.endMonth ?? "LATEST";
