@@ -359,7 +359,7 @@ async function ensureAggregatesAndUpdate(
         const max = stats ? stats.max : safeMaxAbs;
         onLegendChange({
           kind: "delta",
-          metric: state.metric,
+          metric: state.metric as "delta_gbp" | "delta_pct",
           min,
           max,
           maxAbs: safeMaxAbs,
