@@ -86,6 +86,22 @@ export default function ValueMap({ state }: { state: MapState }) {
     },
   });
 
+  map.addLayer({
+    id: "cells-no-sales",
+    type: "symbol",
+    source: "cells",
+    layout: {
+      "text-field": "✕",
+      "text-size": 24,
+      "text-anchor": "center",
+      "text-offset": [0, 0],
+    },
+    paint: {
+      "text-color": "rgba(100, 100, 100, 0.7)",
+    },
+    filter: ["==", ["get", "tx_count"], 0],
+  });
+
   // ✅ ADD HOVER TOOLTIP HERE (after layers exist)
   const popup = new maplibregl.Popup({
     closeButton: false,
