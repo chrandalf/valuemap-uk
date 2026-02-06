@@ -110,17 +110,17 @@ export default function Home() {
 
           <ControlRow label="Period">
             <Segment
-              options={["LATEST", "2025-12", "2025-09", "2025-06", "2025-03", "2024-12"]}
+              options={["LATEST", "2025-12-01", "2024-12-01", "2023-12-01", "2022-12-01", "2021-12-01"]}
               value={state.endMonth ?? "LATEST"}
               onChange={(v) => setState((s) => ({ ...s, endMonth: v }))}
               renderOption={(v) => {
                 const labels: Record<string, string> = {
                   "LATEST": "Now",
-                  "2025-12": "Dec 2025",
-                  "2025-09": "Sep 2025",
-                  "2025-06": "Jun 2025",
-                  "2025-03": "Mar 2025",
-                  "2024-12": "Dec 2024",
+                  "2025-12-01": "Dec 2025",
+                  "2024-12-01": "Dec 2024",
+                  "2023-12-01": "Dec 2023",
+                  "2022-12-01": "Dec 2022",
+                  "2021-12-01": "Dec 2021",
                 };
                 return labels[v] ?? v;
               }}
