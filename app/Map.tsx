@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 
@@ -54,6 +54,8 @@ export default function ValueMap({
 }) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const requestSeqRef = useRef(0);
 
   // Cache: avoid recomputing polygons when toggling metric only
   const geoCacheRef = useRef<Map<string, any>>(new Map<string, any>());
@@ -196,16 +198,28 @@ export default function ValueMap({
     if (!src) return;
 
     const abortController = new AbortController();
+    const seq = ++requestSeqRef.current;
+    setIsLoading(true);
 
-    setRealData(map, state, geoCacheRef.current, abortController.signal, onLegendChange).catch((e) => {
-      if (e.name !== "AbortError") {
-        console.error("setRealData failed", e);
-      }
-    });
+    const debounceMs = 200;
+    const timeoutId = setTimeout(() => {
+      setRealData(map, state, geoCacheRef.current, abortController.signal, onLegendChange)
+        .then(() => {
+          if (requestSeqRef.current === seq) setIsLoading(false);
+        })
+        .catch((e) => {
+          if (e.name !== "AbortError") {
+            console.error("setRealData failed", e);
+          }
+          if (requestSeqRef.current === seq) setIsLoading(false);
+        });
+    }, debounceMs);
 
     // Cleanup: abort in-flight request if component unmounts or state changes again
     return () => {
+      clearTimeout(timeoutId);
       abortController.abort();
+      if (requestSeqRef.current === seq) setIsLoading(false);
     };
   }, [state.grid, state.propertyType, state.newBuild, state.endMonth, state.metric]);
 
@@ -214,6 +228,23 @@ export default function ValueMap({
 
   return (
     <div ref={containerRef} style={{ position: "absolute", inset: 0 }}>
+      {isLoading && (
+        <div
+          style={{
+            position: "absolute",
+            top: 12,
+            left: 12,
+            background: "rgba(0,0,0,0.7)",
+            color: "white",
+            padding: "6px 10px",
+            borderRadius: 6,
+            fontSize: 12,
+            zIndex: 3,
+          }}
+        >
+          Loading...
+        </div>
+      )}
       <div
         id="median-overlay"
         style={{
