@@ -291,12 +291,27 @@ function normalizeDeltaRows(rows: any[], grid: GridSize): ApiRow[] {
 
 async function ensureAggregatesAndUpdate(map: maplibregl.Map, state: MapState, cache: Map<string, any>) {
   try {
-    // For delta metrics, skip aggregates (no 25km overlay makes sense)
+    // For delta metrics, apply percentile-based color mapping (no 25km overlay needed)
     const isDelta = state.metric === "delta_gbp" || state.metric === "delta_pct";
     if (isDelta) {
-      // Ensure paint property uses delta metric fields instead of median (features have median=0 for deltas)
-      if (map.getLayer("cells-fill")) {
-        map.setPaintProperty("cells-fill", "fill-color", getFillColorExpression(state.metric));
+      // Get current map source and compute quantiles on delta field
+      try {
+        const src = map.getSource("cells") as maplibregl.GeoJSONSource | undefined;
+        const srcData: any = src ? (src as any)._data ?? null : null;
+        if (srcData && Array.isArray(srcData.features) && srcData.features.length > 0) {
+          const probs = [0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 1];
+          const breaks = computeWeightedQuantiles(srcData, state.metric, probs);
+          const colors = makeDeltaColors();
+          const expr = buildTailColorExpression(state.metric, breaks, colors);
+          if (map.getLayer("cells-fill")) {
+            map.setPaintProperty("cells-fill", "fill-color", expr);
+          }
+        }
+      } catch (e) {
+        // fallback to linear interpolation if quantile fails
+        if (map.getLayer("cells-fill")) {
+          map.setPaintProperty("cells-fill", "fill-color", getFillColorExpression(state.metric));
+        }
       }
       return;
     }
@@ -474,6 +489,16 @@ function makeTailColors() {
   return [...bottom, ...middle, ...top];
 }
 
+function makeDeltaColors() {
+  // Diverging palette for deltas: purple (extreme neg) → red (neg) → white (zero) → green (pos) → dark blue (extreme pos)
+  const negExtreme = ["#4a0080", "#6b0094", "#8b00a8"];
+  const neg = ["#d73027", "#e74c3c", "#f08080"];
+  const neutral = ["#f7f7f7", "#ffffff"];
+  const pos = ["#91cf60", "#1a9850", "#238b45"];
+  const posExtreme = ["#08519c", "#05337a"];
+  return [...negExtreme, ...neg, ...neutral, ...pos, ...posExtreme];
+}
+
 function updateOverlayFromFeatureCollection(map: maplibregl.Map, fc: any) {
   try {
     const features = fc?.features ?? [];
@@ -588,21 +613,25 @@ function getFillColorExpression(metric: "median" | "delta_gbp" | "delta_pct") {
   if (metric === "delta_gbp") {
     return [
       "interpolate", ["linear"], ["get", "delta_gbp"],
-      -200000, "#2c7bb6",
-      -50000,  "#00ccbc",
-      0,       "#90eb9d",
-      100000,  "#fdae61",
-      300000,  "#d73027",
+      -300000, "#4a0080", // extreme reduction: dark purple
+      -150000, "#d73027", // reduction: red
+      -50000,  "#f46d43", // mild reduction: light red
+      0,       "#f7f7f7", // neutral: off-white
+      50000,   "#1a9850", // increase: green
+      150000,  "#238b45", // more increase: darker green
+      300000,  "#08519c", // extreme increase: dark blue
     ] as any;
   }
 
   return [
     "interpolate", ["linear"], ["get", "delta_pct"],
-    -20, "#d73027",
-    -10, "#fdae61",
-    0,   "#90eb9d",
-    10,  "#00ccbc",
-    20,  "#2c7bb6",
+    -30, "#4a0080", // extreme reduction: dark purple
+    -15, "#d73027", // reduction: red
+    -5,  "#f46d43", // mild reduction: light red
+    0,   "#f7f7f7", // neutral: off-white
+    5,   "#1a9850", // increase: green
+    15,  "#238b45", // more increase: darker green
+    30,  "#08519c", // extreme increase: dark blue
   ] as any;
 }
 
