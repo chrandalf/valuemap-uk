@@ -74,6 +74,7 @@ export default function Home() {
       >
         <div style={{ fontSize: 12, letterSpacing: 0.6, opacity: 0.8 }}>VALUEMAP UK</div>
         <div style={{ fontSize: 28, fontWeight: 700, marginTop: 6 }}>UK House Price Grid</div>
+        <div style={{ marginTop: 4, fontSize: 12, opacity: 0.8 }}>By Chris Randall</div>
         <div style={{ marginTop: 8, opacity: 0.85, lineHeight: 1.35 }}>
           Grid-based medians and deltas (trailing 12 months). Data layer next.
         </div>
