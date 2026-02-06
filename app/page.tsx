@@ -172,7 +172,8 @@ export default function Home() {
           backdropFilter: "blur(10px)",
           color: "white",
           fontSize: 14,
-          maxWidth: 600,
+          width: 560,
+          maxWidth: "calc(100vw - 36px)",
         }}
       >
         <div style={{ fontWeight: 600, marginBottom: 16, fontSize: 18, opacity: 0.9 }}>
@@ -221,7 +222,7 @@ export default function Home() {
                   <div style={{ textAlign: "left", fontSize: 13, opacity: 0.75 }}>
                     {formatDeltaValue(state.metric, deltaLegend.stops[0])}
                   </div>
-                  <div style={{ display: "flex", height: 50, gap: 2 }}>
+                  <div style={{ display: "flex", height: 50, gap: 2, minWidth: 240 }}>
                     {deltaLegend.colors.map((c, i) => (
                       <div key={i} style={{ flex: 1, backgroundColor: c, borderRadius: 3 }} />
                     ))}
