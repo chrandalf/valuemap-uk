@@ -203,7 +203,7 @@ export default function Home() {
           maxWidth: "calc(100vw - 36px)",
         }}
       >
-        <div style={{ fontWeight: 600, marginBottom: 16, fontSize: 18, opacity: 0.9 }}>
+        <div className="legend-title" style={{ fontWeight: 600, marginBottom: 16, fontSize: 18, opacity: 0.9 }}>
           {METRIC_LABEL[state.metric]} Scale
         </div>
         {state.metric === "median" && (
@@ -226,7 +226,7 @@ export default function Home() {
                     {formatCurrency(medianLegend.breaks[medianLegend.breaks.length - 1])}
                   </div>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "80px 1fr 80px", marginTop: 6 }}>
+                <div className="legend-sub" style={{ display: "grid", gridTemplateColumns: "80px 1fr 80px", marginTop: 6 }}>
                   <div />
                   <div style={{ textAlign: "center", fontSize: 12, opacity: 0.75 }}>
                     Median: {formatCurrency(getQuantileValue(medianLegend, 0.5))}
@@ -258,7 +258,7 @@ export default function Home() {
                     {formatDeltaValue(state.metric, deltaLegend.stops[deltaLegend.stops.length - 1])}
                   </div>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "90px 1fr 90px", marginTop: 6 }}>
+                <div className="legend-sub" style={{ display: "grid", gridTemplateColumns: "90px 1fr 90px", marginTop: 6 }}>
                   <div />
                   <div style={{ textAlign: "center", fontSize: 12, opacity: 0.75 }}>
                     {state.metric === "delta_pct" ? "0%" : "0"}
@@ -336,6 +336,9 @@ export function Styles() {
   return (
     <style jsx global>{`
       @media (max-width: 640px) {
+        .median-overlay {
+          display: none !important;
+        }
         .panel {
           left: 12px !important;
           right: 12px !important;
@@ -376,11 +379,18 @@ export function Styles() {
           left: 12px !important;
           width: auto !important;
           max-width: none !important;
-          padding: 8px 12px !important;
+          padding: 6px 8px !important;
           bottom: 12px !important;
         }
         .legend .legend-bars {
-          height: 28px !important;
+          height: 18px !important;
+        }
+        .legend .legend-title {
+          font-size: 14px !important;
+          margin-bottom: 8px !important;
+        }
+        .legend .legend-sub {
+          display: none !important;
         }
       }
     `}</style>

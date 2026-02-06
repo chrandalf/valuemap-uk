@@ -230,6 +230,7 @@ export default function ValueMap({
     <div ref={containerRef} style={{ position: "absolute", inset: 0 }}>
       {isLoading && (
         <div
+          className="map-loading"
           style={{
             position: "absolute",
             top: 12,
@@ -240,13 +241,14 @@ export default function ValueMap({
             borderRadius: 6,
             fontSize: 12,
             zIndex: 3,
-          }}
-        >
-          Loading...
-        </div>
+        }}
+      >
+        Loading...
+      </div>
       )}
       <div
         id="median-overlay"
+        className="median-overlay"
         style={{
           position: "absolute",
           top: 12,
