@@ -448,7 +448,7 @@ export default function ValueMap({
               {postcodeItems.length > 0 && (
                 <>
                   <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 6 }}>
-                    Click a postcode to view properties on Zoopla.
+                    Click a postcode to open Zoopla (shows properties around this price or less; editable there).
                   </div>
                   <div
                     className="postcode-list"
