@@ -65,6 +65,7 @@ export default function ValueMap({
   const [postcodeLoading, setPostcodeLoading] = useState(false);
   const [postcodeError, setPostcodeError] = useState<string | null>(null);
   const [scotlandNote, setScotlandNote] = useState<string | null>(null);
+  const [postcodeMaxPrice, setPostcodeMaxPrice] = useState<number | null>(null);
   const fetchPostcodesRef = useRef<(gx: number, gy: number, offset: number, append: boolean) => void>(() => {});
 
   useEffect(() => {
@@ -78,12 +79,13 @@ export default function ValueMap({
     setPostcodeOffset(0);
     setPostcodeError(null);
     setScotlandNote(null);
+    setPostcodeMaxPrice(null);
   }, [state.grid]);
 
   // Cache: avoid recomputing polygons when toggling metric only
   const geoCacheRef = useRef<Map<string, any>>(new Map<string, any>());
 
-  const buildZooplaHref = (outcode: string) => {
+  const buildZooplaHref = (outcode: string, maxPrice?: number | null) => {
     const clean = outcode.trim().toLowerCase();
     const s = stateRef.current;
     const params = new URLSearchParams({
@@ -125,6 +127,9 @@ export default function ValueMap({
     }
 
     if (s.newBuild === "N") params.set("new_homes", "exclude");
+    if (maxPrice && Number.isFinite(maxPrice)) {
+      params.set("price_max", String(Math.round(maxPrice)));
+    }
 
     return `${path}?${params.toString()}`;
   };
@@ -287,6 +292,12 @@ export default function ValueMap({
     const gx = Number(f.properties?.gx);
     const gy = Number(f.properties?.gy);
     if (!Number.isFinite(gx) || !Number.isFinite(gy)) return;
+    const median = Number(f.properties?.median);
+    if (Number.isFinite(median)) {
+      setPostcodeMaxPrice(median * 1.25);
+    } else {
+      setPostcodeMaxPrice(null);
+    }
     // Subtle Scotland caveat when clicking northern cells (Gretna ~331900, 568300)
     if (gy >= 568300) {
       setScotlandNote("Scotland data coverage is partial and may be 1–2 years out of date.");
@@ -444,7 +455,7 @@ export default function ValueMap({
                     style={{ display: "flex", flexWrap: "wrap", gap: 6, maxHeight: 180, overflow: "auto" }}
                   >
                     {postcodeItems.map((pc, i) => {
-                      const href = buildZooplaHref(pc);
+                      const href = buildZooplaHref(pc, postcodeMaxPrice);
                       return (
                         <a
                           key={`${pc}-${i}`}
