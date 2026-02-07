@@ -24,3 +24,16 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* MapLibre popup: force high-contrast theme for legibility across devices */
+.maplibregl-popup-content {
+  background: #0b0f16;
+  color: #f5f7ff;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.maplibregl-popup-tip {
+  border-top-color: #0b0f16;
+  border-bottom-color: #0b0f16;
+}
