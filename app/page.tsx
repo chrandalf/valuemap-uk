@@ -403,6 +403,17 @@ export function Styles() {
           border-color: rgba(255,255,255,0.45) !important;
           box-shadow: 0 0 0 1px rgba(0,0,0,0.35) inset !important;
         }
+        .postcode-panel {
+          left: 12px !important;
+          right: 12px !important;
+          top: 86px !important;
+          bottom: auto !important;
+          max-width: none !important;
+          width: auto !important;
+        }
+        .postcode-list {
+          max-height: 140px !important;
+        }
         .legend {
           right: 12px !important;
           left: 12px !important;

@@ -332,6 +332,7 @@ export default function ValueMap({
       </div>
       {postcodeCell && (
         <div
+          className="postcode-panel"
           style={{
             position: "absolute",
             left: 12,
@@ -368,14 +369,16 @@ export default function ValueMap({
               Close
             </button>
           </div>
-          <div style={{ opacity: 0.7, marginBottom: 6 }}>{postcodeCell}</div>
           {postcodeError && <div style={{ color: "#ff9999" }}>{postcodeError}</div>}
           {!postcodeError && (
             <>
               {postcodeLoading && postcodeItems.length === 0 && <div>Loading...</div>}
           {postcodeItems.length === 0 && !postcodeLoading && <div>No postcode areas found.</div>}
               {postcodeItems.length > 0 && (
-                <div style={{ display: "grid", gap: 4, maxHeight: 180, overflow: "auto" }}>
+                <div
+                  className="postcode-list"
+                  style={{ display: "flex", flexWrap: "wrap", gap: 6, maxHeight: 180, overflow: "auto" }}
+                >
                   {postcodeItems.map((pc, i) => (
                     <div key={`${pc}-${i}`}>{pc}</div>
                   ))}
