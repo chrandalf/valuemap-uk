@@ -64,7 +64,7 @@ export default function ValueMap({
   const [postcodeOffset, setPostcodeOffset] = useState(0);
   const [postcodeLoading, setPostcodeLoading] = useState(false);
   const [postcodeError, setPostcodeError] = useState<string | null>(null);
-  const fetchPostcodesRef = useRef<(cell: string, offset: number, append: boolean) => void>(() => {});
+  const fetchPostcodesRef = useRef<(gx: number, gy: number, offset: number, append: boolean) => void>(() => {});
 
   useEffect(() => {
     stateRef.current = state;
@@ -196,14 +196,15 @@ export default function ValueMap({
     popup.remove();
   });
 
-  const fetchPostcodes = async (cell: string, offset: number, append: boolean) => {
+  const fetchPostcodes = async (gx: number, gy: number, offset: number, append: boolean) => {
     setPostcodeLoading(true);
     setPostcodeError(null);
-    setPostcodeCell(cell);
+    setPostcodeCell(`${gx}_${gy}`);
     try {
       const qs = new URLSearchParams({
         grid: stateRef.current.grid,
-        cell,
+        gx: String(gx),
+        gy: String(gy),
         limit: "10",
         offset: String(offset),
       });
@@ -235,10 +236,10 @@ export default function ValueMap({
   map.on("click", "cells-fill", (e) => {
     const f = e.features?.[0] as any;
     if (!f) return;
-    const cellId = (f.id ?? f.properties?.id ?? `${f.properties?.gx}_${f.properties?.gy}`) as string | number;
-    const cell = String(cellId);
-    if (!cell || cell === "undefined_undefined") return;
-    void fetchPostcodesRef.current(cell, 0, false);
+    const gx = Number(f.properties?.gx);
+    const gy = Number(f.properties?.gy);
+    if (!Number.isFinite(gx) || !Number.isFinite(gy)) return;
+    void fetchPostcodesRef.current(gx, gy, 0, false);
   });
 
   // Initial real data load
@@ -383,7 +384,11 @@ export default function ValueMap({
               {postcodeItems.length < postcodeTotal && (
                 <button
                   type="button"
-                  onClick={() => void fetchPostcodesRef.current(postcodeCell, postcodeOffset + 10, true)}
+                  onClick={() => {
+                    const [gx, gy] = (postcodeCell ?? "").split("_").map(Number);
+                    if (!Number.isFinite(gx) || !Number.isFinite(gy)) return;
+                    void fetchPostcodesRef.current(gx, gy, postcodeOffset + 10, true);
+                  }}
                   style={{
                     marginTop: 8,
                     cursor: "pointer",
