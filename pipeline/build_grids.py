@@ -383,6 +383,30 @@ with gzip.open(postcode_lookup_out_json, "wt", encoding="utf-8") as f:
 
 print("Wrote postcode lookup:", postcode_lookup_out_parquet, "rows:", len(postcode_lookup))
 
+# Build per-grid outcode index to avoid heavy lookups in the API
+def build_outcode_index(df_lookup: pd.DataFrame, g: int) -> dict:
+    x_col = f"cell_{g}_x"
+    y_col = f"cell_{g}_y"
+    if x_col not in df_lookup.columns or y_col not in df_lookup.columns:
+        return {}
+
+    d = df_lookup[["outcode", x_col, y_col]].dropna().copy()
+    d[x_col] = d[x_col].astype("int64")
+    d[y_col] = d[y_col].astype("int64")
+    d["cell"] = d[x_col].astype(str) + "_" + d[y_col].astype(str)
+
+    index = {}
+    for cell, group in d.groupby("cell"):
+        index[cell] = sorted(group["outcode"].astype(str).unique().tolist())
+    return index
+
+for g in [1000, 5000, 10000, 25000]:
+    index = build_outcode_index(postcode_lookup, g)
+    out_path = str(OUTPUT_DIR / f"postcode_outcode_index_{g//1000}km.json.gz")
+    with gzip.open(out_path, "wt", encoding="utf-8") as f:
+        json.dump(index, f)
+    print("Wrote postcode outcode index:", out_path, "cells:", len(index))
+
 
 # %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:39:01.385831Z","iopub.execute_input":"2026-02-07T08:39:01.386284Z","iopub.status.idle":"2026-02-07T08:39:01.401250Z","shell.execute_reply.started":"2026-02-07T08:39:01.386249Z","shell.execute_reply":"2026-02-07T08:39:01.400267Z"},"jupyter":{"outputs_hidden":false}}
 postcode_lookup.head()

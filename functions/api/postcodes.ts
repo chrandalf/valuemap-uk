@@ -19,11 +19,17 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     }
     const limit = clampInt(url.searchParams.get("limit"), 10, 1, 100);
     const offset = clampInt(url.searchParams.get("offset"), 0, 0, 1_000_000);
+    const indexKeyParam = url.searchParams.get("indexKey") ?? env.POSTCODE_LOOKUP_INDEX_KEY;
     // Default to the uploaded R2 object name; allow override via `key` param or `POSTCODE_LOOKUP_KEY` env var
     // Extract the first token that looks like a JSON/GZ object key to avoid shell artifacts (e.g., jq)
     const rawKey = (url.searchParams.get("key") ?? env.POSTCODE_LOOKUP_KEY ?? "postcode_grid_outcode_lookup.json.gz").trim();
     const keyMatch = rawKey.match(/[a-zA-Z0-9/_.-]+\.json(?:\.gz)?/);
     const key = keyMatch ? keyMatch[0] : "postcode_grid_outcode_lookup.json.gz";
+
+    const defaultIndexKey = `postcode_outcode_index_${grid}.json.gz`;
+    const rawIndexKey = (indexKeyParam ?? defaultIndexKey).trim();
+    const indexKeyMatch = rawIndexKey.match(/[a-zA-Z0-9/_.-]+\.json(?:\.gz)?/);
+    const indexKey = indexKeyMatch ? indexKeyMatch[0] : defaultIndexKey;
 
     if (!isGridKey(grid)) {
       return Response.json("Invalid grid. Use 1km|5km|10km|25km", { status: 400 });
@@ -32,7 +38,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
       return Response.json("Missing cell", { status: 400 });
     }
 
-    const list = await getPostcodesForCell(env, grid, key, cell);
+    const list = await getPostcodesForCell(env, grid, key, cell, indexKey);
 
     const slice = list.slice(offset, offset + limit);
     const hasMore = offset + limit < list.length;
@@ -74,6 +80,7 @@ interface Env {
   R2: R2Bucket;
   BRICKGRID_BUCKET?: R2Bucket;
   POSTCODE_LOOKUP_KEY?: string;
+  POSTCODE_LOOKUP_INDEX_KEY?: string;
 }
 
 type PostcodeRow = {
@@ -91,8 +98,14 @@ async function getPostcodesForCell(
   env: Env,
   grid: GridKey,
   key: string,
-  cell: string
+  cell: string,
+  indexKey: string
 ): Promise<string[]> {
+  const index = await tryLoadIndex(env, indexKey);
+  if (index) {
+    return index[cell] ?? [];
+  }
+
   const bucket = ((env && ((env as any).BRICKGRID_BUCKET || (env as any).R2)) as unknown) as R2Bucket | undefined;
   if (!bucket) {
     throw new Error("R2 binding not found. Expected environment binding `BRICKGRID_BUCKET` or `R2`.");
@@ -111,23 +124,11 @@ async function getPostcodesForCell(
     `v1/${key.replace(/^.*\//, "")}`,
   ]));
 
-  let obj: { arrayBuffer: () => Promise<ArrayBuffer> } | null = null;
-  let foundKey: string | null = null;
-  for (const k of candidates) {
-    triedKeys.push(k);
-    // eslint-disable-next-line no-await-in-loop
-    const attempt = await bucket.get(k as any as string);
-    if (attempt) {
-      obj = attempt;
-      foundKey = k;
-      break;
-    }
-  }
-
-  if (!obj) {
-    // helpful error showing what we tried
+  const found = await fetchObjectWithCandidates(bucket, candidates, triedKeys);
+  if (!found) {
     throw new Error(`R2 object not found: tried keys: ${triedKeys.join(", ")}`);
   }
+  const { obj } = found;
 
   const decompressed = await decompressGzip(await obj.arrayBuffer());
   const text = new TextDecoder().decode(decompressed);
@@ -175,6 +176,47 @@ async function getPostcodesForCell(
   }
 
   return Array.from(outcodes).sort();
+}
+
+async function tryLoadIndex(env: Env, indexKey: string): Promise<Record<string, string[]> | null> {
+  const bucket = ((env && ((env as any).BRICKGRID_BUCKET || (env as any).R2)) as unknown) as R2Bucket | undefined;
+  if (!bucket) {
+    throw new Error("R2 binding not found. Expected environment binding `BRICKGRID_BUCKET` or `R2`.");
+  }
+
+  const triedKeys: string[] = [];
+  const candidates = Array.from(new Set([
+    indexKey,
+    indexKey.replace(/^\/+/, ""),
+    indexKey.replace(/^.*\//, ""),
+    `valuemap-uk/${indexKey}`,
+    `valuemap-uk/${indexKey.replace(/^.*\//, "")}`,
+    `v1/${indexKey}`,
+    `v1/${indexKey.replace(/^.*\//, "")}`,
+  ]));
+
+  const found = await fetchObjectWithCandidates(bucket, candidates, triedKeys);
+  if (!found) return null;
+
+  const decompressed = await decompressGzip(await found.obj.arrayBuffer());
+  const text = new TextDecoder().decode(decompressed);
+  return JSON.parse(text) as Record<string, string[]>;
+}
+
+async function fetchObjectWithCandidates(
+  bucket: R2Bucket,
+  candidates: string[],
+  triedKeys: string[]
+): Promise<{ obj: { arrayBuffer: () => Promise<ArrayBuffer> }; foundKey: string } | null> {
+  for (const k of candidates) {
+    triedKeys.push(k);
+    // eslint-disable-next-line no-await-in-loop
+    const attempt = await bucket.get(k as any as string);
+    if (attempt) {
+      return { obj: attempt, foundKey: k };
+    }
+  }
+  return null;
 }
 
 function clampInt(v: string | null, fallback: number, min: number, max: number) {
