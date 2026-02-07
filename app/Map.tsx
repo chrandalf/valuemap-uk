@@ -88,32 +88,42 @@ export default function ValueMap({
     const s = stateRef.current;
     const params = new URLSearchParams({
       q: clean,
-      search_source: "for-sale",
+      search_source: s.newBuild === "Y" ? "new-homes" : "for-sale",
     });
 
-    let path = `https://www.zoopla.co.uk/for-sale/property/${encodeURIComponent(clean)}/`;
+    const isNewHomes = s.newBuild === "Y";
+    let path = isNewHomes
+      ? `https://www.zoopla.co.uk/new-homes/property/${encodeURIComponent(clean)}/`
+      : `https://www.zoopla.co.uk/for-sale/property/${encodeURIComponent(clean)}/`;
 
     switch (s.propertyType) {
       case "D":
-        path = `https://www.zoopla.co.uk/for-sale/houses/${encodeURIComponent(clean)}/`;
+        path = isNewHomes
+          ? `https://www.zoopla.co.uk/new-homes/houses/${encodeURIComponent(clean)}/`
+          : `https://www.zoopla.co.uk/for-sale/houses/${encodeURIComponent(clean)}/`;
         params.set("property_sub_type", "detached");
         break;
       case "S":
-        path = `https://www.zoopla.co.uk/for-sale/houses/${encodeURIComponent(clean)}/`;
+        path = isNewHomes
+          ? `https://www.zoopla.co.uk/new-homes/houses/${encodeURIComponent(clean)}/`
+          : `https://www.zoopla.co.uk/for-sale/houses/${encodeURIComponent(clean)}/`;
         params.set("property_sub_type", "semi_detached");
         break;
       case "T":
-        path = `https://www.zoopla.co.uk/for-sale/houses/${encodeURIComponent(clean)}/`;
+        path = isNewHomes
+          ? `https://www.zoopla.co.uk/new-homes/houses/${encodeURIComponent(clean)}/`
+          : `https://www.zoopla.co.uk/for-sale/houses/${encodeURIComponent(clean)}/`;
         params.set("property_sub_type", "terraced");
         break;
       case "F":
-        path = `https://www.zoopla.co.uk/for-sale/flats/${encodeURIComponent(clean)}/`;
+        path = isNewHomes
+          ? `https://www.zoopla.co.uk/new-homes/flats/${encodeURIComponent(clean)}/`
+          : `https://www.zoopla.co.uk/for-sale/flats/${encodeURIComponent(clean)}/`;
         break;
       default:
         break;
     }
 
-    if (s.newBuild === "Y") params.set("new_homes", "include");
     if (s.newBuild === "N") params.set("new_homes", "exclude");
 
     return `${path}?${params.toString()}`;
