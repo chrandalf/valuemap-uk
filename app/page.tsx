@@ -52,6 +52,7 @@ export default function Home() {
       ? legend
       : null;
   const [filtersOpen, setFiltersOpen] = useState(true);
+  const [instructionsOpen, setInstructionsOpen] = useState(false);
 
   return (
     <main style={{ position: "relative", minHeight: "100vh", overflow: "hidden" }}>
@@ -76,9 +77,9 @@ export default function Home() {
           color: "white",
         }}
       >
-        <div className="panel-brand" style={{ fontSize: 12, letterSpacing: 0.6, opacity: 0.8 }}>VALUEMAP UK</div>
-        <div className="panel-title" style={{ fontSize: 28, fontWeight: 700, marginTop: 6 }}>UK House Price Grid</div>
-        <div className="panel-byline" style={{ marginTop: 4, fontSize: 12, opacity: 0.8 }}>By Chris Randall</div>
+        <div className="panel-title" style={{ fontSize: 24, fontWeight: 700, marginTop: 2, lineHeight: 1.2 }}>
+          UK HOUSE PRICE GRID <span style={{ fontSize: 12, fontWeight: 500, opacity: 0.8 }}>by Chris Randall</span>
+        </div>
         <button
           type="button"
           className="panel-toggle"
@@ -97,10 +98,7 @@ export default function Home() {
         >
           {filtersOpen ? "Hide filters" : "Show filters"}
         </button>
-        <div className="panel-desc" style={{ marginTop: 8, opacity: 0.85, lineHeight: 1.35 }}>
-          Grid-based medians and deltas (trailing 12 months). Data layer next.
-        </div>
-        <div style={{ marginTop: 6, fontSize: 11, opacity: 0.65 }}>
+        <div style={{ marginTop: 6, fontSize: 11, opacity: 0.7 }}>
           Scotland coverage is partial and may be 1–2 years out of date.
         </div>
 
@@ -187,6 +185,42 @@ export default function Home() {
             </div>
           </div>
         )}
+
+        <div style={{ marginTop: 12 }}>
+          <button
+            type="button"
+            onClick={() => setInstructionsOpen((v) => !v)}
+            className="instructions-toggle"
+            style={{
+              cursor: "pointer",
+              border: "1px solid rgba(255,255,255,0.18)",
+              background: "rgba(255,255,255,0.08)",
+              color: "white",
+              padding: "6px 10px",
+              borderRadius: 999,
+              fontSize: 11,
+            }}
+          >
+            {instructionsOpen ? "Hide instructions" : "Instructions"}
+          </button>
+          {instructionsOpen && (
+            <div
+              className="instructions-panel"
+              style={{
+                marginTop: 8,
+                padding: 10,
+                borderRadius: 10,
+                background: "rgba(0,0,0,0.35)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                fontSize: 11,
+                lineHeight: 1.4,
+                opacity: 0.92,
+              }}
+            >
+              This is a grid based map of the UK showing property sold prices for the last 5 years. You're able to filter which years you want to look at and look at changes (deltas) between years. Useful for spotting undervalued areas, comparing local markets, and tracking momentum over time.
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Bottom-right legend */}
