@@ -391,14 +391,14 @@ export default function ValueMap({
               {postcodeItems.length > 0 && (
                 <>
                   <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 6 }}>
-                    Click a postcode to view properties on Rightmove.
+                    Click a postcode to view properties on Zoopla.
                   </div>
                   <div
                     className="postcode-list"
                     style={{ display: "flex", flexWrap: "wrap", gap: 6, maxHeight: 180, overflow: "auto" }}
                   >
                     {postcodeItems.map((pc, i) => {
-                      const href = `https://www.rightmove.co.uk/property-for-sale/search.html?searchLocation=${encodeURIComponent(pc)}`;
+                      const href = `https://www.zoopla.co.uk/for-sale/property/${encodeURIComponent(pc).toLowerCase()}/?q=${encodeURIComponent(pc).toLowerCase()}&search_source=for-sale`;
                       return (
                         <a
                           key={`${pc}-${i}`}
