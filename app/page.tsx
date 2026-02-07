@@ -78,7 +78,10 @@ export default function Home() {
         }}
       >
         <div className="panel-title" style={{ fontSize: 24, fontWeight: 700, marginTop: 2, lineHeight: 1.2 }}>
-          UK HOUSE PRICE GRID <span style={{ fontSize: 12, fontWeight: 500, opacity: 0.8 }}>by Chris Randall</span>
+          UK HOUSE PRICE GRID
+        </div>
+        <div className="panel-byline" style={{ marginTop: 4, fontSize: 12, opacity: 0.8 }}>
+          by Chris Randall
         </div>
         <button
           type="button"
@@ -384,7 +387,7 @@ export function Styles() {
           top: 12px !important;
           width: auto !important;
           max-width: none !important;
-          padding: 12px !important;
+          padding: 10px !important;
           max-height: 60vh !important;
           overflow: auto !important;
         }
@@ -398,11 +401,19 @@ export function Styles() {
           display: none !important;
         }
         .panel[data-open="false"] .panel-title {
-          font-size: 18px !important;
+          font-size: 16px !important;
           margin-top: 0 !important;
         }
+        .panel-title {
+          font-size: 18px !important;
+          line-height: 1.1 !important;
+        }
+        .panel-byline {
+          font-size: 11px !important;
+          margin-top: 2px !important;
+        }
         .panel[data-open="false"] {
-          padding: 10px 12px !important;
+          padding: 8px 10px !important;
         }
         .panel-toggle {
           display: inline-block !important;
@@ -415,14 +426,14 @@ export function Styles() {
           display: none !important;
         }
         .controls {
-          gap: 8px !important;
+          gap: 6px !important;
         }
         .control-row {
           grid-template-columns: 1fr !important;
-          gap: 6px !important;
+          gap: 4px !important;
         }
         .control-label {
-          font-size: 11px !important;
+          font-size: 10px !important;
           opacity: 0.7 !important;
         }
         .segment {
@@ -432,7 +443,8 @@ export function Styles() {
         .segment-btn {
           flex: 1 1 auto !important;
           min-width: 64px !important;
-          padding: 8px 12px !important;
+          padding: 6px 8px !important;
+          font-size: 11px !important;
           border: 1px solid transparent !important;
         }
         .segment-btn.active {
