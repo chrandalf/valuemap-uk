@@ -216,12 +216,34 @@ postcode_lookup = df_en[[
     "PCDS",
     "cell_1000", "cell_5000", "cell_10000", "cell_25000",
 ]].copy()
+
+# Extract outcode (area) from full postcode and normalise
 postcode_lookup["outcode"] = (
     postcode_lookup["PCDS"].astype("string").str.strip().str.split(" ", n=1).str[0].str.upper()
 )
-postcode_lookup = postcode_lookup.dropna(subset=["outcode"]).drop_duplicates(
-    ["outcode", "cell_1000", "cell_5000", "cell_10000", "cell_25000"]
-)
+postcode_lookup = postcode_lookup.dropna(subset=["outcode"]).copy()
+
+# Split each cell string (e.g. "385000_801000") into separate X/Y columns per grid size
+for g in [1000, 5000, 10000, 25000]:
+    cell_col = f"cell_{g}"
+    x_col = f"cell_{g}_x"
+    y_col = f"cell_{g}_y"
+    # If the cell column exists, split on the underscore; keep as nullable Int64
+    if cell_col in postcode_lookup.columns:
+        parts = postcode_lookup[cell_col].astype("string").str.split("_", n=1, expand=True)
+        postcode_lookup[x_col] = pd.to_numeric(parts[0], errors="coerce").astype("Int64")
+        postcode_lookup[y_col] = pd.to_numeric(parts[1], errors="coerce").astype("Int64")
+    else:
+        postcode_lookup[x_col] = pd.Series([pd.NA] * len(postcode_lookup), dtype="Int64")
+        postcode_lookup[y_col] = pd.Series([pd.NA] * len(postcode_lookup), dtype="Int64")
+
+# Drop the original full postcode string column (`PCDS`) and the combined `cell_*` columns
+drop_cells = [f"cell_{g}" for g in [1000, 5000, 10000, 25000]] + ["PCDS"]
+postcode_lookup = postcode_lookup.drop(columns=[c for c in drop_cells if c in postcode_lookup.columns])
+
+# Deduplicate by outcode + all grid X/Y coordinate pairs
+dedupe_cols = ["outcode"] + [f"cell_{g}_x" for g in [1000, 5000, 10000, 25000]] + [f"cell_{g}_y" for g in [1000, 5000, 10000, 25000]]
+postcode_lookup = postcode_lookup.drop_duplicates(subset=dedupe_cols)
 
 # Save as parquet (compact, fast) and JSON (portable)
 postcode_lookup_out_parquet = str(OUTPUT_DIR / "postcode_grid_outcode_lookup.parquet")

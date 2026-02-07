@@ -5,7 +5,18 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     const url = new URL(request.url);
 
     const grid = (url.searchParams.get("grid") ?? "25km") as GridKey;
-    const cell = (url.searchParams.get("cell") ?? "").trim();
+    // Allow either `cell` (e.g. "385000_801000") or numeric coords `gx` and `gy`
+    let cell = (url.searchParams.get("cell") ?? "").trim();
+    const gxParam = url.searchParams.get("gx");
+    const gyParam = url.searchParams.get("gy");
+    if (!cell && gxParam && gyParam) {
+      // normalize to the same key format as used in the lookup (int ints joined by `_`)
+      const gxn = Number(gxParam);
+      const gyn = Number(gyParam);
+      if (Number.isFinite(gxn) && Number.isFinite(gyn)) {
+        cell = `${Math.round(gxn)}_${Math.round(gyn)}`;
+      }
+    }
     const limit = clampInt(url.searchParams.get("limit"), 10, 1, 100);
     const offset = clampInt(url.searchParams.get("offset"), 0, 0, 1_000_000);
     const key = (url.searchParams.get("key") ?? env.POSTCODE_LOOKUP_KEY ?? "valuemap-uk/postcode_grid_lookup.json.gz").trim();
@@ -94,21 +105,44 @@ async function getCellIndex(env: Env, grid: GridKey, key: string): Promise<Map<s
   const rows = JSON.parse(text) as PostcodeRow[];
 
   const map = new Map<string, Set<string>>();
-  const cellKey = grid === "1km" ? "cell_1000"
+
+  // support either a combined cell column (e.g. cell_1000 = "385000_801000")
+  // or split integer columns (cell_1000_x, cell_1000_y) which our preprocessing may produce
+  const combinedCellField = grid === "1km" ? "cell_1000"
     : grid === "5km" ? "cell_5000"
     : grid === "10km" ? "cell_10000"
     : "cell_25000";
+  const splitXField = `${combinedCellField}_x`;
+  const splitYField = `${combinedCellField}_y`;
 
   for (const r of rows) {
-    const cell = (r as any)[cellKey] as string | undefined;
-    if (!cell) continue;
-    const raw = (r.postcode || r.pc_key || "").toString().trim();
-    if (!raw) continue;
-    const outcode = raw.split(" ")[0].toUpperCase();
+    let cellVal: string | undefined;
+
+    // Prefer existing combined cell string
+    const rawCombined = (r as any)[combinedCellField];
+    if (rawCombined !== undefined && rawCombined !== null && String(rawCombined).trim() !== "") {
+      cellVal = String(rawCombined).trim();
+    } else {
+      // Try split integer fields
+      const x = (r as any)[splitXField];
+      const y = (r as any)[splitYField];
+      if (x !== undefined && x !== null && y !== undefined && y !== null) {
+        cellVal = `${String(x)}_${String(y)}`;
+      }
+    }
+
+    if (!cellVal) continue;
+
+    // outcode may already be provided (we wrote it); prefer it, else derive from postcode/pc_key
+    let outcodeRaw = (r as any)["outcode"] ?? (r.postcode || r.pc_key || "");
+    outcodeRaw = String(outcodeRaw).trim();
+    if (!outcodeRaw) continue;
+    const outcode = outcodeRaw.split(" ")[0].toUpperCase();
     if (!outcode) continue;
-    const set = map.get(cell);
+
+    const set = map.get(cellVal);
     if (set) set.add(outcode);
-    else map.set(cell, new Set([outcode]));
+    else map.set(cellVal, new Set([outcode]));
   }
 
   const out = new Map<string, string[]>();
