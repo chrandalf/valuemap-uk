@@ -48,9 +48,11 @@ type ApiRow = {
 export default function ValueMap({
   state,
   onLegendChange,
+  onPostcodePanelChange,
 }: {
   state: MapState;
   onLegendChange?: (legend: LegendData | null) => void;
+  onPostcodePanelChange?: (open: boolean) => void;
 }) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -81,6 +83,10 @@ export default function ValueMap({
     setScotlandNote(null);
     setPostcodeMaxPrice(null);
   }, [state.grid]);
+
+  useEffect(() => {
+    onPostcodePanelChange?.(Boolean(postcodeCell));
+  }, [postcodeCell, onPostcodePanelChange]);
 
   // Cache: avoid recomputing polygons when toggling metric only
   const geoCacheRef = useRef<Map<string, any>>(new Map<string, any>());
@@ -397,6 +403,7 @@ export default function ValueMap({
       </div>
       {postcodeCell && (
         <div
+          className="postcode-wrap"
           style={{
             position: "absolute",
             left: 12,

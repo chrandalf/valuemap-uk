@@ -53,11 +53,16 @@ export default function Home() {
       : null;
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [instructionsOpen, setInstructionsOpen] = useState(false);
+  const [postcodeOpen, setPostcodeOpen] = useState(false);
 
   return (
     <main style={{ position: "relative", minHeight: "100vh", overflow: "hidden" }}>
       <Styles />
-      <ValueMap state={state} onLegendChange={setLegend} />
+      <ValueMap
+        state={state}
+        onLegendChange={setLegend}
+        onPostcodePanelChange={setPostcodeOpen}
+      />
 
       {/* Top-left product panel */}
       <div
@@ -220,30 +225,31 @@ export default function Home() {
                 opacity: 0.92,
               }}
             >
-              This is a grid based map of the UK showing property sold prices for the last 5 years. You're able to filter which years you want to look at and look at changes (deltas) between years. Useful for spotting undervalued areas, comparing local markets, and tracking momentum over time.
+              This is a grid based map of the UK showing property sold prices for the last 5 years. You're able to filter which years you want to look at and look at changes (deltas) between years. After you click a cell, tap a postcode to open Zoopla and view properties in that area around the suggested price. Useful for spotting undervalued areas, comparing local markets, and tracking momentum over time.
             </div>
           )}
         </div>
       </div>
 
       {/* Bottom-right legend */}
-      <div
-        className="legend"
-        style={{
-          position: "absolute",
-          right: 18,
-          bottom: 18,
-          padding: "20px 28px",
-          borderRadius: 14,
-          background: "rgba(10, 12, 20, 0.85)",
-          border: "1px solid rgba(255,255,255,0.12)",
-          backdropFilter: "blur(10px)",
-          color: "white",
-          fontSize: 14,
-          width: 560,
-          maxWidth: "calc(100vw - 36px)",
-        }}
-      >
+      {!postcodeOpen && (
+        <div
+          className="legend"
+          style={{
+            position: "absolute",
+            right: 18,
+            bottom: 18,
+            padding: "20px 28px",
+            borderRadius: 14,
+            background: "rgba(10, 12, 20, 0.85)",
+            border: "1px solid rgba(255,255,255,0.12)",
+            backdropFilter: "blur(10px)",
+            color: "white",
+            fontSize: 14,
+            width: 560,
+            maxWidth: "calc(100vw - 36px)",
+          }}
+        >
         <div className="legend-title" style={{ fontWeight: 600, marginBottom: 16, fontSize: 18, opacity: 0.9 }}>
           {METRIC_LABEL[state.metric]} Scale
         </div>
@@ -310,7 +316,8 @@ export default function Home() {
             )}
           </>
         )}
-      </div>
+        </div>
+      )}
     </main>
   );
 }
@@ -452,13 +459,18 @@ export function Styles() {
           border-color: rgba(255,255,255,0.45) !important;
           box-shadow: 0 0 0 1px rgba(0,0,0,0.35) inset !important;
         }
-        .postcode-panel {
+        .postcode-wrap {
+          position: fixed !important;
           left: 12px !important;
           right: 12px !important;
           top: auto !important;
-          bottom: 96px !important;
+          bottom: 12px !important;
           max-width: none !important;
           width: auto !important;
+          z-index: 4 !important;
+          pointer-events: auto !important;
+        }
+        .postcode-panel {
           padding: 8px 10px !important;
         }
         .postcode-list {
