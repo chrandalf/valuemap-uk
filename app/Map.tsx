@@ -389,37 +389,41 @@ export default function ValueMap({
               {postcodeLoading && postcodeItems.length === 0 && <div>Loading...</div>}
           {postcodeItems.length === 0 && !postcodeLoading && <div>No postcode areas found.</div>}
               {postcodeItems.length > 0 && (
-                <div
-                  className="postcode-list"
-                  style={{ display: "flex", flexWrap: "wrap", gap: 6, maxHeight: 180, overflow: "auto" }}
-                >
-                  {postcodeItems.map((pc, i) => {
-                    const href = `https://www.rightmove.co.uk/property-for-sale/search.html?searchLocation=${encodeURIComponent(pc)}&useLocationIdentifier=false`;
-                    return (
-                      <a
-                        key={`${pc}-${i}`}
-                        href={href}
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 6,
-                          padding: "4px 8px",
-                          borderRadius: 999,
-                          background: "rgba(255,255,255,0.08)",
-                          border: "1px solid rgba(255,255,255,0.14)",
-                          color: "white",
-                          textDecoration: "none",
-                          fontSize: 12,
-                        }}
-                      >
-                        {pc}
-                        <span style={{ opacity: 0.7 }}>Rightmove</span>
-                      </a>
-                    );
-                  })}
-                </div>
+                <>
+                  <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 6 }}>
+                    Click a postcode to view properties on Rightmove.
+                  </div>
+                  <div
+                    className="postcode-list"
+                    style={{ display: "flex", flexWrap: "wrap", gap: 6, maxHeight: 180, overflow: "auto" }}
+                  >
+                    {postcodeItems.map((pc, i) => {
+                      const href = `https://www.rightmove.co.uk/property-for-sale/search.html?searchLocation=${encodeURIComponent(pc)}`;
+                      return (
+                        <a
+                          key={`${pc}-${i}`}
+                          href={href}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                            padding: "4px 8px",
+                            borderRadius: 999,
+                            background: "rgba(255,255,255,0.08)",
+                            border: "1px solid rgba(255,255,255,0.14)",
+                            color: "white",
+                            textDecoration: "none",
+                            fontSize: 12,
+                          }}
+                        >
+                          {pc}
+                        </a>
+                      );
+                    })}
+                  </div>
+                </>
               )}
               {postcodeItems.length < postcodeTotal && (
                 <button
