@@ -406,13 +406,14 @@ export function Styles() {
         .postcode-panel {
           left: 12px !important;
           right: 12px !important;
-          top: 86px !important;
-          bottom: auto !important;
+          top: auto !important;
+          bottom: 96px !important;
           max-width: none !important;
           width: auto !important;
+          padding: 8px 10px !important;
         }
         .postcode-list {
-          max-height: 140px !important;
+          max-height: 110px !important;
         }
         .legend {
           right: 12px !important;
