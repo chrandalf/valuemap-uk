@@ -19,7 +19,8 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     }
     const limit = clampInt(url.searchParams.get("limit"), 10, 1, 100);
     const offset = clampInt(url.searchParams.get("offset"), 0, 0, 1_000_000);
-    const key = (url.searchParams.get("key") ?? env.POSTCODE_LOOKUP_KEY ?? "valuemap-uk/postcode_grid_lookup.json.gz").trim();
+    // Default to the uploaded R2 object name; allow override via `key` param or `POSTCODE_LOOKUP_KEY` env var
+    const key = (url.searchParams.get("key") ?? env.POSTCODE_LOOKUP_KEY ?? "postcode_grid_outcode_lookup.json.gz").trim();
 
     if (!isGridKey(grid)) {
       return Response.json("Invalid grid. Use 1km|5km|10km|25km", { status: 400 });
