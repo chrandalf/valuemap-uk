@@ -393,9 +393,32 @@ export default function ValueMap({
                   className="postcode-list"
                   style={{ display: "flex", flexWrap: "wrap", gap: 6, maxHeight: 180, overflow: "auto" }}
                 >
-                  {postcodeItems.map((pc, i) => (
-                    <div key={`${pc}-${i}`}>{pc}</div>
-                  ))}
+                  {postcodeItems.map((pc, i) => {
+                    const href = `https://www.rightmove.co.uk/property-for-sale/search.html?searchLocation=${encodeURIComponent(pc)}&useLocationIdentifier=false`;
+                    return (
+                      <a
+                        key={`${pc}-${i}`}
+                        href={href}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          padding: "4px 8px",
+                          borderRadius: 999,
+                          background: "rgba(255,255,255,0.08)",
+                          border: "1px solid rgba(255,255,255,0.14)",
+                          color: "white",
+                          textDecoration: "none",
+                          fontSize: 12,
+                        }}
+                      >
+                        {pc}
+                        <span style={{ opacity: 0.7 }}>Rightmove</span>
+                      </a>
+                    );
+                  })}
                 </div>
               )}
               {postcodeItems.length < postcodeTotal && (
