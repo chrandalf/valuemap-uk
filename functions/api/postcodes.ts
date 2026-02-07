@@ -20,9 +20,9 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     const limit = clampInt(url.searchParams.get("limit"), 10, 1, 100);
     const offset = clampInt(url.searchParams.get("offset"), 0, 0, 1_000_000);
     // Default to the uploaded R2 object name; allow override via `key` param or `POSTCODE_LOOKUP_KEY` env var
-    // Read key from param or env; sanitize by taking only the first token
+    // Read key from param or env; aggressively sanitize to strip shell artifacts (quotes, backslashes, pipes, etc.)
     const rawKey = (url.searchParams.get("key") ?? env.POSTCODE_LOOKUP_KEY ?? "postcode_grid_outcode_lookup.json.gz").trim();
-    const key = rawKey.split(/\s|\|/)[0].replace(/^\"|\'|\/+/, "");
+    const key = rawKey.replace(/[^a-zA-Z0-9\/_.-]/g, "");
 
     if (!isGridKey(grid)) {
       return Response.json("Invalid grid. Use 1km|5km|10km|25km", { status: 400 });
