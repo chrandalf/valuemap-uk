@@ -1,5 +1,6 @@
 # %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:49:19.907578Z","iopub.execute_input":"2026-02-05T10:49:19.907948Z","iopub.status.idle":"2026-02-05T10:50:48.185928Z","shell.execute_reply.started":"2026-02-05T10:49:19.907915Z","shell.execute_reply":"2026-02-05T10:50:48.184898Z"},"jupyter":{"outputs_hidden":false}}
 import os, time, requests
+from pathlib import Path
 URL = "http://prod.publicdata.landregistry.gov.uk.s3-website-eu-west-1.amazonaws.com/pp-complete.txt"
 ##URL = "https://s3.eu-west-1.amazonaws.com/prod1.publicdata.landregistry.gov.uk/pp-2025.txt"
 OUT = "pp-2025.txt"
@@ -115,7 +116,65 @@ df.head()
 
 # %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:52:58.354160Z","iopub.execute_input":"2026-02-05T10:52:58.354625Z","iopub.status.idle":"2026-02-05T10:53:27.601785Z","shell.execute_reply.started":"2026-02-05T10:52:58.354582Z","shell.execute_reply":"2026-02-05T10:53:27.600843Z"},"jupyter":{"outputs_hidden":false}}
 import pandas as pd
-path_east_north = "/kaggle/input/postcode-eastnorth/ONSPD_Online_latest_Postcode_Centroids_.csv"
+
+def download_file(url: str, out_path: Path, chunk_size: int = 1024 * 1024):
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with requests.get(url, stream=True, timeout=(30, 600)) as r:
+        r.raise_for_status()
+        with open(out_path, "wb") as f:
+            for chunk in r.iter_content(chunk_size=chunk_size):
+                if chunk:
+                    f.write(chunk)
+    return out_path
+
+def resolve_postcode_centroids_csv() -> str:
+    """
+    Resolve the postcode centroid CSV path for local/Codespaces/Kaggle runs.
+
+    Resolution order:
+    1) POSTCODE_CENTROIDS_CSV env var (local file path)
+    2) Existing local files in common locations
+    3) Legacy Kaggle path
+    4) Download from POSTCODE_CENTROIDS_URL env var into ./data/
+    """
+    script_path = Path(__file__).resolve()
+    repo_root = script_path.parent.parent
+    preferred_path = repo_root / "pipeline" / "data" / "ONSPD_Online_latest_Postcode_Centroids_.csv"
+
+    # Sanity check: ensure we are in the expected project root
+    if not (repo_root / "package.json").exists():
+        raise FileNotFoundError(f"Unexpected project root: {repo_root} (package.json missing)")
+
+    env_csv = os.getenv("POSTCODE_CENTROIDS_CSV")
+    if env_csv:
+        p = Path(env_csv)
+        if not p.is_absolute():
+            p = (repo_root / p).resolve()
+        if p.exists():
+            return str(p)
+
+    candidates = [
+        preferred_path,
+        repo_root / "data" / "ONSPD_Online_latest_Postcode_Centroids_.csv",
+        Path("/kaggle/input/postcode-eastnorth/ONSPD_Online_latest_Postcode_Centroids_.csv"),
+    ]
+    for p in candidates:
+        if p.exists():
+            return str(p)
+
+    url = os.getenv("POSTCODE_CENTROIDS_URL")
+    if url:
+        print(f"Downloading postcode centroids from {url} -> {preferred_path}")
+        download_file(url, preferred_path)
+        return str(preferred_path)
+
+    raise FileNotFoundError(
+        "Postcode centroid CSV not found. "
+        "Set POSTCODE_CENTROIDS_CSV to a local file or POSTCODE_CENTROIDS_URL to download it."
+    )
+
+path_east_north = resolve_postcode_centroids_csv()
+print("Using postcode centroid CSV:", path_east_north)
 
 cols = [
     "x","y","PCD7","PCD8","PCDS","DOINTR","DOTERM",

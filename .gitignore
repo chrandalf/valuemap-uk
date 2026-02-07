@@ -44,3 +44,7 @@ next-env.d.ts
 *.json.gz
 *.gz
 *.json
+
+# large local data (do not commit)
+data/ONSPD_Online_latest_Postcode_Centroids_.csv
+pipeline/data/ONSPD_Online_latest_Postcode_Centroids_.csv
