@@ -1,6 +1,5 @@
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:49:19.907578Z","iopub.execute_input":"2026-02-05T10:49:19.907948Z","iopub.status.idle":"2026-02-05T10:50:48.185928Z","shell.execute_reply.started":"2026-02-05T10:49:19.907915Z","shell.execute_reply":"2026-02-05T10:50:48.184898Z"},"jupyter":{"outputs_hidden":false}}
-import os, time, requests, gc
-from pathlib import Path
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:22:40.155697Z","iopub.execute_input":"2026-02-07T05:22:40.156718Z"},"jupyter":{"outputs_hidden":false}}
+import os, time, requests
 URL = "http://prod.publicdata.landregistry.gov.uk.s3-website-eu-west-1.amazonaws.com/pp-complete.txt"
 ##URL = "https://s3.eu-west-1.amazonaws.com/prod1.publicdata.landregistry.gov.uk/pp-2025.txt"
 OUT = "pp-2025.txt"
@@ -46,12 +45,12 @@ def download_resume(url, out_path, retries=20, chunk_size=1024*1024):
 
 download_resume(URL, OUT)
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:50:51.934082Z","iopub.execute_input":"2026-02-05T10:50:51.935138Z","iopub.status.idle":"2026-02-05T10:50:51.940571Z","shell.execute_reply.started":"2026-02-05T10:50:51.935069Z","shell.execute_reply":"2026-02-05T10:50:51.939318Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"jupyter":{"outputs_hidden":false}}
 import os
 print(os.getcwd())
 print(os.listdir(".")[:50])
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:50:54.268660Z","iopub.execute_input":"2026-02-05T10:50:54.269024Z","iopub.status.idle":"2026-02-05T10:50:54.284631Z","shell.execute_reply.started":"2026-02-05T10:50:54.268993Z","shell.execute_reply":"2026-02-05T10:50:54.283592Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:25:58.574996Z","iopub.execute_input":"2026-02-07T05:25:58.575335Z","iopub.status.idle":"2026-02-07T05:25:58.581901Z","shell.execute_reply.started":"2026-02-07T05:25:58.575299Z","shell.execute_reply":"2026-02-07T05:25:58.580753Z"},"jupyter":{"outputs_hidden":false}}
 import os
 
 for d in os.listdir("/kaggle/input"):
@@ -59,26 +58,10 @@ for d in os.listdir("/kaggle/input"):
     print("\n==", p)
     print(os.listdir(p)[:50])
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:50:57.588431Z","iopub.execute_input":"2026-02-05T10:50:57.588884Z","iopub.status.idle":"2026-02-05T10:52:45.438082Z","shell.execute_reply.started":"2026-02-05T10:50:57.588842Z","shell.execute_reply":"2026-02-05T10:52:45.437166Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:25:58.583946Z","iopub.execute_input":"2026-02-07T05:25:58.584716Z","iopub.status.idle":"2026-02-07T05:27:42.136540Z","shell.execute_reply.started":"2026-02-07T05:25:58.584685Z","shell.execute_reply":"2026-02-07T05:27:42.135639Z"},"jupyter":{"outputs_hidden":false}}
 import pandas as pd
 
-def resolve_pp_path() -> str:
-    script_path = Path(__file__).resolve()
-    repo_root = script_path.parent.parent
-    candidates = [
-        repo_root / "pipeline" / "data" / "pp-2025.txt",
-        repo_root / "data" / "pp-2025.txt",
-        Path("/kaggle/working/pp-2025.txt"),
-    ]
-    for p in candidates:
-        if p.exists():
-            return str(p)
-    raise FileNotFoundError("pp-2025.txt not found in pipeline/data, data, or /kaggle/working")
-
-path = resolve_pp_path()
-print("Using transactions file:", path)
-OUTPUT_DIR = Path("output")
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+path = "/kaggle/working/pp-2025.txt"
 
 # Full PPD schema (16 columns)
 all_cols = [
@@ -88,7 +71,7 @@ all_cols = [
     "district", "county", "ppd_category", "record_status"
 ]
 
-usecols = ["price", "date", "postcode", "property_type", "new_build", "record_status"]
+usecols = ["transaction_id", "price", "date", "postcode", "property_type", "new_build", "record_status"]
 
 cutoff = (pd.Timestamp.today().normalize() - pd.DateOffset(years=5)).date()
 
@@ -99,6 +82,7 @@ for chunk in pd.read_csv(
     names=all_cols,
     usecols=usecols,
     dtype={
+        "transaction_id": "string",
         "postcode": "string",
         "property_type": "string",
         "new_build": "string",
@@ -116,112 +100,49 @@ for chunk in pd.read_csv(
     # Last 5 years
     chunk = chunk[chunk["date"].dt.date >= cutoff]
 
-    # Keep only columns needed downstream and compress dtypes early
-    chunk["pc_key"] = chunk["postcode"].astype("string").str.replace(" ", "", regex=False).str.upper()
-    chunk["month"] = chunk["date"].dt.to_period("M").dt.to_timestamp()
-    chunk["price"] = pd.to_numeric(chunk["price"], errors="coerce", downcast="integer")
-    chunk["property_type"] = chunk["property_type"].astype("category")
-    chunk["new_build"] = chunk["new_build"].astype("category")
-    chunk = chunk[["price", "date", "month", "pc_key", "property_type", "new_build"]]
-
     chunks.append(chunk)
 
 df = pd.concat(chunks, ignore_index=True)
 
+# Month-start timestamp (for your downstream logic)
+df["month"] = df["date"].dt.to_period("M").dt.to_timestamp()
+
 print("Rows kept:", len(df))
 print("Date range:", df["date"].min().date(), "->", df["date"].max().date())
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:52:54.027700Z","iopub.execute_input":"2026-02-05T10:52:54.028070Z","iopub.status.idle":"2026-02-05T10:52:54.065845Z","shell.execute_reply.started":"2026-02-05T10:52:54.028038Z","shell.execute_reply":"2026-02-05T10:52:54.064824Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:27:46.015685Z","iopub.execute_input":"2026-02-07T05:27:46.016433Z","iopub.status.idle":"2026-02-07T05:27:46.042758Z","shell.execute_reply.started":"2026-02-07T05:27:46.016403Z","shell.execute_reply":"2026-02-07T05:27:46.042096Z"},"jupyter":{"outputs_hidden":false}}
 df.head()
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:52:58.354160Z","iopub.execute_input":"2026-02-05T10:52:58.354625Z","iopub.status.idle":"2026-02-05T10:53:27.601785Z","shell.execute_reply.started":"2026-02-05T10:52:58.354582Z","shell.execute_reply":"2026-02-05T10:53:27.600843Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:28:24.553698Z","iopub.execute_input":"2026-02-07T05:28:24.554298Z","iopub.status.idle":"2026-02-07T05:28:51.827415Z","shell.execute_reply.started":"2026-02-07T05:28:24.554257Z","shell.execute_reply":"2026-02-07T05:28:51.825965Z"},"jupyter":{"outputs_hidden":false}}
 import pandas as pd
+path_east_north = "/kaggle/input/postcode-eastnorth/ONSPD_Online_latest_Postcode_Centroids_.csv"
 
-def download_file(url: str, out_path: Path, chunk_size: int = 1024 * 1024):
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    with requests.get(url, stream=True, timeout=(30, 600)) as r:
-        r.raise_for_status()
-        with open(out_path, "wb") as f:
-            for chunk in r.iter_content(chunk_size=chunk_size):
-                if chunk:
-                    f.write(chunk)
-    return out_path
-
-def resolve_postcode_centroids_csv() -> str:
-    """
-    Resolve the postcode centroid CSV path for local/Codespaces/Kaggle runs.
-
-    Resolution order:
-    1) POSTCODE_CENTROIDS_CSV env var (local file path)
-    2) Existing local files in common locations
-    3) Legacy Kaggle path
-    4) Download from POSTCODE_CENTROIDS_URL env var into ./data/
-    """
-    script_path = Path(__file__).resolve()
-    repo_root = script_path.parent.parent
-    preferred_path = repo_root / "pipeline" / "data" / "ONSPD_Online_latest_Postcode_Centroids_.csv"
-
-    # Sanity check: ensure we are in the expected project root
-    if not (repo_root / "package.json").exists():
-        raise FileNotFoundError(f"Unexpected project root: {repo_root} (package.json missing)")
-
-    env_csv = os.getenv("POSTCODE_CENTROIDS_CSV")
-    if env_csv:
-        p = Path(env_csv)
-        if not p.is_absolute():
-            p = (repo_root / p).resolve()
-        if p.exists():
-            return str(p)
-
-    candidates = [
-        preferred_path,
-        repo_root / "data" / "ONSPD_Online_latest_Postcode_Centroids_.csv",
-        Path("/kaggle/input/postcode-eastnorth/ONSPD_Online_latest_Postcode_Centroids_.csv"),
-    ]
-    for p in candidates:
-        if p.exists():
-            return str(p)
-
-    url = os.getenv("POSTCODE_CENTROIDS_URL")
-    if url:
-        print(f"Downloading postcode centroids from {url} -> {preferred_path}")
-        download_file(url, preferred_path)
-        return str(preferred_path)
-
-    raise FileNotFoundError(
-        "Postcode centroid CSV not found. "
-        "Set POSTCODE_CENTROIDS_CSV to a local file or POSTCODE_CENTROIDS_URL to download it."
-    )
-
-path_east_north = resolve_postcode_centroids_csv()
-print("Using postcode centroid CSV:", path_east_north)
-
-cols = ["x", "y", "PCDS"]
+cols = [
+    "x","y","PCDS"
+]
 
 df_en = pd.read_csv(
     path_east_north,    
-    names=cols,
-    header=None,
-    usecols=cols,
+    names=cols,    
+    usecols=[0,1,4],
     skiprows=1,
     dtype={
         "x": "string",
         "y": "string",
         "PCDS": "string",
+                
     }
 )
 
 df_en.head()
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:53:34.617969Z","iopub.execute_input":"2026-02-05T10:53:34.618348Z","iopub.status.idle":"2026-02-05T10:53:39.846574Z","shell.execute_reply.started":"2026-02-05T10:53:34.618316Z","shell.execute_reply":"2026-02-05T10:53:39.845526Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:29:11.181408Z","iopub.execute_input":"2026-02-07T05:29:11.181877Z","iopub.status.idle":"2026-02-07T05:29:15.373022Z","shell.execute_reply.started":"2026-02-07T05:29:11.181775Z","shell.execute_reply":"2026-02-07T05:29:15.371967Z"},"jupyter":{"outputs_hidden":false}}
 df_en["EAST1M"]  = pd.to_numeric(df_en["x"], errors="coerce")
 df_en["NORTH1M"] = pd.to_numeric(df_en["y"], errors="coerce")
 
 df_en = df_en.dropna(subset=["EAST1M","NORTH1M"]).copy()
-df_en["EAST1M"] = df_en["EAST1M"].astype("float32")
-df_en["NORTH1M"] = df_en["NORTH1M"].astype("float32")
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:53:42.914982Z","iopub.execute_input":"2026-02-05T10:53:42.915985Z","iopub.status.idle":"2026-02-05T10:53:54.002896Z","shell.execute_reply.started":"2026-02-05T10:53:42.915945Z","shell.execute_reply":"2026-02-05T10:53:54.001864Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:29:20.393336Z","iopub.execute_input":"2026-02-07T05:29:20.393661Z","iopub.status.idle":"2026-02-07T05:29:32.007790Z","shell.execute_reply.started":"2026-02-07T05:29:20.393635Z","shell.execute_reply":"2026-02-07T05:29:32.006576Z"},"jupyter":{"outputs_hidden":false}}
 GRID_SIZES = [1000, 5000, 10000, 25000]  # metres
 
 for g in GRID_SIZES:
@@ -232,26 +153,47 @@ for g in GRID_SIZES:
         df_en[f"gy_{g}"].astype("Int64").astype(str)
     )
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:54:15.147009Z","iopub.execute_input":"2026-02-05T10:54:15.148560Z","iopub.status.idle":"2026-02-05T10:54:15.879243Z","shell.execute_reply.started":"2026-02-05T10:54:15.148512Z","shell.execute_reply":"2026-02-05T10:54:15.878036Z"},"jupyter":{"outputs_hidden":false}}
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:54:20.620829Z","iopub.execute_input":"2026-02-05T10:54:20.621231Z","iopub.status.idle":"2026-02-05T10:54:20.626788Z","shell.execute_reply.started":"2026-02-05T10:54:20.621200Z","shell.execute_reply":"2026-02-05T10:54:20.625764Z"},"jupyter":{"outputs_hidden":false}}
-print("1km:",  df_en[["gx_1000", "gy_1000"]].drop_duplicates().shape[0])
-print("5km:",  df_en[["gx_5000", "gy_5000"]].drop_duplicates().shape[0])
-print("10km:", df_en[["gx_10000", "gy_10000"]].drop_duplicates().shape[0])
-print("25km:", df_en[["gx_25000", "gy_25000"]].drop_duplicates().shape[0])
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:29:35.803921Z","iopub.execute_input":"2026-02-07T05:29:35.804572Z","iopub.status.idle":"2026-02-07T05:29:36.520682Z","shell.execute_reply.started":"2026-02-07T05:29:35.804536Z","shell.execute_reply":"2026-02-07T05:29:36.519849Z"},"jupyter":{"outputs_hidden":false}}
+def make_cells(df, g):
+    cells = (df[[f"gx_{g}", f"gy_{g}"]]
+             .drop_duplicates()
+             .rename(columns={f"gx_{g}":"gx", f"gy_{g}":"gy"}))
+    cells["grid_m"] = g
+    cells["x0"] = cells["gx"]
+    cells["y0"] = cells["gy"]
+    cells["x1"] = cells["gx"] + g
+    cells["y1"] = cells["gy"] + g
+    return cells
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:54:23.694576Z","iopub.execute_input":"2026-02-05T10:54:23.694900Z","iopub.status.idle":"2026-02-05T10:54:27.954634Z","shell.execute_reply.started":"2026-02-05T10:54:23.694871Z","shell.execute_reply":"2026-02-05T10:54:27.953561Z"},"jupyter":{"outputs_hidden":false}}
+cells_1km  = make_cells(df_en, 1000)
+cells_5km  = make_cells(df_en, 5000)
+cells_10km = make_cells(df_en, 10000)
+cells_25km = make_cells(df_en, 25000)
+
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:29:46.057652Z","iopub.execute_input":"2026-02-07T05:29:46.058028Z","iopub.status.idle":"2026-02-07T05:29:46.064883Z","shell.execute_reply.started":"2026-02-07T05:29:46.057998Z","shell.execute_reply":"2026-02-07T05:29:46.063383Z"},"jupyter":{"outputs_hidden":false}}
+print("1km:",  len(cells_1km))
+print("5km:",  len(cells_5km))
+print("10km:", len(cells_10km))
+print("25km:", len(cells_25km))
+
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:29:48.720065Z","iopub.execute_input":"2026-02-07T05:29:48.721001Z","iopub.status.idle":"2026-02-07T05:29:53.635150Z","shell.execute_reply.started":"2026-02-07T05:29:48.720943Z","shell.execute_reply":"2026-02-07T05:29:53.633665Z"},"jupyter":{"outputs_hidden":false}}
+df["pc_key"] = df["postcode"].astype("string").str.replace(" ", "", regex=False).str.upper()
 df_en["pc_key"] = df_en["PCDS"].astype("string").str.replace(" ", "", regex=False).str.upper()
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-05T06:18:15.431091Z","iopub.execute_input":"2026-02-05T06:18:15.431501Z","iopub.status.idle":"2026-02-05T06:18:15.666443Z","shell.execute_reply.started":"2026-02-05T06:18:15.431466Z","shell.execute_reply":"2026-02-05T06:18:15.664087Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:29:56.836827Z","iopub.execute_input":"2026-02-07T05:29:56.837865Z","iopub.status.idle":"2026-02-07T05:29:56.866477Z","shell.execute_reply.started":"2026-02-07T05:29:56.837819Z","shell.execute_reply":"2026-02-07T05:29:56.864825Z"},"jupyter":{"outputs_hidden":false}}
 df_en.head()
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:54:32.892196Z","iopub.execute_input":"2026-02-05T10:54:32.892609Z","iopub.status.idle":"2026-02-05T10:54:45.637849Z","shell.execute_reply.started":"2026-02-05T10:54:32.892571Z","shell.execute_reply":"2026-02-05T10:54:45.636488Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:30:09.293565Z","iopub.execute_input":"2026-02-07T05:30:09.294027Z","iopub.status.idle":"2026-02-07T05:30:22.210616Z","shell.execute_reply.started":"2026-02-07T05:30:09.293991Z","shell.execute_reply":"2026-02-07T05:30:22.209420Z"},"jupyter":{"outputs_hidden":false}}
+df_en["EAST1M"]  = pd.to_numeric(df_en["EAST1M"], errors="coerce")
+df_en["NORTH1M"] = pd.to_numeric(df_en["NORTH1M"], errors="coerce")
+df_en = df_en.dropna(subset=["EAST1M","NORTH1M"]).copy()
+
 for g in [1000, 5000, 10000, 25000]:
     df_en[f"gx_{g}"] = ((df_en["EAST1M"] // g) * g).astype("int64")
     df_en[f"gy_{g}"] = ((df_en["NORTH1M"] // g) * g).astype("int64")
     df_en[f"cell_{g}"] = df_en[f"gx_{g}"].astype(str) + "_" + df_en[f"gy_{g}"].astype(str)
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:54:52.021894Z","iopub.execute_input":"2026-02-05T10:54:52.022262Z","iopub.status.idle":"2026-02-05T10:55:04.310953Z","shell.execute_reply.started":"2026-02-05T10:54:52.022232Z","shell.execute_reply":"2026-02-05T10:55:04.309943Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:30:26.442460Z","iopub.execute_input":"2026-02-07T05:30:26.442851Z","iopub.status.idle":"2026-02-07T05:30:48.332300Z","shell.execute_reply.started":"2026-02-07T05:30:26.442819Z","shell.execute_reply":"2026-02-07T05:30:48.331116Z"},"jupyter":{"outputs_hidden":false}}
 lookup_cols = [
     "pc_key",
     "EAST1M", "NORTH1M",
@@ -268,12 +210,8 @@ df = df.drop(columns=to_drop)
 
 df = df.merge(lookup, on="pc_key", how="left")
 
-# Release large lookup frames as soon as merge is done
-del lookup
-gc.collect()
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T06:05:55.224738Z","iopub.execute_input":"2026-02-07T06:05:55.225237Z","iopub.status.idle":"2026-02-07T06:06:12.506490Z","shell.execute_reply.started":"2026-02-07T06:05:55.225199Z","shell.execute_reply":"2026-02-07T06:06:12.505653Z"},"jupyter":{"outputs_hidden":false}}
 
-# --- Postcode area (outcode) -> grid cell lookup tables (for UI drilldown) ---
-# Keep only the outcode (part before the space) to reduce size.
 postcode_lookup = df_en[[
     "PCDS",
     "cell_1000", "cell_5000", "cell_10000", "cell_25000",
@@ -297,22 +235,28 @@ with gzip.open(postcode_lookup_out_json, "wt", encoding="utf-8") as f:
 
 print("Wrote postcode lookup:", postcode_lookup_out_parquet, "rows:", len(postcode_lookup))
 
-# df_en is no longer needed after lookup generation + merge
-del postcode_lookup
-del df_en
-gc.collect()
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:55:07.731960Z","iopub.execute_input":"2026-02-05T10:55:07.732310Z","iopub.status.idle":"2026-02-05T10:55:08.037267Z","shell.execute_reply.started":"2026-02-05T10:55:07.732280Z","shell.execute_reply":"2026-02-05T10:55:08.036215Z"},"jupyter":{"outputs_hidden":false}}
-df[["pc_key", "EAST1M", "NORTH1M", "gx_25000", "gy_25000", "cell_25000"]].head()
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T06:06:25.442621Z","iopub.execute_input":"2026-02-07T06:06:25.443191Z","iopub.status.idle":"2026-02-07T06:06:25.454079Z","shell.execute_reply.started":"2026-02-07T06:06:25.443162Z","shell.execute_reply":"2026-02-07T06:06:25.453075Z"}}
+postcode_lookup.head()
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:55:11.495841Z","iopub.execute_input":"2026-02-05T10:55:11.496227Z","iopub.status.idle":"2026-02-05T10:55:12.844804Z","shell.execute_reply.started":"2026-02-05T10:55:11.496196Z","shell.execute_reply":"2026-02-05T10:55:12.843521Z"},"jupyter":{"outputs_hidden":false}}
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:55:15.603005Z","iopub.execute_input":"2026-02-05T10:55:15.603394Z","iopub.status.idle":"2026-02-05T10:55:20.349462Z","shell.execute_reply.started":"2026-02-05T10:55:15.603364Z","shell.execute_reply":"2026-02-05T10:55:20.348451Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:32:31.857153Z","iopub.execute_input":"2026-02-07T05:32:31.858041Z","iopub.status.idle":"2026-02-07T05:32:32.316209Z","shell.execute_reply.started":"2026-02-07T05:32:31.857996Z","shell.execute_reply":"2026-02-07T05:32:32.314919Z"},"jupyter":{"outputs_hidden":false}}
+df[["postcode", "EAST1M", "NORTH1M", "gx_25000", "gy_25000", "cell_25000"]].head()
+
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:32:41.270513Z","iopub.execute_input":"2026-02-07T05:32:41.270910Z","iopub.status.idle":"2026-02-07T05:32:42.665655Z","shell.execute_reply.started":"2026-02-07T05:32:41.270878Z","shell.execute_reply":"2026-02-07T05:32:42.664178Z"},"jupyter":{"outputs_hidden":false}}
+df["month"] = df["date"].dt.to_period("M").dt.to_timestamp()
+
+# optional but recommended for later
+df["property_type"] = df["property_type"].astype("string")
+df["new_build"] = df["new_build"].astype("string")
+
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:32:45.250225Z","iopub.execute_input":"2026-02-07T05:32:45.250712Z","iopub.status.idle":"2026-02-07T05:32:51.794963Z","shell.execute_reply.started":"2026-02-07T05:32:45.250662Z","shell.execute_reply":"2026-02-07T05:32:51.793756Z"},"jupyter":{"outputs_hidden":false}}
+df["month"] = pd.to_datetime(df["month"]).dt.to_period("M").dt.to_timestamp()
 latest_month = df["month"].max()
 # Keep only last 10 years (inclusive, aligned to month)
 cutoff_month = (latest_month - pd.DateOffset(years=10)).to_period("M").to_timestamp()
 df = df[df["month"] >= cutoff_month].copy()
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:55:26.523449Z","iopub.execute_input":"2026-02-05T10:55:26.523802Z","iopub.status.idle":"2026-02-05T10:55:26.538891Z","shell.execute_reply.started":"2026-02-05T10:55:26.523771Z","shell.execute_reply":"2026-02-05T10:55:26.537874Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:33:05.839630Z","iopub.execute_input":"2026-02-07T05:33:05.840922Z","iopub.status.idle":"2026-02-07T05:33:05.858950Z","shell.execute_reply.started":"2026-02-07T05:33:05.840864Z","shell.execute_reply":"2026-02-07T05:33:05.857104Z"},"jupyter":{"outputs_hidden":false}}
 import pandas as pd
 
 def _yearly_end_months(d_month_col: pd.Series, years_back: int):
@@ -392,7 +336,7 @@ def make_grid_annual_stack_levels(df, g, min_sales=3, years_back=10):
 
     return out
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:55:32.777391Z","iopub.execute_input":"2026-02-05T10:55:32.777811Z","iopub.status.idle":"2026-02-05T10:55:44.224520Z","shell.execute_reply.started":"2026-02-05T10:55:32.777777Z","shell.execute_reply":"2026-02-05T10:55:44.223589Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:33:09.428261Z","iopub.execute_input":"2026-02-07T05:33:09.428625Z","iopub.status.idle":"2026-02-07T05:33:22.576176Z","shell.execute_reply.started":"2026-02-07T05:33:09.428596Z","shell.execute_reply":"2026-02-07T05:33:22.575100Z"},"jupyter":{"outputs_hidden":false}}
 grid_25km_annual = make_grid_annual_stack_levels(
     df,
     g=25000,
@@ -400,7 +344,7 @@ grid_25km_annual = make_grid_annual_stack_levels(
     years_back=10   # latest + last 10 yearly snapshots
 )
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:55:50.349854Z","iopub.execute_input":"2026-02-05T10:55:50.350187Z","iopub.status.idle":"2026-02-05T10:56:01.955021Z","shell.execute_reply.started":"2026-02-05T10:55:50.350161Z","shell.execute_reply":"2026-02-05T10:56:01.954066Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:33:25.830103Z","iopub.execute_input":"2026-02-07T05:33:25.830874Z","iopub.status.idle":"2026-02-07T05:33:39.332488Z","shell.execute_reply.started":"2026-02-07T05:33:25.830832Z","shell.execute_reply":"2026-02-07T05:33:39.331457Z"},"jupyter":{"outputs_hidden":false}}
 grid_10km_annual = make_grid_annual_stack_levels(
     df,
     g=10000,
@@ -408,7 +352,7 @@ grid_10km_annual = make_grid_annual_stack_levels(
     years_back=10   # latest + last 10 yearly snapshots
 )
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:56:05.925574Z","iopub.execute_input":"2026-02-05T10:56:05.925903Z","iopub.status.idle":"2026-02-05T10:56:21.921453Z","shell.execute_reply.started":"2026-02-05T10:56:05.925875Z","shell.execute_reply":"2026-02-05T10:56:21.919843Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:33:42.151610Z","iopub.execute_input":"2026-02-07T05:33:42.152725Z","iopub.status.idle":"2026-02-07T05:33:57.400205Z","shell.execute_reply.started":"2026-02-07T05:33:42.152683Z","shell.execute_reply":"2026-02-07T05:33:57.398469Z"},"jupyter":{"outputs_hidden":false}}
 grid_5km_annual = make_grid_annual_stack_levels(
     df,
     g=5000,
@@ -416,7 +360,7 @@ grid_5km_annual = make_grid_annual_stack_levels(
     years_back=10   # latest + last 10 yearly snapshots
 )
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-05T11:38:31.184865Z","iopub.execute_input":"2026-02-05T11:38:31.189664Z","iopub.status.idle":"2026-02-05T11:38:44.470826Z","shell.execute_reply.started":"2026-02-05T11:38:31.189576Z","shell.execute_reply":"2026-02-05T11:38:44.469449Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:34:10.260542Z","iopub.execute_input":"2026-02-07T05:34:10.261072Z","iopub.status.idle":"2026-02-07T05:34:21.699375Z","shell.execute_reply.started":"2026-02-07T05:34:10.261036Z","shell.execute_reply":"2026-02-07T05:34:21.698053Z"},"jupyter":{"outputs_hidden":false}}
 grid_1km_annual = make_grid_annual_stack_levels(
     df,
     g=1000,
@@ -424,37 +368,62 @@ grid_1km_annual = make_grid_annual_stack_levels(
     years_back=1   # latest + last 10 yearly snapshots
 )
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-05T11:38:52.539283Z","iopub.execute_input":"2026-02-05T11:38:52.539963Z","iopub.status.idle":"2026-02-05T11:38:52.730436Z","shell.execute_reply.started":"2026-02-05T11:38:52.539929Z","shell.execute_reply":"2026-02-05T11:38:52.729134Z"},"jupyter":{"outputs_hidden":false}}
-grid_1km_annual.to_parquet(str(OUTPUT_DIR / "grid_1km_annual.parquet"), index=False)
-grid_5km_annual.to_parquet(str(OUTPUT_DIR / "grid_5km_annual.parquet"), index=False)
-grid_10km_annual.to_parquet(str(OUTPUT_DIR / "grid_10km_annual.parquet"), index=False)
-grid_25km_annual.to_parquet(str(OUTPUT_DIR / "grid_25km_annual.parquet"), index=False)
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:34:24.836866Z","iopub.execute_input":"2026-02-07T05:34:24.837344Z","iopub.status.idle":"2026-02-07T05:34:25.208295Z","shell.execute_reply.started":"2026-02-07T05:34:24.837297Z","shell.execute_reply":"2026-02-07T05:34:25.207127Z"},"jupyter":{"outputs_hidden":false}}
+grid_1km_annual.to_parquet("/kaggle/working/grid_1km_annual.parquet", index=False)
+grid_5km_annual.to_parquet("/kaggle/working/grid_5km_annual.parquet", index=False)
+grid_10km_annual.to_parquet("/kaggle/working/grid_10km_annual.parquet", index=False)
+grid_25km_annual.to_parquet("/kaggle/working/grid_25km_annual.parquet", index=False)
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:58:33.489386Z","iopub.execute_input":"2026-02-05T10:58:33.489774Z","iopub.status.idle":"2026-02-05T10:59:06.948154Z","shell.execute_reply.started":"2026-02-05T10:58:33.489744Z","shell.execute_reply":"2026-02-05T10:59:06.946920Z"}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:58:25.314690Z","iopub.execute_input":"2026-02-07T05:58:25.315168Z","iopub.status.idle":"2026-02-07T05:58:25.321106Z","shell.execute_reply.started":"2026-02-07T05:58:25.315136Z","shell.execute_reply":"2026-02-07T05:58:25.319817Z"}}
+import os, time, requests, gc
+from pathlib import Path
+
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T06:00:28.690358Z","iopub.execute_input":"2026-02-07T06:00:28.691251Z","iopub.status.idle":"2026-02-07T06:00:28.699003Z","shell.execute_reply.started":"2026-02-07T06:00:28.691211Z","shell.execute_reply":"2026-02-07T06:00:28.697677Z"}}
+from pathlib import Path
+import os, json, gzip
+import pandas as pd
+
+OUTPUT_DIR = Path(os.getenv("OUTPUT_DIR", "/kaggle/working"))
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+# quick runtime checks
+for n in ("grid_1km_annual","grid_5km_annual","grid_10km_annual","grid_25km_annual"):
+    if n not in globals():
+        raise RuntimeError(f"{n} not found — run make_grid_annual_stack_levels first")
+
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T06:00:31.219944Z","iopub.execute_input":"2026-02-07T06:00:31.220494Z","iopub.status.idle":"2026-02-07T06:00:54.140464Z","shell.execute_reply.started":"2026-02-07T06:00:31.220460Z","shell.execute_reply":"2026-02-07T06:00:54.138974Z"},"jupyter":{"outputs_hidden":false}}
 import pandas as pd, json, gzip
 
-d = grid_1km_annual.copy()
+OUTPUT_DIR = Path(os.getenv("OUTPUT_DIR", "/kaggle/working"))
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-g = 1000
-d = d.rename(columns={
-    f"gx_{g}": "gx",
-    f"gy_{g}": "gy",
-    "median_price_12m": "median",
-    "sales_12m": "tx_count",
-})
+for grid_size, grid_annual in [
+    (1000, grid_1km_annual),
+    (5000, grid_5km_annual),
+    (10000, grid_10km_annual),
+    (25000, grid_25km_annual),
+]:
+    d = grid_annual.copy()
+    g = grid_size
+    d = d.rename(columns={
+        f"gx_{g}": "gx",
+        f"gy_{g}": "gy",
+        "median_price_12m": "median",
+        "sales_12m": "tx_count",
+    })
 
-# Normalize end_month to ISO format (YYYY-MM-DD) required for API filtering
-d["end_month"] = pd.to_datetime(d["end_month"]).dt.strftime("%Y-%m-%d")
+    # Normalize end_month to ISO format (YYYY-MM-DD) required for API filtering
+    d["end_month"] = pd.to_datetime(d["end_month"]).dt.strftime("%Y-%m-%d")
 
-keep = ["gx","gy","end_month","property_type","new_build","median","tx_count"]
-d = d[keep].dropna(subset=["gx","gy","median"]).copy()
+    keep = ["gx","gy","end_month","property_type","new_build","median","tx_count"]
+    d = d[keep].dropna(subset=["gx","gy","median"]).copy()
 
-out_path = str(OUTPUT_DIR / "grid_1km_full.json.gz")
-with gzip.open(out_path, "wt", encoding="utf-8") as f:
-    # JSON array (easy to parse/cached in worker)
-    json.dump(d.to_dict(orient="records"), f)
+    out_path = str(OUTPUT_DIR / f"grid_{g//1000}km_full.json.gz")
+    with gzip.open(out_path, "wt", encoding="utf-8") as f:
+        # JSON array (easy to parse/cached in worker)
+        json.dump(d.to_dict(orient="records"), f)
 
-print("Wrote:", out_path, "rows:", len(d))
+    print("Wrote:", out_path, "rows:", len(d))
 
 # Extract and store metadata: available date ranges for each dataset
 grid_metadata = {}
@@ -472,9 +441,8 @@ for grid_size, grid_annual in [
         "latest": latest,
         "available_months": int(grid_annual["end_month"].nunique())
     }
-
 # Save metadata JSON
-metadata_path = str(OUTPUT_DIR / "grid_metadata.json")
+metadata_path = "/kaggle/working/grid_metadata.json"
 with open(metadata_path, "w") as f:
     json.dump(grid_metadata, f, indent=2)
 
@@ -482,8 +450,7 @@ print(f"\nGrid availability metadata:")
 print(json.dumps(grid_metadata, indent=2))
 print(f"Saved to {metadata_path}")
 
-
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:59:19.568087Z","iopub.execute_input":"2026-02-05T10:59:19.568536Z","iopub.status.idle":"2026-02-05T10:59:22.362539Z","shell.execute_reply.started":"2026-02-05T10:59:19.568502Z","shell.execute_reply":"2026-02-05T10:59:22.361516Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-06T07:30:25.743491Z","iopub.execute_input":"2026-02-06T07:30:25.744103Z","iopub.status.idle":"2026-02-06T07:30:28.232924Z","shell.execute_reply.started":"2026-02-06T07:30:25.744074Z","shell.execute_reply":"2026-02-06T07:30:28.232168Z"},"jupyter":{"outputs_hidden":false}}
 g = 25000
 
 start_month = pd.Timestamp("2025-01-01")
@@ -500,10 +467,10 @@ count = df[
 
 count
 
-# %% [code] {"jupyter":{"outputs_hidden":false}}
+# %% [code] {"jupyter":{"outputs_hidden":false},"execution":{"iopub.status.busy":"2026-02-06T07:30:28.234614Z","iopub.execute_input":"2026-02-06T07:30:28.234991Z","iopub.status.idle":"2026-02-06T07:30:28.245192Z","shell.execute_reply.started":"2026-02-06T07:30:28.234966Z","shell.execute_reply":"2026-02-06T07:30:28.244304Z"}}
 (grid_25km_annual["property_type"].eq("ALL") & grid_25km_annual["new_build"].eq("ALL")).any()
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:59:27.946071Z","iopub.execute_input":"2026-02-05T10:59:27.946456Z","iopub.status.idle":"2026-02-05T10:59:27.968472Z","shell.execute_reply.started":"2026-02-05T10:59:27.946426Z","shell.execute_reply":"2026-02-05T10:59:27.967260Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-06T07:30:28.246521Z","iopub.execute_input":"2026-02-06T07:30:28.246898Z","iopub.status.idle":"2026-02-06T07:30:28.273729Z","shell.execute_reply.started":"2026-02-06T07:30:28.246850Z","shell.execute_reply":"2026-02-06T07:30:28.272922Z"},"jupyter":{"outputs_hidden":false}}
 g = 25000
 
 row = grid_25km_annual[
@@ -515,201 +482,7 @@ row = grid_25km_annual[
 
 row.sort_values(by='sales_12m' , ascending=False)
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:59:32.911333Z","iopub.execute_input":"2026-02-05T10:59:32.912331Z","iopub.status.idle":"2026-02-05T10:59:37.368910Z","shell.execute_reply.started":"2026-02-05T10:59:32.912295Z","shell.execute_reply":"2026-02-05T10:59:37.367632Z"},"jupyter":{"outputs_hidden":false}}
-import pandas as pd
-import numpy as np
-from pyproj import Transformer
-import plotly.express as px
-import plotly.io as pio
-
-pio.renderers.default = "iframe"
-TRANSFORMER = Transformer.from_crs("EPSG:27700", "EPSG:4326", always_xy=True)
-
-colorscale = "RdYlGn_r"
-lo = 200_000
-hi = 1_000_000
-
-def plot_annual_grid_map(
-    grid_annual: pd.DataFrame,
-    g: int,
-    end_month=None,
-    property_type: str = "ALL",
-    new_build: str = "ALL",
-    min_sales: int = 3,
-    use_tiles: bool = True,
-    zoom: float = 4.6,
-    opacity: float = 0.45,
-    fill_gaps: bool = True,
-    lookback_years: int = 10
-):
-    def norm_month_series(s: pd.Series) -> pd.Series:
-        return pd.to_datetime(s.astype(str)).dt.to_period("M").dt.to_timestamp()
-
-    def norm_month_value(v) -> pd.Timestamp:
-        return pd.to_datetime(str(v)).to_period("M").to_timestamp()
-
-    gx_col = f"gx_{g}"
-    gy_col = f"gy_{g}"
-    cell_col = f"cell_{g}"
-
-    d = grid_annual.copy()
-    d["end_month"] = norm_month_series(d["end_month"])
-
-    if end_month is None:
-        end_month = d["end_month"].max()
-    else:
-        end_month = norm_month_value(end_month)
-
-    # Filter to segment first (required)
-    d = d[(d["property_type"] == property_type) & (d["new_build"] == new_build)].copy()
-    if d.empty:
-        raise ValueError("No rows after filtering property_type/new_build. Check your stacked levels exist.")
-
-    # Standardize columns
-    d = d.rename(columns={"median_price_12m": "median_price", "sales_12m": "sales"})
-
-    # Restrict to eligible backfill window
-    min_allowed = norm_month_value(end_month - pd.DateOffset(years=lookback_years))
-    d = d[(d["end_month"] <= end_month) & (d["end_month"] >= min_allowed)].copy()
-
-    if fill_gaps:
-        d = (
-            d.sort_values("end_month", ascending=False)
-             .drop_duplicates(subset=[gx_col, gy_col], keep="first")
-             .copy()
-        )
-        d["end_month_used"] = d["end_month"]
-    else:
-        d = d[d["end_month"] == end_month].copy()
-        d["end_month_used"] = d["end_month"]
-
-    if d.empty:
-        raise ValueError("No rows left after applying end_month / backfill window.")
-
-    # Sales threshold
-    d = d[d["sales"] >= min_sales].copy()
-    if d.empty:
-        raise ValueError("No rows meet min_sales after filtering/backfill.")
-
-    d["years_stale"] = (end_month.year - d["end_month_used"].map(lambda t: t.year)).astype(int)
-
-    # Cell id
-    d[cell_col] = d[gx_col].astype("int64").astype(str) + "_" + d[gy_col].astype("int64").astype(str)
-
-    # Build GeoJSON squares
-    x0 = d[gx_col].astype(float).to_numpy()
-    y0 = d[gy_col].astype(float).to_numpy()
-    x1 = x0 + g
-    y1 = y0 + g
-
-    lon00, lat00 = TRANSFORMER.transform(x0, y0)
-    lon10, lat10 = TRANSFORMER.transform(x1, y0)
-    lon11, lat11 = TRANSFORMER.transform(x1, y1)
-    lon01, lat01 = TRANSFORMER.transform(x0, y1)
-
-    lon_min, lon_max = -10.5, 4.5
-    lat_min, lat_max = 49.0, 62.5
-    ok = (
-        (lon00 >= lon_min) & (lon00 <= lon_max) & (lat00 >= lat_min) & (lat00 <= lat_max) &
-        (lon10 >= lon_min) & (lon10 <= lon_max) & (lat10 >= lat_min) & (lat10 <= lat_max) &
-        (lon11 >= lon_min) & (lon11 <= lon_max) & (lat11 >= lat_min) & (lat11 <= lat_max) &
-        (lon01 >= lon_min) & (lon01 <= lon_max) & (lat01 >= lat_min) & (lat01 <= lat_max)
-    )
-
-    d = d.loc[ok].copy()
-    if d.empty:
-        raise ValueError("Nothing left after UK clipping (check gx/gy values).")
-
-    idx = np.where(ok)[0]
-    lon00, lat00 = lon00[idx], lat00[idx]
-    lon10, lat10 = lon10[idx], lat10[idx]
-    lon11, lat11 = lon11[idx], lat11[idx]
-    lon01, lat01 = lon01[idx], lat01[idx]
-
-    ids = d[cell_col].astype(str).to_numpy()
-
-    features = []
-    for i in range(len(d)):
-        poly = [
-            [lon00[i], lat00[i]],
-            [lon10[i], lat10[i]],
-            [lon11[i], lat11[i]],
-            [lon01[i], lat01[i]],
-            [lon00[i], lat00[i]],
-        ]
-        features.append({
-            "type": "Feature",
-            "id": ids[i],
-            "properties": {"cell": ids[i]},
-            "geometry": {"type": "Polygon", "coordinates": [poly]},
-        })
-
-    geojson = {"type": "FeatureCollection", "features": features}
-
-    lo = float(d["median_price"].quantile(0.05))
-    hi = float(d["median_price"].quantile(0.95))
-
-    title = f"UK House Prices ({g//1000}km) — target {end_month.date()} — {property_type}/{new_build}"
-    if fill_gaps:
-        title += f" (backfilled ≤{lookback_years}y)"
-
-    hover = {
-        "median_price": ":,.0f",
-        "sales": True,
-        "end_month_used": True,
-        "years_stale": True,
-        "property_type": True,
-        "new_build": True,
-    }
-
-    if use_tiles:
-        fig = px.choropleth_mapbox(
-            d,
-            geojson=geojson,
-            locations=cell_col,
-            color="median_price",
-            range_color=(lo, hi),
-            color_continuous_scale=colorscale,
-            hover_data=hover,
-            mapbox_style="open-street-map",
-            center={"lat": 54.5, "lon": -2.5},
-            zoom=zoom,
-            opacity=opacity,
-            title=title
-        )
-    else:
-        fig = px.choropleth(
-            d,
-            geojson=geojson,
-            locations=cell_col,
-            color="median_price",
-            range_color=(lo, hi),
-            hover_data=hover,
-            title=title
-        )
-        fig.update_geos(fitbounds="locations", visible=False)
-
-    fig.update_traces(marker_line_width=0.3)
-    fig.update_layout(margin={"r": 0, "t": 55, "l": 0, "b": 0})
-    fig.update_traces(marker_line_width=1.4, marker_line_color="rgba(0,0,0,0.7)")
-    fig.show(renderer="iframe")
-
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:59:49.898611Z","iopub.execute_input":"2026-02-05T10:59:49.898978Z","iopub.status.idle":"2026-02-05T10:59:52.446480Z","shell.execute_reply.started":"2026-02-05T10:59:49.898950Z","shell.execute_reply":"2026-02-05T10:59:52.445385Z"},"jupyter":{"outputs_hidden":false}}
-g = 25000
-grid_annual = grid_25km_annual  # or grid_10km_annual / grid_5km_annual / grid_1km_annual
-
-d_map = plot_annual_grid_map(
-    grid_annual,
-    g=g,
-    end_month="2025-12-01",
-    property_type="D",
-    new_build="N",
-    opacity=0.35,
-    fill_gaps=True,
-    lookback_years=10
-)
-
-# %% [code] {"jupyter":{"outputs_hidden":false}}
+# %% [code] {"jupyter":{"outputs_hidden":false},"execution":{"iopub.status.busy":"2026-02-07T05:37:31.186998Z","iopub.execute_input":"2026-02-07T05:37:31.188336Z","iopub.status.idle":"2026-02-07T05:37:32.882297Z","shell.execute_reply.started":"2026-02-07T05:37:31.188293Z","shell.execute_reply":"2026-02-07T05:37:32.881238Z"}}
 import pandas as pd
 import numpy as np
 import plotly.express as px
@@ -770,98 +543,7 @@ def build_delta_df(grid_annual: pd.DataFrame, g: int,
 
     return out
 
-# %% [code] {"jupyter":{"outputs_hidden":false}}
-from pyproj import Transformer
-
-TRANSFORMER = Transformer.from_crs("EPSG:27700", "EPSG:4326", always_xy=True)
-
-def plot_delta_map(delta_df: pd.DataFrame, g: int,
-                   metric: str = "delta_pct",  # "delta_pct" or "delta_gbp"
-                   use_tiles: bool = True,
-                   zoom: float = 4.6,
-                   opacity: float = 0.45):
-    gx_col = f"gx_{g}"
-    gy_col = f"gy_{g}"
-    cell_col = f"cell_{g}"
-
-    d = delta_df.copy()
-
-    # GeoJSON squares
-    x0 = d[gx_col].astype(float).to_numpy()
-    y0 = d[gy_col].astype(float).to_numpy()
-    x1 = x0 + g
-    y1 = y0 + g
-
-    lon00, lat00 = TRANSFORMER.transform(x0, y0)
-    lon10, lat10 = TRANSFORMER.transform(x1, y0)
-    lon11, lat11 = TRANSFORMER.transform(x1, y1)
-    lon01, lat01 = TRANSFORMER.transform(x0, y1)
-
-    # UK-ish clip
-    ok = (
-        (lon00 >= -10.5) & (lon00 <= 4.5) & (lat00 >= 49.0) & (lat00 <= 62.5) &
-        (lon10 >= -10.5) & (lon10 <= 4.5) & (lat10 >= 49.0) & (lat10 <= 62.5) &
-        (lon11 >= -10.5) & (lon11 <= 4.5) & (lat11 >= 49.0) & (lat11 <= 62.5) &
-        (lon01 >= -10.5) & (lon01 <= 4.5) & (lat01 >= 49.0) & (lat01 <= 62.5)
-    )
-    d = d.loc[ok].copy()
-    idx = np.where(ok)[0]
-    lon00, lat00 = lon00[idx], lat00[idx]
-    lon10, lat10 = lon10[idx], lat10[idx]
-    lon11, lat11 = lon11[idx], lat11[idx]
-    lon01, lat01 = lon01[idx], lat01[idx]
-
-    ids = d[cell_col].astype(str).to_numpy()
-    features = []
-    for i in range(len(d)):
-        poly = [[lon00[i], lat00[i]],[lon10[i], lat10[i]],[lon11[i], lat11[i]],[lon01[i], lat01[i]],[lon00[i], lat00[i]]]
-        features.append({"type":"Feature","id":ids[i],"properties":{"cell":ids[i]},
-                         "geometry":{"type":"Polygon","coordinates":[poly]}})
-    geojson = {"type":"FeatureCollection","features":features}
-
-    end_latest = pd.to_datetime(d["end_month_latest"].iloc[0]).date()
-    end_oldest = pd.to_datetime(d["end_month_oldest"].iloc[0]).date()
-    seg = f"{d['property_type'].iloc[0]}/{d['new_build'].iloc[0]}"
-
-    # Diverging colour scale for deltas
-    colorscale = "RdBu"  # red=negative, blue=positive by default
-    if metric == "delta_pct":
-        # centre at 0 using symmetric range based on 95th percentile
-        m = float(np.nanpercentile(np.abs(d["delta_pct"]), 95))
-        rng = (-m, m)
-        title = f"Δ% (12m ending {end_oldest} → {end_latest}) — {seg}"
-        hover = {"delta_pct":":.1f","delta_gbp":":,.0f","price_oldest":":,.0f","price_latest":":,.0f",
-                 "sales_oldest":True,"sales_latest":True}
-        color_col = "delta_pct"
-    else:
-        m = float(np.nanpercentile(np.abs(d["delta_gbp"]), 95))
-        rng = (-m, m)
-        title = f"Δ£ (12m ending {end_oldest} → {end_latest}) — {seg}"
-        hover = {"delta_gbp":":,.0f","delta_pct":":.1f","price_oldest":":,.0f","price_latest":":,.0f",
-                 "sales_oldest":True,"sales_latest":True}
-        color_col = "delta_gbp"
-
-    if use_tiles:
-        fig = px.choropleth_mapbox(
-            d, geojson=geojson, locations=cell_col, color=color_col,
-            range_color=rng, color_continuous_scale=colorscale,
-            hover_data=hover, mapbox_style="open-street-map",
-            center={"lat":54.5,"lon":-2.5}, zoom=zoom, opacity=opacity, title=title
-        )
-    else:
-        fig = px.choropleth(
-            d, geojson=geojson, locations=cell_col, color=color_col,
-            range_color=rng, color_continuous_scale=colorscale,
-            hover_data=hover, title=title
-        )
-        fig.update_geos(fitbounds="locations", visible=False)
-
-    # darker borders like you wanted
-    fig.update_traces(marker_line_width=1.1, marker_line_color="rgba(0,0,0,0.9)")
-    fig.update_layout(margin={"r":0,"t":55,"l":0,"b":0})
-    fig.show(renderer="iframe")
-
-# %% [code] {"jupyter":{"outputs_hidden":false}}
+# %% [code] {"jupyter":{"outputs_hidden":false},"execution":{"iopub.status.busy":"2026-02-07T05:37:36.650722Z","iopub.execute_input":"2026-02-07T05:37:36.652773Z","iopub.status.idle":"2026-02-07T05:37:36.660694Z","shell.execute_reply.started":"2026-02-07T05:37:36.652717Z","shell.execute_reply":"2026-02-07T05:37:36.659582Z"}}
 def plot_top_movers(delta_df: pd.DataFrame, n: int = 20):
     d = delta_df.dropna(subset=["delta_pct"]).copy()
     d = d.sort_values("delta_pct", ascending=False).head(n).copy()
@@ -876,7 +558,7 @@ def plot_top_movers(delta_df: pd.DataFrame, n: int = 20):
     fig.update_layout(yaxis_title="row", xaxis_title="Δ%")
     fig.show(renderer="iframe")
 
-# %% [code] {"jupyter":{"outputs_hidden":false}}
+# %% [code] {"jupyter":{"outputs_hidden":false},"execution":{"iopub.status.busy":"2026-02-07T05:37:51.359403Z","iopub.execute_input":"2026-02-07T05:37:51.360067Z","iopub.status.idle":"2026-02-07T05:37:51.382549Z","shell.execute_reply.started":"2026-02-07T05:37:51.360029Z","shell.execute_reply":"2026-02-07T05:37:51.381157Z"}}
 def build_overall_deltas(grid_annual: pd.DataFrame, min_sales: int = 3) -> pd.DataFrame:
     """
     Compute deltas between earliest and latest available month across entire dataset.
@@ -1002,26 +684,13 @@ def build_overall_deltas(grid_annual: pd.DataFrame, min_sales: int = 3) -> pd.Da
     
     return out.sort_values("delta_pct", ascending=False)
 
-# %% [code] {"jupyter":{"outputs_hidden":false}}
-g = 5000
-grid_annual = grid_5km_annual
-
-delta_25 = build_delta_df(
-    grid_annual, g,
-    property_type="D",
-    new_build="ALL",
-    min_sales=30
-)
-
-plot_delta_map(delta_25, g, metric="delta_pct", opacity=0.6)
-
-# %% [markdown]
+# %% [markdown] {"jupyter":{"outputs_hidden":false}}
 # ## Computing Overall Deltas (Earliest → Latest)
 # 
 # For Kaggle efficiency, use `build_overall_deltas()` to compute deltas across your entire dataset history.
 # This single comparison is much cheaper than computing all period-to-period deltas.
 
-# %% [code] {"jupyter":{"outputs_hidden":false}}
+# %% [code] {"jupyter":{"outputs_hidden":false},"execution":{"iopub.status.busy":"2026-02-07T05:38:15.677728Z","iopub.execute_input":"2026-02-07T05:38:15.678089Z","iopub.status.idle":"2026-02-07T05:38:21.873491Z","shell.execute_reply.started":"2026-02-07T05:38:15.678062Z","shell.execute_reply":"2026-02-07T05:38:21.872368Z"}}
 # Example: Compute overall deltas for all property types across 5km, 10km, 25km grids
 # (Skip 1km to avoid excessive data volume)
 
@@ -1085,7 +754,7 @@ for grid_size, grid_annual in [
         }
 
         # Save to JSON (memory-efficient for Kaggle)
-        output_path = str(OUTPUT_DIR / f"deltas_overall_{grid_label}.json.gz")
+        output_path = f"/kaggle/working/deltas_overall_{grid_label}.json.gz"
         with gzip.open(output_path, "wt", encoding="utf-8") as f:
             json.dump(overall_deltas.where(pd.notnull(overall_deltas), None).to_dict(orient="records"), f)
         print(f"\nSaved to {output_path}")
@@ -1094,7 +763,7 @@ for grid_size, grid_annual in [
 
 # Save delta metadata file
 if delta_metadata:
-    delta_metadata_path = str(OUTPUT_DIR / "deltas_metadata.json")
+    delta_metadata_path = "/kaggle/working/deltas_metadata.json"
     with open(delta_metadata_path, "w") as f:
         json.dump(delta_metadata, f, indent=2)
     print(f"\n{'='*60}")
