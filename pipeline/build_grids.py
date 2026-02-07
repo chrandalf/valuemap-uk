@@ -1,4 +1,4 @@
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:22:40.155697Z","iopub.execute_input":"2026-02-07T05:22:40.156718Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:20:01.998464Z","iopub.execute_input":"2026-02-07T08:20:01.999014Z","iopub.status.idle":"2026-02-07T08:23:11.845913Z","shell.execute_reply.started":"2026-02-07T08:20:01.998985Z","shell.execute_reply":"2026-02-07T08:23:11.844671Z"},"jupyter":{"outputs_hidden":false}}
 import os, time, requests
 URL = "http://prod.publicdata.landregistry.gov.uk.s3-website-eu-west-1.amazonaws.com/pp-complete.txt"
 ##URL = "https://s3.eu-west-1.amazonaws.com/prod1.publicdata.landregistry.gov.uk/pp-2025.txt"
@@ -45,12 +45,12 @@ def download_resume(url, out_path, retries=20, chunk_size=1024*1024):
 
 download_resume(URL, OUT)
 
-# %% [code] {"jupyter":{"outputs_hidden":false}}
+# %% [code] {"jupyter":{"outputs_hidden":false},"execution":{"iopub.status.busy":"2026-02-07T08:24:45.971601Z","iopub.execute_input":"2026-02-07T08:24:45.972901Z","iopub.status.idle":"2026-02-07T08:24:45.983231Z","shell.execute_reply.started":"2026-02-07T08:24:45.972850Z","shell.execute_reply":"2026-02-07T08:24:45.981610Z"}}
 import os
 print(os.getcwd())
 print(os.listdir(".")[:50])
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:25:58.574996Z","iopub.execute_input":"2026-02-07T05:25:58.575335Z","iopub.status.idle":"2026-02-07T05:25:58.581901Z","shell.execute_reply.started":"2026-02-07T05:25:58.575299Z","shell.execute_reply":"2026-02-07T05:25:58.580753Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:24:48.003641Z","iopub.execute_input":"2026-02-07T08:24:48.004104Z","iopub.status.idle":"2026-02-07T08:24:48.027332Z","shell.execute_reply.started":"2026-02-07T08:24:48.004065Z","shell.execute_reply":"2026-02-07T08:24:48.025939Z"},"jupyter":{"outputs_hidden":false}}
 import os
 
 for d in os.listdir("/kaggle/input"):
@@ -58,7 +58,90 @@ for d in os.listdir("/kaggle/input"):
     print("\n==", p)
     print(os.listdir(p)[:50])
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:25:58.583946Z","iopub.execute_input":"2026-02-07T05:25:58.584716Z","iopub.status.idle":"2026-02-07T05:27:42.136540Z","shell.execute_reply.started":"2026-02-07T05:25:58.584685Z","shell.execute_reply":"2026-02-07T05:27:42.135639Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:18:07.200199Z","iopub.execute_input":"2026-02-07T08:18:07.200543Z","iopub.status.idle":"2026-02-07T08:18:22.363976Z","shell.execute_reply.started":"2026-02-07T08:18:07.200518Z","shell.execute_reply":"2026-02-07T08:18:22.362960Z"}}
+import pandas as pd
+import hashlib
+
+path_scot = "/kaggle/input/scotland-prices/results.csv"  # change if needed
+DAILY_THRESHOLD = 50  # you said 50
+
+def parse_scot_date(s: pd.Series) -> pd.Series:
+    s = s.astype("string").str.strip()
+    dt = pd.to_datetime(s, format="%d-%m-%Y", errors="coerce")
+    m = dt.isna()
+    if m.any():
+        dt[m] = pd.to_datetime(s[m], dayfirst=True, errors="coerce")
+    return dt
+
+today = pd.Timestamp.today().normalize()
+
+# Load minimal columns
+raw = pd.read_csv(
+    path_scot,
+    usecols=["Postcode", "Date", "Price", "Link"],
+    dtype={"Postcode": "string", "Date": "string", "Price": "string", "Link": "string"},
+)
+
+# Clean
+raw["postcode"] = raw["Postcode"].str.strip().str.upper()
+raw["date"] = parse_scot_date(raw["Date"])
+raw = raw[raw["date"].notna() & (raw["date"] <= today)]
+
+price_clean = (
+    raw["Price"]
+      .str.replace("£", "", regex=False)
+      .str.replace(",", "", regex=False)
+      .str.strip()
+)
+raw["price"] = pd.to_numeric(price_clean, errors="coerce")
+raw = raw[raw["price"].notna()]
+
+# --- find latest "busy day" ---
+daily_counts = raw.groupby(raw["date"].dt.normalize()).size().sort_index()
+
+busy_days = daily_counts[daily_counts >= DAILY_THRESHOLD]
+if not busy_days.empty:
+    end_date = busy_days.index.max()
+    reason = f"latest day with >= {DAILY_THRESHOLD} sales"
+else:
+    # fallback: use the day with the maximum count (still gives you a sensible anchor)
+    end_date = daily_counts.idxmax()
+    reason = f"no day with >= {DAILY_THRESHOLD}; using busiest day (count={int(daily_counts.max())})"
+
+start_date = end_date - pd.DateOffset(years=1)
+
+print("End date chosen:", end_date.date(), f"({reason})")
+print("Start date:", start_date.date())
+print("Sales on end date:", int(daily_counts.loc[end_date]))
+print("Total sales in window:", int(raw[(raw['date'] >= start_date) & (raw['date'] <= end_date)].shape[0]))
+
+# Filter to window
+df_scot = raw[(raw["date"] >= start_date) & (raw["date"] <= end_date)].copy()
+
+# Standardise schema like England
+df_scot["property_type"] = "D"
+df_scot["new_build"] = "N"
+df_scot["record_status"] = "A"
+
+key = df_scot["Link"].fillna(
+    df_scot["postcode"] + "|" +
+    df_scot["date"].dt.strftime("%Y-%m-%d") + "|" +
+    df_scot["price"].astype("int64").astype("string")
+)
+df_scot["transaction_id"] = key.apply(lambda x: hashlib.md5(x.encode("utf-8")).hexdigest()).astype("string")
+
+df_scot["month"] = df_scot["date"].dt.to_period("M").dt.to_timestamp()
+
+df_scot = df_scot[[
+    "transaction_id", "price", "date", "postcode",
+    "property_type", "new_build", "record_status", "month"
+]].copy()
+
+df_scot.head()
+
+
+
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:24:57.279344Z","iopub.execute_input":"2026-02-07T08:24:57.280668Z","iopub.status.idle":"2026-02-07T08:26:49.195614Z","shell.execute_reply.started":"2026-02-07T08:24:57.280634Z","shell.execute_reply":"2026-02-07T08:26:49.194590Z"},"jupyter":{"outputs_hidden":false}}
 import pandas as pd
 
 path = "/kaggle/working/pp-2025.txt"
@@ -110,10 +193,51 @@ df["month"] = df["date"].dt.to_period("M").dt.to_timestamp()
 print("Rows kept:", len(df))
 print("Date range:", df["date"].min().date(), "->", df["date"].max().date())
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:27:46.015685Z","iopub.execute_input":"2026-02-07T05:27:46.016433Z","iopub.status.idle":"2026-02-07T05:27:46.042758Z","shell.execute_reply.started":"2026-02-07T05:27:46.016403Z","shell.execute_reply":"2026-02-07T05:27:46.042096Z"},"jupyter":{"outputs_hidden":false}}
-df.head()
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:31:30.335924Z","iopub.execute_input":"2026-02-07T08:31:30.336363Z","iopub.status.idle":"2026-02-07T08:31:33.025397Z","shell.execute_reply.started":"2026-02-07T08:31:30.336286Z","shell.execute_reply":"2026-02-07T08:31:33.024555Z"},"jupyter":{"outputs_hidden":false}}
+cols = ["transaction_id","price","date","postcode","property_type","new_build","record_status","month"]
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:28:24.553698Z","iopub.execute_input":"2026-02-07T05:28:24.554298Z","iopub.status.idle":"2026-02-07T05:28:51.827415Z","shell.execute_reply.started":"2026-02-07T05:28:24.554257Z","shell.execute_reply":"2026-02-07T05:28:51.825965Z"},"jupyter":{"outputs_hidden":false}}
+df = df[cols].copy()
+df_scot = df_scot[cols].copy()
+
+df_all = pd.concat([df, df_scot], ignore_index=True)
+
+print("England/Wales:", len(df))
+print("Scotland:", len(df_scot))
+print("Combined:", len(df_all))
+print("Combined date range:", df_all["date"].min().date(), "->", df_all["date"].max().date())
+
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:31:55.080829Z","iopub.execute_input":"2026-02-07T08:31:55.081765Z","iopub.status.idle":"2026-02-07T08:31:55.969809Z","shell.execute_reply.started":"2026-02-07T08:31:55.081729Z","shell.execute_reply":"2026-02-07T08:31:55.968392Z"}}
+# Latest month in the combined dataset (from England/Wales usually)
+latest_month_start = df["month"].max()   # month-start timestamp
+latest_month_end = (latest_month_start + pd.offsets.MonthEnd(0)).normalize()
+days_in_latest_month = latest_month_end.day
+
+# Shift ONLY Scotland
+df_scot2 = df_scot.copy()
+
+# Keep original day number but clamp to end-of-month (handles 29/30/31)
+orig_day = df_scot2["date"].dt.day.clip(upper=days_in_latest_month)
+
+df_scot2["date"] = pd.to_datetime({
+    "year": latest_month_start.year,
+    "month": latest_month_start.month,
+    "day": orig_day
+})
+
+# Recompute month field
+df_scot2["month"] = df_scot2["date"].dt.to_period("M").dt.to_timestamp()
+
+# Rebuild combined df using shifted Scotland
+df_all = pd.concat([df, df_scot2], ignore_index=True)
+
+print("Latest month used:", latest_month_start.date())
+print("Scotland shifted date range:", df_scot2["date"].min().date(), "->", df_scot2["date"].max().date())
+
+
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:33:10.255785Z","iopub.execute_input":"2026-02-07T08:33:10.256204Z","iopub.status.idle":"2026-02-07T08:33:10.382975Z","shell.execute_reply.started":"2026-02-07T08:33:10.256165Z","shell.execute_reply":"2026-02-07T08:33:10.381687Z"}}
+df = df_all
+
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:33:16.661362Z","iopub.execute_input":"2026-02-07T08:33:16.662165Z","iopub.status.idle":"2026-02-07T08:33:32.063635Z","shell.execute_reply.started":"2026-02-07T08:33:16.662131Z","shell.execute_reply":"2026-02-07T08:33:32.062016Z"},"jupyter":{"outputs_hidden":false}}
 import pandas as pd
 path_east_north = "/kaggle/input/postcode-eastnorth/ONSPD_Online_latest_Postcode_Centroids_.csv"
 
@@ -136,13 +260,13 @@ df_en = pd.read_csv(
 
 df_en.head()
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:29:11.181408Z","iopub.execute_input":"2026-02-07T05:29:11.181877Z","iopub.status.idle":"2026-02-07T05:29:15.373022Z","shell.execute_reply.started":"2026-02-07T05:29:11.181775Z","shell.execute_reply":"2026-02-07T05:29:15.371967Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:33:56.433834Z","iopub.execute_input":"2026-02-07T08:33:56.434860Z","iopub.status.idle":"2026-02-07T08:34:00.771313Z","shell.execute_reply.started":"2026-02-07T08:33:56.434825Z","shell.execute_reply":"2026-02-07T08:34:00.770190Z"},"jupyter":{"outputs_hidden":false}}
 df_en["EAST1M"]  = pd.to_numeric(df_en["x"], errors="coerce")
 df_en["NORTH1M"] = pd.to_numeric(df_en["y"], errors="coerce")
 
 df_en = df_en.dropna(subset=["EAST1M","NORTH1M"]).copy()
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:29:20.393336Z","iopub.execute_input":"2026-02-07T05:29:20.393661Z","iopub.status.idle":"2026-02-07T05:29:32.007790Z","shell.execute_reply.started":"2026-02-07T05:29:20.393635Z","shell.execute_reply":"2026-02-07T05:29:32.006576Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:34:02.781119Z","iopub.execute_input":"2026-02-07T08:34:02.781563Z","iopub.status.idle":"2026-02-07T08:34:20.423039Z","shell.execute_reply.started":"2026-02-07T08:34:02.781523Z","shell.execute_reply":"2026-02-07T08:34:20.421844Z"},"jupyter":{"outputs_hidden":false}}
 GRID_SIZES = [1000, 5000, 10000, 25000]  # metres
 
 for g in GRID_SIZES:
@@ -153,7 +277,7 @@ for g in GRID_SIZES:
         df_en[f"gy_{g}"].astype("Int64").astype(str)
     )
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:29:35.803921Z","iopub.execute_input":"2026-02-07T05:29:35.804572Z","iopub.status.idle":"2026-02-07T05:29:36.520682Z","shell.execute_reply.started":"2026-02-07T05:29:35.804536Z","shell.execute_reply":"2026-02-07T05:29:36.519849Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:34:45.007534Z","iopub.execute_input":"2026-02-07T08:34:45.008296Z","iopub.status.idle":"2026-02-07T08:34:45.703960Z","shell.execute_reply.started":"2026-02-07T08:34:45.008258Z","shell.execute_reply":"2026-02-07T08:34:45.702962Z"},"jupyter":{"outputs_hidden":false}}
 def make_cells(df, g):
     cells = (df[[f"gx_{g}", f"gy_{g}"]]
              .drop_duplicates()
@@ -170,20 +294,20 @@ cells_5km  = make_cells(df_en, 5000)
 cells_10km = make_cells(df_en, 10000)
 cells_25km = make_cells(df_en, 25000)
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:29:46.057652Z","iopub.execute_input":"2026-02-07T05:29:46.058028Z","iopub.status.idle":"2026-02-07T05:29:46.064883Z","shell.execute_reply.started":"2026-02-07T05:29:46.057998Z","shell.execute_reply":"2026-02-07T05:29:46.063383Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:34:48.135000Z","iopub.execute_input":"2026-02-07T08:34:48.135936Z","iopub.status.idle":"2026-02-07T08:34:48.141678Z","shell.execute_reply.started":"2026-02-07T08:34:48.135902Z","shell.execute_reply":"2026-02-07T08:34:48.140496Z"},"jupyter":{"outputs_hidden":false}}
 print("1km:",  len(cells_1km))
 print("5km:",  len(cells_5km))
 print("10km:", len(cells_10km))
 print("25km:", len(cells_25km))
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:29:48.720065Z","iopub.execute_input":"2026-02-07T05:29:48.721001Z","iopub.status.idle":"2026-02-07T05:29:53.635150Z","shell.execute_reply.started":"2026-02-07T05:29:48.720943Z","shell.execute_reply":"2026-02-07T05:29:53.633665Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:34:57.505801Z","iopub.execute_input":"2026-02-07T08:34:57.506114Z","iopub.status.idle":"2026-02-07T08:35:01.962319Z","shell.execute_reply.started":"2026-02-07T08:34:57.506089Z","shell.execute_reply":"2026-02-07T08:35:01.961274Z"},"jupyter":{"outputs_hidden":false}}
 df["pc_key"] = df["postcode"].astype("string").str.replace(" ", "", regex=False).str.upper()
 df_en["pc_key"] = df_en["PCDS"].astype("string").str.replace(" ", "", regex=False).str.upper()
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:29:56.836827Z","iopub.execute_input":"2026-02-07T05:29:56.837865Z","iopub.status.idle":"2026-02-07T05:29:56.866477Z","shell.execute_reply.started":"2026-02-07T05:29:56.837819Z","shell.execute_reply":"2026-02-07T05:29:56.864825Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:35:05.038947Z","iopub.execute_input":"2026-02-07T08:35:05.039406Z","iopub.status.idle":"2026-02-07T08:35:05.060818Z","shell.execute_reply.started":"2026-02-07T08:35:05.039377Z","shell.execute_reply":"2026-02-07T08:35:05.059624Z"},"jupyter":{"outputs_hidden":false}}
 df_en.head()
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:30:09.293565Z","iopub.execute_input":"2026-02-07T05:30:09.294027Z","iopub.status.idle":"2026-02-07T05:30:22.210616Z","shell.execute_reply.started":"2026-02-07T05:30:09.293991Z","shell.execute_reply":"2026-02-07T05:30:22.209420Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:35:07.413122Z","iopub.execute_input":"2026-02-07T08:35:07.413496Z","iopub.status.idle":"2026-02-07T08:35:19.832018Z","shell.execute_reply.started":"2026-02-07T08:35:07.413453Z","shell.execute_reply":"2026-02-07T08:35:19.831069Z"},"jupyter":{"outputs_hidden":false}}
 df_en["EAST1M"]  = pd.to_numeric(df_en["EAST1M"], errors="coerce")
 df_en["NORTH1M"] = pd.to_numeric(df_en["NORTH1M"], errors="coerce")
 df_en = df_en.dropna(subset=["EAST1M","NORTH1M"]).copy()
@@ -193,7 +317,7 @@ for g in [1000, 5000, 10000, 25000]:
     df_en[f"gy_{g}"] = ((df_en["NORTH1M"] // g) * g).astype("int64")
     df_en[f"cell_{g}"] = df_en[f"gx_{g}"].astype(str) + "_" + df_en[f"gy_{g}"].astype(str)
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:30:26.442460Z","iopub.execute_input":"2026-02-07T05:30:26.442851Z","iopub.status.idle":"2026-02-07T05:30:48.332300Z","shell.execute_reply.started":"2026-02-07T05:30:26.442819Z","shell.execute_reply":"2026-02-07T05:30:48.331116Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:35:22.086215Z","iopub.execute_input":"2026-02-07T08:35:22.087114Z","iopub.status.idle":"2026-02-07T08:35:39.421672Z","shell.execute_reply.started":"2026-02-07T08:35:22.087080Z","shell.execute_reply":"2026-02-07T08:35:39.420869Z"},"jupyter":{"outputs_hidden":false}}
 lookup_cols = [
     "pc_key",
     "EAST1M", "NORTH1M",
@@ -210,7 +334,9 @@ df = df.drop(columns=to_drop)
 
 df = df.merge(lookup, on="pc_key", how="left")
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T06:05:55.224738Z","iopub.execute_input":"2026-02-07T06:05:55.225237Z","iopub.status.idle":"2026-02-07T06:06:12.506490Z","shell.execute_reply.started":"2026-02-07T06:05:55.225199Z","shell.execute_reply":"2026-02-07T06:06:12.505653Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:38:09.679018Z","iopub.execute_input":"2026-02-07T08:38:09.679963Z","iopub.status.idle":"2026-02-07T08:38:49.798381Z","shell.execute_reply.started":"2026-02-07T08:38:09.679926Z","shell.execute_reply":"2026-02-07T08:38:49.797573Z"},"jupyter":{"outputs_hidden":false}}
+OUTPUT_DIR = Path(os.getenv("OUTPUT_DIR", "/kaggle/working"))
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 postcode_lookup = df_en[[
     "PCDS",
@@ -258,27 +384,27 @@ with gzip.open(postcode_lookup_out_json, "wt", encoding="utf-8") as f:
 print("Wrote postcode lookup:", postcode_lookup_out_parquet, "rows:", len(postcode_lookup))
 
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T06:06:25.442621Z","iopub.execute_input":"2026-02-07T06:06:25.443191Z","iopub.status.idle":"2026-02-07T06:06:25.454079Z","shell.execute_reply.started":"2026-02-07T06:06:25.443162Z","shell.execute_reply":"2026-02-07T06:06:25.453075Z"}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:39:01.385831Z","iopub.execute_input":"2026-02-07T08:39:01.386284Z","iopub.status.idle":"2026-02-07T08:39:01.401250Z","shell.execute_reply.started":"2026-02-07T08:39:01.386249Z","shell.execute_reply":"2026-02-07T08:39:01.400267Z"},"jupyter":{"outputs_hidden":false}}
 postcode_lookup.head()
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:32:31.857153Z","iopub.execute_input":"2026-02-07T05:32:31.858041Z","iopub.status.idle":"2026-02-07T05:32:32.316209Z","shell.execute_reply.started":"2026-02-07T05:32:31.857996Z","shell.execute_reply":"2026-02-07T05:32:32.314919Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:39:03.958268Z","iopub.execute_input":"2026-02-07T08:39:03.958630Z","iopub.status.idle":"2026-02-07T08:39:04.359555Z","shell.execute_reply.started":"2026-02-07T08:39:03.958604Z","shell.execute_reply":"2026-02-07T08:39:04.358577Z"},"jupyter":{"outputs_hidden":false}}
 df[["postcode", "EAST1M", "NORTH1M", "gx_25000", "gy_25000", "cell_25000"]].head()
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:32:41.270513Z","iopub.execute_input":"2026-02-07T05:32:41.270910Z","iopub.status.idle":"2026-02-07T05:32:42.665655Z","shell.execute_reply.started":"2026-02-07T05:32:41.270878Z","shell.execute_reply":"2026-02-07T05:32:42.664178Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:39:08.820438Z","iopub.execute_input":"2026-02-07T08:39:08.820775Z","iopub.status.idle":"2026-02-07T08:39:10.000975Z","shell.execute_reply.started":"2026-02-07T08:39:08.820749Z","shell.execute_reply":"2026-02-07T08:39:10.000075Z"},"jupyter":{"outputs_hidden":false}}
 df["month"] = df["date"].dt.to_period("M").dt.to_timestamp()
 
 # optional but recommended for later
 df["property_type"] = df["property_type"].astype("string")
 df["new_build"] = df["new_build"].astype("string")
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:32:45.250225Z","iopub.execute_input":"2026-02-07T05:32:45.250712Z","iopub.status.idle":"2026-02-07T05:32:51.794963Z","shell.execute_reply.started":"2026-02-07T05:32:45.250662Z","shell.execute_reply":"2026-02-07T05:32:51.793756Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:39:13.336201Z","iopub.execute_input":"2026-02-07T08:39:13.337101Z","iopub.status.idle":"2026-02-07T08:39:21.690540Z","shell.execute_reply.started":"2026-02-07T08:39:13.337067Z","shell.execute_reply":"2026-02-07T08:39:21.689459Z"},"jupyter":{"outputs_hidden":false}}
 df["month"] = pd.to_datetime(df["month"]).dt.to_period("M").dt.to_timestamp()
 latest_month = df["month"].max()
 # Keep only last 10 years (inclusive, aligned to month)
 cutoff_month = (latest_month - pd.DateOffset(years=10)).to_period("M").to_timestamp()
 df = df[df["month"] >= cutoff_month].copy()
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:33:05.839630Z","iopub.execute_input":"2026-02-07T05:33:05.840922Z","iopub.status.idle":"2026-02-07T05:33:05.858950Z","shell.execute_reply.started":"2026-02-07T05:33:05.840864Z","shell.execute_reply":"2026-02-07T05:33:05.857104Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:39:25.254902Z","iopub.execute_input":"2026-02-07T08:39:25.255217Z","iopub.status.idle":"2026-02-07T08:39:25.270884Z","shell.execute_reply.started":"2026-02-07T08:39:25.255192Z","shell.execute_reply":"2026-02-07T08:39:25.269897Z"},"jupyter":{"outputs_hidden":false}}
 import pandas as pd
 
 def _yearly_end_months(d_month_col: pd.Series, years_back: int):
@@ -358,7 +484,7 @@ def make_grid_annual_stack_levels(df, g, min_sales=3, years_back=10):
 
     return out
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:33:09.428261Z","iopub.execute_input":"2026-02-07T05:33:09.428625Z","iopub.status.idle":"2026-02-07T05:33:22.576176Z","shell.execute_reply.started":"2026-02-07T05:33:09.428596Z","shell.execute_reply":"2026-02-07T05:33:22.575100Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:39:31.013131Z","iopub.execute_input":"2026-02-07T08:39:31.013453Z","iopub.status.idle":"2026-02-07T08:39:43.289743Z","shell.execute_reply.started":"2026-02-07T08:39:31.013429Z","shell.execute_reply":"2026-02-07T08:39:43.288626Z"},"jupyter":{"outputs_hidden":false}}
 grid_25km_annual = make_grid_annual_stack_levels(
     df,
     g=25000,
@@ -366,7 +492,7 @@ grid_25km_annual = make_grid_annual_stack_levels(
     years_back=10   # latest + last 10 yearly snapshots
 )
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:33:25.830103Z","iopub.execute_input":"2026-02-07T05:33:25.830874Z","iopub.status.idle":"2026-02-07T05:33:39.332488Z","shell.execute_reply.started":"2026-02-07T05:33:25.830832Z","shell.execute_reply":"2026-02-07T05:33:39.331457Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:39:46.690825Z","iopub.execute_input":"2026-02-07T08:39:46.691661Z","iopub.status.idle":"2026-02-07T08:39:59.364747Z","shell.execute_reply.started":"2026-02-07T08:39:46.691626Z","shell.execute_reply":"2026-02-07T08:39:59.363861Z"},"jupyter":{"outputs_hidden":false}}
 grid_10km_annual = make_grid_annual_stack_levels(
     df,
     g=10000,
@@ -374,7 +500,7 @@ grid_10km_annual = make_grid_annual_stack_levels(
     years_back=10   # latest + last 10 yearly snapshots
 )
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:33:42.151610Z","iopub.execute_input":"2026-02-07T05:33:42.152725Z","iopub.status.idle":"2026-02-07T05:33:57.400205Z","shell.execute_reply.started":"2026-02-07T05:33:42.152683Z","shell.execute_reply":"2026-02-07T05:33:57.398469Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:40:02.849165Z","iopub.execute_input":"2026-02-07T08:40:02.849579Z","iopub.status.idle":"2026-02-07T08:40:15.721936Z","shell.execute_reply.started":"2026-02-07T08:40:02.849548Z","shell.execute_reply":"2026-02-07T08:40:15.720927Z"},"jupyter":{"outputs_hidden":false}}
 grid_5km_annual = make_grid_annual_stack_levels(
     df,
     g=5000,
@@ -382,7 +508,7 @@ grid_5km_annual = make_grid_annual_stack_levels(
     years_back=10   # latest + last 10 yearly snapshots
 )
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:34:10.260542Z","iopub.execute_input":"2026-02-07T05:34:10.261072Z","iopub.status.idle":"2026-02-07T05:34:21.699375Z","shell.execute_reply.started":"2026-02-07T05:34:10.261036Z","shell.execute_reply":"2026-02-07T05:34:21.698053Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:40:19.878700Z","iopub.execute_input":"2026-02-07T08:40:19.879210Z","iopub.status.idle":"2026-02-07T08:40:28.617959Z","shell.execute_reply.started":"2026-02-07T08:40:19.879176Z","shell.execute_reply":"2026-02-07T08:40:28.616954Z"},"jupyter":{"outputs_hidden":false}}
 grid_1km_annual = make_grid_annual_stack_levels(
     df,
     g=1000,
@@ -390,17 +516,17 @@ grid_1km_annual = make_grid_annual_stack_levels(
     years_back=1   # latest + last 10 yearly snapshots
 )
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:34:24.836866Z","iopub.execute_input":"2026-02-07T05:34:24.837344Z","iopub.status.idle":"2026-02-07T05:34:25.208295Z","shell.execute_reply.started":"2026-02-07T05:34:24.837297Z","shell.execute_reply":"2026-02-07T05:34:25.207127Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:40:33.102561Z","iopub.execute_input":"2026-02-07T08:40:33.103772Z","iopub.status.idle":"2026-02-07T08:40:33.420669Z","shell.execute_reply.started":"2026-02-07T08:40:33.103735Z","shell.execute_reply":"2026-02-07T08:40:33.419637Z"},"jupyter":{"outputs_hidden":false}}
 grid_1km_annual.to_parquet("/kaggle/working/grid_1km_annual.parquet", index=False)
 grid_5km_annual.to_parquet("/kaggle/working/grid_5km_annual.parquet", index=False)
 grid_10km_annual.to_parquet("/kaggle/working/grid_10km_annual.parquet", index=False)
 grid_25km_annual.to_parquet("/kaggle/working/grid_25km_annual.parquet", index=False)
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T05:58:25.314690Z","iopub.execute_input":"2026-02-07T05:58:25.315168Z","iopub.status.idle":"2026-02-07T05:58:25.321106Z","shell.execute_reply.started":"2026-02-07T05:58:25.315136Z","shell.execute_reply":"2026-02-07T05:58:25.319817Z"}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:40:42.663463Z","iopub.execute_input":"2026-02-07T08:40:42.664533Z","iopub.status.idle":"2026-02-07T08:40:42.669370Z","shell.execute_reply.started":"2026-02-07T08:40:42.664493Z","shell.execute_reply":"2026-02-07T08:40:42.668159Z"},"jupyter":{"outputs_hidden":false}}
 import os, time, requests, gc
 from pathlib import Path
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T06:00:28.690358Z","iopub.execute_input":"2026-02-07T06:00:28.691251Z","iopub.status.idle":"2026-02-07T06:00:28.699003Z","shell.execute_reply.started":"2026-02-07T06:00:28.691211Z","shell.execute_reply":"2026-02-07T06:00:28.697677Z"}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:40:45.115147Z","iopub.execute_input":"2026-02-07T08:40:45.116170Z","iopub.status.idle":"2026-02-07T08:40:45.122200Z","shell.execute_reply.started":"2026-02-07T08:40:45.116134Z","shell.execute_reply":"2026-02-07T08:40:45.121115Z"},"jupyter":{"outputs_hidden":false}}
 from pathlib import Path
 import os, json, gzip
 import pandas as pd
@@ -413,7 +539,7 @@ for n in ("grid_1km_annual","grid_5km_annual","grid_10km_annual","grid_25km_annu
     if n not in globals():
         raise RuntimeError(f"{n} not found — run make_grid_annual_stack_levels first")
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T06:00:31.219944Z","iopub.execute_input":"2026-02-07T06:00:31.220494Z","iopub.status.idle":"2026-02-07T06:00:54.140464Z","shell.execute_reply.started":"2026-02-07T06:00:31.220460Z","shell.execute_reply":"2026-02-07T06:00:54.138974Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:40:49.952314Z","iopub.execute_input":"2026-02-07T08:40:49.953099Z","iopub.status.idle":"2026-02-07T08:41:12.220634Z","shell.execute_reply.started":"2026-02-07T08:40:49.953063Z","shell.execute_reply":"2026-02-07T08:41:12.219568Z"},"jupyter":{"outputs_hidden":false}}
 import pandas as pd, json, gzip
 
 OUTPUT_DIR = Path(os.getenv("OUTPUT_DIR", "/kaggle/working"))
@@ -472,7 +598,7 @@ print(f"\nGrid availability metadata:")
 print(json.dumps(grid_metadata, indent=2))
 print(f"Saved to {metadata_path}")
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-06T07:30:25.743491Z","iopub.execute_input":"2026-02-06T07:30:25.744103Z","iopub.status.idle":"2026-02-06T07:30:28.232924Z","shell.execute_reply.started":"2026-02-06T07:30:25.744074Z","shell.execute_reply":"2026-02-06T07:30:28.232168Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:41:22.949136Z","iopub.execute_input":"2026-02-07T08:41:22.949565Z","iopub.status.idle":"2026-02-07T08:41:25.519950Z","shell.execute_reply.started":"2026-02-07T08:41:22.949524Z","shell.execute_reply":"2026-02-07T08:41:25.518912Z"},"jupyter":{"outputs_hidden":false}}
 g = 25000
 
 start_month = pd.Timestamp("2025-01-01")
@@ -489,10 +615,10 @@ count = df[
 
 count
 
-# %% [code] {"jupyter":{"outputs_hidden":false},"execution":{"iopub.status.busy":"2026-02-06T07:30:28.234614Z","iopub.execute_input":"2026-02-06T07:30:28.234991Z","iopub.status.idle":"2026-02-06T07:30:28.245192Z","shell.execute_reply.started":"2026-02-06T07:30:28.234966Z","shell.execute_reply":"2026-02-06T07:30:28.244304Z"}}
+# %% [code] {"jupyter":{"outputs_hidden":false},"execution":{"iopub.status.busy":"2026-02-07T08:41:32.691927Z","iopub.execute_input":"2026-02-07T08:41:32.692262Z","iopub.status.idle":"2026-02-07T08:41:32.704425Z","shell.execute_reply.started":"2026-02-07T08:41:32.692234Z","shell.execute_reply":"2026-02-07T08:41:32.703373Z"}}
 (grid_25km_annual["property_type"].eq("ALL") & grid_25km_annual["new_build"].eq("ALL")).any()
 
-# %% [code] {"execution":{"iopub.status.busy":"2026-02-06T07:30:28.246521Z","iopub.execute_input":"2026-02-06T07:30:28.246898Z","iopub.status.idle":"2026-02-06T07:30:28.273729Z","shell.execute_reply.started":"2026-02-06T07:30:28.246850Z","shell.execute_reply":"2026-02-06T07:30:28.272922Z"},"jupyter":{"outputs_hidden":false}}
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:41:34.965168Z","iopub.execute_input":"2026-02-07T08:41:34.966542Z","iopub.status.idle":"2026-02-07T08:41:34.988437Z","shell.execute_reply.started":"2026-02-07T08:41:34.966504Z","shell.execute_reply":"2026-02-07T08:41:34.987363Z"},"jupyter":{"outputs_hidden":false}}
 g = 25000
 
 row = grid_25km_annual[
@@ -504,7 +630,7 @@ row = grid_25km_annual[
 
 row.sort_values(by='sales_12m' , ascending=False)
 
-# %% [code] {"jupyter":{"outputs_hidden":false},"execution":{"iopub.status.busy":"2026-02-07T05:37:31.186998Z","iopub.execute_input":"2026-02-07T05:37:31.188336Z","iopub.status.idle":"2026-02-07T05:37:32.882297Z","shell.execute_reply.started":"2026-02-07T05:37:31.188293Z","shell.execute_reply":"2026-02-07T05:37:32.881238Z"}}
+# %% [code] {"jupyter":{"outputs_hidden":false},"execution":{"iopub.status.busy":"2026-02-07T08:41:44.760929Z","iopub.execute_input":"2026-02-07T08:41:44.761319Z","iopub.status.idle":"2026-02-07T08:41:46.321683Z","shell.execute_reply.started":"2026-02-07T08:41:44.761288Z","shell.execute_reply":"2026-02-07T08:41:46.320698Z"}}
 import pandas as pd
 import numpy as np
 import plotly.express as px
@@ -565,7 +691,7 @@ def build_delta_df(grid_annual: pd.DataFrame, g: int,
 
     return out
 
-# %% [code] {"jupyter":{"outputs_hidden":false},"execution":{"iopub.status.busy":"2026-02-07T05:37:36.650722Z","iopub.execute_input":"2026-02-07T05:37:36.652773Z","iopub.status.idle":"2026-02-07T05:37:36.660694Z","shell.execute_reply.started":"2026-02-07T05:37:36.652717Z","shell.execute_reply":"2026-02-07T05:37:36.659582Z"}}
+# %% [code] {"jupyter":{"outputs_hidden":false},"execution":{"iopub.status.busy":"2026-02-07T08:41:56.007208Z","iopub.execute_input":"2026-02-07T08:41:56.008626Z","iopub.status.idle":"2026-02-07T08:41:56.015289Z","shell.execute_reply.started":"2026-02-07T08:41:56.008581Z","shell.execute_reply":"2026-02-07T08:41:56.014500Z"}}
 def plot_top_movers(delta_df: pd.DataFrame, n: int = 20):
     d = delta_df.dropna(subset=["delta_pct"]).copy()
     d = d.sort_values("delta_pct", ascending=False).head(n).copy()
@@ -580,7 +706,7 @@ def plot_top_movers(delta_df: pd.DataFrame, n: int = 20):
     fig.update_layout(yaxis_title="row", xaxis_title="Δ%")
     fig.show(renderer="iframe")
 
-# %% [code] {"jupyter":{"outputs_hidden":false},"execution":{"iopub.status.busy":"2026-02-07T05:37:51.359403Z","iopub.execute_input":"2026-02-07T05:37:51.360067Z","iopub.status.idle":"2026-02-07T05:37:51.382549Z","shell.execute_reply.started":"2026-02-07T05:37:51.360029Z","shell.execute_reply":"2026-02-07T05:37:51.381157Z"}}
+# %% [code] {"jupyter":{"outputs_hidden":false},"execution":{"iopub.status.busy":"2026-02-07T08:41:58.923694Z","iopub.execute_input":"2026-02-07T08:41:58.924000Z","iopub.status.idle":"2026-02-07T08:41:58.944737Z","shell.execute_reply.started":"2026-02-07T08:41:58.923977Z","shell.execute_reply":"2026-02-07T08:41:58.943585Z"}}
 def build_overall_deltas(grid_annual: pd.DataFrame, min_sales: int = 3) -> pd.DataFrame:
     """
     Compute deltas between earliest and latest available month across entire dataset.
@@ -712,7 +838,7 @@ def build_overall_deltas(grid_annual: pd.DataFrame, min_sales: int = 3) -> pd.Da
 # For Kaggle efficiency, use `build_overall_deltas()` to compute deltas across your entire dataset history.
 # This single comparison is much cheaper than computing all period-to-period deltas.
 
-# %% [code] {"jupyter":{"outputs_hidden":false},"execution":{"iopub.status.busy":"2026-02-07T05:38:15.677728Z","iopub.execute_input":"2026-02-07T05:38:15.678089Z","iopub.status.idle":"2026-02-07T05:38:21.873491Z","shell.execute_reply.started":"2026-02-07T05:38:15.678062Z","shell.execute_reply":"2026-02-07T05:38:21.872368Z"}}
+# %% [code] {"jupyter":{"outputs_hidden":false},"execution":{"iopub.status.busy":"2026-02-07T08:42:03.551532Z","iopub.execute_input":"2026-02-07T08:42:03.551863Z","iopub.status.idle":"2026-02-07T08:42:09.483713Z","shell.execute_reply.started":"2026-02-07T08:42:03.551837Z","shell.execute_reply":"2026-02-07T08:42:09.482537Z"}}
 # Example: Compute overall deltas for all property types across 5km, 10km, 25km grids
 # (Skip 1km to avoid excessive data volume)
 
@@ -793,3 +919,6 @@ if delta_metadata:
     print(json.dumps(delta_metadata, indent=2))
     print(f"Saved to {delta_metadata_path}")
 #plot_top_movers(delta_25, n=20)
+
+# %% [code] {"execution":{"iopub.status.busy":"2026-02-07T06:12:42.743172Z","iopub.execute_input":"2026-02-07T06:12:42.743521Z","iopub.status.idle":"2026-02-07T06:12:42.764984Z","shell.execute_reply.started":"2026-02-07T06:12:42.743495Z","shell.execute_reply":"2026-02-07T06:12:42.764124Z"}}
+overall_deltas
