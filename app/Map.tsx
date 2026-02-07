@@ -83,6 +83,42 @@ export default function ValueMap({
   // Cache: avoid recomputing polygons when toggling metric only
   const geoCacheRef = useRef<Map<string, any>>(new Map<string, any>());
 
+  const buildZooplaHref = (outcode: string) => {
+    const clean = outcode.trim().toLowerCase();
+    const s = stateRef.current;
+    const params = new URLSearchParams({
+      q: clean,
+      search_source: "for-sale",
+    });
+
+    let path = `https://www.zoopla.co.uk/for-sale/property/${encodeURIComponent(clean)}/`;
+
+    switch (s.propertyType) {
+      case "D":
+        path = `https://www.zoopla.co.uk/for-sale/houses/${encodeURIComponent(clean)}/`;
+        params.set("property_sub_type", "detached");
+        break;
+      case "S":
+        path = `https://www.zoopla.co.uk/for-sale/houses/${encodeURIComponent(clean)}/`;
+        params.set("property_sub_type", "semi_detached");
+        break;
+      case "T":
+        path = `https://www.zoopla.co.uk/for-sale/houses/${encodeURIComponent(clean)}/`;
+        params.set("property_sub_type", "terraced");
+        break;
+      case "F":
+        path = `https://www.zoopla.co.uk/for-sale/flats/${encodeURIComponent(clean)}/`;
+        break;
+      default:
+        break;
+    }
+
+    if (s.newBuild === "Y") params.set("new_homes", "include");
+    if (s.newBuild === "N") params.set("new_homes", "exclude");
+
+    return `${path}?${params.toString()}`;
+  };
+
   // Create map once
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -398,7 +434,7 @@ export default function ValueMap({
                     style={{ display: "flex", flexWrap: "wrap", gap: 6, maxHeight: 180, overflow: "auto" }}
                   >
                     {postcodeItems.map((pc, i) => {
-                      const href = `https://www.zoopla.co.uk/for-sale/property/${encodeURIComponent(pc).toLowerCase()}/?q=${encodeURIComponent(pc).toLowerCase()}&search_source=for-sale`;
+                      const href = buildZooplaHref(pc);
                       return (
                         <a
                           key={`${pc}-${i}`}
