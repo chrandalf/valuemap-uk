@@ -32,8 +32,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
       return Response.json("Missing cell", { status: 400 });
     }
 
-    const index = await getCellIndex(env, grid, key);
-    const list = index.get(cell) ?? [];
+    const list = await getPostcodesForCell(env, grid, key, cell);
 
     const slice = list.slice(offset, offset + limit);
     const hasMore = offset + limit < list.length;
@@ -86,14 +85,14 @@ type PostcodeRow = {
   cell_25000?: string;
 };
 
-/* ---------- cache ---------- */
+/* ---------- lookup ---------- */
 
-const INDEX_BY_GRID: Partial<Record<GridKey, Map<string, string[]>>> = {};
-
-async function getCellIndex(env: Env, grid: GridKey, key: string): Promise<Map<string, string[]>> {
-  const cached = INDEX_BY_GRID[grid];
-  if (cached) return cached;
-
+async function getPostcodesForCell(
+  env: Env,
+  grid: GridKey,
+  key: string,
+  cell: string
+): Promise<string[]> {
   const bucket = ((env && ((env as any).BRICKGRID_BUCKET || (env as any).R2)) as unknown) as R2Bucket | undefined;
   if (!bucket) {
     throw new Error("R2 binding not found. Expected environment binding `BRICKGRID_BUCKET` or `R2`.");
@@ -134,7 +133,7 @@ async function getCellIndex(env: Env, grid: GridKey, key: string): Promise<Map<s
   const text = new TextDecoder().decode(decompressed);
   const rows = JSON.parse(text) as PostcodeRow[];
 
-  const map = new Map<string, Set<string>>();
+  const outcodes = new Set<string>();
 
   // support either a combined cell column (e.g. cell_1000 = "385000_801000")
   // or split integer columns (cell_1000_x, cell_1000_y) which our preprocessing may produce
@@ -170,18 +169,12 @@ async function getCellIndex(env: Env, grid: GridKey, key: string): Promise<Map<s
     const outcode = outcodeRaw.split(" ")[0].toUpperCase();
     if (!outcode) continue;
 
-    const set = map.get(cellVal);
-    if (set) set.add(outcode);
-    else map.set(cellVal, new Set([outcode]));
+    if (cellVal === cell) {
+      outcodes.add(outcode);
+    }
   }
 
-  const out = new Map<string, string[]>();
-  for (const [cell, set] of map.entries()) {
-    out.set(cell, Array.from(set).sort());
-  }
-
-  INDEX_BY_GRID[grid] = out;
-  return out;
+  return Array.from(outcodes).sort();
 }
 
 function clampInt(v: string | null, fallback: number, min: number, max: number) {
