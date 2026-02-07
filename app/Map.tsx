@@ -404,7 +404,7 @@ export default function ValueMap({
             bottom: 12,
             background: "rgba(10, 12, 20, 0.92)",
             color: "white",
-            padding: "10px 12px",
+            padding: "10px 12px 36px",
             borderRadius: 10,
             boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
             fontSize: 12,
@@ -508,6 +508,39 @@ export default function ValueMap({
               )}
             </>
           )}
+          <a
+            href="https://buymeacoffee.com/chrandalf"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Buy me a coffee"
+            title="Buy me a coffee"
+            style={{
+              position: "absolute",
+              right: 10,
+              bottom: 10,
+              width: 26,
+              height: 26,
+              borderRadius: 999,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "rgba(255,255,255,0.12)",
+              border: "1px solid rgba(255,255,255,0.2)",
+              color: "white",
+              textDecoration: "none",
+            }}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              aria-hidden="true"
+              focusable="false"
+              fill="currentColor"
+            >
+              <path d="M3 6h11a3 3 0 0 1 0 6h-1v3a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V6Zm11 5a2 2 0 0 0 0-4h-1v4h1Zm-9 4h8a2 2 0 0 0 2-2v-2H5v2a2 2 0 0 0 2 2Z" />
+            </svg>
+          </a>
         </div>
       )}
     </div>
