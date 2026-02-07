@@ -397,21 +397,28 @@ export default function ValueMap({
       </div>
       {postcodeCell && (
         <div
-          className="postcode-panel"
           style={{
             position: "absolute",
             left: 12,
             bottom: 12,
-            background: "rgba(10, 12, 20, 0.92)",
-            color: "white",
-            padding: "10px 12px 36px",
-            borderRadius: 10,
-            boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
-            fontSize: 12,
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
             zIndex: 3,
             maxWidth: 300,
           }}
         >
+          <div
+            className="postcode-panel"
+            style={{
+              background: "rgba(10, 12, 20, 0.92)",
+              color: "white",
+              padding: "10px 12px",
+              borderRadius: 10,
+              boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
+              fontSize: 12,
+            }}
+          >
           <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 6 }}>
             <div style={{ fontWeight: 600 }}>Postcode areas</div>
             <button
@@ -508,6 +515,7 @@ export default function ValueMap({
               )}
             </>
           )}
+          </div>
           <a
             href="https://buymeacoffee.com/chrandalf"
             target="_blank"
@@ -515,16 +523,14 @@ export default function ValueMap({
             aria-label="Buy me a coffee"
             title="Buy me a coffee"
             style={{
-              position: "absolute",
-              right: 10,
-              bottom: 10,
-              height: 26,
+              alignSelf: "flex-start",
+              height: 24,
               padding: "0 9px 0 7px",
               borderRadius: 999,
               display: "inline-flex",
               alignItems: "center",
               gap: 6,
-              background: "rgba(255,255,255,0.12)",
+              background: "rgba(10, 12, 20, 0.92)",
               border: "1px solid rgba(255,255,255,0.2)",
               color: "white",
               textDecoration: "none",
@@ -532,6 +538,7 @@ export default function ValueMap({
               lineHeight: 1,
               letterSpacing: 0.2,
               whiteSpace: "nowrap",
+              boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
             }}
           >
             <svg
