@@ -76,9 +76,9 @@ export default function Home() {
           color: "white",
         }}
       >
-        <div style={{ fontSize: 12, letterSpacing: 0.6, opacity: 0.8 }}>VALUEMAP UK</div>
-        <div style={{ fontSize: 28, fontWeight: 700, marginTop: 6 }}>UK House Price Grid</div>
-        <div style={{ marginTop: 4, fontSize: 12, opacity: 0.8 }}>By Chris Randall</div>
+        <div className="panel-brand" style={{ fontSize: 12, letterSpacing: 0.6, opacity: 0.8 }}>VALUEMAP UK</div>
+        <div className="panel-title" style={{ fontSize: 28, fontWeight: 700, marginTop: 6 }}>UK House Price Grid</div>
+        <div className="panel-byline" style={{ marginTop: 4, fontSize: 12, opacity: 0.8 }}>By Chris Randall</div>
         <button
           type="button"
           className="panel-toggle"
@@ -97,7 +97,7 @@ export default function Home() {
         >
           {filtersOpen ? "Hide filters" : "Show filters"}
         </button>
-        <div style={{ marginTop: 8, opacity: 0.85, lineHeight: 1.35 }}>
+        <div className="panel-desc" style={{ marginTop: 8, opacity: 0.85, lineHeight: 1.35 }}>
           Grid-based medians and deltas (trailing 12 months). Data layer next.
         </div>
 
@@ -354,6 +354,18 @@ export function Styles() {
         .panel[data-open="false"] {
           max-height: none !important;
           overflow: hidden !important;
+        }
+        .panel[data-open="false"] .panel-brand,
+        .panel[data-open="false"] .panel-byline,
+        .panel[data-open="false"] .panel-desc {
+          display: none !important;
+        }
+        .panel[data-open="false"] .panel-title {
+          font-size: 18px !important;
+          margin-top: 0 !important;
+        }
+        .panel[data-open="false"] {
+          padding: 10px 12px !important;
         }
         .panel-toggle {
           display: inline-block !important;
