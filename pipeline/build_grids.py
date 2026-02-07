@@ -1,5 +1,5 @@
 # %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:49:19.907578Z","iopub.execute_input":"2026-02-05T10:49:19.907948Z","iopub.status.idle":"2026-02-05T10:50:48.185928Z","shell.execute_reply.started":"2026-02-05T10:49:19.907915Z","shell.execute_reply":"2026-02-05T10:50:48.184898Z"},"jupyter":{"outputs_hidden":false}}
-import os, time, requests
+import os, time, requests, gc
 from pathlib import Path
 URL = "http://prod.publicdata.landregistry.gov.uk.s3-website-eu-west-1.amazonaws.com/pp-complete.txt"
 ##URL = "https://s3.eu-west-1.amazonaws.com/prod1.publicdata.landregistry.gov.uk/pp-2025.txt"
@@ -62,7 +62,23 @@ for d in os.listdir("/kaggle/input"):
 # %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:50:57.588431Z","iopub.execute_input":"2026-02-05T10:50:57.588884Z","iopub.status.idle":"2026-02-05T10:52:45.438082Z","shell.execute_reply.started":"2026-02-05T10:50:57.588842Z","shell.execute_reply":"2026-02-05T10:52:45.437166Z"},"jupyter":{"outputs_hidden":false}}
 import pandas as pd
 
-path = "/kaggle/working/pp-2025.txt"
+def resolve_pp_path() -> str:
+    script_path = Path(__file__).resolve()
+    repo_root = script_path.parent.parent
+    candidates = [
+        repo_root / "pipeline" / "data" / "pp-2025.txt",
+        repo_root / "data" / "pp-2025.txt",
+        Path("/kaggle/working/pp-2025.txt"),
+    ]
+    for p in candidates:
+        if p.exists():
+            return str(p)
+    raise FileNotFoundError("pp-2025.txt not found in pipeline/data, data, or /kaggle/working")
+
+path = resolve_pp_path()
+print("Using transactions file:", path)
+OUTPUT_DIR = Path("output")
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # Full PPD schema (16 columns)
 all_cols = [
@@ -72,7 +88,7 @@ all_cols = [
     "district", "county", "ppd_category", "record_status"
 ]
 
-usecols = ["transaction_id", "price", "date", "postcode", "property_type", "new_build", "record_status"]
+usecols = ["price", "date", "postcode", "property_type", "new_build", "record_status"]
 
 cutoff = (pd.Timestamp.today().normalize() - pd.DateOffset(years=5)).date()
 
@@ -83,7 +99,6 @@ for chunk in pd.read_csv(
     names=all_cols,
     usecols=usecols,
     dtype={
-        "transaction_id": "string",
         "postcode": "string",
         "property_type": "string",
         "new_build": "string",
@@ -101,12 +116,17 @@ for chunk in pd.read_csv(
     # Last 5 years
     chunk = chunk[chunk["date"].dt.date >= cutoff]
 
+    # Keep only columns needed downstream and compress dtypes early
+    chunk["pc_key"] = chunk["postcode"].astype("string").str.replace(" ", "", regex=False).str.upper()
+    chunk["month"] = chunk["date"].dt.to_period("M").dt.to_timestamp()
+    chunk["price"] = pd.to_numeric(chunk["price"], errors="coerce", downcast="integer")
+    chunk["property_type"] = chunk["property_type"].astype("category")
+    chunk["new_build"] = chunk["new_build"].astype("category")
+    chunk = chunk[["price", "date", "month", "pc_key", "property_type", "new_build"]]
+
     chunks.append(chunk)
 
 df = pd.concat(chunks, ignore_index=True)
-
-# Month-start timestamp (for your downstream logic)
-df["month"] = df["date"].dt.to_period("M").dt.to_timestamp()
 
 print("Rows kept:", len(df))
 print("Date range:", df["date"].min().date(), "->", df["date"].max().date())
@@ -176,10 +196,7 @@ def resolve_postcode_centroids_csv() -> str:
 path_east_north = resolve_postcode_centroids_csv()
 print("Using postcode centroid CSV:", path_east_north)
 
-cols = [
-    "x","y","PCD7","PCD8","PCDS","DOINTR","DOTERM",
-    "EAST1M","NORTH1M"
-]
+cols = ["x", "y", "PCDS"]
 
 df_en = pd.read_csv(
     path_east_north,    
@@ -190,13 +207,7 @@ df_en = pd.read_csv(
     dtype={
         "x": "string",
         "y": "string",
-        "PCD7": "string",
-        "PCD8": "string",
         "PCDS": "string",
-        "DOINTR": "string",
-        "DOTERM": "string",
-        "EAST1M": "string",
-        "NORTH1M": "string",        
     }
 )
 
@@ -207,6 +218,8 @@ df_en["EAST1M"]  = pd.to_numeric(df_en["x"], errors="coerce")
 df_en["NORTH1M"] = pd.to_numeric(df_en["y"], errors="coerce")
 
 df_en = df_en.dropna(subset=["EAST1M","NORTH1M"]).copy()
+df_en["EAST1M"] = df_en["EAST1M"].astype("float32")
+df_en["NORTH1M"] = df_en["NORTH1M"].astype("float32")
 
 # %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:53:42.914982Z","iopub.execute_input":"2026-02-05T10:53:42.915985Z","iopub.status.idle":"2026-02-05T10:53:54.002896Z","shell.execute_reply.started":"2026-02-05T10:53:42.915945Z","shell.execute_reply":"2026-02-05T10:53:54.001864Z"},"jupyter":{"outputs_hidden":false}}
 GRID_SIZES = [1000, 5000, 10000, 25000]  # metres
@@ -220,40 +233,19 @@ for g in GRID_SIZES:
     )
 
 # %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:54:15.147009Z","iopub.execute_input":"2026-02-05T10:54:15.148560Z","iopub.status.idle":"2026-02-05T10:54:15.879243Z","shell.execute_reply.started":"2026-02-05T10:54:15.148512Z","shell.execute_reply":"2026-02-05T10:54:15.878036Z"},"jupyter":{"outputs_hidden":false}}
-def make_cells(df, g):
-    cells = (df[[f"gx_{g}", f"gy_{g}"]]
-             .drop_duplicates()
-             .rename(columns={f"gx_{g}":"gx", f"gy_{g}":"gy"}))
-    cells["grid_m"] = g
-    cells["x0"] = cells["gx"]
-    cells["y0"] = cells["gy"]
-    cells["x1"] = cells["gx"] + g
-    cells["y1"] = cells["gy"] + g
-    return cells
-
-cells_1km  = make_cells(df_en, 1000)
-cells_5km  = make_cells(df_en, 5000)
-cells_10km = make_cells(df_en, 10000)
-cells_25km = make_cells(df_en, 25000)
-
 # %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:54:20.620829Z","iopub.execute_input":"2026-02-05T10:54:20.621231Z","iopub.status.idle":"2026-02-05T10:54:20.626788Z","shell.execute_reply.started":"2026-02-05T10:54:20.621200Z","shell.execute_reply":"2026-02-05T10:54:20.625764Z"},"jupyter":{"outputs_hidden":false}}
-print("1km:",  len(cells_1km))
-print("5km:",  len(cells_5km))
-print("10km:", len(cells_10km))
-print("25km:", len(cells_25km))
+print("1km:",  df_en[["gx_1000", "gy_1000"]].drop_duplicates().shape[0])
+print("5km:",  df_en[["gx_5000", "gy_5000"]].drop_duplicates().shape[0])
+print("10km:", df_en[["gx_10000", "gy_10000"]].drop_duplicates().shape[0])
+print("25km:", df_en[["gx_25000", "gy_25000"]].drop_duplicates().shape[0])
 
 # %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:54:23.694576Z","iopub.execute_input":"2026-02-05T10:54:23.694900Z","iopub.status.idle":"2026-02-05T10:54:27.954634Z","shell.execute_reply.started":"2026-02-05T10:54:23.694871Z","shell.execute_reply":"2026-02-05T10:54:27.953561Z"},"jupyter":{"outputs_hidden":false}}
-df["pc_key"] = df["postcode"].astype("string").str.replace(" ", "", regex=False).str.upper()
 df_en["pc_key"] = df_en["PCDS"].astype("string").str.replace(" ", "", regex=False).str.upper()
 
 # %% [code] {"execution":{"iopub.status.busy":"2026-02-05T06:18:15.431091Z","iopub.execute_input":"2026-02-05T06:18:15.431501Z","iopub.status.idle":"2026-02-05T06:18:15.666443Z","shell.execute_reply.started":"2026-02-05T06:18:15.431466Z","shell.execute_reply":"2026-02-05T06:18:15.664087Z"},"jupyter":{"outputs_hidden":false}}
 df_en.head()
 
 # %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:54:32.892196Z","iopub.execute_input":"2026-02-05T10:54:32.892609Z","iopub.status.idle":"2026-02-05T10:54:45.637849Z","shell.execute_reply.started":"2026-02-05T10:54:32.892571Z","shell.execute_reply":"2026-02-05T10:54:45.636488Z"},"jupyter":{"outputs_hidden":false}}
-df_en["EAST1M"]  = pd.to_numeric(df_en["EAST1M"], errors="coerce")
-df_en["NORTH1M"] = pd.to_numeric(df_en["NORTH1M"], errors="coerce")
-df_en = df_en.dropna(subset=["EAST1M","NORTH1M"]).copy()
-
 for g in [1000, 5000, 10000, 25000]:
     df_en[f"gx_{g}"] = ((df_en["EAST1M"] // g) * g).astype("int64")
     df_en[f"gy_{g}"] = ((df_en["NORTH1M"] // g) * g).astype("int64")
@@ -276,6 +268,10 @@ df = df.drop(columns=to_drop)
 
 df = df.merge(lookup, on="pc_key", how="left")
 
+# Release large lookup frames as soon as merge is done
+del lookup
+gc.collect()
+
 # --- Postcode area (outcode) -> grid cell lookup tables (for UI drilldown) ---
 # Keep only the outcode (part before the space) to reduce size.
 postcode_lookup = df_en[[
@@ -290,8 +286,8 @@ postcode_lookup = postcode_lookup.dropna(subset=["outcode"]).drop_duplicates(
 )
 
 # Save as parquet (compact, fast) and JSON (portable)
-postcode_lookup_out_parquet = "/kaggle/working/postcode_grid_outcode_lookup.parquet"
-postcode_lookup_out_json = "/kaggle/working/postcode_grid_outcode_lookup.json.gz"
+postcode_lookup_out_parquet = str(OUTPUT_DIR / "postcode_grid_outcode_lookup.parquet")
+postcode_lookup_out_json = str(OUTPUT_DIR / "postcode_grid_outcode_lookup.json.gz")
 
 postcode_lookup.to_parquet(postcode_lookup_out_parquet, index=False)
 
@@ -301,18 +297,16 @@ with gzip.open(postcode_lookup_out_json, "wt", encoding="utf-8") as f:
 
 print("Wrote postcode lookup:", postcode_lookup_out_parquet, "rows:", len(postcode_lookup))
 
+# df_en is no longer needed after lookup generation + merge
+del postcode_lookup
+del df_en
+gc.collect()
+
 # %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:55:07.731960Z","iopub.execute_input":"2026-02-05T10:55:07.732310Z","iopub.status.idle":"2026-02-05T10:55:08.037267Z","shell.execute_reply.started":"2026-02-05T10:55:07.732280Z","shell.execute_reply":"2026-02-05T10:55:08.036215Z"},"jupyter":{"outputs_hidden":false}}
-df[["postcode", "EAST1M", "NORTH1M", "gx_25000", "gy_25000", "cell_25000"]].head()
+df[["pc_key", "EAST1M", "NORTH1M", "gx_25000", "gy_25000", "cell_25000"]].head()
 
 # %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:55:11.495841Z","iopub.execute_input":"2026-02-05T10:55:11.496227Z","iopub.status.idle":"2026-02-05T10:55:12.844804Z","shell.execute_reply.started":"2026-02-05T10:55:11.496196Z","shell.execute_reply":"2026-02-05T10:55:12.843521Z"},"jupyter":{"outputs_hidden":false}}
-df["month"] = df["date"].dt.to_period("M").dt.to_timestamp()
-
-# optional but recommended for later
-df["property_type"] = df["property_type"].astype("string")
-df["new_build"] = df["new_build"].astype("string")
-
 # %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:55:15.603005Z","iopub.execute_input":"2026-02-05T10:55:15.603394Z","iopub.status.idle":"2026-02-05T10:55:20.349462Z","shell.execute_reply.started":"2026-02-05T10:55:15.603364Z","shell.execute_reply":"2026-02-05T10:55:20.348451Z"},"jupyter":{"outputs_hidden":false}}
-df["month"] = pd.to_datetime(df["month"]).dt.to_period("M").dt.to_timestamp()
 latest_month = df["month"].max()
 # Keep only last 10 years (inclusive, aligned to month)
 cutoff_month = (latest_month - pd.DateOffset(years=10)).to_period("M").to_timestamp()
@@ -431,10 +425,10 @@ grid_1km_annual = make_grid_annual_stack_levels(
 )
 
 # %% [code] {"execution":{"iopub.status.busy":"2026-02-05T11:38:52.539283Z","iopub.execute_input":"2026-02-05T11:38:52.539963Z","iopub.status.idle":"2026-02-05T11:38:52.730436Z","shell.execute_reply.started":"2026-02-05T11:38:52.539929Z","shell.execute_reply":"2026-02-05T11:38:52.729134Z"},"jupyter":{"outputs_hidden":false}}
-grid_1km_annual.to_parquet("/kaggle/working/grid_1km_annual.parquet", index=False)
-grid_5km_annual.to_parquet("/kaggle/working/grid_5km_annual.parquet", index=False)
-grid_10km_annual.to_parquet("/kaggle/working/grid_10km_annual.parquet", index=False)
-grid_25km_annual.to_parquet("/kaggle/working/grid_25km_annual.parquet", index=False)
+grid_1km_annual.to_parquet(str(OUTPUT_DIR / "grid_1km_annual.parquet"), index=False)
+grid_5km_annual.to_parquet(str(OUTPUT_DIR / "grid_5km_annual.parquet"), index=False)
+grid_10km_annual.to_parquet(str(OUTPUT_DIR / "grid_10km_annual.parquet"), index=False)
+grid_25km_annual.to_parquet(str(OUTPUT_DIR / "grid_25km_annual.parquet"), index=False)
 
 # %% [code] {"execution":{"iopub.status.busy":"2026-02-05T10:58:33.489386Z","iopub.execute_input":"2026-02-05T10:58:33.489774Z","iopub.status.idle":"2026-02-05T10:59:06.948154Z","shell.execute_reply.started":"2026-02-05T10:58:33.489744Z","shell.execute_reply":"2026-02-05T10:59:06.946920Z"}}
 import pandas as pd, json, gzip
@@ -455,7 +449,7 @@ d["end_month"] = pd.to_datetime(d["end_month"]).dt.strftime("%Y-%m-%d")
 keep = ["gx","gy","end_month","property_type","new_build","median","tx_count"]
 d = d[keep].dropna(subset=["gx","gy","median"]).copy()
 
-out_path = "/kaggle/working/grid_1km_full.json.gz"
+out_path = str(OUTPUT_DIR / "grid_1km_full.json.gz")
 with gzip.open(out_path, "wt", encoding="utf-8") as f:
     # JSON array (easy to parse/cached in worker)
     json.dump(d.to_dict(orient="records"), f)
@@ -480,7 +474,7 @@ for grid_size, grid_annual in [
     }
 
 # Save metadata JSON
-metadata_path = "/kaggle/working/grid_metadata.json"
+metadata_path = str(OUTPUT_DIR / "grid_metadata.json")
 with open(metadata_path, "w") as f:
     json.dump(grid_metadata, f, indent=2)
 
@@ -1091,7 +1085,7 @@ for grid_size, grid_annual in [
         }
 
         # Save to JSON (memory-efficient for Kaggle)
-        output_path = f"/kaggle/working/deltas_overall_{grid_label}.json.gz"
+        output_path = str(OUTPUT_DIR / f"deltas_overall_{grid_label}.json.gz")
         with gzip.open(output_path, "wt", encoding="utf-8") as f:
             json.dump(overall_deltas.where(pd.notnull(overall_deltas), None).to_dict(orient="records"), f)
         print(f"\nSaved to {output_path}")
@@ -1100,7 +1094,7 @@ for grid_size, grid_annual in [
 
 # Save delta metadata file
 if delta_metadata:
-    delta_metadata_path = "/kaggle/working/deltas_metadata.json"
+    delta_metadata_path = str(OUTPUT_DIR / "deltas_metadata.json")
     with open(delta_metadata_path, "w") as f:
         json.dump(delta_metadata, f, indent=2)
     print(f"\n{'='*60}")
