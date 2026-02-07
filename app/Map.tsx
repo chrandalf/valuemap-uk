@@ -409,7 +409,7 @@ export default function ValueMap({
             boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
             fontSize: 12,
             zIndex: 3,
-            maxWidth: 280,
+            maxWidth: 300,
           }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 6 }}>
@@ -518,8 +518,8 @@ export default function ValueMap({
               position: "absolute",
               right: 10,
               bottom: 10,
-              height: 28,
-              padding: "0 10px 0 8px",
+              height: 26,
+              padding: "0 9px 0 7px",
               borderRadius: 999,
               display: "inline-flex",
               alignItems: "center",
@@ -528,7 +528,7 @@ export default function ValueMap({
               border: "1px solid rgba(255,255,255,0.2)",
               color: "white",
               textDecoration: "none",
-              fontSize: 11,
+              fontSize: 10,
               lineHeight: 1,
               letterSpacing: 0.2,
               whiteSpace: "nowrap",
@@ -536,13 +536,14 @@ export default function ValueMap({
           >
             <svg
               viewBox="0 0 24 24"
-              width="16"
-              height="16"
+              width="14"
+              height="14"
               aria-hidden="true"
               focusable="false"
               fill="currentColor"
             >
-              <path d="M7 3h10v2h-4v2h1a3 3 0 0 1 3 3v6a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V10a3 3 0 0 1 3-3h1V5H7V3Zm2 4h4V5H9v2Zm-1 2a1 1 0 0 0-1 1v6a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V10a1 1 0 0 0-1-1H8Zm1 2h6v3H9v-3Zm-4 10h12v2H5v-2Z" />
+              <path d="M5 6h10a0 0 0 0 1 0 0v6a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V6Zm10 1h1.5a2.5 2.5 0 1 1 0 5H15V7Zm-8 2h6v3H7V9Zm1 9h6a3 3 0 0 0 3-3v-1h-1.5a3.5 3.5 0 1 0 0-7H5v4a3 3 0 0 0 3 3Z" />
+              <path d="M6 5h8v1H6V5Z" />
             </svg>
             <span>buy me a coffee?</span>
           </a>
