@@ -96,9 +96,35 @@ async function getCellIndex(env: Env, grid: GridKey, key: string): Promise<Map<s
     throw new Error("R2 binding not found. Expected environment binding `BRICKGRID_BUCKET` or `R2`.");
   }
 
-  const obj = await bucket.get(key);
+  // Try to fetch the object; many deployments place objects under a prefix
+  // so attempt several common key variants before failing to give better diagnostics.
+  const triedKeys: string[] = [];
+  const candidates = Array.from(new Set([
+    key,
+    key.replace(/^\/+/, ""),
+    key.replace(/^.*\//, ""),
+    `valuemap-uk/${key}`,
+    `valuemap-uk/${key.replace(/^.*\//, "")}`,
+    `v1/${key}`,
+    `v1/${key.replace(/^.*\//, "")}`,
+  ]));
+
+  let obj: { arrayBuffer: () => Promise<ArrayBuffer> } | null = null;
+  let foundKey: string | null = null;
+  for (const k of candidates) {
+    triedKeys.push(k);
+    // eslint-disable-next-line no-await-in-loop
+    const attempt = await bucket.get(k as any as string);
+    if (attempt) {
+      obj = attempt;
+      foundKey = k;
+      break;
+    }
+  }
+
   if (!obj) {
-    throw new Error(`R2 object not found: ${key}`);
+    // helpful error showing what we tried
+    throw new Error(`R2 object not found: tried keys: ${triedKeys.join(", ")}`);
   }
 
   const decompressed = await decompressGzip(await obj.arrayBuffer());
