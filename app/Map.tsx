@@ -241,8 +241,8 @@ export default function ValueMap({
     const gx = Number(f.properties?.gx);
     const gy = Number(f.properties?.gy);
     if (!Number.isFinite(gx) || !Number.isFinite(gy)) return;
-    // Subtle Scotland caveat when clicking northern cells
-    if (e.lngLat && typeof e.lngLat.lat === "number" && e.lngLat.lat >= 56) {
+    // Subtle Scotland caveat when clicking northern cells (Gretna ~331900, 568300)
+    if (gy >= 568300) {
       setScotlandNote("Scotland data coverage is partial and may be 1–2 years out of date.");
     } else {
       setScotlandNote(null);

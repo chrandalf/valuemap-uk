@@ -100,6 +100,9 @@ export default function Home() {
         <div className="panel-desc" style={{ marginTop: 8, opacity: 0.85, lineHeight: 1.35 }}>
           Grid-based medians and deltas (trailing 12 months). Data layer next.
         </div>
+        <div style={{ marginTop: 6, fontSize: 11, opacity: 0.65 }}>
+          Scotland coverage is partial and may be 1–2 years out of date.
+        </div>
 
         {/* Controls */}
         <div
