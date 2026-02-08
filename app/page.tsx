@@ -16,6 +16,12 @@ type MapState = {
   endMonth?: string;
 };
 
+type OutcodeRank = {
+  outcode: string;
+  median: number;
+  weight: number;
+};
+
 const METRIC_LABEL: Record<Metric, string> = {
   median: "Median",
   delta_gbp: "Change (GBP)",
@@ -57,6 +63,10 @@ export default function Home() {
   const [descriptionPage, setDescriptionPage] = useState(1);
   const [postcodeOpen, setPostcodeOpen] = useState(false);
   const [legendOpen, setLegendOpen] = useState(true);
+  const [outcodeTop, setOutcodeTop] = useState<OutcodeRank[]>([]);
+  const [outcodeBottom, setOutcodeBottom] = useState<OutcodeRank[]>([]);
+  const [outcodeLoading, setOutcodeLoading] = useState(false);
+  const [outcodeError, setOutcodeError] = useState<string | null>(null);
 
   const formatLegendCurrency = (value: number) => {
     if (!Number.isFinite(value)) return "N/A";
@@ -72,6 +82,47 @@ export default function Home() {
     const isMobile = window.matchMedia("(max-width: 640px)").matches;
     if (isMobile) setFiltersOpen(false);
   }, []);
+
+  useEffect(() => {
+    if (state.metric !== "median") {
+      setOutcodeTop([]);
+      setOutcodeBottom([]);
+      setOutcodeError(null);
+      setOutcodeLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const fetchOutcodes = async () => {
+      setOutcodeLoading(true);
+      setOutcodeError(null);
+      try {
+        const params = new URLSearchParams({
+          grid: state.grid,
+          propertyType: state.propertyType,
+          newBuild: state.newBuild,
+          endMonth: state.endMonth ?? "LATEST",
+        });
+        const res = await fetch(`/api/outcodes?${params.toString()}`, {
+          signal: controller.signal,
+        });
+        if (!res.ok) {
+          throw new Error(`Failed to load postcode ranks (${res.status})`);
+        }
+        const data = (await res.json()) as { top?: OutcodeRank[]; bottom?: OutcodeRank[] };
+        setOutcodeTop(Array.isArray(data.top) ? data.top : []);
+        setOutcodeBottom(Array.isArray(data.bottom) ? data.bottom : []);
+      } catch (e: any) {
+        if (e.name === "AbortError") return;
+        setOutcodeError(e?.message ?? "Failed to load postcode ranks");
+      } finally {
+        setOutcodeLoading(false);
+      }
+    };
+
+    void fetchOutcodes();
+    return () => controller.abort();
+  }, [state.grid, state.propertyType, state.newBuild, state.endMonth, state.metric]);
 
   const legendContent = (
     <>
@@ -143,6 +194,11 @@ export default function Home() {
       )}
     </>
   );
+
+  const formatOutcodeCurrency = (value: number) => {
+    if (!Number.isFinite(value)) return "N/A";
+    return `GBP ${formatLegendCurrency(value)}`;
+  };
 
   return (
     <main style={{ position: "relative", minHeight: "100vh", overflow: "hidden" }}>
@@ -512,6 +568,58 @@ export default function Home() {
 
       </div>
 
+      {state.metric === "median" && (
+        <div
+          className="outcode-panel"
+          style={{
+            position: "absolute",
+            right: 18,
+            top: 18,
+            width: 260,
+            maxHeight: "calc(100vh - 120px)",
+            padding: "12px 14px",
+            borderRadius: 14,
+            background: "rgba(10, 12, 20, 0.85)",
+            border: "1px solid rgba(255,255,255,0.12)",
+            backdropFilter: "blur(10px)",
+            color: "white",
+            fontSize: 12,
+            overflow: "auto",
+            zIndex: 2,
+          }}
+        >
+          <div style={{ fontWeight: 600, marginBottom: 8 }}>Top 10 postcode areas</div>
+          {outcodeLoading && <div style={{ opacity: 0.7, marginBottom: 8 }}>Loading...</div>}
+          {outcodeError && <div style={{ color: "#ff9999", marginBottom: 8 }}>{outcodeError}</div>}
+          {!outcodeLoading && !outcodeError && outcodeTop.length === 0 && (
+            <div style={{ opacity: 0.7, marginBottom: 8 }}>No data available.</div>
+          )}
+          {outcodeTop.length > 0 && (
+            <ol style={{ margin: "0 0 12px 16px", padding: 0 }}>
+              {outcodeTop.map((row) => (
+                <li key={`top-${row.outcode}`} style={{ marginBottom: 4 }}>
+                  <span style={{ fontWeight: 600 }}>{row.outcode}</span> {formatOutcodeCurrency(row.median)}
+                </li>
+              ))}
+            </ol>
+          )}
+
+          <div style={{ fontWeight: 600, marginBottom: 8 }}>Bottom 10 postcode areas</div>
+          {outcodeBottom.length > 0 && (
+            <ol style={{ margin: 0, padding: "0 0 0 16px" }}>
+              {outcodeBottom.map((row) => (
+                <li key={`bottom-${row.outcode}`} style={{ marginBottom: 4 }}>
+                  <span style={{ fontWeight: 600 }}>{row.outcode}</span> {formatOutcodeCurrency(row.median)}
+                </li>
+              ))}
+            </ol>
+          )}
+          <div style={{ marginTop: 10, fontSize: 10, opacity: 0.65 }}>
+            Based on grid medians aggregated to postcode areas.
+          </div>
+        </div>
+      )}
+
       {/* Bottom-right legend */}
       {!postcodeOpen && legendOpen && (
         <div
@@ -602,6 +710,9 @@ export function Styles() {
   return (
     <style jsx global>{`
       @media (max-width: 640px) {
+        .outcode-panel {
+          display: none !important;
+        }
         .median-overlay {
           display: none !important;
         }
