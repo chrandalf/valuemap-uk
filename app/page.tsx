@@ -424,8 +424,8 @@ export function Styles() {
           top: 12px !important;
           width: auto !important;
           max-width: none !important;
-          padding: 10px !important;
-          max-height: 60vh !important;
+          padding: 8px !important;
+          max-height: calc(100svh - 24px) !important;
           overflow: auto !important;
         }
         .panel[data-open="false"] {
@@ -442,11 +442,11 @@ export function Styles() {
           margin-top: 0 !important;
         }
         .panel-title {
-          font-size: 18px !important;
+          font-size: clamp(15px, 4.2vw, 18px) !important;
           line-height: 1.1 !important;
         }
         .panel-byline {
-          font-size: 11px !important;
+          font-size: clamp(10px, 2.8vw, 11px) !important;
           margin-top: 2px !important;
         }
         .panel[data-open="false"] {
@@ -463,29 +463,29 @@ export function Styles() {
           display: none !important;
         }
         .controls {
-          gap: 6px !important;
+          gap: 4px !important;
         }
         .control-row {
           grid-template-columns: 1fr !important;
-          gap: 4px !important;
+          gap: 3px !important;
         }
         .control-label {
-          font-size: 10px !important;
+          font-size: clamp(9px, 2.6vw, 10px) !important;
           opacity: 0.7 !important;
         }
         .segment {
           width: 100% !important;
           display: grid !important;
           grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-          gap: 6px !important;
+          gap: 4px !important;
           border: none !important;
           background: transparent !important;
           padding: 0 !important;
         }
         .segment-btn {
           min-width: 0 !important;
-          padding: 6px 6px !important;
-          font-size: 11px !important;
+          padding: 5px 6px !important;
+          font-size: clamp(10px, 2.8vw, 11px) !important;
           border: 1px solid rgba(255,255,255,0.18) !important;
           border-radius: 10px !important;
           background: rgba(255,255,255,0.06) !important;
@@ -511,6 +511,8 @@ export function Styles() {
         }
         .postcode-panel {
           padding: 8px 10px !important;
+          max-height: 38svh !important;
+          overflow: auto !important;
         }
         .postcode-list {
           max-height: 110px !important;
@@ -521,13 +523,15 @@ export function Styles() {
           width: auto !important;
           max-width: none !important;
           padding: 6px 8px !important;
-          bottom: 64px !important;
+          bottom: 12px !important;
+          max-height: 32svh !important;
+          overflow: auto !important;
         }
         .legend .legend-bars {
           height: 18px !important;
         }
         .legend .legend-title {
-          font-size: 14px !important;
+          font-size: clamp(12px, 3.4vw, 14px) !important;
           margin-bottom: 8px !important;
         }
         .legend .legend-sub {
