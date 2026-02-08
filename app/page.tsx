@@ -195,22 +195,27 @@ export default function Home() {
         )}
 
         <div style={{ marginTop: 12 }}>
-          <button
-            type="button"
-            onClick={() => setInstructionsOpen((v) => !v)}
-            className="instructions-toggle"
-            style={{
-              cursor: "pointer",
-              border: "1px solid rgba(255,255,255,0.18)",
-              background: "rgba(255,255,255,0.08)",
-              color: "white",
-              padding: "6px 10px",
-              borderRadius: 999,
-              fontSize: 11,
-            }}
-          >
-            {instructionsOpen ? "Hide instructions" : "Instructions"}
-          </button>
+          {!instructionsOpen && (
+            <button
+              type="button"
+              onClick={() => {
+                setInstructionsOpen(true);
+                setFiltersOpen(false);
+              }}
+              className="instructions-toggle"
+              style={{
+                cursor: "pointer",
+                border: "1px solid rgba(255,255,255,0.18)",
+                background: "rgba(255,255,255,0.08)",
+                color: "white",
+                padding: "6px 10px",
+                borderRadius: 999,
+                fontSize: 11,
+              }}
+            >
+              Instructions
+            </button>
+          )}
           {instructionsOpen && (
             <div
               className="instructions-panel"
@@ -225,6 +230,27 @@ export default function Home() {
                 opacity: 0.92,
               }}
             >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <div style={{ fontWeight: 600 }}>Instructions</div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInstructionsOpen(false);
+                    setFiltersOpen(true);
+                  }}
+                  style={{
+                    cursor: "pointer",
+                    border: "1px solid rgba(255,255,255,0.18)",
+                    background: "rgba(255,255,255,0.08)",
+                    color: "white",
+                    padding: "4px 8px",
+                    borderRadius: 999,
+                    fontSize: 10,
+                  }}
+                >
+                  Back to filters
+                </button>
+              </div>
               This is a grid based map of the UK showing property sold prices for the last 5 years. You're able to filter which years you want to look at and look at changes (deltas) between years. After you click a cell, tap a postcode to open Zoopla and view properties in that area around the suggested price. Useful for spotting undervalued areas, comparing local markets, and tracking momentum over time.
             </div>
           )}
@@ -482,7 +508,7 @@ export function Styles() {
           width: auto !important;
           max-width: none !important;
           padding: 6px 8px !important;
-          bottom: 12px !important;
+          bottom: 64px !important;
         }
         .legend .legend-bars {
           height: 18px !important;
