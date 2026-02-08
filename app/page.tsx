@@ -55,6 +55,77 @@ export default function Home() {
   const [instructionsOpen, setInstructionsOpen] = useState(false);
   const [postcodeOpen, setPostcodeOpen] = useState(false);
 
+  const legendContent = (
+    <>
+      <div className="legend-title" style={{ fontWeight: 600, marginBottom: 16, fontSize: 18, opacity: 0.9 }}>
+        {METRIC_LABEL[state.metric]} Scale
+      </div>
+      {state.metric === "median" && (
+        <>
+          {!medianLegend && (
+            <div style={{ fontSize: 13, opacity: 0.75 }}>Loading scale...</div>
+          )}
+          {medianLegend && (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "80px 1fr 80px", gap: 8, alignItems: "center" }}>
+                <div style={{ textAlign: "left", fontSize: 13, opacity: 0.75 }}>
+                  {formatCurrency(medianLegend.breaks[0])}
+                </div>
+                <div className="legend-bars" style={{ display: "flex", height: 50, gap: 2 }}>
+                  {medianLegend.colors.map((c, i) => (
+                    <div key={i} style={{ flex: 1, backgroundColor: c, borderRadius: 3 }} />
+                  ))}
+                </div>
+                <div style={{ textAlign: "right", fontSize: 13, opacity: 0.75 }}>
+                  {formatCurrency(medianLegend.breaks[medianLegend.breaks.length - 1])}
+                </div>
+              </div>
+              <div className="legend-sub" style={{ display: "grid", gridTemplateColumns: "80px 1fr 80px", marginTop: 6 }}>
+                <div />
+                <div style={{ textAlign: "center", fontSize: 12, opacity: 0.75 }}>
+                  Median: {formatCurrency(getQuantileValue(medianLegend, 0.5))}
+                </div>
+                <div />
+              </div>
+            </>
+          )}
+        </>
+      )}
+
+      {state.metric !== "median" && (
+        <>
+          {!deltaLegend && (
+            <div style={{ fontSize: 13, opacity: 0.75 }}>Loading scale...</div>
+          )}
+          {deltaLegend && (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "90px 1fr 90px", gap: 8, alignItems: "center" }}>
+                <div style={{ textAlign: "left", fontSize: 13, opacity: 0.75 }}>
+                  {formatDeltaValue(state.metric, deltaLegend.stops[0])}
+                </div>
+                <div className="legend-bars" style={{ display: "flex", height: 50, gap: 2, minWidth: 240 }}>
+                  {deltaLegend.colors.map((c, i) => (
+                    <div key={i} style={{ flex: 1, backgroundColor: c, borderRadius: 3 }} />
+                  ))}
+                </div>
+                <div style={{ textAlign: "right", fontSize: 13, opacity: 0.75 }}>
+                  {formatDeltaValue(state.metric, deltaLegend.stops[deltaLegend.stops.length - 1])}
+                </div>
+              </div>
+              <div className="legend-sub" style={{ display: "grid", gridTemplateColumns: "90px 1fr 90px", marginTop: 6 }}>
+                <div />
+                <div style={{ textAlign: "center", fontSize: 12, opacity: 0.75 }}>
+                  {state.metric === "delta_pct" ? "0%" : "0"}
+                </div>
+                <div />
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </>
+  );
+
   return (
     <main style={{ position: "relative", minHeight: "100vh", overflow: "hidden" }}>
       <Styles />
@@ -82,11 +153,32 @@ export default function Home() {
           color: "white",
         }}
       >
-        <div className="panel-title" style={{ fontSize: 24, fontWeight: 700, marginTop: 2, lineHeight: 1.2 }}>
-          UK HOUSE PRICE GRID
-        </div>
-        <div className="panel-byline" style={{ marginTop: 4, fontSize: 12, opacity: 0.8 }}>
-          by Chris Randall
+        <div className="panel-header" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+          <div>
+            <div className="panel-title" style={{ fontSize: 24, fontWeight: 700, marginTop: 2, lineHeight: 1.2 }}>
+              UK HOUSE PRICE GRID
+            </div>
+            <div className="panel-byline" style={{ marginTop: 4, fontSize: 12, opacity: 0.8 }}>
+              by Chris Randall
+            </div>
+          </div>
+          {!postcodeOpen && (
+            <div
+              className="legend-inline"
+              style={{
+                padding: "8px 10px",
+                borderRadius: 10,
+                background: "rgba(10, 12, 20, 0.85)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                backdropFilter: "blur(10px)",
+                color: "white",
+                fontSize: 12,
+                minWidth: 220,
+              }}
+            >
+              {legendContent}
+            </div>
+          )}
         </div>
         <div
           className="panel-actions"
@@ -280,72 +372,7 @@ export default function Home() {
             maxWidth: "calc(100vw - 36px)",
           }}
         >
-        <div className="legend-title" style={{ fontWeight: 600, marginBottom: 16, fontSize: 18, opacity: 0.9 }}>
-          {METRIC_LABEL[state.metric]} Scale
-        </div>
-        {state.metric === "median" && (
-          <>
-            {!medianLegend && (
-              <div style={{ fontSize: 13, opacity: 0.75 }}>Loading scale...</div>
-            )}
-            {medianLegend && (
-              <>
-                <div style={{ display: "grid", gridTemplateColumns: "80px 1fr 80px", gap: 8, alignItems: "center" }}>
-                  <div style={{ textAlign: "left", fontSize: 13, opacity: 0.75 }}>
-                    {formatCurrency(medianLegend.breaks[0])}
-                  </div>
-                  <div className="legend-bars" style={{ display: "flex", height: 50, gap: 2 }}>
-                    {medianLegend.colors.map((c, i) => (
-                      <div key={i} style={{ flex: 1, backgroundColor: c, borderRadius: 3 }} />
-                    ))}
-                  </div>
-                  <div style={{ textAlign: "right", fontSize: 13, opacity: 0.75 }}>
-                    {formatCurrency(medianLegend.breaks[medianLegend.breaks.length - 1])}
-                  </div>
-                </div>
-                <div className="legend-sub" style={{ display: "grid", gridTemplateColumns: "80px 1fr 80px", marginTop: 6 }}>
-                  <div />
-                  <div style={{ textAlign: "center", fontSize: 12, opacity: 0.75 }}>
-                    Median: {formatCurrency(getQuantileValue(medianLegend, 0.5))}
-                  </div>
-                  <div />
-                </div>
-              </>
-            )}
-          </>
-        )}
-
-        {state.metric !== "median" && (
-          <>
-            {!deltaLegend && (
-              <div style={{ fontSize: 13, opacity: 0.75 }}>Loading scale...</div>
-            )}
-            {deltaLegend && (
-              <>
-                <div style={{ display: "grid", gridTemplateColumns: "90px 1fr 90px", gap: 8, alignItems: "center" }}>
-                  <div style={{ textAlign: "left", fontSize: 13, opacity: 0.75 }}>
-                    {formatDeltaValue(state.metric, deltaLegend.stops[0])}
-                  </div>
-                  <div className="legend-bars" style={{ display: "flex", height: 50, gap: 2, minWidth: 240 }}>
-                    {deltaLegend.colors.map((c, i) => (
-                      <div key={i} style={{ flex: 1, backgroundColor: c, borderRadius: 3 }} />
-                    ))}
-                  </div>
-                  <div style={{ textAlign: "right", fontSize: 13, opacity: 0.75 }}>
-                    {formatDeltaValue(state.metric, deltaLegend.stops[deltaLegend.stops.length - 1])}
-                  </div>
-                </div>
-                <div className="legend-sub" style={{ display: "grid", gridTemplateColumns: "90px 1fr 90px", marginTop: 6 }}>
-                  <div />
-                  <div style={{ textAlign: "center", fontSize: 12, opacity: 0.75 }}>
-                    {state.metric === "delta_pct" ? "0%" : "0"}
-                  </div>
-                  <div />
-                </div>
-              </>
-            )}
-          </>
-        )}
+        {legendContent}
         </div>
       )}
     </main>
@@ -414,7 +441,27 @@ function Segment({
 export function Styles() {
   return (
     <style jsx global>{`
+      .legend-inline {
+        display: none;
+      }
       @media (max-width: 640px) {
+        .legend {
+          display: none !important;
+        }
+        .legend-inline {
+          display: block !important;
+          max-width: 52vw !important;
+        }
+        .legend-inline .legend-title {
+          font-size: 12px !important;
+          margin-bottom: 6px !important;
+        }
+        .legend-inline .legend-bars {
+          height: 12px !important;
+        }
+        .legend-inline .legend-sub {
+          display: none !important;
+        }
         .median-overlay {
           display: none !important;
         }
