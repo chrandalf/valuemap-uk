@@ -62,8 +62,8 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     }
 
     items.sort((a, b) => a.median - b.median);
-    const bottom = items.slice(0, 10);
-    const top = items.slice(-10).reverse();
+    const bottom = items;
+    const top = [...items].reverse();
 
     return Response.json(
       {

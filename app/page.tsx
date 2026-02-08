@@ -646,8 +646,8 @@ export default function Home() {
           style={{
             position: "absolute",
             right: 18,
-            bottom: 260,
-            width: 260,
+            bottom: 240,
+            width: 560,
             maxHeight: "calc(100vh - 120px)",
             padding: "12px 14px",
             borderRadius: 14,
