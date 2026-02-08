@@ -283,28 +283,48 @@ export default function Home() {
               opacity: 0.92,
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <div style={{ fontWeight: 600 }}>Instructions</div>
-              <button
-                type="button"
-                onClick={() => {
-                  setInstructionsOpen(false);
-                  setFiltersOpen(true);
-                }}
-                style={{
-                  cursor: "pointer",
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  background: "rgba(255,255,255,0.08)",
-                  color: "white",
-                  padding: "4px 8px",
-                  borderRadius: 999,
-                  fontSize: 10,
-                }}
-              >
-                Back to filters
-              </button>
-            </div>
-            This is a grid based map of the UK showing property sold prices for the last 5 years. You're able to filter which years you want to look at and look at changes (deltas) between years. After you click a cell, tap a postcode to open Zoopla and view properties in that area around the suggested price. Useful for spotting undervalued areas, comparing local markets, and tracking momentum over time.
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <div style={{ fontWeight: 600 }}>How to use this map</div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInstructionsOpen(false);
+                    setFiltersOpen(true);
+                  }}
+                  style={{
+                    cursor: "pointer",
+                    border: "1px solid rgba(255,255,255,0.18)",
+                    background: "rgba(255,255,255,0.08)",
+                    color: "white",
+                    padding: "4px 8px",
+                    borderRadius: 999,
+                    fontSize: 10,
+                  }}
+                >
+                  Back to filters
+                </button>
+              </div>
+              <ul style={{ margin: "0 0 10px 16px", padding: 0 }}>
+                <li>Choose a grid size (1km, 5km, 10km, 25km) to control how local or regional the view is.</li>
+                <li>Select a metric to see either median sold prices or recent price changes (GBP or %).</li>
+                <li>Filter by property type (detached, semi, terraced, flats) and new build vs existing homes.</li>
+                <li>Pick a time period to view the latest data or compare changes over time.</li>
+                <li>Click a grid cell to explore price context for that area.</li>
+                <li>Tap a postcode to open Zoopla with listings around the shown price for that location.</li>
+              </ul>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>What this is useful for</div>
+              <ul style={{ margin: "0 0 10px 16px", padding: 0 }}>
+                <li>Spotting undervalued or expensive pockets within the same town or city.</li>
+                <li>Comparing local markets without postcode boundary distortions.</li>
+                <li>Understanding how prices change as you move away from city centres.</li>
+                <li>Tracking price momentum over time using consistent grid areas.</li>
+              </ul>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>Notes on the data</div>
+              <ul style={{ margin: 0, padding: "0 0 0 16px" }}>
+                <li>Prices are based on sold prices, not asking prices.</li>
+                <li>Values are medians, not averages, to reduce distortion from outliers.</li>
+                <li>Coverage is strongest for England and Wales; Scotland is partial and may be less recent.</li>
+              </ul>
           </div>
         )}
 
