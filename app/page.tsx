@@ -304,27 +304,27 @@ export default function Home() {
                   Back to filters
                 </button>
               </div>
-              <ul style={{ margin: "0 0 10px 16px", padding: 0 }}>
+              <ol start={1} style={{ margin: "0 0 10px 16px", padding: 0 }}>
                 <li>Choose a grid size (1km, 5km, 10km, 25km) to control how local or regional the view is.</li>
                 <li>Select a metric to see either median sold prices or recent price changes (GBP or %).</li>
                 <li>Filter by property type (detached, semi, terraced, flats) and new build vs existing homes.</li>
                 <li>Pick a time period to view the latest data or compare changes over time.</li>
                 <li>Click a grid cell to explore price context for that area.</li>
                 <li>Tap a postcode to open Zoopla with listings around the shown price for that location.</li>
-              </ul>
+              </ol>
               <div style={{ fontWeight: 600, marginBottom: 6 }}>What this is useful for</div>
-              <ul style={{ margin: "0 0 10px 16px", padding: 0 }}>
+              <ol start={1} style={{ margin: "0 0 10px 16px", padding: 0 }}>
                 <li>Spotting undervalued or expensive pockets within the same town or city.</li>
                 <li>Comparing local markets without postcode boundary distortions.</li>
                 <li>Understanding how prices change as you move away from city centres.</li>
                 <li>Tracking price momentum over time using consistent grid areas.</li>
-              </ul>
+              </ol>
               <div style={{ fontWeight: 600, marginBottom: 6 }}>Notes on the data</div>
-              <ul style={{ margin: 0, padding: "0 0 0 16px" }}>
+              <ol start={1} style={{ margin: 0, padding: "0 0 0 16px" }}>
                 <li>Prices are based on sold prices, not asking prices.</li>
                 <li>Values are medians, not averages, to reduce distortion from outliers.</li>
                 <li>Coverage is strongest for England and Wales; Scotland is partial and may be less recent.</li>
-              </ul>
+              </ol>
           </div>
         )}
 
