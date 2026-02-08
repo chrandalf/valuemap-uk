@@ -107,40 +107,6 @@ async function getPostcodesForCell(
   }
 
   throw new Error(`Index required for ${grid} grid. Upload postcode_outcode_index_${grid}.json.gz.`);
-
-  const bucket = ((env && ((env as any).BRICKGRID_BUCKET || (env as any).R2)) as unknown) as R2Bucket | undefined;
-  if (!bucket) {
-    throw new Error("R2 binding not found. Expected environment binding `BRICKGRID_BUCKET` or `R2`.");
-  }
-
-  // Try to fetch the object; many deployments place objects under a prefix
-  // so attempt several common key variants before failing to give better diagnostics.
-  const triedKeys: string[] = [];
-  const candidates = Array.from(new Set([
-    key,
-    key.replace(/^\/+/, ""),
-    key.replace(/^.*\//, ""),
-    `valuemap-uk/${key}`,
-    `valuemap-uk/${key.replace(/^.*\//, "")}`,
-    `v1/${key}`,
-    `v1/${key.replace(/^.*\//, "")}`,
-  ]));
-
-  const found = await fetchObjectWithCandidates(bucket, candidates, triedKeys);
-  if (!found) {
-    throw new Error(`R2 object not found: tried keys: ${triedKeys.join(", ")}`);
-  }
-  const { obj } = found;
-
-  const decompressed = await decompressGzip(await obj.arrayBuffer());
-  const text = new TextDecoder().decode(decompressed);
-  const rows = JSON.parse(text) as PostcodeRow[];
-
-  const outcodes = new Set<string>();
-
-  // support either a combined cell column (e.g. cell_1000 = "385000_801000")
-  // or split integer columns (cell_1000_x, cell_1000_y) which our preprocessing may produce
-  return Array.from(outcodes).sort();
 }
 
 async function tryLoadIndex(env: Env, indexKey: string): Promise<Record<string, string[]> | null> {
