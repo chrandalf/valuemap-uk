@@ -53,6 +53,7 @@ export default function Home() {
       : null;
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [instructionsOpen, setInstructionsOpen] = useState(false);
+  const [descriptionOpen, setDescriptionOpen] = useState(false);
   const [postcodeOpen, setPostcodeOpen] = useState(false);
   const [legendOpen, setLegendOpen] = useState(true);
 
@@ -183,7 +184,7 @@ export default function Home() {
           className="panel-actions"
           style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}
         >
-          {!instructionsOpen && (
+          {!instructionsOpen && !descriptionOpen && (
             <button
               type="button"
               className="panel-toggle"
@@ -202,7 +203,7 @@ export default function Home() {
               {filtersOpen ? "Hide filters" : "Show filters"}
             </button>
           )}
-          {!instructionsOpen && (
+          {!instructionsOpen && !descriptionOpen && (
             <button
               type="button"
               onClick={() => setLegendOpen((v) => !v)}
@@ -220,11 +221,12 @@ export default function Home() {
               {legendOpen ? "Hide legend" : "Show legend"}
             </button>
           )}
-          {!instructionsOpen && (
+          {!instructionsOpen && !descriptionOpen && (
             <button
               type="button"
               onClick={() => {
                 setInstructionsOpen(true);
+                setDescriptionOpen(false);
                 setFiltersOpen(false);
               }}
               className="instructions-toggle"
@@ -239,6 +241,28 @@ export default function Home() {
               }}
             >
               Instructions
+            </button>
+          )}
+          {!instructionsOpen && !descriptionOpen && (
+            <button
+              type="button"
+              onClick={() => {
+                setDescriptionOpen(true);
+                setInstructionsOpen(false);
+                setFiltersOpen(false);
+              }}
+              className="description-toggle"
+              style={{
+                cursor: "pointer",
+                border: "1px solid rgba(255,255,255,0.18)",
+                background: "rgba(255,255,255,0.08)",
+                color: "white",
+                padding: "6px 10px",
+                borderRadius: 999,
+                fontSize: 11,
+              }}
+            >
+              Description
             </button>
           )}
         </div>
@@ -364,6 +388,64 @@ export default function Home() {
             </div>
             <div>
               <b>Note:</b> Small deltas may reflect differences in which property types sold in each period, not solely price changes in the area. Large transactions or demographic shifts can influence median prices independently of market rates.
+            </div>
+          </div>
+        )}
+        {descriptionOpen && (
+          <div
+            className="description-panel"
+            style={{
+              marginTop: 8,
+              padding: 10,
+              borderRadius: 10,
+              background: "rgba(0,0,0,0.35)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              fontSize: 11,
+              lineHeight: 1.45,
+              opacity: 0.92,
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <div style={{ fontWeight: 600 }}>Description</div>
+              <button
+                type="button"
+                onClick={() => {
+                  setDescriptionOpen(false);
+                  setFiltersOpen(true);
+                }}
+                style={{
+                  cursor: "pointer",
+                  border: "1px solid rgba(255,255,255,0.18)",
+                  background: "rgba(255,255,255,0.08)",
+                  color: "white",
+                  padding: "4px 8px",
+                  borderRadius: 999,
+                  fontSize: 10,
+                }}
+              >
+                Back to filters
+              </button>
+            </div>
+            <div style={{ fontWeight: 600, marginBottom: 6 }}>
+              UK House Price Map - Grid-Based Analysis
+            </div>
+            <div style={{ marginBottom: 8 }}>
+              This interactive UK house price map shows how property prices vary across the country using a grid-based approach rather than traditional postcode averages. By aggregating sales into evenly sized grid cells (from 1km up to 25km), it becomes much easier to spot regional patterns, price gradients, and local anomalies that are often hidden when data is grouped by administrative boundaries.
+            </div>
+            <div style={{ marginBottom: 8 }}>
+              The map is built using Land Registry price paid data, aggregated over a trailing 12-month period to smooth short-term volatility. For each grid cell, prices are summarised using median values, which are more robust than simple averages and less distorted by very high or very low individual sales. Where enough transactions exist, the map also shows recent price changes, helping to highlight areas where prices are rising or falling relative to the recent past.
+            </div>
+            <div style={{ marginBottom: 8 }}>
+              You can switch between different grid sizes depending on the level of detail you want. Smaller grids (such as 1km or 5km) reveal fine-grained local variation, while larger grids provide a broader regional view that is useful for comparing towns, cities, or wider housing markets. Filters allow prices to be explored by property type (detached, semi-detached, terraced, or flats) and by new build versus existing homes, making it easier to compare like with like.
+            </div>
+            <div style={{ marginBottom: 8 }}>
+              This grid-based view is particularly useful for people researching a move, comparing affordability between regions, or trying to understand how house prices change as you move away from city centres. Because grid cells are consistent in size, they avoid some of the distortions caused by postcode areas, which can vary widely in shape and population.
+            </div>
+            <div style={{ marginBottom: 8 }}>
+              The map is designed as an exploratory tool rather than a property listing service. Clicking on a grid cell reveals the underlying price context for that area, and individual postcodes can be explored further using external listing sites if desired. Coverage is strongest for England and Wales, with Scotland included where data availability allows.
+            </div>
+            <div>
+              All data shown is aggregated and anonymised. The aim is not to predict prices, but to provide a clear, data-driven picture of UK house prices by area, helping patterns emerge that are difficult to see in traditional tables or charts.
             </div>
           </div>
         )}
