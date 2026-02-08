@@ -68,6 +68,8 @@ export default function Home() {
   const [outcodeBottom, setOutcodeBottom] = useState<OutcodeRank[]>([]);
   const [outcodeLoading, setOutcodeLoading] = useState(false);
   const [outcodeError, setOutcodeError] = useState<string | null>(null);
+  const [outcodeMode, setOutcodeMode] = useState<"top" | "bottom">("top");
+  const [outcodeLimit, setOutcodeLimit] = useState(3);
 
   const formatLegendCurrency = (value: number) => {
     if (!Number.isFinite(value)) return "N/A";
@@ -644,7 +646,7 @@ export default function Home() {
           style={{
             position: "absolute",
             right: 18,
-            top: 96,
+            bottom: 260,
             width: 260,
             maxHeight: "calc(100vh - 120px)",
             padding: "12px 14px",
@@ -658,31 +660,78 @@ export default function Home() {
             zIndex: 2,
           }}
         >
-          <div style={{ fontWeight: 600, marginBottom: 8 }}>Top 10 postcode areas</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <div style={{ fontWeight: 600 }}>
+              {outcodeMode === "top" ? "Top" : "Bottom"} {outcodeLimit} postcode areas
+            </div>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button
+                type="button"
+                onClick={() => setOutcodeMode("top")}
+                style={{
+                  cursor: "pointer",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  background: outcodeMode === "top" ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.08)",
+                  color: "white",
+                  padding: "2px 6px",
+                  borderRadius: 999,
+                  fontSize: 10,
+                }}
+              >
+                Top
+              </button>
+              <button
+                type="button"
+                onClick={() => setOutcodeMode("bottom")}
+                style={{
+                  cursor: "pointer",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  background: outcodeMode === "bottom" ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.08)",
+                  color: "white",
+                  padding: "2px 6px",
+                  borderRadius: 999,
+                  fontSize: 10,
+                }}
+              >
+                Bottom
+              </button>
+            </div>
+          </div>
           {outcodeLoading && <div style={{ opacity: 0.7, marginBottom: 8 }}>Loading...</div>}
           {outcodeError && <div style={{ color: "#ff9999", marginBottom: 8 }}>{outcodeError}</div>}
           {!outcodeLoading && !outcodeError && outcodeTop.length === 0 && (
             <div style={{ opacity: 0.7, marginBottom: 8 }}>No data available.</div>
           )}
-          {outcodeTop.length > 0 && (
-            <ol style={{ margin: "0 0 12px 16px", padding: 0 }}>
-              {outcodeTop.map((row) => (
-                <li key={`top-${row.outcode}`} style={{ marginBottom: 4 }}>
-                  <span style={{ fontWeight: 600 }}>{row.outcode}</span> {formatOutcodeCurrency(row.median)}
-                </li>
-              ))}
-            </ol>
-          )}
-
-          <div style={{ fontWeight: 600, marginBottom: 8 }}>Bottom 10 postcode areas</div>
-          {outcodeBottom.length > 0 && (
-            <ol style={{ margin: 0, padding: "0 0 0 16px" }}>
-              {outcodeBottom.map((row) => (
-                <li key={`bottom-${row.outcode}`} style={{ marginBottom: 4 }}>
-                  <span style={{ fontWeight: 600 }}>{row.outcode}</span> {formatOutcodeCurrency(row.median)}
-                </li>
-              ))}
-            </ol>
+          {(() => {
+            const source = outcodeMode === "top" ? outcodeTop : outcodeBottom;
+            const list = source.slice(0, outcodeLimit);
+            if (list.length === 0) return null;
+            return (
+              <ol style={{ margin: "0 0 10px 16px", padding: 0 }}>
+                {list.map((row) => (
+                  <li key={`${outcodeMode}-${row.outcode}`} style={{ marginBottom: 4 }}>
+                    <span style={{ fontWeight: 600 }}>{row.outcode}</span> {formatOutcodeCurrency(row.median)}
+                  </li>
+                ))}
+              </ol>
+            );
+          })()}
+          {(outcodeMode === "top" ? outcodeTop : outcodeBottom).length > 3 && (
+            <button
+              type="button"
+              onClick={() => setOutcodeLimit((v) => (v === 3 ? 10 : 3))}
+              style={{
+                cursor: "pointer",
+                border: "1px solid rgba(255,255,255,0.2)",
+                background: "rgba(255,255,255,0.08)",
+                color: "white",
+                padding: "4px 8px",
+                borderRadius: 999,
+                fontSize: 10,
+              }}
+            >
+              {outcodeLimit === 3 ? "Show more" : "Show less"}
+            </button>
           )}
           <div style={{ marginTop: 10, fontSize: 10, opacity: 0.65 }}>
             Based on grid medians aggregated to postcode areas.
