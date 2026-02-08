@@ -106,6 +106,10 @@ async function getPostcodesForCell(
     return index[cell] ?? [];
   }
 
+  if (grid === "1km") {
+    throw new Error("Index required for 1km grid. Upload postcode_outcode_index_1km.json.gz.");
+  }
+
   const bucket = ((env && ((env as any).BRICKGRID_BUCKET || (env as any).R2)) as unknown) as R2Bucket | undefined;
   if (!bucket) {
     throw new Error("R2 binding not found. Expected environment binding `BRICKGRID_BUCKET` or `R2`.");
@@ -179,6 +183,9 @@ async function getPostcodesForCell(
 }
 
 async function tryLoadIndex(env: Env, indexKey: string): Promise<Record<string, string[]> | null> {
+  const cached = INDEX_CACHE.get(indexKey);
+  if (cached) return cached;
+
   const bucket = ((env && ((env as any).BRICKGRID_BUCKET || (env as any).R2)) as unknown) as R2Bucket | undefined;
   if (!bucket) {
     throw new Error("R2 binding not found. Expected environment binding `BRICKGRID_BUCKET` or `R2`.");
@@ -200,8 +207,12 @@ async function tryLoadIndex(env: Env, indexKey: string): Promise<Record<string, 
 
   const decompressed = await decompressGzip(await found.obj.arrayBuffer());
   const text = new TextDecoder().decode(decompressed);
-  return JSON.parse(text) as Record<string, string[]>;
+  const parsed = JSON.parse(text) as Record<string, string[]>;
+  INDEX_CACHE.set(indexKey, parsed);
+  return parsed;
 }
+
+const INDEX_CACHE = new Map<string, Record<string, string[]>>();
 
 async function fetchObjectWithCandidates(
   bucket: R2Bucket,
