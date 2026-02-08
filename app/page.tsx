@@ -203,6 +203,8 @@ export default function Home() {
     return `£${formatLegendCurrency(value)}`;
   };
 
+  const showOutcodePanel = false;
+
   return (
     <main style={{ position: "relative", minHeight: "100vh", overflow: "hidden" }}>
       <Styles />
@@ -655,7 +657,7 @@ export default function Home() {
             zIndex: 3,
           }}
         >
-          {state.metric === "median" && (
+          {showOutcodePanel && state.metric === "median" && (
             <div
               className="outcode-panel"
               style={{
@@ -672,41 +674,7 @@ export default function Home() {
               }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                <div style={{ fontWeight: 600 }}>
-                  Postcode areas by median ({outcodeMode === "top" ? "top" : "bottom"})
-                </div>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <button
-                    type="button"
-                    onClick={() => setOutcodeMode("top")}
-                    style={{
-                      cursor: "pointer",
-                      border: "1px solid rgba(255,255,255,0.2)",
-                      background: outcodeMode === "top" ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.08)",
-                      color: "white",
-                      padding: "2px 6px",
-                      borderRadius: 999,
-                      fontSize: 10,
-                    }}
-                  >
-                    Top
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setOutcodeMode("bottom")}
-                    style={{
-                      cursor: "pointer",
-                      border: "1px solid rgba(255,255,255,0.2)",
-                      background: outcodeMode === "bottom" ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.08)",
-                      color: "white",
-                      padding: "2px 6px",
-                      borderRadius: 999,
-                      fontSize: 10,
-                    }}
-                  >
-                    Bottom
-                  </button>
-                </div>
+                <div style={{ fontWeight: 600 }}>Bottom postcode areas by median</div>
               </div>
               {outcodeLoading && <div style={{ opacity: 0.7, marginBottom: 8 }}>Loading...</div>}
               {outcodeError && <div style={{ color: "#ff9999", marginBottom: 8 }}>{outcodeError}</div>}
