@@ -697,19 +697,19 @@ export default function Home() {
             </div>
             <ol start={1} style={{ margin: 0, padding: "0 0 0 16px" }}>
               <li>
-                Add EPC-linked property detail so you can filter by rooms and compute price per square metre or square foot.
+                v1.1: I will add EPC-linked property detail so I can filter by rooms and compute price per square metre or square foot.
               </li>
               <li>
-                Add confidence/coverage indicators per cell (e.g., sales count banding or a low-data flag).
+                v1.2: I will add confidence/coverage indicators per cell (e.g., sales count banding or a low-data flag).
               </li>
               <li>
-                Allow comparison mode with side-by-side metrics or a then vs now slider.
+                v1.3: I will add a comparison mode with side-by-side metrics or a then vs now slider.
               </li>
               <li>
-                Add commuting/transport overlays (rail/metro stations) to contextualize price gradients.
+                v1.4: I will add commuting/transport overlays (rail/metro stations) to contextualize price gradients.
               </li>
               <li>
-                Introduce affordability layers (price-to-income ratios if income data is added).
+                v1.5: I will add affordability layers after I add income data (price-to-income ratios).
               </li>
             </ol>
           </div>
