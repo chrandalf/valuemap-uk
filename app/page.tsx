@@ -62,6 +62,7 @@ export default function Home() {
   const [descriptionOpen, setDescriptionOpen] = useState(false);
   const [descriptionPage, setDescriptionPage] = useState(1);
   const [dataSourcesOpen, setDataSourcesOpen] = useState(false);
+  const [nextStepsOpen, setNextStepsOpen] = useState(false);
   const [postcodeOpen, setPostcodeOpen] = useState(false);
   const [legendOpen, setLegendOpen] = useState(true);
   const [outcodeTop, setOutcodeTop] = useState<OutcodeRank[]>([]);
@@ -239,7 +240,7 @@ export default function Home() {
           className="panel-actions"
           style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}
         >
-          {!instructionsOpen && !descriptionOpen && !dataSourcesOpen && (
+          {!instructionsOpen && !descriptionOpen && !dataSourcesOpen && !nextStepsOpen && (
             <button
               type="button"
               className="panel-toggle"
@@ -258,7 +259,7 @@ export default function Home() {
               {filtersOpen ? "Hide filters" : "Show filters"}
             </button>
           )}
-          {!instructionsOpen && !descriptionOpen && !dataSourcesOpen && (
+          {!instructionsOpen && !descriptionOpen && !dataSourcesOpen && !nextStepsOpen && (
             <button
               type="button"
               onClick={() => setLegendOpen((v) => !v)}
@@ -276,13 +277,14 @@ export default function Home() {
               {legendOpen ? "Hide legend" : "Show legend"}
             </button>
           )}
-          {!instructionsOpen && !descriptionOpen && !dataSourcesOpen && (
+          {!instructionsOpen && !descriptionOpen && !dataSourcesOpen && !nextStepsOpen && (
             <button
               type="button"
               onClick={() => {
                 setInstructionsOpen(true);
                 setDescriptionOpen(false);
                 setDataSourcesOpen(false);
+                setNextStepsOpen(false);
                 setFiltersOpen(false);
               }}
               className="instructions-toggle"
@@ -299,7 +301,7 @@ export default function Home() {
               Instructions
             </button>
           )}
-          {!instructionsOpen && !descriptionOpen && (
+          {!instructionsOpen && !descriptionOpen && !nextStepsOpen && (
             <button
               type="button"
               onClick={() => {
@@ -307,6 +309,7 @@ export default function Home() {
                 setDescriptionPage(1);
                 setInstructionsOpen(false);
                 setDataSourcesOpen(false);
+                setNextStepsOpen(false);
                 setFiltersOpen(false);
               }}
               className="description-toggle"
@@ -323,13 +326,14 @@ export default function Home() {
               Description
             </button>
           )}
-          {!instructionsOpen && !descriptionOpen && !dataSourcesOpen && (
+          {!instructionsOpen && !descriptionOpen && !dataSourcesOpen && !nextStepsOpen && (
             <button
               type="button"
               onClick={() => {
                 setDataSourcesOpen(true);
                 setInstructionsOpen(false);
                 setDescriptionOpen(false);
+                setNextStepsOpen(false);
                 setFiltersOpen(false);
               }}
               className="datasources-toggle"
@@ -344,6 +348,30 @@ export default function Home() {
               }}
             >
               Data sources
+            </button>
+          )}
+          {!instructionsOpen && !descriptionOpen && !dataSourcesOpen && !nextStepsOpen && (
+            <button
+              type="button"
+              onClick={() => {
+                setNextStepsOpen(true);
+                setInstructionsOpen(false);
+                setDescriptionOpen(false);
+                setDataSourcesOpen(false);
+                setFiltersOpen(false);
+              }}
+              className="nextsteps-toggle"
+              style={{
+                cursor: "pointer",
+                border: "1px solid rgba(255,255,255,0.18)",
+                background: "rgba(255,255,255,0.08)",
+                color: "white",
+                padding: "6px 10px",
+                borderRadius: 999,
+                fontSize: 11,
+              }}
+            >
+              Next steps
             </button>
           )}
         </div>
@@ -630,6 +658,48 @@ export default function Home() {
             <div style={{ marginTop: 8, opacity: 0.8 }}>
               Licensing and attribution follow the terms provided by each source.
             </div>
+          </div>
+        )}
+        {nextStepsOpen && (
+          <div
+            className="nextsteps-panel"
+            style={{
+              marginTop: 8,
+              padding: 10,
+              borderRadius: 10,
+              background: "rgba(0,0,0,0.35)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              fontSize: 11,
+              lineHeight: 1.45,
+              opacity: 0.92,
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <div style={{ fontWeight: 600 }}>Next steps</div>
+              <button
+                type="button"
+                onClick={() => {
+                  setNextStepsOpen(false);
+                  setFiltersOpen(true);
+                }}
+                style={{
+                  cursor: "pointer",
+                  border: "1px solid rgba(255,255,255,0.18)",
+                  background: "rgba(255,255,255,0.08)",
+                  color: "white",
+                  padding: "4px 8px",
+                  borderRadius: 999,
+                  fontSize: 10,
+                }}
+              >
+                Back to filters
+              </button>
+            </div>
+            <ol start={1} style={{ margin: 0, padding: "0 0 0 16px" }}>
+              <li>
+                Add EPC-linked property detail so you can filter by rooms and compute price per square metre or square foot.
+              </li>
+            </ol>
           </div>
         )}
 
