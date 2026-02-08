@@ -76,7 +76,7 @@ export default function Home() {
           )}
           {medianLegend && (
             <>
-              <div style={{ display: "grid", gridTemplateColumns: "80px 1fr 80px", gap: 8, alignItems: "center" }}>
+              <div className="legend-range" style={{ display: "grid", gridTemplateColumns: "80px 1fr 80px", gap: 8, alignItems: "center" }}>
                 <div style={{ textAlign: "left", fontSize: 12, opacity: 0.75 }}>
                   {formatLegendCurrency(medianLegend.breaks[0])}
                 </div>
@@ -108,7 +108,7 @@ export default function Home() {
           )}
           {deltaLegend && (
             <>
-              <div style={{ display: "grid", gridTemplateColumns: "90px 1fr 90px", gap: 8, alignItems: "center" }}>
+              <div className="legend-range" style={{ display: "grid", gridTemplateColumns: "90px 1fr 90px", gap: 8, alignItems: "center" }}>
                 <div style={{ textAlign: "left", fontSize: 12, opacity: 0.75 }}>
                   {formatDeltaValue(state.metric, deltaLegend.stops[0])}
                 </div>
@@ -455,12 +455,35 @@ export function Styles() {
         display: none;
       }
       @media (max-width: 640px) {
-        .legend {
+        .legend-inline {
           display: none !important;
         }
-        .legend-inline {
+        .legend {
           display: block !important;
-          max-width: 46vw !important;
+          position: fixed !important;
+          right: 12px !important;
+          bottom: 12px !important;
+          left: auto !important;
+          width: 140px !important;
+          max-width: 42vw !important;
+          padding: 8px !important;
+          max-height: 44svh !important;
+          overflow: auto !important;
+        }
+        .legend .legend-range {
+          display: flex !important;
+          flex-direction: column !important;
+          align-items: center !important;
+          gap: 6px !important;
+        }
+        .legend .legend-bars {
+          flex-direction: column !important;
+          width: 12px !important;
+          height: 120px !important;
+          gap: 3px !important;
+        }
+        .legend .legend-range > div {
+          text-align: center !important;
         }
         .legend-inline .legend-title {
           font-size: 12px !important;
