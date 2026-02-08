@@ -699,6 +699,18 @@ export default function Home() {
               <li>
                 Add EPC-linked property detail so you can filter by rooms and compute price per square metre or square foot.
               </li>
+              <li>
+                Add confidence/coverage indicators per cell (e.g., sales count banding or a low-data flag).
+              </li>
+              <li>
+                Allow comparison mode with side-by-side metrics or a then vs now slider.
+              </li>
+              <li>
+                Add commuting/transport overlays (rail/metro stations) to contextualize price gradients.
+              </li>
+              <li>
+                Introduce affordability layers (price-to-income ratios if income data is added).
+              </li>
             </ol>
           </div>
         )}
