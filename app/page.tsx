@@ -42,7 +42,7 @@ export default function Home() {
     metric: "median",
     propertyType: "ALL",
     newBuild: "ALL",
-    endMonth: "LATEST",
+    endMonth: "2025-12-01",
   });
   const [legend, setLegend] = useState<LegendData | null>(null);
   const medianLegend =
@@ -378,12 +378,11 @@ export default function Home() {
 
           <ControlRow label="Period">
             <Segment
-              options={["LATEST", "2025-12-01", "2024-12-01", "2023-12-01", "2022-12-01", "2021-12-01"]}
-              value={state.endMonth ?? "LATEST"}
+              options={["2025-12-01", "2024-12-01", "2023-12-01", "2022-12-01", "2021-12-01"]}
+              value={state.endMonth ?? "2025-12-01"}
               onChange={(v) => setState((s) => ({ ...s, endMonth: v }))}
               renderOption={(v) => {
                 const labels: Record<string, string> = {
-                  "LATEST": "Now",
                   "2025-12-01": "Dec 2025",
                   "2024-12-01": "Dec 2024",
                   "2023-12-01": "Dec 2023",
