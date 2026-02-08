@@ -142,8 +142,7 @@ async function getPostcodesForCell(
 
   // support either a combined cell column (e.g. cell_1000 = "385000_801000")
   // or split integer columns (cell_1000_x, cell_1000_y) which our preprocessing may produce
-  const combinedCellField = grid === "1km" ? "cell_1000"
-    : grid === "5km" ? "cell_5000"
+  const combinedCellField = grid === "5km" ? "cell_5000"
     : grid === "10km" ? "cell_10000"
     : "cell_25000";
   const splitXField = `${combinedCellField}_x`;
