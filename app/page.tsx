@@ -471,19 +471,28 @@ export function Styles() {
         }
         .segment {
           width: 100% !important;
-          flex-wrap: wrap !important;
+          display: grid !important;
+          grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+          gap: 6px !important;
+          border: none !important;
+          background: transparent !important;
+          padding: 0 !important;
         }
         .segment-btn {
-          flex: 1 1 auto !important;
-          min-width: 64px !important;
-          padding: 6px 8px !important;
+          min-width: 0 !important;
+          padding: 6px 6px !important;
           font-size: 11px !important;
-          border: 1px solid transparent !important;
+          border: 1px solid rgba(255,255,255,0.18) !important;
+          border-radius: 10px !important;
+          background: rgba(255,255,255,0.06) !important;
         }
         .segment-btn.active {
-          background: rgba(255,255,255,0.25) !important;
-          border-color: rgba(255,255,255,0.45) !important;
+          background: rgba(255,255,255,0.22) !important;
+          border-color: rgba(255,255,255,0.5) !important;
           box-shadow: 0 0 0 1px rgba(0,0,0,0.35) inset !important;
+        }
+        .control-row:first-of-type .segment {
+          grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
         }
         .postcode-wrap {
           position: fixed !important;
