@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import ValueMap, { type LegendData } from "./Map";
 
 type GridSize = "1km" | "5km" | "10km" | "25km";
@@ -54,6 +54,7 @@ export default function Home() {
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [instructionsOpen, setInstructionsOpen] = useState(false);
   const [postcodeOpen, setPostcodeOpen] = useState(false);
+  const [legendOpen, setLegendOpen] = useState(true);
 
   const formatLegendCurrency = (value: number) => {
     if (!Number.isFinite(value)) return "N/A";
@@ -63,6 +64,12 @@ export default function Home() {
     }
     return `${rounded}`;
   };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const isMobile = window.matchMedia("(max-width: 640px)").matches;
+    if (isMobile) setFiltersOpen(false);
+  }, []);
 
   const legendContent = (
     <>
@@ -171,24 +178,6 @@ export default function Home() {
               by Chris Randall
             </div>
           </div>
-          {!postcodeOpen && (
-            <div
-              className="legend-inline"
-              style={{
-                padding: "8px 10px",
-                borderRadius: 10,
-                background: "rgba(10, 12, 20, 0.85)",
-                border: "1px solid rgba(255,255,255,0.12)",
-                backdropFilter: "blur(10px)",
-                color: "white",
-                fontSize: 12,
-                minWidth: 0,
-                maxWidth: "100%",
-              }}
-            >
-              {legendContent}
-            </div>
-          )}
         </div>
         <div
           className="panel-actions"
@@ -211,6 +200,24 @@ export default function Home() {
               }}
             >
               {filtersOpen ? "Hide filters" : "Show filters"}
+            </button>
+          )}
+          {!instructionsOpen && (
+            <button
+              type="button"
+              onClick={() => setLegendOpen((v) => !v)}
+              className="legend-toggle"
+              style={{
+                cursor: "pointer",
+                border: "1px solid rgba(255,255,255,0.18)",
+                background: "rgba(255,255,255,0.08)",
+                color: "white",
+                padding: "6px 10px",
+                borderRadius: 999,
+                fontSize: 11,
+              }}
+            >
+              {legendOpen ? "Hide legend" : "Show legend"}
             </button>
           )}
           {!instructionsOpen && (
@@ -364,7 +371,7 @@ export default function Home() {
       </div>
 
       {/* Bottom-right legend */}
-      {!postcodeOpen && (
+      {!postcodeOpen && legendOpen && (
         <div
           className="legend"
           style={{
@@ -451,50 +458,7 @@ function Segment({
 export function Styles() {
   return (
     <style jsx global>{`
-      .legend-inline {
-        display: none;
-      }
       @media (max-width: 640px) {
-        .legend-inline {
-          display: none !important;
-        }
-        .legend {
-          display: block !important;
-          position: fixed !important;
-          right: 12px !important;
-          bottom: 12px !important;
-          left: auto !important;
-          width: 140px !important;
-          max-width: 42vw !important;
-          padding: 8px !important;
-          max-height: 44svh !important;
-          overflow: auto !important;
-        }
-        .legend .legend-range {
-          display: flex !important;
-          flex-direction: column !important;
-          align-items: center !important;
-          gap: 6px !important;
-        }
-        .legend .legend-bars {
-          flex-direction: column !important;
-          width: 12px !important;
-          height: 120px !important;
-          gap: 3px !important;
-        }
-        .legend .legend-range > div {
-          text-align: center !important;
-        }
-        .legend-inline .legend-title {
-          font-size: 12px !important;
-          margin-bottom: 6px !important;
-        }
-        .legend-inline .legend-bars {
-          height: 12px !important;
-        }
-        .legend-inline .legend-sub {
-          display: none !important;
-        }
         .median-overlay {
           display: none !important;
         }
