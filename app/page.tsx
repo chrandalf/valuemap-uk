@@ -68,7 +68,7 @@ export default function Home() {
   const [outcodeBottom, setOutcodeBottom] = useState<OutcodeRank[]>([]);
   const [outcodeLoading, setOutcodeLoading] = useState(false);
   const [outcodeError, setOutcodeError] = useState<string | null>(null);
-  const [outcodeMode, setOutcodeMode] = useState<"top" | "bottom">("top");
+  const [outcodeMode, setOutcodeMode] = useState<"top" | "bottom">("bottom");
   const [outcodeLimit, setOutcodeLimit] = useState(3);
 
   const formatLegendCurrency = (value: number) => {
