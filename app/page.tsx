@@ -460,7 +460,7 @@ export function Styles() {
         }
         .legend-inline {
           display: block !important;
-          max-width: 52vw !important;
+          max-width: 46vw !important;
         }
         .legend-inline .legend-title {
           font-size: 12px !important;
@@ -484,6 +484,7 @@ export function Styles() {
           padding: 8px !important;
           max-height: calc(100svh - 24px) !important;
           overflow: auto !important;
+          overflow-x: hidden !important;
         }
         .panel[data-open="false"] {
           max-height: none !important;
