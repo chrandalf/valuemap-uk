@@ -38,7 +38,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     {
       headers: {
         // cache at edge a bit; tune later
-        "Cache-Control": "public, max-age=60",
+        "Cache-Control": "public, max-age=1200",
       },
     }
   );

@@ -77,7 +77,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
       },
       {
         headers: {
-          "Cache-Control": "public, max-age=300",
+          "Cache-Control": "public, max-age=3600",
         },
       }
     );

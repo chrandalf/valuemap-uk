@@ -40,7 +40,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     },
     {
       headers: {
-        "Cache-Control": "public, max-age=3600", // longer cache since deltas are static
+        "Cache-Control": "public, max-age=21600", // longer cache since deltas are static
       },
     }
   );
