@@ -387,6 +387,7 @@ export default function Home() {
             fontSize: 14,
             width: 560,
             maxWidth: "calc(100vw - 36px)",
+            zIndex: 3,
           }}
         >
         {legendContent}
@@ -478,7 +479,6 @@ export function Styles() {
           overflow: hidden !important;
         }
         .panel[data-open="false"] .panel-brand,
-        .panel[data-open="false"] .panel-byline,
         .panel[data-open="false"] .panel-desc {
           display: none !important;
         }
@@ -571,6 +571,8 @@ export function Styles() {
           bottom: 12px !important;
           max-height: 32svh !important;
           overflow: auto !important;
+          position: fixed !important;
+          z-index: 3 !important;
         }
         .legend .legend-bars {
           height: 18px !important;
