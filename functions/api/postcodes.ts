@@ -106,9 +106,7 @@ async function getPostcodesForCell(
     return index[cell] ?? [];
   }
 
-  if (grid === "1km") {
-    throw new Error("Index required for 1km grid. Upload postcode_outcode_index_1km.json.gz.");
-  }
+  throw new Error(`Index required for ${grid} grid. Upload postcode_outcode_index_${grid}.json.gz.`);
 
   const bucket = ((env && ((env as any).BRICKGRID_BUCKET || (env as any).R2)) as unknown) as R2Bucket | undefined;
   if (!bucket) {
@@ -142,42 +140,6 @@ async function getPostcodesForCell(
 
   // support either a combined cell column (e.g. cell_1000 = "385000_801000")
   // or split integer columns (cell_1000_x, cell_1000_y) which our preprocessing may produce
-  const combinedCellField = grid === "5km" ? "cell_5000"
-    : grid === "10km" ? "cell_10000"
-    : "cell_25000";
-  const splitXField = `${combinedCellField}_x`;
-  const splitYField = `${combinedCellField}_y`;
-
-  for (const r of rows) {
-    let cellVal: string | undefined;
-
-    // Prefer existing combined cell string
-    const rawCombined = (r as any)[combinedCellField];
-    if (rawCombined !== undefined && rawCombined !== null && String(rawCombined).trim() !== "") {
-      cellVal = String(rawCombined).trim();
-    } else {
-      // Try split integer fields
-      const x = (r as any)[splitXField];
-      const y = (r as any)[splitYField];
-      if (x !== undefined && x !== null && y !== undefined && y !== null) {
-        cellVal = `${String(x)}_${String(y)}`;
-      }
-    }
-
-    if (!cellVal) continue;
-
-    // outcode may already be provided (we wrote it); prefer it, else derive from postcode/pc_key
-    let outcodeRaw = (r as any)["outcode"] ?? (r.postcode || r.pc_key || "");
-    outcodeRaw = String(outcodeRaw).trim();
-    if (!outcodeRaw) continue;
-    const outcode = outcodeRaw.split(" ")[0].toUpperCase();
-    if (!outcode) continue;
-
-    if (cellVal === cell) {
-      outcodes.add(outcode);
-    }
-  }
-
   return Array.from(outcodes).sort();
 }
 
