@@ -130,7 +130,7 @@ export default function Home() {
   const legendContent = (
     <>
       <div className="legend-title" style={{ fontWeight: 600, marginBottom: 12, fontSize: 16, opacity: 0.9 }}>
-        {METRIC_LABEL[state.metric]} Scale
+        {state.metric === "median" ? "Median house price" : `${METRIC_LABEL[state.metric]} Scale`}
       </div>
       {state.metric === "median" && (
         <>
@@ -151,13 +151,6 @@ export default function Home() {
                 <div style={{ textAlign: "right", fontSize: 12, opacity: 0.75 }}>
                   {formatLegendCurrency(medianLegend.breaks[medianLegend.breaks.length - 1])}
                 </div>
-              </div>
-              <div className="legend-sub" style={{ display: "grid", gridTemplateColumns: "80px 1fr 80px", marginTop: 6 }}>
-                <div />
-                <div style={{ textAlign: "center", fontSize: 11, opacity: 0.75 }}>
-                  Median: {formatLegendCurrency(getQuantileValue(medianLegend, 0.5))}
-                </div>
-                <div />
               </div>
             </>
           )}
