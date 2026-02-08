@@ -640,158 +640,163 @@ export default function Home() {
 
       </div>
 
-      {state.metric === "median" && (
-        <div
-          className="outcode-panel"
-          style={{
-            position: "absolute",
-            right: 18,
-            bottom: 240,
-            width: 560,
-            maxHeight: "calc(100vh - 120px)",
-            padding: "12px 14px",
-            borderRadius: 14,
-            background: "rgba(10, 12, 20, 0.85)",
-            border: "1px solid rgba(255,255,255,0.12)",
-            backdropFilter: "blur(10px)",
-            color: "white",
-            fontSize: 12,
-            overflow: "auto",
-            zIndex: 2,
-          }}
-        >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <div style={{ fontWeight: 600 }}>
-              Postcode areas by median ({outcodeMode === "top" ? "top" : "bottom"})
-            </div>
-            <div style={{ display: "flex", gap: 6 }}>
-              <button
-                type="button"
-                onClick={() => setOutcodeMode("top")}
-                style={{
-                  cursor: "pointer",
-                  border: "1px solid rgba(255,255,255,0.2)",
-                  background: outcodeMode === "top" ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.08)",
-                  color: "white",
-                  padding: "2px 6px",
-                  borderRadius: 999,
-                  fontSize: 10,
-                }}
-              >
-                Top
-              </button>
-              <button
-                type="button"
-                onClick={() => setOutcodeMode("bottom")}
-                style={{
-                  cursor: "pointer",
-                  border: "1px solid rgba(255,255,255,0.2)",
-                  background: outcodeMode === "bottom" ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.08)",
-                  color: "white",
-                  padding: "2px 6px",
-                  borderRadius: 999,
-                  fontSize: 10,
-                }}
-              >
-                Bottom
-              </button>
-            </div>
-          </div>
-          {outcodeLoading && <div style={{ opacity: 0.7, marginBottom: 8 }}>Loading...</div>}
-          {outcodeError && <div style={{ color: "#ff9999", marginBottom: 8 }}>{outcodeError}</div>}
-          {!outcodeLoading && !outcodeError && outcodeTop.length === 0 && (
-            <div style={{ opacity: 0.7, marginBottom: 8 }}>No data available.</div>
-          )}
-          {(() => {
-            const source = outcodeMode === "top" ? outcodeTop : outcodeBottom;
-            const list = source.slice(0, outcodeLimit);
-            if (list.length === 0) return null;
-            return (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
-                {list.map((row) => (
-                  <div
-                    key={`${outcodeMode}-${row.outcode}`}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                      padding: "4px 8px",
-                      borderRadius: 999,
-                      background: "rgba(255,255,255,0.08)",
-                      border: "1px solid rgba(255,255,255,0.16)",
-                      fontSize: 11,
-                    }}
-                  >
-                    <span style={{ fontWeight: 600 }}>{row.outcode}</span>
-                    <span>{formatOutcodeCurrency(row.median)}</span>
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            {(outcodeMode === "top" ? outcodeTop : outcodeBottom).length > outcodeLimit && (
-              <button
-                type="button"
-                onClick={() => setOutcodeLimit((v) => v + 3)}
-                style={{
-                  cursor: "pointer",
-                  border: "1px solid rgba(255,255,255,0.2)",
-                  background: "rgba(255,255,255,0.08)",
-                  color: "white",
-                  padding: "4px 8px",
-                  borderRadius: 999,
-                  fontSize: 10,
-                }}
-              >
-                Show more
-              </button>
-            )}
-            {outcodeLimit > 3 && (
-              <button
-                type="button"
-                onClick={() => setOutcodeLimit(3)}
-                style={{
-                  cursor: "pointer",
-                  border: "1px solid rgba(255,255,255,0.2)",
-                  background: "rgba(255,255,255,0.08)",
-                  color: "white",
-                  padding: "4px 8px",
-                  borderRadius: 999,
-                  fontSize: 10,
-                }}
-              >
-                Show less
-              </button>
-            )}
-          </div>
-          <div style={{ marginTop: 10, fontSize: 10, opacity: 0.65 }}>
-            Based on grid medians aggregated to postcode areas.
-          </div>
-        </div>
-      )}
-
-      {/* Bottom-right legend */}
+      {/* Right-side stacked panels */}
       {!postcodeOpen && legendOpen && (
         <div
-          className="legend"
           style={{
             position: "absolute",
             right: 18,
             bottom: 18,
-            padding: "20px 28px",
-            borderRadius: 14,
-            background: "rgba(10, 12, 20, 0.85)",
-            border: "1px solid rgba(255,255,255,0.12)",
-            backdropFilter: "blur(10px)",
-            color: "white",
-            fontSize: 14,
+            display: "flex",
+            flexDirection: "column",
+            gap: 0,
             width: 560,
             maxWidth: "calc(100vw - 36px)",
             zIndex: 3,
           }}
         >
-        {legendContent}
+          {state.metric === "median" && (
+            <div
+              className="outcode-panel"
+              style={{
+                width: "100%",
+                maxHeight: "calc(100vh - 120px)",
+                padding: "12px 14px",
+                borderRadius: 14,
+                background: "rgba(10, 12, 20, 0.85)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                backdropFilter: "blur(10px)",
+                color: "white",
+                fontSize: 12,
+                overflow: "auto",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <div style={{ fontWeight: 600 }}>
+                  Postcode areas by median ({outcodeMode === "top" ? "top" : "bottom"})
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => setOutcodeMode("top")}
+                    style={{
+                      cursor: "pointer",
+                      border: "1px solid rgba(255,255,255,0.2)",
+                      background: outcodeMode === "top" ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.08)",
+                      color: "white",
+                      padding: "2px 6px",
+                      borderRadius: 999,
+                      fontSize: 10,
+                    }}
+                  >
+                    Top
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOutcodeMode("bottom")}
+                    style={{
+                      cursor: "pointer",
+                      border: "1px solid rgba(255,255,255,0.2)",
+                      background: outcodeMode === "bottom" ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.08)",
+                      color: "white",
+                      padding: "2px 6px",
+                      borderRadius: 999,
+                      fontSize: 10,
+                    }}
+                  >
+                    Bottom
+                  </button>
+                </div>
+              </div>
+              {outcodeLoading && <div style={{ opacity: 0.7, marginBottom: 8 }}>Loading...</div>}
+              {outcodeError && <div style={{ color: "#ff9999", marginBottom: 8 }}>{outcodeError}</div>}
+              {!outcodeLoading && !outcodeError && outcodeTop.length === 0 && (
+                <div style={{ opacity: 0.7, marginBottom: 8 }}>No data available.</div>
+              )}
+              {(() => {
+                const source = outcodeMode === "top" ? outcodeTop : outcodeBottom;
+                const list = source.slice(0, outcodeLimit);
+                if (list.length === 0) return null;
+                return (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+                    {list.map((row) => (
+                      <div
+                        key={`${outcodeMode}-${row.outcode}`}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          padding: "4px 8px",
+                          borderRadius: 999,
+                          background: "rgba(255,255,255,0.08)",
+                          border: "1px solid rgba(255,255,255,0.16)",
+                          fontSize: 11,
+                        }}
+                      >
+                        <span style={{ fontWeight: 600 }}>{row.outcode}</span>
+                        <span>{formatOutcodeCurrency(row.median)}</span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                {(outcodeMode === "top" ? outcodeTop : outcodeBottom).length > outcodeLimit && (
+                  <button
+                    type="button"
+                    onClick={() => setOutcodeLimit((v) => v + 3)}
+                    style={{
+                      cursor: "pointer",
+                      border: "1px solid rgba(255,255,255,0.2)",
+                      background: "rgba(255,255,255,0.08)",
+                      color: "white",
+                      padding: "4px 8px",
+                      borderRadius: 999,
+                      fontSize: 10,
+                    }}
+                  >
+                    Show more
+                  </button>
+                )}
+                {outcodeLimit > 3 && (
+                  <button
+                    type="button"
+                    onClick={() => setOutcodeLimit(3)}
+                    style={{
+                      cursor: "pointer",
+                      border: "1px solid rgba(255,255,255,0.2)",
+                      background: "rgba(255,255,255,0.08)",
+                      color: "white",
+                      padding: "4px 8px",
+                      borderRadius: 999,
+                      fontSize: 10,
+                    }}
+                  >
+                    Show less
+                  </button>
+                )}
+              </div>
+              <div style={{ marginTop: 10, fontSize: 10, opacity: 0.65 }}>
+                Based on grid medians aggregated to postcode areas.
+              </div>
+            </div>
+          )}
+
+          <div
+            className="legend"
+            style={{
+              width: "100%",
+              padding: "20px 28px",
+              borderRadius: 14,
+              background: "rgba(10, 12, 20, 0.85)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              backdropFilter: "blur(10px)",
+              color: "white",
+              fontSize: 14,
+            }}
+          >
+            {legendContent}
+          </div>
         </div>
       )}
     </main>
