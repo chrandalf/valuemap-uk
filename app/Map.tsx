@@ -88,6 +88,7 @@ export default function ValueMap({
     onPostcodePanelChange?.(Boolean(postcodeCell));
   }, [postcodeCell, onPostcodePanelChange]);
 
+
   // Cache: avoid recomputing polygons when toggling metric only
   const geoCacheRef = useRef<Map<string, any>>(new Map<string, any>());
 
