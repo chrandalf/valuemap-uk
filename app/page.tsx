@@ -662,7 +662,7 @@ export default function Home() {
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
             <div style={{ fontWeight: 600 }}>
-              {outcodeMode === "top" ? "Top" : "Bottom"} {outcodeLimit} postcode areas
+              Postcode areas by median ({outcodeMode === "top" ? "top" : "bottom"})
             </div>
             <div style={{ display: "flex", gap: 6 }}>
               <button
@@ -707,32 +707,64 @@ export default function Home() {
             const list = source.slice(0, outcodeLimit);
             if (list.length === 0) return null;
             return (
-              <ol style={{ margin: "0 0 10px 16px", padding: 0 }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
                 {list.map((row) => (
-                  <li key={`${outcodeMode}-${row.outcode}`} style={{ marginBottom: 4 }}>
-                    <span style={{ fontWeight: 600 }}>{row.outcode}</span> {formatOutcodeCurrency(row.median)}
-                  </li>
+                  <div
+                    key={`${outcodeMode}-${row.outcode}`}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      padding: "4px 8px",
+                      borderRadius: 999,
+                      background: "rgba(255,255,255,0.08)",
+                      border: "1px solid rgba(255,255,255,0.16)",
+                      fontSize: 11,
+                    }}
+                  >
+                    <span style={{ fontWeight: 600 }}>{row.outcode}</span>
+                    <span>{formatOutcodeCurrency(row.median)}</span>
+                  </div>
                 ))}
-              </ol>
+              </div>
             );
           })()}
-          {(outcodeMode === "top" ? outcodeTop : outcodeBottom).length > 3 && (
-            <button
-              type="button"
-              onClick={() => setOutcodeLimit((v) => (v === 3 ? 10 : 3))}
-              style={{
-                cursor: "pointer",
-                border: "1px solid rgba(255,255,255,0.2)",
-                background: "rgba(255,255,255,0.08)",
-                color: "white",
-                padding: "4px 8px",
-                borderRadius: 999,
-                fontSize: 10,
-              }}
-            >
-              {outcodeLimit === 3 ? "Show more" : "Show less"}
-            </button>
-          )}
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {(outcodeMode === "top" ? outcodeTop : outcodeBottom).length > outcodeLimit && (
+              <button
+                type="button"
+                onClick={() => setOutcodeLimit((v) => v + 3)}
+                style={{
+                  cursor: "pointer",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  background: "rgba(255,255,255,0.08)",
+                  color: "white",
+                  padding: "4px 8px",
+                  borderRadius: 999,
+                  fontSize: 10,
+                }}
+              >
+                Show more
+              </button>
+            )}
+            {outcodeLimit > 3 && (
+              <button
+                type="button"
+                onClick={() => setOutcodeLimit(3)}
+                style={{
+                  cursor: "pointer",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  background: "rgba(255,255,255,0.08)",
+                  color: "white",
+                  padding: "4px 8px",
+                  borderRadius: 999,
+                  fontSize: 10,
+                }}
+              >
+                Show less
+              </button>
+            )}
+          </div>
           <div style={{ marginTop: 10, fontSize: 10, opacity: 0.65 }}>
             Based on grid medians aggregated to postcode areas.
           </div>
