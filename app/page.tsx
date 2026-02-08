@@ -92,23 +92,25 @@ export default function Home() {
           className="panel-actions"
           style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}
         >
-          <button
-            type="button"
-            className="panel-toggle"
-            onClick={() => setFiltersOpen((v) => !v)}
-            style={{
-              padding: "6px 10px",
-              borderRadius: 8,
-              border: "1px solid rgba(255,255,255,0.14)",
-              background: "rgba(255,255,255,0.08)",
-              color: "white",
-              fontSize: 12,
-              cursor: "pointer",
-              display: "none",
-            }}
-          >
-            {filtersOpen ? "Hide filters" : "Show filters"}
-          </button>
+          {!instructionsOpen && (
+            <button
+              type="button"
+              className="panel-toggle"
+              onClick={() => setFiltersOpen((v) => !v)}
+              style={{
+                padding: "6px 10px",
+                borderRadius: 8,
+                border: "1px solid rgba(255,255,255,0.14)",
+                background: "rgba(255,255,255,0.08)",
+                color: "white",
+                fontSize: 12,
+                cursor: "pointer",
+                display: "none",
+              }}
+            >
+              {filtersOpen ? "Hide filters" : "Show filters"}
+            </button>
+          )}
           {!instructionsOpen && (
             <button
               type="button"
