@@ -210,11 +210,17 @@ export default function Home() {
   const sliderMax = Number.isFinite(medianMax) ? Math.ceil((medianMax as number) / 10000) * 10000 : 1500000;
   const sliderStep = 10000;
 
+  const snapThreshold = (value: number) => {
+    if (!Number.isFinite(value)) return 300000;
+    if (value > 1000000) return Math.round(value / 1000000) * 1000000;
+    return Math.round(value / 10000) * 10000;
+  };
+
   useEffect(() => {
     if (state.metric !== "median") return;
     if (!Number.isFinite(medianMin) || !Number.isFinite(medianMax)) return;
     setState((s) => {
-      const value = s.valueThreshold ?? 300000;
+      const value = snapThreshold(s.valueThreshold ?? 300000);
       const clamped = Math.min(Math.max(value, medianMin as number), medianMax as number);
       if (clamped === value) return s;
       return { ...s, valueThreshold: clamped };
@@ -553,7 +559,7 @@ export default function Home() {
                       step={sliderStep}
                       value={state.valueThreshold}
                       onChange={(e) =>
-                        setState((s) => ({ ...s, valueThreshold: Number(e.target.value) }))
+                        setState((s) => ({ ...s, valueThreshold: snapThreshold(Number(e.target.value)) }))
                       }
                       style={{ width: "100%" }}
                     />
