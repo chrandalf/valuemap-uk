@@ -814,7 +814,7 @@ async function ensureAggregatesAndUpdate(
 
       if (breaks && breaks.length > 0 && breaks.every((v) => Number.isFinite(v)) && hasVariance(breaks)) {
         const colors = makeTailColors();
-        const expr = buildTailColorExpression(state.metric, breaks, colors);
+        const expr = buildTailColorExpression(state.metric, breaks, colors, true);
         if (map.getLayer("cells-fill")) {
           map.setPaintProperty("cells-fill", "fill-color", expr);
         }
@@ -826,7 +826,7 @@ async function ensureAggregatesAndUpdate(
         const stats = computeMinMax(sourceFc, "median");
         if (stats) {
           const linearBreaks = buildLinearBreaks(stats.min, stats.max, QUANTILE_PROBS.length);
-          const expr = buildTailColorExpression("median", linearBreaks, colors);
+          const expr = buildTailColorExpression("median", linearBreaks, colors, true);
           if (map.getLayer("cells-fill")) {
             map.setPaintProperty("cells-fill", "fill-color", expr);
           }
@@ -926,12 +926,14 @@ function buildDeltaColorExpression(metric: string, stops: number[], colors: stri
   return expr as any;
 }
 
-function buildTailColorExpression(metric: string, breaks: number[], colors: string[]) {
+function buildTailColorExpression(metric: string, breaks: number[], colors: string[], useLog = false) {
   // build a step expression: start with color for values < first threshold
-  const expr: any[] = ["step", ["get", metric], colors[0]];
+  const input = useLog ? ["ln", ["max", ["get", metric], 1]] : ["get", metric];
+  const expr: any[] = ["step", input, colors[0]];
   // push threshold,value pairs for remaining colors
   for (let i = 1; i < breaks.length && i < colors.length; i++) {
-    expr.push(breaks[i]);
+    const value = useLog ? Math.log(Math.max(breaks[i], 1)) : breaks[i];
+    expr.push(value);
     expr.push(colors[i]);
   }
   return expr as any;
