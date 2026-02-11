@@ -6,6 +6,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 
 type GridSize = "1km" | "5km" | "10km" | "25km";
 type Metric = "median" | "delta_gbp" | "delta_pct";
+type ValueFilterMode = "off" | "lte" | "gte";
 
 export type MapState = {
   grid: GridSize;
@@ -13,6 +14,8 @@ export type MapState = {
   propertyType: string;
   newBuild: string;
   endMonth?: string;
+  valueFilterMode?: ValueFilterMode;
+  valueThreshold?: number;
 };
 
 export type LegendData =
@@ -209,6 +212,8 @@ export default function ValueMap({
     filter: ["==", ["get", "tx_count"], 0],
   });
 
+  applyValueFilter(map, stateRef.current);
+
   // Add hover tooltip (after layers exist)
   const popup = new maplibregl.Popup({
     closeButton: false,
@@ -361,6 +366,17 @@ export default function ValueMap({
       if (requestSeqRef.current === seq) setIsLoading(false);
     };
   }, [state.grid, state.propertyType, state.newBuild, state.endMonth, state.metric]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (!map.isStyleLoaded()) {
+      map.once("load", () => applyValueFilter(map, stateRef.current));
+      return;
+    }
+
+    applyValueFilter(map, state);
+  }, [state.metric, state.valueFilterMode, state.valueThreshold]);
 
   // Note: metric changes already trigger setRealData (via deps below).
   // Avoid a separate recolor effect to prevent stale data/legend during rapid filter changes.
@@ -972,6 +988,30 @@ function gridToMeters(grid: "1km" | "5km" | "10km" | "25km") {
     case "5km": return 5000;
     case "10km": return 10000;
     case "25km": return 25000;
+  }
+}
+
+function buildValueFilter(state: MapState) {
+  if (state.metric !== "median") return null;
+  const mode = state.valueFilterMode ?? "off";
+  const threshold = state.valueThreshold;
+  if (mode === "off" || !Number.isFinite(threshold)) return null;
+  const op = mode === "lte" ? "<=" : ">=";
+  return [op, ["get", "median"], threshold] as any;
+}
+
+function applyValueFilter(map: maplibregl.Map, state: MapState) {
+  const valueFilter = buildValueFilter(state);
+  if (map.getLayer("cells-fill")) {
+    map.setFilter("cells-fill", valueFilter as any);
+  }
+  if (map.getLayer("cells-outline")) {
+    map.setFilter("cells-outline", valueFilter as any);
+  }
+  if (map.getLayer("cells-no-sales")) {
+    const noSalesBase: any = ["==", ["get", "tx_count"], 0];
+    const noSalesFilter = valueFilter ? (["all", noSalesBase, valueFilter] as any) : noSalesBase;
+    map.setFilter("cells-no-sales", noSalesFilter as any);
   }
 }
 

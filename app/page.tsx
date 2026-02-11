@@ -7,6 +7,7 @@ type GridSize = "1km" | "5km" | "10km" | "25km";
 type Metric = "median" | "delta_gbp" | "delta_pct";
 type PropertyType = "ALL" | "D" | "S" | "T" | "F"; // Detached / Semi / Terraced / Flat
 type NewBuild = "ALL" | "Y" | "N";
+type ValueFilterMode = "off" | "lte" | "gte";
 
 type MapState = {
   grid: GridSize;
@@ -14,6 +15,8 @@ type MapState = {
   propertyType: PropertyType;
   newBuild: NewBuild;
   endMonth?: string;
+  valueFilterMode: ValueFilterMode;
+  valueThreshold: number;
 };
 
 type OutcodeRank = {
@@ -49,6 +52,8 @@ export default function Home() {
     propertyType: "ALL",
     newBuild: "ALL",
     endMonth: "2025-12-01",
+    valueFilterMode: "off",
+    valueThreshold: 300000,
   });
   const [legend, setLegend] = useState<LegendData | null>(null);
   const medianLegend =
@@ -196,6 +201,25 @@ export default function Home() {
     if (!Number.isFinite(value)) return "N/A";
     return `£${formatLegendCurrency(value)}`;
   };
+
+  const formatFilterValue = (value: number) => `£${formatLegendCurrency(value)}`;
+
+  const medianMin = medianLegend?.breaks?.[0];
+  const medianMax = medianLegend?.breaks?.[medianLegend.breaks.length - 1];
+  const sliderMin = Number.isFinite(medianMin) ? Math.floor((medianMin as number) / 10000) * 10000 : 50000;
+  const sliderMax = Number.isFinite(medianMax) ? Math.ceil((medianMax as number) / 10000) * 10000 : 1500000;
+  const sliderStep = 10000;
+
+  useEffect(() => {
+    if (state.metric !== "median") return;
+    if (!Number.isFinite(medianMin) || !Number.isFinite(medianMax)) return;
+    setState((s) => {
+      const value = s.valueThreshold ?? 300000;
+      const clamped = Math.min(Math.max(value, medianMin as number), medianMax as number);
+      if (clamped === value) return s;
+      return { ...s, valueThreshold: clamped };
+    });
+  }, [medianMin, medianMax, state.metric]);
 
   const showOutcodePanel = false;
 
@@ -500,6 +524,47 @@ export default function Home() {
               }}
             />
           </ControlRow>
+
+          {state.metric === "median" && (
+            <>
+              <ControlRow label="Value filter">
+                <Segment
+                  options={["off", "lte", "gte"]}
+                  value={state.valueFilterMode}
+                  onChange={(v) => setState((s) => ({ ...s, valueFilterMode: v as ValueFilterMode }))}
+                  renderOption={(v) => {
+                    const labels: Record<string, string> = {
+                      off: "Off",
+                      lte: "Below",
+                      gte: "Above",
+                    };
+                    return labels[v] ?? v;
+                  }}
+                />
+              </ControlRow>
+              {state.valueFilterMode !== "off" && (
+                <div style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, alignItems: "center" }}>
+                  <div style={{ fontSize: 12, opacity: 0.8 }}>Threshold</div>
+                  <div style={{ display: "grid", gap: 6 }}>
+                    <input
+                      type="range"
+                      min={sliderMin}
+                      max={sliderMax}
+                      step={sliderStep}
+                      value={state.valueThreshold}
+                      onChange={(e) =>
+                        setState((s) => ({ ...s, valueThreshold: Number(e.target.value) }))
+                      }
+                      style={{ width: "100%" }}
+                    />
+                    <div style={{ fontSize: 11, opacity: 0.75 }}>
+                      {state.valueFilterMode === "lte" ? "Below" : "Above"} {formatFilterValue(state.valueThreshold)}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         {/* Quick debug so you can see it working */}
