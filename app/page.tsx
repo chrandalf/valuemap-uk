@@ -144,9 +144,9 @@ export default function Home() {
   }, []);
 
   const autoGridForZoom = (zoom: number, metric: Metric): GridSize => {
-    if (zoom >= 9.4) return metric === "median" ? "1km" : "5km";
-    if (zoom >= 8.2) return "5km";
-    if (zoom >= 6.0) return "10km";
+    if (zoom >= 8.2) return metric === "median" ? "1km" : "5km";
+    if (zoom >= 7.0) return "5km";
+    if (zoom >= 5.6) return "10km";
     return "25km";
   };
 
@@ -1732,9 +1732,9 @@ export function Styles() {
         }
         .panel {
           left: 12px !important;
-          right: 12px !important;
+          right: auto !important;
           top: 12px !important;
-          width: auto !important;
+          width: calc(100vw - 82px) !important;
           max-width: none !important;
           padding: 8px !important;
           max-height: calc(100svh - 24px) !important;
