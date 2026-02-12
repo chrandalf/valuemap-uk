@@ -478,16 +478,6 @@ export default function Home() {
   }, [state.metric]);
 
   const showOutcodePanel = false;
-  const activeFilterCount = [
-    state.grid !== DEFAULT_STATE.grid,
-    state.metric !== DEFAULT_STATE.metric,
-    state.propertyType !== DEFAULT_STATE.propertyType,
-    state.newBuild !== DEFAULT_STATE.newBuild,
-    (state.endMonth ?? DEFAULT_STATE.endMonth) !== DEFAULT_STATE.endMonth,
-    state.valueFilterMode !== "off",
-    state.floodOverlayMode !== "off",
-    isMobileViewport && gridMode === "auto",
-  ].filter(Boolean).length;
 
   return (
     <main style={{ position: "relative", minHeight: "100vh", overflow: "hidden" }}>
@@ -838,7 +828,7 @@ export default function Home() {
                     The right-side panels are for focused testing. They are separate from the main menu so you can adjust thresholds quickly while keeping the map visible.
                   </div>
                   <ol start={1} style={{ margin: "0 0 10px 16px", padding: 0 }}>
-                    <li>On mobile, the default is <b>Manual grid</b>. Use the <b>Auto</b> button beside <b>Filters</b> if you want grid size to follow zoom.</li>
+                    <li>On mobile, filters stay in the menu. Use the left-side zoom stack (<b>Auto</b>, 25km, 10km, 5km, 1km) to change map detail quickly.</li>
                     <li><b>Value filter</b> shows only areas above or below a threshold. Use this to isolate cheap/expensive areas or strong movers.</li>
                     <li>The threshold scale is <b>metric-specific</b>: £ range for median/change-£ and % range for change-%.</li>
                     <li><b>Overlay filters</b> currently includes Flood (<b>testing</b>) so you can trial overlap analysis without treating it as final risk data.</li>
@@ -1541,24 +1531,63 @@ export default function Home() {
       )}
 
       {!filtersOpen && !menuOpen && !postcodeOpen && !instructionsOpen && !descriptionOpen && !dataSourcesOpen && !nextStepsOpen && (
-        <div className="mobile-filters-bar">
+        <div className="mobile-grid-dock" aria-label="Map grid controls">
           <button
             type="button"
-            className="mobile-filters-cta"
+            className={gridMode === "auto" ? "mobile-grid-btn active" : "mobile-grid-btn"}
             onClick={() => {
-              closeAllSubpanels();
-              setMenuOpen(true);
-              setFiltersOpen(true);
+              setGridMode("auto");
+              if (mapZoom == null) return;
+              setState((s) => {
+                const nextGrid = autoGridForZoom(mapZoom, s.metric);
+                if (nextGrid === s.grid) return s;
+                return { ...s, grid: nextGrid };
+              });
             }}
           >
-            Filters{activeFilterCount > 0 ? ` (${activeFilterCount} active)` : ""}
+            Auto
           </button>
           <button
             type="button"
-            className="mobile-auto-cta"
-            onClick={() => setGridMode((v) => (v === "auto" ? "manual" : "auto"))}
+            className={gridMode === "manual" && state.grid === "25km" ? "mobile-grid-btn active" : "mobile-grid-btn"}
+            onClick={() => {
+              setGridMode("manual");
+              setState((s) => ({ ...s, grid: "25km" }));
+            }}
           >
-            {gridMode === "auto" ? "Auto" : "Manual"}
+            25km
+          </button>
+          <button
+            type="button"
+            className={gridMode === "manual" && state.grid === "10km" ? "mobile-grid-btn active" : "mobile-grid-btn"}
+            onClick={() => {
+              setGridMode("manual");
+              setState((s) => ({ ...s, grid: "10km" }));
+            }}
+          >
+            10km
+          </button>
+          <button
+            type="button"
+            className={gridMode === "manual" && state.grid === "5km" ? "mobile-grid-btn active" : "mobile-grid-btn"}
+            onClick={() => {
+              setGridMode("manual");
+              setState((s) => ({ ...s, grid: "5km" }));
+            }}
+          >
+            5km
+          </button>
+          <button
+            type="button"
+            disabled={state.metric !== "median"}
+            className={gridMode === "manual" && state.grid === "1km" ? "mobile-grid-btn active" : "mobile-grid-btn"}
+            onClick={() => {
+              if (state.metric !== "median") return;
+              setGridMode("manual");
+              setState((s) => ({ ...s, grid: "1km" }));
+            }}
+          >
+            1km
           </button>
         </div>
       )}
@@ -1660,13 +1689,10 @@ export function Styles() {
       .mobile-collapse-toggle {
         display: none !important;
       }
-      .mobile-filters-cta {
+      .mobile-grid-btn {
         display: none;
       }
-      .mobile-auto-cta {
-        display: none;
-      }
-      .mobile-filters-bar {
+      .mobile-grid-dock {
         display: none;
       }
       .mobile-collapsible .title-mini {
@@ -1679,7 +1705,7 @@ export function Styles() {
         .auto-grid-row {
           display: flex !important;
         }
-        .mobile-filters-bar {
+        .mobile-grid-dock {
           display: inline-flex !important;
           position: fixed !important;
           left: 10px !important;
@@ -1688,11 +1714,10 @@ export function Styles() {
           bottom: auto !important;
           transform: translateY(-50%);
           z-index: 5 !important;
-          gap: 6px;
+          gap: 4px;
           flex-direction: column;
         }
-        .mobile-filters-cta,
-        .mobile-auto-cta {
+        .mobile-grid-btn {
           display: inline-flex !important;
           align-items: center;
           justify-content: center;
@@ -1700,15 +1725,23 @@ export function Styles() {
           border: 1px solid rgba(255,255,255,0.24);
           background: rgba(10, 12, 20, 0.9);
           color: white;
-          padding: 8px 12px;
-          border-radius: 999px;
-          font-size: 11px;
+          padding: 6px 8px;
+          border-radius: 8px;
+          font-size: 10px;
           font-weight: 600;
           box-shadow: 0 2px 10px rgba(0,0,0,0.35);
-          max-width: 132px;
+          min-width: 48px;
           text-align: center;
-          white-space: normal;
+          white-space: nowrap;
           line-height: 1.1;
+        }
+        .mobile-grid-btn.active {
+          background: rgba(255,255,255,0.2);
+          border-color: rgba(255,255,255,0.5);
+        }
+        .mobile-grid-btn:disabled {
+          opacity: 0.45;
+          cursor: not-allowed;
         }
         .current-filters-mobile {
           display: block;
