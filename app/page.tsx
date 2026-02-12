@@ -207,23 +207,42 @@ export default function Home() {
 
   const medianMin = medianLegend?.breaks?.[0];
   const medianMax = medianLegend?.breaks?.[medianLegend.breaks.length - 1];
-  const sliderMin = Number.isFinite(medianMin) ? Math.floor((medianMin as number) / 10000) * 10000 : 50000;
-  const sliderMax = Number.isFinite(medianMax) ? Math.ceil((medianMax as number) / 10000) * 10000 : 1500000;
-  const sliderStep = 10000;
+  const valueFilterMin = Number.isFinite(medianMin) ? Math.floor((medianMin as number) / 1000) * 1000 : 50000;
+  const valueFilterMax = Number.isFinite(medianMax) ? Math.ceil((medianMax as number) / 1000) * 1000 : 1500000;
 
-  const snapThreshold = (value: number) => {
-    if (!Number.isFinite(value)) return 300000;
-    if (value > 1000000) return Math.round(value / 1000000) * 1000000;
-    return Math.round(value / 10000) * 10000;
+  const clamp = (n: number, lo: number, hi: number) => Math.min(Math.max(n, lo), hi);
+
+  // Slider is logarithmic to give much more resolution at lower values.
+  // We keep the UI slider in "position" space and map to a price threshold.
+  const SLIDER_POS_MAX = 1000;
+  const safeMin = Math.max(1, valueFilterMin);
+  const safeMax = Math.max(safeMin + 1, valueFilterMax);
+  const logMin = Math.log(safeMin);
+  const logMax = Math.log(safeMax);
+  const logRange = Math.max(1e-9, logMax - logMin);
+
+  const posToThreshold = (pos: number) => {
+    const p = clamp(pos, 0, SLIDER_POS_MAX);
+    const t = p / SLIDER_POS_MAX;
+    const raw = Math.exp(logMin + logRange * t);
+    // Round to nearest £1k for stable display + predictable filtering
+    return Math.round(raw / 1000) * 1000;
+  };
+
+  const thresholdToPos = (value: number) => {
+    const v = clamp(Number.isFinite(value) ? value : 300000, safeMin, safeMax);
+    const t = (Math.log(v) - logMin) / logRange;
+    return Math.round(clamp(t, 0, 1) * SLIDER_POS_MAX);
   };
 
   useEffect(() => {
     if (state.metric !== "median") return;
     if (!Number.isFinite(medianMin) || !Number.isFinite(medianMax)) return;
     setState((s) => {
-      const value = snapThreshold(s.valueThreshold ?? 300000);
-      const clamped = Math.min(Math.max(value, medianMin as number), medianMax as number);
-      if (clamped === value) return s;
+      const raw = Number.isFinite(s.valueThreshold) ? s.valueThreshold : 300000;
+      const rounded = Math.round(raw / 1000) * 1000;
+      const clamped = clamp(rounded, safeMin, safeMax);
+      if (clamped === s.valueThreshold) return s;
       return { ...s, valueThreshold: clamped };
     });
   }, [medianMin, medianMax, state.metric]);
@@ -951,14 +970,16 @@ export default function Home() {
                     <div style={{ display: "grid", gap: 6 }}>
                       <input
                         type="range"
-                        min={sliderMin}
-                        max={sliderMax}
-                        step={sliderStep}
-                        value={state.valueThreshold}
+                        min={0}
+                        max={1000}
+                        step={1}
+                        value={thresholdToPos(state.valueThreshold)}
                         disabled={!medianLegend}
-                        onChange={(e) =>
-                          setState((s) => ({ ...s, valueThreshold: snapThreshold(Number(e.target.value)) }))
-                        }
+                        onChange={(e) => {
+                          const pos = Number(e.target.value);
+                          const next = posToThreshold(pos);
+                          setState((s) => ({ ...s, valueThreshold: next }));
+                        }}
                         style={{ width: "100%" }}
                       />
                       <div style={{ fontSize: 11, opacity: 0.75 }}>
