@@ -75,6 +75,7 @@ export default function Home() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [instructionsOpen, setInstructionsOpen] = useState(false);
+  const [instructionsPage, setInstructionsPage] = useState(1);
   const [descriptionOpen, setDescriptionOpen] = useState(false);
   const [descriptionPage, setDescriptionPage] = useState(1);
   const [dataSourcesOpen, setDataSourcesOpen] = useState(false);
@@ -529,6 +530,7 @@ export default function Home() {
               onClick={() => {
                 closeAllSubpanels();
                 setInstructionsOpen(true);
+                setInstructionsPage(1);
                 setMenuOpen(true);
               }}
               className="instructions-toggle menu-btn"
@@ -639,6 +641,7 @@ export default function Home() {
                   type="button"
                   onClick={() => {
                     setInstructionsOpen(false);
+                    setInstructionsPage(1);
                     setMenuOpen(true);
                   }}
                   style={{
@@ -654,27 +657,73 @@ export default function Home() {
                   Back
                 </button>
               </div>
-              <ol start={1} style={{ margin: "0 0 10px 16px", padding: 0 }}>
-                <li>Choose a grid size (1km, 5km, 10km, 25km) to control how local or regional the view is.</li>
-                <li>Select a metric to see either median sold prices or recent price changes (GBP or %).</li>
-                <li>Filter by property type (detached, semi, terraced, flats) and new build vs existing homes.</li>
-                <li>Pick a time period to view the latest data or compare changes over time.</li>
-                <li>Click a grid cell to explore price context for that area.</li>
-                <li>Tap a postcode to open Zoopla with listings around the shown price for that location.</li>
-              </ol>
-              <div style={{ fontWeight: 600, marginBottom: 6 }}>What this is useful for</div>
-              <ol start={1} style={{ margin: "0 0 10px 16px", padding: 0 }}>
-                <li>Spotting undervalued or expensive pockets within the same town or city.</li>
-                <li>Comparing local markets without postcode boundary distortions.</li>
-                <li>Understanding how prices change as you move away from city centres.</li>
-                <li>Tracking price momentum over time using consistent grid areas.</li>
-              </ol>
-              <div style={{ fontWeight: 600, marginBottom: 6 }}>Notes on the data</div>
-              <ol start={1} style={{ margin: 0, padding: "0 0 0 16px" }}>
-                <li>Prices are based on sold prices, not asking prices.</li>
-                <li>Values are medians, not averages, to reduce distortion from outliers.</li>
-                <li>Coverage is strongest for England and Wales; Scotland is partial and may be less recent.</li>
-              </ol>
+              {instructionsPage === 1 && (
+                <>
+                  <ol start={1} style={{ margin: "0 0 10px 16px", padding: 0 }}>
+                    <li>Open <b>Menu</b> to access Filters, Description, Data sources, Next steps, and Reset.</li>
+                    <li>Use <b>Filters</b> for Grid, Metric, Type, New build, and Period.</li>
+                    <li>Use <b>Value filter</b> on the right for Median, Change (£), or Change (%) with Above/Below thresholds.</li>
+                    <li>Use <b>Overlay filters</b> to toggle Flood overlay (<b>testing only</b>).</li>
+                    <li>Click a grid cell to open postcode context and launch Zoopla links.</li>
+                  </ol>
+                  <div style={{ fontWeight: 600, marginBottom: 6 }}>Mobile tips</div>
+                  <ol start={1} style={{ margin: "0 0 10px 16px", padding: 0 }}>
+                    <li>Overlay and Value panels can collapse into small left-side boxes using the arrow button.</li>
+                    <li>Tap the arrow again to expand the full panel controls.</li>
+                    <li>Current filters are shown as compact text under the Scotland note.</li>
+                  </ol>
+                  <button
+                    type="button"
+                    onClick={() => setInstructionsPage(2)}
+                    style={{
+                      cursor: "pointer",
+                      border: "1px solid rgba(255,255,255,0.18)",
+                      background: "rgba(255,255,255,0.08)",
+                      color: "white",
+                      padding: "4px 8px",
+                      borderRadius: 999,
+                      fontSize: 10,
+                    }}
+                  >
+                    Next page
+                  </button>
+                </>
+              )}
+
+              {instructionsPage === 2 && (
+                <>
+                  <div style={{ fontWeight: 600, marginBottom: 6 }}>What this is useful for</div>
+                  <ol start={1} style={{ margin: "0 0 10px 16px", padding: 0 }}>
+                    <li>Spotting undervalued or expensive pockets within the same town or city.</li>
+                    <li>Comparing local markets without postcode boundary distortions.</li>
+                    <li>Understanding how prices change as you move away from city centres.</li>
+                    <li>Testing whether flood-prone areas overlap with weaker price performance.</li>
+                  </ol>
+                  <div style={{ fontWeight: 600, marginBottom: 6 }}>Notes on the data</div>
+                  <ol start={1} style={{ margin: 0, padding: "0 0 0 16px" }}>
+                    <li>Prices are based on sold prices, not asking prices.</li>
+                    <li>Values are medians, not averages, to reduce distortion from outliers.</li>
+                    <li>Coverage is strongest for England and Wales; Scotland is partial and may be less recent.</li>
+                    <li>Flood overlay is currently labelled <b>testing</b> and not production risk data.</li>
+                  </ol>
+                  <button
+                    type="button"
+                    onClick={() => setInstructionsPage(1)}
+                    style={{
+                      marginTop: 10,
+                      cursor: "pointer",
+                      border: "1px solid rgba(255,255,255,0.18)",
+                      background: "rgba(255,255,255,0.08)",
+                      color: "white",
+                      padding: "4px 8px",
+                      borderRadius: 999,
+                      fontSize: 10,
+                    }}
+                  >
+                    Previous page
+                  </button>
+                </>
+              )}
           </div>
         )}
 
@@ -969,7 +1018,7 @@ export default function Home() {
       </div>
 
       {/* Right-side stacked panels */}
-      {!postcodeOpen && (legendOpen || state.metric === "median" || state.metric === "delta_gbp" || state.metric === "delta_pct") && (
+      {!postcodeOpen && !instructionsOpen && !descriptionOpen && (legendOpen || state.metric === "median" || state.metric === "delta_gbp" || state.metric === "delta_pct") && (
         <div
           className="right-panels"
           style={{
