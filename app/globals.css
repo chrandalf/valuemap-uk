@@ -42,3 +42,9 @@ body {
   border-top-color: #ffffff;
   border-bottom-color: #ffffff;
 }
+
+@media (max-width: 1023px) {
+  .visible-rank-panel {
+    display: none !important;
+  }
+}

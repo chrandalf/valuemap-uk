@@ -812,10 +812,10 @@ export default function ValueMap({
           className="visible-rank-panel"
           style={{
             position: "absolute",
-            top: 54,
+            top: 96,
             right: 12,
             zIndex: 3,
-            width: 290,
+            width: 260,
             maxWidth: "calc(100vw - 24px)",
             background: "rgba(10, 12, 20, 0.86)",
             color: "white",
