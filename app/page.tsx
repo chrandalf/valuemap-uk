@@ -703,15 +703,6 @@ export default function Home() {
                 />
               </ControlRow>
 
-              <ControlRow label="Flood">
-                <Segment
-                  options={["off", "on"]}
-                  value={state.floodOverlay ? "on" : "off"}
-                  onChange={(v) => setState((s) => ({ ...s, floodOverlay: v === "on" }))}
-                  renderOption={(v) => (v === "on" ? "On (testing)" : "Off")}
-                />
-              </ControlRow>
-
               <ControlRow label="Type">
                 <Segment
                   options={["ALL", "D", "S", "T", "F"]}
@@ -1079,6 +1070,34 @@ export default function Home() {
               </div>
             </div>
           )}
+
+          <div
+            className="overlay-filter-panel"
+            style={{
+              width: "100%",
+              padding: "12px 14px",
+              borderRadius: 14,
+              background: "rgba(10, 12, 20, 0.85)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              backdropFilter: "blur(10px)",
+              color: "white",
+              fontSize: 12,
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <div style={{ fontWeight: 600 }}>Overlay filters</div>
+              <div style={{ fontSize: 10, opacity: 0.7 }}>Testing only</div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, alignItems: "center" }}>
+              <div style={{ fontSize: 12, opacity: 0.8 }}>Flood</div>
+              <Segment
+                options={["off", "on"]}
+                value={state.floodOverlay ? "on" : "off"}
+                onChange={(v) => setState((s) => ({ ...s, floodOverlay: v === "on" }))}
+                renderOption={(v) => (v === "on" ? "On (testing)" : "Off")}
+              />
+            </div>
+          </div>
 
           {(
             state.metric === "median" ||
