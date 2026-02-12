@@ -52,6 +52,8 @@ type ApiRow = {
 
 type VisibleRankRow = {
   id: string;
+  gx: number;
+  gy: number;
   value: number;
   txCount: number;
 };
@@ -309,6 +311,12 @@ export default function ValueMap({
     return `${sign}GBP ${Math.abs(Math.round(value)).toLocaleString()}`;
   };
 
+  const formatCellLabel = (gx: number, gy: number) => {
+    const e = Math.round(gx / 1000);
+    const n = Math.round(gy / 1000);
+    return `${e}kmE, ${n}kmN`;
+  };
+
   const metricValueFromProperties = (properties: any, metric: Metric) => {
     if (metric === "median") return Number(properties?.median ?? NaN);
     if (metric === "delta_gbp") return Number(properties?.delta_gbp ?? NaN);
@@ -336,7 +344,7 @@ export default function ValueMap({
       const tx = Number(p.tx_count ?? 0);
       if (!Number.isFinite(value) || tx <= 0) continue;
 
-      byId.set(id, { id, value, txCount: tx });
+      byId.set(id, { id, gx, gy, value, txCount: tx });
     }
 
     const list = Array.from(byId.values());
@@ -872,6 +880,7 @@ export default function ValueMap({
                   ? formatCurrencyValue(row.value)
                   : formatDeltaValue(state.metric, row.value);
               const confidence = confidenceFromTx(row.txCount);
+              const cellLabel = formatCellLabel(row.gx, row.gy);
               return (
                 <div
                   key={`${rankMode}-${row.id}`}
@@ -886,10 +895,41 @@ export default function ValueMap({
                 >
                   <div style={{ opacity: 0.8 }}>{idx + 1}</div>
                   <div style={{ opacity: 0.9 }}>
-                    <div>{row.id}</div>
+                    <div>Cell {cellLabel}</div>
                     <div style={{ opacity: 0.62, fontSize: 10 }}>
                       {confidence} confidence · {row.txCount} sales
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const gx = row.gx;
+                        const gy = row.gy;
+                        if (!Number.isFinite(gx) || !Number.isFinite(gy)) return;
+                        if (gy >= 568300) {
+                          setScotlandNote("Scotland data coverage is partial and may be 1–2 years out of date.");
+                        } else {
+                          setScotlandNote(null);
+                        }
+                        if (state.metric === "median" && Number.isFinite(row.value)) {
+                          setPostcodeMaxPrice(row.value * 1.25);
+                        } else {
+                          setPostcodeMaxPrice(null);
+                        }
+                        void fetchPostcodesRef.current(gx, gy, 0, false);
+                      }}
+                      style={{
+                        marginTop: 2,
+                        cursor: "pointer",
+                        border: "none",
+                        background: "transparent",
+                        color: "rgba(147,197,253,0.95)",
+                        fontSize: 10,
+                        padding: 0,
+                        textDecoration: "underline",
+                      }}
+                    >
+                      Show postcodes
+                    </button>
                   </div>
                   <div style={{ textAlign: "right" }}>{label}</div>
                 </div>
