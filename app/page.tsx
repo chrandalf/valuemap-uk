@@ -1200,7 +1200,7 @@ export default function Home() {
       </div>
 
       {/* Right-side stacked panels */}
-      {!postcodeOpen && !instructionsOpen && !descriptionOpen && (legendOpen || state.metric === "median" || state.metric === "delta_gbp" || state.metric === "delta_pct") && (
+      {(!isMobileViewport || !postcodeOpen) && !instructionsOpen && !descriptionOpen && (legendOpen || state.metric === "median" || state.metric === "delta_gbp" || state.metric === "delta_pct") && (
         <div
           className="right-panels"
           data-menu-open={menuOpen ? "true" : "false"}
