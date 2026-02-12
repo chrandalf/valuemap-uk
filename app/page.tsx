@@ -9,6 +9,7 @@ type PropertyType = "ALL" | "D" | "S" | "T" | "F"; // Detached / Semi / Terraced
 type NewBuild = "ALL" | "Y" | "N";
 type ValueFilterMode = "off" | "lte" | "gte";
 type FloodOverlayMode = "off" | "on" | "on_hide_cells";
+type GridMode = "auto" | "manual";
 
 type MapState = {
   grid: GridSize;
@@ -91,6 +92,8 @@ export default function Home() {
   const [outcodeLimit, setOutcodeLimit] = useState(3);
   const [overlayPanelCollapsed, setOverlayPanelCollapsed] = useState(false);
   const [valuePanelCollapsed, setValuePanelCollapsed] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const [gridMode, setGridMode] = useState<GridMode>("manual");
   const urlHydratedRef = useRef(false);
 
   const anySubpanelOpen = filtersOpen || instructionsOpen || descriptionOpen || dataSourcesOpen || nextStepsOpen;
@@ -130,12 +133,36 @@ export default function Home() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const isMobile = window.matchMedia("(max-width: 640px)").matches;
+    setIsMobileViewport(isMobile);
     if (isMobile) {
       setFiltersOpen(false);
       setOverlayPanelCollapsed(true);
       setValuePanelCollapsed(true);
+      setGridMode("auto");
     }
   }, []);
+
+  const autoGridForZoom = (zoom: number, metric: Metric): GridSize => {
+    if (zoom >= 11) return metric === "median" ? "1km" : "5km";
+    if (zoom >= 9) return "5km";
+    if (zoom >= 7) return "10km";
+    return "25km";
+  };
+
+  const handleMapZoomChange = (zoom: number) => {
+    if (!isMobileViewport) return;
+    if (gridMode !== "auto") return;
+    const nextGrid = autoGridForZoom(zoom, state.metric);
+    if (nextGrid === state.grid) return;
+    setState((s) => ({ ...s, grid: nextGrid }));
+  };
+
+  useEffect(() => {
+    if (!isMobileViewport || gridMode !== "auto") return;
+    if (state.metric !== "median" && state.grid === "1km") {
+      setState((s) => ({ ...s, grid: "5km" }));
+    }
+  }, [isMobileViewport, gridMode, state.metric, state.grid]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -435,6 +462,16 @@ export default function Home() {
   }, [state.metric]);
 
   const showOutcodePanel = false;
+  const activeFilterCount = [
+    state.grid !== DEFAULT_STATE.grid,
+    state.metric !== DEFAULT_STATE.metric,
+    state.propertyType !== DEFAULT_STATE.propertyType,
+    state.newBuild !== DEFAULT_STATE.newBuild,
+    (state.endMonth ?? DEFAULT_STATE.endMonth) !== DEFAULT_STATE.endMonth,
+    state.valueFilterMode !== "off",
+    state.floodOverlayMode !== "off",
+    isMobileViewport && gridMode === "auto",
+  ].filter(Boolean).length;
 
   return (
     <main style={{ position: "relative", minHeight: "100vh", overflow: "hidden" }}>
@@ -443,6 +480,7 @@ export default function Home() {
         state={state}
         onLegendChange={setLegend}
         onPostcodePanelChange={setPostcodeOpen}
+        onZoomChange={handleMapZoomChange}
       />
 
       {/* Top-left product panel */}
@@ -851,11 +889,36 @@ export default function Home() {
               style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10, marginTop: 14 }}
             >
               <ControlRow label="Grid">
-                <Segment
-                  options={state.metric === "median" ? ["1km", "5km", "10km", "25km"] : ["5km", "10km", "25km"]}
-                  value={state.grid}
-                  onChange={(v) => setState((s) => ({ ...s, grid: v as GridSize }))}
-                />
+                <div style={{ display: "grid", gap: 8 }}>
+                  <div className="auto-grid-row" style={{ display: "none", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                    <div style={{ fontSize: 11, opacity: 0.82 }}>
+                      Grid mode: {gridMode === "auto" ? `Auto (${state.grid})` : "Manual"}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setGridMode((v) => (v === "auto" ? "manual" : "auto"))}
+                      style={{
+                        cursor: "pointer",
+                        border: "1px solid rgba(255,255,255,0.18)",
+                        background: "rgba(255,255,255,0.08)",
+                        color: "white",
+                        padding: "4px 8px",
+                        borderRadius: 999,
+                        fontSize: 10,
+                      }}
+                    >
+                      {gridMode === "auto" ? "Switch to manual" : "Switch to auto"}
+                    </button>
+                  </div>
+                  <Segment
+                    options={state.metric === "median" ? ["1km", "5km", "10km", "25km"] : ["5km", "10km", "25km"]}
+                    value={state.grid}
+                    onChange={(v) => {
+                      setGridMode("manual");
+                      setState((s) => ({ ...s, grid: v as GridSize }));
+                    }}
+                  />
+                </div>
               </ControlRow>
               {state.metric !== "median" && state.grid === "1km" && (
                 <div style={{ fontSize: 11, color: "#ff9999", fontStyle: "italic", marginTop: -8 }}>
@@ -1437,6 +1500,20 @@ export default function Home() {
           )}
         </div>
       )}
+
+      {!filtersOpen && !instructionsOpen && !descriptionOpen && !dataSourcesOpen && !nextStepsOpen && (
+        <button
+          type="button"
+          className="mobile-filters-cta"
+          onClick={() => {
+            closeAllSubpanels();
+            setMenuOpen(true);
+            setFiltersOpen(true);
+          }}
+        >
+          Filters{activeFilterCount > 0 ? ` (${activeFilterCount} active)` : ""}
+        </button>
+      )}
     </main>
   );
 }
@@ -1532,10 +1609,32 @@ export function Styles() {
       .mobile-collapse-toggle {
         display: none !important;
       }
+      .mobile-filters-cta {
+        display: none;
+      }
       .mobile-collapsible .title-mini {
         display: none;
       }
       @media (max-width: 640px) {
+        .auto-grid-row {
+          display: flex !important;
+        }
+        .mobile-filters-cta {
+          display: inline-flex !important;
+          position: fixed !important;
+          right: 12px !important;
+          bottom: 12px !important;
+          z-index: 5 !important;
+          cursor: pointer;
+          border: 1px solid rgba(255,255,255,0.24);
+          background: rgba(10, 12, 20, 0.9);
+          color: white;
+          padding: 8px 12px;
+          border-radius: 999px;
+          font-size: 11px;
+          font-weight: 600;
+          box-shadow: 0 2px 10px rgba(0,0,0,0.35);
+        }
         .current-filters-mobile {
           display: block;
         }

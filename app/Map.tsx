@@ -257,16 +257,19 @@ export default function ValueMap({
   state,
   onLegendChange,
   onPostcodePanelChange,
+  onZoomChange,
 }: {
   state: MapState;
   onLegendChange?: (legend: LegendData | null) => void;
   onPostcodePanelChange?: (open: boolean) => void;
+  onZoomChange?: (zoom: number) => void;
 }) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const requestSeqRef = useRef(0);
   const stateRef = useRef<MapState>(state);
+  const onZoomChangeRef = useRef<typeof onZoomChange>(onZoomChange);
 
   const [postcodeCell, setPostcodeCell] = useState<string | null>(null);
   const [postcodeItems, setPostcodeItems] = useState<string[]>([]);
@@ -289,6 +292,10 @@ export default function ValueMap({
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
+
+  useEffect(() => {
+    onZoomChangeRef.current = onZoomChange;
+  }, [onZoomChange]);
 
   useEffect(() => {
     setPostcodeCell(null);
@@ -381,9 +388,15 @@ export default function ValueMap({
       maxZoom: 16,
     });
 
+    const emitZoom = () => {
+      onZoomChangeRef.current?.(map.getZoom());
+    };
+    map.on("zoomend", emitZoom);
+
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
 
     map.on("load", async () => {
+      emitZoom();
       map.addSource("cells", {
         type: "geojson",
         data: { type: "FeatureCollection", features: [] },
