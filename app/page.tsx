@@ -62,7 +62,7 @@ export default function Home() {
     state.metric !== "median" && legend && legend.kind === "delta" && legend.metric === state.metric
       ? legend
       : null;
-  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [instructionsOpen, setInstructionsOpen] = useState(false);
   const [descriptionOpen, setDescriptionOpen] = useState(false);
   const [descriptionPage, setDescriptionPage] = useState(1);
@@ -275,18 +275,35 @@ export default function Home() {
               type="button"
               className="panel-toggle"
               onClick={() => setFiltersOpen((v) => !v)}
+              aria-expanded={filtersOpen}
+              aria-controls="filters-panel"
               style={{
                 padding: "6px 10px",
-                borderRadius: 8,
-                border: "1px solid rgba(255,255,255,0.14)",
+                borderRadius: 999,
+                border: "1px solid rgba(255,255,255,0.18)",
                 background: "rgba(255,255,255,0.08)",
                 color: "white",
-                fontSize: 12,
+                fontSize: 11,
                 cursor: "pointer",
-                display: "none",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
               }}
             >
-              {filtersOpen ? "Hide filters" : "Show filters"}
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                focusable="false"
+                style={{ display: "block" }}
+              >
+                <path
+                  fill="currentColor"
+                  d="M12 8.5a3.5 3.5 0 1 0 0 7a3.5 3.5 0 0 0 0-7Zm8.94 2.39-1.63-.94c.1-.46.15-.94.15-1.45c0-.5-.05-.99-.15-1.45l1.63-.94a.5.5 0 0 0 .2-.65l-1.54-2.66a.5.5 0 0 0-.62-.22l-1.62.66a7.8 7.8 0 0 0-2.5-1.45l-.25-1.72A.5.5 0 0 0 13.1 0h-3.2a.5.5 0 0 0-.49.42l-.25 1.72a7.8 7.8 0 0 0-2.5 1.45l-1.62-.66a.5.5 0 0 0-.62.22L1.88 5.8a.5.5 0 0 0 .2.65l1.63.94c-.1.46-.15.94-.15 1.45c0 .5.05.99.15 1.45l-1.63.94a.5.5 0 0 0-.2.65l1.54 2.66a.5.5 0 0 0 .62.22l1.62-.66c.74.6 1.6 1.08 2.5 1.45l.25 1.72c.03.24.25.42.49.42h3.2c.24 0 .45-.18.49-.42l.25-1.72c.9-.37 1.76-.85 2.5-1.45l1.62.66a.5.5 0 0 0 .62-.22l1.54-2.66a.5.5 0 0 0-.2-.65ZM12 17a5 5 0 1 1 0-10a5 5 0 0 1 0 10Z"
+                />
+              </svg>
+              {filtersOpen ? "Hide filters" : "Filters"}
             </button>
           )}
           {!instructionsOpen && !descriptionOpen && !dataSourcesOpen && !nextStepsOpen && (
@@ -468,127 +485,132 @@ export default function Home() {
         )}
 
         {/* Controls */}
-        <div
-          className="controls"
-          data-open={filtersOpen ? "true" : "false"}
-          style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10, marginTop: 14 }}
-        >
-          <ControlRow label="Grid">
-            <Segment
-              options={state.metric === "median" ? ["1km", "5km", "10km", "25km"] : ["5km", "10km", "25km"]}
-              value={state.grid}
-              onChange={(v) => setState((s) => ({ ...s, grid: v as GridSize }))}
-            />
-          </ControlRow>
-          {state.metric !== "median" && state.grid === "1km" && (
-            <div style={{ fontSize: 11, color: "#ff9999", fontStyle: "italic", marginTop: -8 }}>
-              1km deltas unavailable
-            </div>
-          )}
-
-          <ControlRow label="Metric">
-            <Segment
-              options={["median", "delta_gbp", "delta_pct"]}
-              value={state.metric}
-              onChange={(v) => setState((s) => ({ ...s, metric: v as Metric }))}
-              renderOption={(v) => METRIC_LABEL[v as Metric]}
-            />
-          </ControlRow>
-
-          <ControlRow label="Type">
-            <Segment
-              options={["ALL", "D", "S", "T", "F"]}
-              value={state.propertyType}
-              onChange={(v) => setState((s) => ({ ...s, propertyType: v as PropertyType }))}
-              renderOption={(v) => PROPERTY_LABEL[v as PropertyType]}
-            />
-          </ControlRow>
-
-          <ControlRow label="New build">
-            <Segment
-              options={["ALL", "Y", "N"]}
-              value={state.newBuild}
-              onChange={(v) => setState((s) => ({ ...s, newBuild: v as NewBuild }))}
-              renderOption={(v) => NEWBUILD_LABEL[v as NewBuild]}
-            />
-          </ControlRow>
-
-          <ControlRow label="Period">
-            <Segment
-              options={["2025-12-01", "2024-12-01", "2023-12-01", "2022-12-01", "2021-12-01"]}
-              value={state.endMonth ?? "2025-12-01"}
-              onChange={(v) => setState((s) => ({ ...s, endMonth: v }))}
-              renderOption={(v) => {
-                const labels: Record<string, string> = {
-                  "2025-12-01": "Dec 2025",
-                  "2024-12-01": "Dec 2024",
-                  "2023-12-01": "Dec 2023",
-                  "2022-12-01": "Dec 2022",
-                  "2021-12-01": "Dec 2021",
-                };
-                return labels[v] ?? v;
-              }}
-            />
-          </ControlRow>
-
-          {state.metric === "median" && (
-            <>
-              <ControlRow label="Value filter">
+        {filtersOpen && (
+          <>
+            <div
+              id="filters-panel"
+              className="controls"
+              data-open={filtersOpen ? "true" : "false"}
+              style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10, marginTop: 14 }}
+            >
+              <ControlRow label="Grid">
                 <Segment
-                  options={["off", "lte", "gte"]}
-                  value={state.valueFilterMode}
-                  onChange={(v) => setState((s) => ({ ...s, valueFilterMode: v as ValueFilterMode }))}
+                  options={state.metric === "median" ? ["1km", "5km", "10km", "25km"] : ["5km", "10km", "25km"]}
+                  value={state.grid}
+                  onChange={(v) => setState((s) => ({ ...s, grid: v as GridSize }))}
+                />
+              </ControlRow>
+              {state.metric !== "median" && state.grid === "1km" && (
+                <div style={{ fontSize: 11, color: "#ff9999", fontStyle: "italic", marginTop: -8 }}>
+                  1km deltas unavailable
+                </div>
+              )}
+
+              <ControlRow label="Metric">
+                <Segment
+                  options={["median", "delta_gbp", "delta_pct"]}
+                  value={state.metric}
+                  onChange={(v) => setState((s) => ({ ...s, metric: v as Metric }))}
+                  renderOption={(v) => METRIC_LABEL[v as Metric]}
+                />
+              </ControlRow>
+
+              <ControlRow label="Type">
+                <Segment
+                  options={["ALL", "D", "S", "T", "F"]}
+                  value={state.propertyType}
+                  onChange={(v) => setState((s) => ({ ...s, propertyType: v as PropertyType }))}
+                  renderOption={(v) => PROPERTY_LABEL[v as PropertyType]}
+                />
+              </ControlRow>
+
+              <ControlRow label="New build">
+                <Segment
+                  options={["ALL", "Y", "N"]}
+                  value={state.newBuild}
+                  onChange={(v) => setState((s) => ({ ...s, newBuild: v as NewBuild }))}
+                  renderOption={(v) => NEWBUILD_LABEL[v as NewBuild]}
+                />
+              </ControlRow>
+
+              <ControlRow label="Period">
+                <Segment
+                  options={["2025-12-01", "2024-12-01", "2023-12-01", "2022-12-01", "2021-12-01"]}
+                  value={state.endMonth ?? "2025-12-01"}
+                  onChange={(v) => setState((s) => ({ ...s, endMonth: v }))}
                   renderOption={(v) => {
                     const labels: Record<string, string> = {
-                      off: "Off",
-                      lte: "Below",
-                      gte: "Above",
+                      "2025-12-01": "Dec 2025",
+                      "2024-12-01": "Dec 2024",
+                      "2023-12-01": "Dec 2023",
+                      "2022-12-01": "Dec 2022",
+                      "2021-12-01": "Dec 2021",
                     };
                     return labels[v] ?? v;
                   }}
                 />
               </ControlRow>
-              {state.valueFilterMode !== "off" && (
-                <div style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, alignItems: "center" }}>
-                  <div style={{ fontSize: 12, opacity: 0.8 }}>Threshold</div>
-                  <div style={{ display: "grid", gap: 6 }}>
-                    <input
-                      type="range"
-                      min={sliderMin}
-                      max={sliderMax}
-                      step={sliderStep}
-                      value={state.valueThreshold}
-                      onChange={(e) =>
-                        setState((s) => ({ ...s, valueThreshold: snapThreshold(Number(e.target.value)) }))
-                      }
-                      style={{ width: "100%" }}
+
+              {state.metric === "median" && (
+                <>
+                  <ControlRow label="Value filter">
+                    <Segment
+                      options={["off", "lte", "gte"]}
+                      value={state.valueFilterMode}
+                      onChange={(v) => setState((s) => ({ ...s, valueFilterMode: v as ValueFilterMode }))}
+                      renderOption={(v) => {
+                        const labels: Record<string, string> = {
+                          off: "Off",
+                          lte: "Below",
+                          gte: "Above",
+                        };
+                        return labels[v] ?? v;
+                      }}
                     />
-                    <div style={{ fontSize: 11, opacity: 0.75 }}>
-                      {state.valueFilterMode === "lte" ? "Below" : "Above"} {formatFilterValue(state.valueThreshold)}
+                  </ControlRow>
+                  {state.valueFilterMode !== "off" && (
+                    <div style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, alignItems: "center" }}>
+                      <div style={{ fontSize: 12, opacity: 0.8 }}>Threshold</div>
+                      <div style={{ display: "grid", gap: 6 }}>
+                        <input
+                          type="range"
+                          min={sliderMin}
+                          max={sliderMax}
+                          step={sliderStep}
+                          value={state.valueThreshold}
+                          onChange={(e) =>
+                            setState((s) => ({ ...s, valueThreshold: snapThreshold(Number(e.target.value)) }))
+                          }
+                          style={{ width: "100%" }}
+                        />
+                        <div style={{ fontSize: 11, opacity: 0.75 }}>
+                          {state.valueFilterMode === "lte" ? "Below" : "Above"} {formatFilterValue(state.valueThreshold)}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
+                  )}
+                </>
               )}
-            </>
-          )}
-        </div>
-
-        {/* Quick debug so you can see it working */}
-        <div className="panel-debug" style={{ marginTop: 10, fontSize: 12, opacity: 0.65 }}>
-          {`Selected: ${state.grid} - ${METRIC_LABEL[state.metric]} - ${PROPERTY_LABEL[state.propertyType]} - ${NEWBUILD_LABEL[state.newBuild]} - ${state.endMonth ?? "LATEST"}`}
-        </div>
-
-        {/* Deltas explanation */}
-        {state.metric !== "median" && (
-          <div className="panel-delta" style={{ marginTop: 12, padding: 10, borderRadius: 8, background: "rgba(255,255,255,0.08)", borderLeft: "3px solid #fdae61", fontSize: 11, lineHeight: 1.4, opacity: 0.9 }}>
-            <div style={{ fontWeight: 600, marginBottom: 6 }}>Price change</div>
-            <div style={{ marginBottom: 6 }}>
-              Comparing <b>earliest available month (Dec 2021)</b> to <b>latest month (Dec 2025)</b>.
             </div>
-            <div>
-              <b>Note:</b> Small deltas may reflect differences in which property types sold in each period, not solely price changes in the area. Large transactions or demographic shifts can influence median prices independently of market rates.
+
+            {/* Quick debug so you can see it working */}
+            <div className="panel-debug" style={{ marginTop: 10, fontSize: 12, opacity: 0.65 }}>
+              {`Selected: ${state.grid} - ${METRIC_LABEL[state.metric]} - ${PROPERTY_LABEL[state.propertyType]} - ${NEWBUILD_LABEL[state.newBuild]} - ${state.endMonth ?? "LATEST"}`}
             </div>
-          </div>
+
+            {/* Deltas explanation */}
+            {state.metric !== "median" && (
+              <div className="panel-delta" style={{ marginTop: 12, padding: 10, borderRadius: 8, background: "rgba(255,255,255,0.08)", borderLeft: "3px solid #fdae61", fontSize: 11, lineHeight: 1.4, opacity: 0.9 }}>
+                <div style={{ fontWeight: 600, marginBottom: 6 }}>Price change</div>
+                <div style={{ marginBottom: 6 }}>
+                  Comparing <b>earliest available month (Dec 2021)</b> to <b>latest month (Dec 2025)</b>.
+                </div>
+                <div>
+                  <b>Note:</b> Small deltas may reflect differences in which property types sold in each period, not solely price changes in the area. Large transactions or demographic shifts can influence median prices independently of market rates.
+                </div>
+              </div>
+            )}
+          </>
         )}
         {descriptionOpen && (
           <div
