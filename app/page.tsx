@@ -87,6 +87,8 @@ export default function Home() {
   const [outcodeError, setOutcodeError] = useState<string | null>(null);
   const [outcodeMode, setOutcodeMode] = useState<"top" | "bottom">("bottom");
   const [outcodeLimit, setOutcodeLimit] = useState(3);
+  const [overlayPanelCollapsed, setOverlayPanelCollapsed] = useState(false);
+  const [valuePanelCollapsed, setValuePanelCollapsed] = useState(false);
 
   const anySubpanelOpen = filtersOpen || instructionsOpen || descriptionOpen || dataSourcesOpen || nextStepsOpen;
   const DEFAULT_STATE: MapState = {
@@ -125,7 +127,11 @@ export default function Home() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const isMobile = window.matchMedia("(max-width: 640px)").matches;
-    if (isMobile) setFiltersOpen(false);
+    if (isMobile) {
+      setFiltersOpen(false);
+      setOverlayPanelCollapsed(true);
+      setValuePanelCollapsed(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -1072,7 +1078,8 @@ export default function Home() {
           )}
 
           <div
-            className="overlay-filter-panel"
+            className="overlay-filter-panel mobile-collapsible"
+            data-collapsed={overlayPanelCollapsed ? "true" : "false"}
             style={{
               width: "100%",
               padding: "12px 14px",
@@ -1084,11 +1091,36 @@ export default function Home() {
               fontSize: 12,
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <div style={{ fontWeight: 600 }}>Overlay filters</div>
-              <div style={{ fontSize: 10, opacity: 0.7 }}>Testing only</div>
+            <div className="mobile-collapsible-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, gap: 8 }}>
+              <div style={{ fontWeight: 600 }}>
+                <span className="title-full">Overlay filters</span>
+                <span className="title-mini">Overlay</span>
+              </div>
+              <div className="mobile-header-extra" style={{ fontSize: 10, opacity: 0.7 }}>Testing only</div>
+              <button
+                type="button"
+                className="mobile-collapse-toggle"
+                onClick={() => setOverlayPanelCollapsed((v) => !v)}
+                aria-label={overlayPanelCollapsed ? "Expand overlay filters" : "Collapse overlay filters"}
+                style={{
+                  cursor: "pointer",
+                  border: "1px solid rgba(255,255,255,0.18)",
+                  background: "rgba(255,255,255,0.08)",
+                  color: "white",
+                  width: 24,
+                  height: 24,
+                  borderRadius: 999,
+                  fontSize: 14,
+                  lineHeight: 1,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {overlayPanelCollapsed ? "›" : "‹"}
+              </button>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, alignItems: "center" }}>
+            <div className="mobile-collapsible-body" style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, alignItems: "center" }}>
               <div style={{ fontSize: 12, opacity: 0.8 }}>Flood</div>
               <Segment
                 options={["off", "on"]}
@@ -1105,7 +1137,8 @@ export default function Home() {
             state.metric === "delta_pct"
           ) && (
             <div
-              className="value-filter-panel"
+              className="value-filter-panel mobile-collapsible"
+              data-collapsed={valuePanelCollapsed ? "true" : "false"}
               style={{
                 width: "100%",
                 padding: "12px 14px",
@@ -1117,22 +1150,47 @@ export default function Home() {
                 fontSize: 12,
               }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <div className="mobile-collapsible-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, gap: 8 }}>
                 <div style={{ fontWeight: 600 }}>
-                  {state.metric === "median"
-                    ? "Median value filter"
-                    : state.metric === "delta_gbp"
-                      ? "Change (£) filter"
-                      : "Change (%) filter"}
+                  <span className="title-full">
+                    {state.metric === "median"
+                      ? "Median value filter"
+                      : state.metric === "delta_gbp"
+                        ? "Change (£) filter"
+                        : "Change (%) filter"}
+                  </span>
+                  <span className="title-mini">Value</span>
                 </div>
-                <div style={{ fontSize: 10, opacity: 0.7 }}>
+                <div className="mobile-header-extra" style={{ fontSize: 10, opacity: 0.7 }}>
                   {state.metric === "median"
                     ? `${formatFilterValue(valueFilterMin)}–${formatFilterValue(valueFilterMax)}`
                     : `${formatMetricFilterValue(state.metric, valueFilterMin)}–${formatMetricFilterValue(state.metric, valueFilterMax)}`}
                 </div>
+                <button
+                  type="button"
+                  className="mobile-collapse-toggle"
+                  onClick={() => setValuePanelCollapsed((v) => !v)}
+                  aria-label={valuePanelCollapsed ? "Expand value filter" : "Collapse value filter"}
+                  style={{
+                    cursor: "pointer",
+                    border: "1px solid rgba(255,255,255,0.18)",
+                    background: "rgba(255,255,255,0.08)",
+                    color: "white",
+                    width: 24,
+                    height: 24,
+                    borderRadius: 999,
+                    fontSize: 14,
+                    lineHeight: 1,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {valuePanelCollapsed ? "›" : "‹"}
+                </button>
               </div>
 
-              <div style={{ display: "grid", gap: 10 }}>
+              <div className="mobile-collapsible-body" style={{ display: "grid", gap: 10 }}>
                 <div style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, alignItems: "center" }}>
                   <div style={{ fontSize: 12, opacity: 0.8 }}>Mode</div>
                   <Segment
@@ -1300,6 +1358,12 @@ export function Styles() {
         justify-content: center;
         white-space: nowrap;
       }
+      .mobile-collapse-toggle {
+        display: none !important;
+      }
+      .mobile-collapsible .title-mini {
+        display: none;
+      }
       @media (max-width: 640px) {
         .current-filters-mobile {
           display: block;
@@ -1432,6 +1496,32 @@ export function Styles() {
           max-height: 60svh !important;
           overflow: auto !important;
           -webkit-overflow-scrolling: touch;
+        }
+        .mobile-collapse-toggle {
+          display: inline-flex !important;
+        }
+        .mobile-collapsible[data-collapsed="true"] {
+          width: 96px !important;
+          min-width: 96px !important;
+          max-width: 96px !important;
+          align-self: flex-start !important;
+          padding: 8px 8px !important;
+        }
+        .mobile-collapsible[data-collapsed="true"] .mobile-collapsible-body {
+          display: none !important;
+        }
+        .mobile-collapsible[data-collapsed="true"] .mobile-header-extra,
+        .mobile-collapsible[data-collapsed="true"] .title-full {
+          display: none !important;
+        }
+        .mobile-collapsible[data-collapsed="true"] .title-mini {
+          display: inline !important;
+          font-weight: 600;
+          font-size: 11px;
+          opacity: 0.9;
+        }
+        .mobile-collapsible[data-collapsed="true"] .mobile-collapsible-header {
+          margin-bottom: 0 !important;
         }
         .value-filter-panel {
           padding: 8px 10px !important;
