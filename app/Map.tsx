@@ -7,6 +7,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 type GridSize = "1km" | "5km" | "10km" | "25km";
 type Metric = "median" | "delta_gbp" | "delta_pct";
 type ValueFilterMode = "off" | "lte" | "gte";
+type FloodOverlayMode = "off" | "on" | "on_hide_cells";
 
 export type MapState = {
   grid: GridSize;
@@ -16,7 +17,7 @@ export type MapState = {
   endMonth?: string;
   valueFilterMode?: ValueFilterMode;
   valueThreshold?: number;
-  floodOverlay?: boolean;
+  floodOverlayMode?: FloodOverlayMode;
 };
 
 export type LegendData =
@@ -376,7 +377,7 @@ export default function ValueMap({
     type: "fill",
     source: "flood-testing",
     layout: {
-      visibility: stateRef.current.floodOverlay ? "visible" : "none",
+      visibility: stateRef.current.floodOverlayMode && stateRef.current.floodOverlayMode !== "off" ? "visible" : "none",
     },
     paint: {
       "fill-color": [
@@ -394,12 +395,12 @@ export default function ValueMap({
         "match",
         ["get", "severity"],
         "high",
-        0.26,
+        0.12,
         "med",
-        0.18,
+        0.08,
         "low",
-        0.11,
-        0.14,
+        0.05,
+        0.07,
       ] as any,
     },
   });
@@ -409,7 +410,7 @@ export default function ValueMap({
     type: "line",
     source: "flood-testing",
     layout: {
-      visibility: stateRef.current.floodOverlay ? "visible" : "none",
+      visibility: stateRef.current.floodOverlayMode && stateRef.current.floodOverlayMode !== "off" ? "visible" : "none",
     },
     paint: {
       "line-color": [
@@ -636,18 +637,29 @@ export default function ValueMap({
     if (!map) return;
     if (!map.isStyleLoaded()) return;
 
-    const visibility = state.floodOverlay ? "visible" : "none";
+    const mode = state.floodOverlayMode ?? "off";
+    const floodVisibility = mode === "off" ? "none" : "visible";
+    const cellsVisibility = mode === "on_hide_cells" ? "none" : "visible";
     try {
       if (map.getLayer("flood-testing-fill")) {
-        map.setLayoutProperty("flood-testing-fill", "visibility", visibility);
+        map.setLayoutProperty("flood-testing-fill", "visibility", floodVisibility);
       }
       if (map.getLayer("flood-testing-outline")) {
-        map.setLayoutProperty("flood-testing-outline", "visibility", visibility);
+        map.setLayoutProperty("flood-testing-outline", "visibility", floodVisibility);
+      }
+      if (map.getLayer("cells-fill")) {
+        map.setLayoutProperty("cells-fill", "visibility", cellsVisibility);
+      }
+      if (map.getLayer("cells-outline")) {
+        map.setLayoutProperty("cells-outline", "visibility", cellsVisibility);
+      }
+      if (map.getLayer("cells-no-sales")) {
+        map.setLayoutProperty("cells-no-sales", "visibility", cellsVisibility);
       }
     } catch (e) {
       // ignore
     }
-  }, [state.floodOverlay]);
+  }, [state.floodOverlayMode]);
 
   // Note: metric changes already trigger setRealData (via deps below).
   // Avoid a separate recolor effect to prevent stale data/legend during rapid filter changes.

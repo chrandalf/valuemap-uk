@@ -8,6 +8,7 @@ type Metric = "median" | "delta_gbp" | "delta_pct";
 type PropertyType = "ALL" | "D" | "S" | "T" | "F"; // Detached / Semi / Terraced / Flat
 type NewBuild = "ALL" | "Y" | "N";
 type ValueFilterMode = "off" | "lte" | "gte";
+type FloodOverlayMode = "off" | "on" | "on_hide_cells";
 
 type MapState = {
   grid: GridSize;
@@ -17,7 +18,7 @@ type MapState = {
   endMonth?: string;
   valueFilterMode: ValueFilterMode;
   valueThreshold: number;
-  floodOverlay: boolean;
+  floodOverlayMode: FloodOverlayMode;
 };
 
 type OutcodeRank = {
@@ -63,7 +64,7 @@ export default function Home() {
     endMonth: "2025-12-01",
     valueFilterMode: "off",
     valueThreshold: 300000,
-    floodOverlay: false,
+    floodOverlayMode: "off",
   });
   const [legend, setLegend] = useState<LegendData | null>(null);
   const medianLegend =
@@ -100,7 +101,7 @@ export default function Home() {
     endMonth: "2025-12-01",
     valueFilterMode: "off",
     valueThreshold: 300000,
-    floodOverlay: false,
+    floodOverlayMode: "off",
   };
   const closeAllSubpanels = () => {
     setFiltersOpen(false);
@@ -269,10 +270,17 @@ export default function Home() {
     state.valueFilterMode === "off"
       ? "Off"
       : `${state.valueFilterMode === "lte" ? "Below" : "Above"} ${formatMetricFilterValue(state.metric, state.valueThreshold)}`;
+  const floodOverlayLabel =
+    state.floodOverlayMode === "off"
+      ? "Off"
+      : state.floodOverlayMode === "on"
+        ? "On (testing)"
+        : "On (hide cells, testing)";
+
   const currentFiltersSummary =
     `Grid: ${state.grid} · Metric: ${METRIC_LABEL[state.metric]} · ` +
     `Type: ${PROPERTY_LABEL[state.propertyType]} · New build: ${NEWBUILD_LABEL[state.newBuild]} · ` +
-    `Period: ${periodLabel} · Flood: ${state.floodOverlay ? "On (testing)" : "Off"}`;
+    `Period: ${periodLabel} · Flood: ${floodOverlayLabel}`;
 
   // Global value-filter scales (stable across other filters), per metric
   const MEDIAN_FILTER_MIN = 50_000;
@@ -1220,10 +1228,14 @@ export default function Home() {
             <div className="mobile-collapsible-body" style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, alignItems: "center" }}>
               <div style={{ fontSize: 12, opacity: 0.8 }}>Flood</div>
               <Segment
-                options={["off", "on"]}
-                value={state.floodOverlay ? "on" : "off"}
-                onChange={(v) => setState((s) => ({ ...s, floodOverlay: v === "on" }))}
-                renderOption={(v) => (v === "on" ? "On (testing)" : "Off")}
+                options={["off", "on", "on_hide_cells"]}
+                value={state.floodOverlayMode}
+                onChange={(v) => setState((s) => ({ ...s, floodOverlayMode: v as FloodOverlayMode }))}
+                renderOption={(v) => {
+                  if (v === "on") return "On (testing)";
+                  if (v === "on_hide_cells") return "On (hide cells, testing)";
+                  return "Off";
+                }}
               />
             </div>
           </div>
