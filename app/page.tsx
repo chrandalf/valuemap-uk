@@ -45,6 +45,14 @@ const NEWBUILD_LABEL: Record<NewBuild, string> = {
   N: "Existing",
 };
 
+const PERIOD_LABEL: Record<string, string> = {
+  "2025-12-01": "Dec 2025",
+  "2024-12-01": "Dec 2024",
+  "2023-12-01": "Dec 2023",
+  "2022-12-01": "Dec 2022",
+  "2021-12-01": "Dec 2021",
+};
+
 export default function Home() {
   const [state, setState] = useState<MapState>({
     grid: "5km",
@@ -214,6 +222,12 @@ export default function Home() {
 
   const formatFilterValue = (value: number) => `£${formatLegendCurrency(value)}`;
 
+  const periodLabel = PERIOD_LABEL[state.endMonth ?? "2025-12-01"] ?? (state.endMonth ?? "LATEST");
+  const valueFilterLabel =
+    state.metric !== "median" || state.valueFilterMode === "off"
+      ? "Off"
+      : `${state.valueFilterMode === "lte" ? "Below" : "Above"} ${formatFilterValue(state.valueThreshold)}`;
+
   // Global value-filter scale (stable across other filters)
   const VALUE_FILTER_GLOBAL_MIN = 50_000;
   const VALUE_FILTER_GLOBAL_MAX = 3_000_000;
@@ -288,7 +302,10 @@ export default function Home() {
         <div className="panel-header" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
           <div>
             <div className="panel-title" style={{ fontSize: 24, fontWeight: 700, marginTop: 2, lineHeight: 1.2 }}>
-              UK HOUSE PRICE GRID
+              UK HOUSE PRICE GRID{" "}
+              <span style={{ fontSize: 12, fontWeight: 600, opacity: 0.75, verticalAlign: "middle" }}>
+                v0.1
+              </span>
             </div>
             <div className="panel-byline" style={{ marginTop: 4, fontSize: 12, opacity: 0.8 }}>
               by Chris Randall
@@ -761,6 +778,7 @@ export default function Home() {
             <ol start={1} style={{ margin: 0, padding: "0 0 0 16px" }}>
               <li>UK Land Registry Price Paid Data (sold price transactions).</li>
               <li>Office for National Statistics: ONSPD_Online_latest_Postcode_Centroids.</li>
+              <li>Energy Performance of Buildings Register (Domestic EPC data) — Department for Levelling Up, Housing and Communities.</li>
             </ol>
             <div style={{ marginTop: 8, opacity: 0.8 }}>
               Licensing and attribution follow the terms provided by each source.
@@ -804,19 +822,19 @@ export default function Home() {
             </div>
             <ol start={1} style={{ margin: 0, padding: "0 0 0 16px" }}>
               <li>
-                v1.1: I will add EPC-linked property detail so I can filter by rooms and compute price per square metre or square foot.
+                v0.2: I will add EPC-linked property detail so I can filter by rooms and compute price per square metre or square foot.
               </li>
               <li>
-                v1.2: I will add confidence/coverage indicators per cell (e.g., sales count banding or a low-data flag).
+                v0.3: I will add confidence/coverage indicators per cell (e.g., sales count banding or a low-data flag).
               </li>
               <li>
-                v1.3: I will add a comparison mode with side-by-side metrics or a then vs now slider.
+                v0.4: I will add a comparison mode with side-by-side metrics or a then vs now slider.
               </li>
               <li>
-                v1.4: I will add commuting/transport overlays (rail/metro stations) to contextualize price gradients.
+                v0.5: I will add commuting/transport overlays (rail/metro stations) to contextualize price gradients.
               </li>
               <li>
-                v1.5: I will add affordability layers after I add income data (price-to-income ratios).
+                v0.6: I will add affordability layers after I add income data (price-to-income ratios).
               </li>
             </ol>
           </div>
@@ -995,6 +1013,26 @@ export default function Home() {
                     </div>
                   </div>
                 )}
+
+                <div
+                  style={{
+                    marginTop: 2,
+                    padding: "8px 10px",
+                    borderRadius: 12,
+                    background: "rgba(255,255,255,0.06)",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                  }}
+                >
+                  <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.9, marginBottom: 6 }}>
+                    Current filters
+                  </div>
+                  <div style={{ fontSize: 11, opacity: 0.8, lineHeight: 1.35 }}>
+                    {`Grid: ${state.grid} · Metric: ${METRIC_LABEL[state.metric]} · Type: ${PROPERTY_LABEL[state.propertyType]} · New build: ${NEWBUILD_LABEL[state.newBuild]} · Period: ${periodLabel}`}
+                  </div>
+                  <div style={{ fontSize: 11, opacity: 0.8, marginTop: 4 }}>
+                    {`Value filter: ${valueFilterLabel}`}
+                  </div>
+                </div>
               </div>
             </div>
           )}
