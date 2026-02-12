@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ValueMap, { type LegendData } from "./Map";
 
 type GridSize = "1km" | "5km" | "10km" | "25km";
@@ -91,6 +91,7 @@ export default function Home() {
   const [outcodeLimit, setOutcodeLimit] = useState(3);
   const [overlayPanelCollapsed, setOverlayPanelCollapsed] = useState(false);
   const [valuePanelCollapsed, setValuePanelCollapsed] = useState(false);
+  const urlHydratedRef = useRef(false);
 
   const anySubpanelOpen = filtersOpen || instructionsOpen || descriptionOpen || dataSourcesOpen || nextStepsOpen;
   const DEFAULT_STATE: MapState = {
@@ -135,6 +136,59 @@ export default function Home() {
       setValuePanelCollapsed(true);
     }
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const params = new URLSearchParams(window.location.search);
+    const grid = params.get("grid");
+    const metric = params.get("metric");
+    const propertyType = params.get("type");
+    const newBuild = params.get("newBuild");
+    const endMonth = params.get("period");
+    const valueFilterMode = params.get("vfm");
+    const valueThreshold = Number(params.get("vth"));
+    const floodOverlayMode = params.get("flood");
+
+    const validGrid = ["1km", "5km", "10km", "25km"];
+    const validMetric = ["median", "delta_gbp", "delta_pct"];
+    const validType = ["ALL", "D", "S", "T", "F"];
+    const validNewBuild = ["ALL", "Y", "N"];
+    const validVfm = ["off", "lte", "gte"];
+    const validFlood = ["off", "on", "on_hide_cells"];
+
+    setState((s) => ({
+      ...s,
+      grid: validGrid.includes(grid ?? "") ? (grid as GridSize) : s.grid,
+      metric: validMetric.includes(metric ?? "") ? (metric as Metric) : s.metric,
+      propertyType: validType.includes(propertyType ?? "") ? (propertyType as PropertyType) : s.propertyType,
+      newBuild: validNewBuild.includes(newBuild ?? "") ? (newBuild as NewBuild) : s.newBuild,
+      endMonth: endMonth ?? s.endMonth,
+      valueFilterMode: validVfm.includes(valueFilterMode ?? "") ? (valueFilterMode as ValueFilterMode) : s.valueFilterMode,
+      valueThreshold: Number.isFinite(valueThreshold) ? valueThreshold : s.valueThreshold,
+      floodOverlayMode: validFlood.includes(floodOverlayMode ?? "") ? (floodOverlayMode as FloodOverlayMode) : s.floodOverlayMode,
+    }));
+
+    urlHydratedRef.current = true;
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!urlHydratedRef.current) return;
+
+    const params = new URLSearchParams();
+    params.set("grid", state.grid);
+    params.set("metric", state.metric);
+    params.set("type", state.propertyType);
+    params.set("newBuild", state.newBuild);
+    params.set("period", state.endMonth ?? "2025-12-01");
+    params.set("vfm", state.valueFilterMode);
+    params.set("vth", String(Math.round(state.valueThreshold * 10) / 10));
+    params.set("flood", state.floodOverlayMode);
+
+    const nextUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.replaceState(null, "", nextUrl);
+  }, [state]);
 
   useEffect(() => {
     if (state.metric !== "median") {

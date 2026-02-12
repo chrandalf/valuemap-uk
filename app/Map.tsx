@@ -50,6 +50,12 @@ type ApiRow = {
   years_stale?: number;
 };
 
+type VisibleRankRow = {
+  id: string;
+  value: number;
+  tx: number;
+};
+
 const FLOOD_TESTING_GEOJSON: any = {
   type: "FeatureCollection",
   features: [
@@ -276,7 +282,55 @@ export default function ValueMap({
   const [postcodeError, setPostcodeError] = useState<string | null>(null);
   const [scotlandNote, setScotlandNote] = useState<string | null>(null);
   const [postcodeMaxPrice, setPostcodeMaxPrice] = useState<number | null>(null);
+  const [visibleTop, setVisibleTop] = useState<VisibleRankRow[]>([]);
+  const [visibleBottom, setVisibleBottom] = useState<VisibleRankRow[]>([]);
+  const [rankMode, setRankMode] = useState<"top" | "bottom">("top");
   const fetchPostcodesRef = useRef<(gx: number, gy: number, offset: number, append: boolean) => void>(() => {});
+
+  const confidenceFromTx = (tx: number) => {
+    if (!Number.isFinite(tx) || tx <= 0) return "No sales";
+    if (tx < 10) return "Low confidence";
+    if (tx < 30) return "Medium confidence";
+    return "High confidence";
+  };
+
+  const metricValueFromProperties = (properties: any, metric: Metric) => {
+    if (metric === "median") return Number(properties?.median ?? NaN);
+    if (metric === "delta_gbp") return Number(properties?.delta_gbp ?? NaN);
+    return Number(properties?.delta_pct ?? NaN);
+  };
+
+  const updateVisibleRankings = () => {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+    if (!map.getLayer("cells-fill")) return;
+
+    const features = map.queryRenderedFeatures(undefined, { layers: ["cells-fill"] }) as any[];
+    const byId = new Map<string, VisibleRankRow>();
+
+    for (const f of features) {
+      const p = f?.properties ?? {};
+      const gx = Number(p.gx);
+      const gy = Number(p.gy);
+      if (!Number.isFinite(gx) || !Number.isFinite(gy)) continue;
+
+      const id = `${gx}_${gy}`;
+      if (byId.has(id)) continue;
+
+      const value = metricValueFromProperties(p, stateRef.current.metric);
+      const tx = Number(p.tx_count ?? 0);
+      if (!Number.isFinite(value) || tx <= 0) continue;
+
+      byId.set(id, { id, value, tx });
+    }
+
+    const list = Array.from(byId.values());
+    list.sort((a, b) => b.value - a.value);
+    setVisibleTop(list.slice(0, 5));
+
+    const asc = [...list].sort((a, b) => a.value - b.value);
+    setVisibleBottom(asc.slice(0, 5));
+  };
 
   useEffect(() => {
     stateRef.current = state;
@@ -492,6 +546,8 @@ export default function ValueMap({
   });
 
   applyValueFilter(map, stateRef.current);
+  updateVisibleRankings();
+  map.on("moveend", updateVisibleRankings);
 
   // Add hover tooltip (after layers exist)
   const popup = new maplibregl.Popup({
@@ -511,6 +567,7 @@ export default function ValueMap({
     const tx = Number(p.tx_count ?? 0);
     const dg = Number(p.delta_gbp ?? 0);
     const dp = Number(p.delta_pct ?? 0);
+    const confidence = confidenceFromTx(tx);
 
     // Show delta popup only if we're actually looking at delta data (deltas are non-zero)
     let html = "";
@@ -521,6 +578,7 @@ export default function ValueMap({
           <div style="font-weight: 700; margin-bottom: 4px;">${sign}GBP ${Math.abs(dg).toLocaleString()}</div>
           <div>Change %: <b>${dp.toFixed(1)}%</b></div>
           <div>Sales: <b>${tx}</b></div>
+          <div>Confidence: <b>${confidence}</b></div>
         </div>
       `;
     } else {
@@ -528,6 +586,7 @@ export default function ValueMap({
         <div style="font-family: system-ui; font-size: 12px; line-height: 1.25;">
           <div style="font-weight: 700; margin-bottom: 4px;">GBP ${median.toLocaleString()}</div>
           <div>Sales: <b>${tx}</b></div>
+          <div>Confidence: <b>${confidence}</b></div>
         </div>
       `;
     }
@@ -600,6 +659,7 @@ export default function ValueMap({
 
   // Initial real data load
   await setRealData(map, state, geoCacheRef.current, undefined, onLegendChange);
+  updateVisibleRankings();
 });
 
     mapRef.current = map;
@@ -628,6 +688,7 @@ export default function ValueMap({
     const timeoutId = setTimeout(() => {
       setRealData(map, state, geoCacheRef.current, abortController.signal, onLegendChange)
         .then(() => {
+          updateVisibleRankings();
           if (requestSeqRef.current === seq) setIsLoading(false);
         })
         .catch((e) => {
@@ -655,6 +716,7 @@ export default function ValueMap({
     }
 
     applyValueFilter(map, state);
+    updateVisibleRankings();
   }, [state.metric, state.valueFilterMode, state.valueThreshold]);
 
   useEffect(() => {
@@ -729,6 +791,102 @@ export default function ValueMap({
       >
         Loading...
       </div>
+
+      {!postcodeCell && (
+        <div
+          className="visible-rank-panel"
+          style={{
+            position: "absolute",
+            top: 54,
+            right: 12,
+            zIndex: 3,
+            width: 290,
+            maxWidth: "calc(100vw - 24px)",
+            background: "rgba(10, 12, 20, 0.86)",
+            color: "white",
+            borderRadius: 10,
+            border: "1px solid rgba(255,255,255,0.14)",
+            padding: "8px 10px",
+            fontSize: 11,
+            backdropFilter: "blur(8px)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+            <div style={{ fontWeight: 600 }}>Visible cell ranking</div>
+            <div style={{ display: "inline-flex", gap: 4 }}>
+              <button
+                type="button"
+                onClick={() => setRankMode("top")}
+                style={{
+                  cursor: "pointer",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  background: rankMode === "top" ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.08)",
+                  color: "white",
+                  borderRadius: 999,
+                  padding: "2px 7px",
+                  fontSize: 10,
+                }}
+              >
+                Top
+              </button>
+              <button
+                type="button"
+                onClick={() => setRankMode("bottom")}
+                style={{
+                  cursor: "pointer",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  background: rankMode === "bottom" ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.08)",
+                  color: "white",
+                  borderRadius: 999,
+                  padding: "2px 7px",
+                  fontSize: 10,
+                }}
+              >
+                Bottom
+              </button>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gap: 4 }}>
+            {(rankMode === "top" ? visibleTop : visibleBottom).length === 0 && (
+              <div style={{ opacity: 0.7 }}>No visible ranked cells yet.</div>
+            )}
+            {(rankMode === "top" ? visibleTop : visibleBottom).map((row, idx) => {
+              const label =
+                state.metric === "median"
+                  ? formatCurrency(row.value)
+                  : formatDeltaValue(state.metric, row.value);
+              const confidence = confidenceFromTx(row.txCount);
+              return (
+                <div
+                  key={`${rankMode}-${row.id}`}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "20px 1fr auto",
+                    gap: 8,
+                    alignItems: "center",
+                    padding: "2px 0",
+                    borderBottom: "1px solid rgba(255,255,255,0.08)",
+                  }}
+                >
+                  <div style={{ opacity: 0.8 }}>{idx + 1}</div>
+                  <div style={{ opacity: 0.9 }}>
+                    <div>{row.id}</div>
+                    <div style={{ opacity: 0.62, fontSize: 10 }}>
+                      {confidence} confidence · {row.txCount} sales
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>{label}</div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={{ marginTop: 6, opacity: 0.65, fontSize: 10 }}>
+            Ranked from currently visible cells only.
+          </div>
+        </div>
+      )}
       {postcodeCell && (
         <div
           className="postcode-wrap"
