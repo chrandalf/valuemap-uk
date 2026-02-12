@@ -1512,7 +1512,7 @@ export default function Home() {
         </div>
       )}
 
-      {!filtersOpen && !menuOpen && !postcodeOpen && !instructionsOpen && !descriptionOpen && !dataSourcesOpen && !nextStepsOpen && (
+      {!filtersOpen && !menuOpen && !instructionsOpen && !descriptionOpen && !dataSourcesOpen && !nextStepsOpen && (
         <div className="mobile-grid-dock" aria-label="Map grid controls">
           <button
             type="button"
