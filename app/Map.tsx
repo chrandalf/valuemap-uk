@@ -50,14 +50,6 @@ type ApiRow = {
   years_stale?: number;
 };
 
-type VisibleRankRow = {
-  id: string;
-  gx: number;
-  gy: number;
-  value: number;
-  txCount: number;
-};
-
 const FLOOD_TESTING_GEOJSON: any = {
   type: "FeatureCollection",
   features: [
@@ -284,9 +276,6 @@ export default function ValueMap({
   const [postcodeError, setPostcodeError] = useState<string | null>(null);
   const [scotlandNote, setScotlandNote] = useState<string | null>(null);
   const [postcodeMaxPrice, setPostcodeMaxPrice] = useState<number | null>(null);
-  const [visibleTop, setVisibleTop] = useState<VisibleRankRow[]>([]);
-  const [visibleBottom, setVisibleBottom] = useState<VisibleRankRow[]>([]);
-  const [rankMode, setRankMode] = useState<"top" | "bottom">("top");
   const fetchPostcodesRef = useRef<(gx: number, gy: number, offset: number, append: boolean) => void>(() => {});
 
   const confidenceFromTx = (tx: number) => {
@@ -296,64 +285,6 @@ export default function ValueMap({
     return "High";
   };
 
-  const formatCurrencyValue = (value: number) => {
-    if (!Number.isFinite(value)) return "n/a";
-    return `GBP ${Math.round(value).toLocaleString()}`;
-  };
-
-  const formatDeltaValue = (metric: Metric, value: number) => {
-    if (!Number.isFinite(value)) return "n/a";
-    if (metric === "delta_pct") {
-      const sign = value > 0 ? "+" : value < 0 ? "-" : "";
-      return `${sign}${Math.abs(value).toFixed(1)}%`;
-    }
-    const sign = value > 0 ? "+" : value < 0 ? "-" : "";
-    return `${sign}GBP ${Math.abs(Math.round(value)).toLocaleString()}`;
-  };
-
-  const formatCellLabel = (gx: number, gy: number) => {
-    const e = Math.round(gx / 1000);
-    const n = Math.round(gy / 1000);
-    return `${e}kmE, ${n}kmN`;
-  };
-
-  const metricValueFromProperties = (properties: any, metric: Metric) => {
-    if (metric === "median") return Number(properties?.median ?? NaN);
-    if (metric === "delta_gbp") return Number(properties?.delta_gbp ?? NaN);
-    return Number(properties?.delta_pct ?? NaN);
-  };
-
-  const updateVisibleRankings = () => {
-    const map = mapRef.current;
-    if (!map || !map.isStyleLoaded()) return;
-    if (!map.getLayer("cells-fill")) return;
-
-    const features = map.queryRenderedFeatures(undefined, { layers: ["cells-fill"] }) as any[];
-    const byId = new Map<string, VisibleRankRow>();
-
-    for (const f of features) {
-      const p = f?.properties ?? {};
-      const gx = Number(p.gx);
-      const gy = Number(p.gy);
-      if (!Number.isFinite(gx) || !Number.isFinite(gy)) continue;
-
-      const id = `${gx}_${gy}`;
-      if (byId.has(id)) continue;
-
-      const value = metricValueFromProperties(p, stateRef.current.metric);
-      const tx = Number(p.tx_count ?? 0);
-      if (!Number.isFinite(value) || tx <= 0) continue;
-
-      byId.set(id, { id, gx, gy, value, txCount: tx });
-    }
-
-    const list = Array.from(byId.values());
-    list.sort((a, b) => b.value - a.value);
-    setVisibleTop(list.slice(0, 5));
-
-    const asc = [...list].sort((a, b) => a.value - b.value);
-    setVisibleBottom(asc.slice(0, 5));
-  };
 
   useEffect(() => {
     stateRef.current = state;
@@ -569,8 +500,6 @@ export default function ValueMap({
   });
 
   applyValueFilter(map, stateRef.current);
-  updateVisibleRankings();
-  map.on("moveend", updateVisibleRankings);
 
   // Add hover tooltip (after layers exist)
   const popup = new maplibregl.Popup({
@@ -682,7 +611,6 @@ export default function ValueMap({
 
   // Initial real data load
   await setRealData(map, state, geoCacheRef.current, undefined, onLegendChange);
-  updateVisibleRankings();
 });
 
     mapRef.current = map;
@@ -711,7 +639,6 @@ export default function ValueMap({
     const timeoutId = setTimeout(() => {
       setRealData(map, state, geoCacheRef.current, abortController.signal, onLegendChange)
         .then(() => {
-          updateVisibleRankings();
           if (requestSeqRef.current === seq) setIsLoading(false);
         })
         .catch((e) => {
@@ -739,7 +666,6 @@ export default function ValueMap({
     }
 
     applyValueFilter(map, state);
-    updateVisibleRankings();
   }, [state.metric, state.valueFilterMode, state.valueThreshold]);
 
   useEffect(() => {
@@ -815,133 +741,6 @@ export default function ValueMap({
         Loading...
       </div>
 
-      {!postcodeCell && (
-        <div
-          className="visible-rank-panel"
-          style={{
-            position: "absolute",
-            top: 96,
-            right: 12,
-            zIndex: 3,
-            width: 260,
-            maxWidth: "calc(100vw - 24px)",
-            background: "rgba(10, 12, 20, 0.86)",
-            color: "white",
-            borderRadius: 10,
-            border: "1px solid rgba(255,255,255,0.14)",
-            padding: "8px 10px",
-            fontSize: 11,
-            backdropFilter: "blur(8px)",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-            <div style={{ fontWeight: 600 }}>Visible cell ranking</div>
-            <div style={{ display: "inline-flex", gap: 4 }}>
-              <button
-                type="button"
-                onClick={() => setRankMode("top")}
-                style={{
-                  cursor: "pointer",
-                  border: "1px solid rgba(255,255,255,0.2)",
-                  background: rankMode === "top" ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.08)",
-                  color: "white",
-                  borderRadius: 999,
-                  padding: "2px 7px",
-                  fontSize: 10,
-                }}
-              >
-                Top
-              </button>
-              <button
-                type="button"
-                onClick={() => setRankMode("bottom")}
-                style={{
-                  cursor: "pointer",
-                  border: "1px solid rgba(255,255,255,0.2)",
-                  background: rankMode === "bottom" ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.08)",
-                  color: "white",
-                  borderRadius: 999,
-                  padding: "2px 7px",
-                  fontSize: 10,
-                }}
-              >
-                Bottom
-              </button>
-            </div>
-          </div>
-
-          <div style={{ display: "grid", gap: 4 }}>
-            {(rankMode === "top" ? visibleTop : visibleBottom).length === 0 && (
-              <div style={{ opacity: 0.7 }}>No visible ranked cells yet.</div>
-            )}
-            {(rankMode === "top" ? visibleTop : visibleBottom).map((row, idx) => {
-              const label =
-                state.metric === "median"
-                  ? formatCurrencyValue(row.value)
-                  : formatDeltaValue(state.metric, row.value);
-              const confidence = confidenceFromTx(row.txCount);
-              const cellLabel = formatCellLabel(row.gx, row.gy);
-              return (
-                <div
-                  key={`${rankMode}-${row.id}`}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "20px 1fr auto",
-                    gap: 8,
-                    alignItems: "center",
-                    padding: "2px 0",
-                    borderBottom: "1px solid rgba(255,255,255,0.08)",
-                  }}
-                >
-                  <div style={{ opacity: 0.8 }}>{idx + 1}</div>
-                  <div style={{ opacity: 0.9 }}>
-                    <div>Cell {cellLabel}</div>
-                    <div style={{ opacity: 0.62, fontSize: 10 }}>
-                      {confidence} confidence · {row.txCount} sales
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const gx = row.gx;
-                        const gy = row.gy;
-                        if (!Number.isFinite(gx) || !Number.isFinite(gy)) return;
-                        if (gy >= 568300) {
-                          setScotlandNote("Scotland data coverage is partial and may be 1–2 years out of date.");
-                        } else {
-                          setScotlandNote(null);
-                        }
-                        if (state.metric === "median" && Number.isFinite(row.value)) {
-                          setPostcodeMaxPrice(row.value * 1.25);
-                        } else {
-                          setPostcodeMaxPrice(null);
-                        }
-                        void fetchPostcodesRef.current(gx, gy, 0, false);
-                      }}
-                      style={{
-                        marginTop: 2,
-                        cursor: "pointer",
-                        border: "none",
-                        background: "transparent",
-                        color: "rgba(147,197,253,0.95)",
-                        fontSize: 10,
-                        padding: 0,
-                        textDecoration: "underline",
-                      }}
-                    >
-                      Show postcodes
-                    </button>
-                  </div>
-                  <div style={{ textAlign: "right" }}>{label}</div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div style={{ marginTop: 6, opacity: 0.65, fontSize: 10 }}>
-            Ranked from currently visible cells only.
-          </div>
-        </div>
-      )}
       {postcodeCell && (
         <div
           className="postcode-wrap"

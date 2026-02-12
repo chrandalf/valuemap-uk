@@ -453,10 +453,10 @@ export default function Home() {
           position: "absolute",
           top: 18,
           left: 18,
-          width: 520,
+          width: 500,
           maxWidth: "calc(100vw - 36px)",
-          padding: 16,
-          borderRadius: 16,
+          padding: 14,
+          borderRadius: 14,
           background: "rgba(10, 12, 20, 0.72)",
           border: "1px solid rgba(255,255,255,0.12)",
           backdropFilter: "blur(10px)",
@@ -479,7 +479,7 @@ export default function Home() {
         <div
           className="panel-actions"
           data-menu-open={menuOpen && !anySubpanelOpen ? "true" : "false"}
-          style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}
+          style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}
         >
           <button
             type="button"
@@ -677,12 +677,16 @@ export default function Home() {
             </button>
           )}
         </div>
-        <div style={{ marginTop: 6, fontSize: 11, opacity: 0.7 }}>
-          Scotland coverage is partial and may be 1–2 years out of date.
-        </div>
-        <div className="current-filters-mobile" style={{ marginTop: 6, fontSize: 10, opacity: 0.65, lineHeight: 1.25 }}>
-          {`Current filters: ${currentFiltersSummary} · Value filter: ${valueFilterLabel}`}
-        </div>
+        {(menuOpen || anySubpanelOpen) && (
+          <div style={{ marginTop: 6, fontSize: 11, opacity: 0.7 }}>
+            Scotland coverage is partial and may be 1–2 years out of date.
+          </div>
+        )}
+        {(menuOpen || anySubpanelOpen) && (
+          <div className="current-filters-mobile" style={{ marginTop: 6, fontSize: 10, opacity: 0.65, lineHeight: 1.25 }}>
+            {`Current filters: ${currentFiltersSummary} · Value filter: ${valueFilterLabel}`}
+          </div>
+        )}
         {instructionsOpen && (
           <div
             className="instructions-panel"
@@ -904,11 +908,6 @@ export default function Home() {
                 />
               </ControlRow>
 
-            </div>
-
-            {/* Quick debug so you can see it working */}
-            <div className="panel-debug" style={{ marginTop: 10, fontSize: 12, opacity: 0.65 }}>
-              {`Selected: ${state.grid} - ${METRIC_LABEL[state.metric]} - ${PROPERTY_LABEL[state.propertyType]} - ${NEWBUILD_LABEL[state.newBuild]} - ${state.endMonth ?? "LATEST"}`}
             </div>
 
             {/* Deltas explanation */}
@@ -1137,8 +1136,8 @@ export default function Home() {
             bottom: 18,
             display: "flex",
             flexDirection: "column",
-            gap: 8,
-            width: 560,
+            gap: 6,
+            width: 520,
             maxWidth: "calc(100vw - 36px)",
             zIndex: 3,
           }}
@@ -1241,7 +1240,7 @@ export default function Home() {
             data-collapsed={overlayPanelCollapsed ? "true" : "false"}
             style={{
               width: "100%",
-              padding: "12px 14px",
+              padding: "10px 12px",
               borderRadius: 14,
               background: "rgba(10, 12, 20, 0.85)",
               border: "1px solid rgba(255,255,255,0.12)",
@@ -1304,7 +1303,7 @@ export default function Home() {
               data-collapsed={valuePanelCollapsed ? "true" : "false"}
               style={{
                 width: "100%",
-                padding: "12px 14px",
+                padding: "10px 12px",
                 borderRadius: 14,
                 background: "rgba(10, 12, 20, 0.85)",
                 border: "1px solid rgba(255,255,255,0.12)",
@@ -1399,7 +1398,7 @@ export default function Home() {
                   className="current-filters-box"
                   style={{
                     marginTop: 2,
-                    padding: "8px 10px",
+                      padding: "7px 9px",
                     borderRadius: 12,
                     background: "rgba(255,255,255,0.06)",
                     border: "1px solid rgba(255,255,255,0.12)",
@@ -1424,13 +1423,13 @@ export default function Home() {
               className="legend"
               style={{
                 width: "100%",
-                padding: "20px 28px",
+                padding: "14px 16px",
                 borderRadius: 14,
                 background: "rgba(10, 12, 20, 0.85)",
                 border: "1px solid rgba(255,255,255,0.12)",
                 backdropFilter: "blur(10px)",
                 color: "white",
-                fontSize: 14,
+                fontSize: 13,
               }}
             >
               {legendContent}
@@ -1521,6 +1520,15 @@ export function Styles() {
         justify-content: center;
         white-space: nowrap;
       }
+      .panel button,
+      .right-panels button {
+        transition: background-color 120ms ease, border-color 120ms ease, opacity 120ms ease;
+      }
+      .panel button:hover,
+      .right-panels button:hover {
+        background: rgba(255,255,255,0.14) !important;
+        border-color: rgba(255,255,255,0.32) !important;
+      }
       .mobile-collapse-toggle {
         display: none !important;
       }
@@ -1588,7 +1596,6 @@ export function Styles() {
         .controls[data-open="false"] {
           display: none !important;
         }
-        .panel-debug,
         .panel-delta {
           display: none !important;
         }
