@@ -63,6 +63,7 @@ export default function Home() {
       ? legend
       : null;
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [instructionsOpen, setInstructionsOpen] = useState(false);
   const [descriptionOpen, setDescriptionOpen] = useState(false);
   const [descriptionPage, setDescriptionPage] = useState(1);
@@ -273,10 +274,10 @@ export default function Home() {
           {!instructionsOpen && !descriptionOpen && !dataSourcesOpen && !nextStepsOpen && (
             <button
               type="button"
-              className="panel-toggle"
-              onClick={() => setFiltersOpen((v) => !v)}
-              aria-expanded={filtersOpen}
-              aria-controls="filters-panel"
+              className="menu-toggle"
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-expanded={menuOpen}
+              aria-controls="master-menu"
               style={{
                 padding: "6px 10px",
                 borderRadius: 999,
@@ -303,14 +304,37 @@ export default function Home() {
                   d="M12 8.5a3.5 3.5 0 1 0 0 7a3.5 3.5 0 0 0 0-7Zm8.94 2.39-1.63-.94c.1-.46.15-.94.15-1.45c0-.5-.05-.99-.15-1.45l1.63-.94a.5.5 0 0 0 .2-.65l-1.54-2.66a.5.5 0 0 0-.62-.22l-1.62.66a7.8 7.8 0 0 0-2.5-1.45l-.25-1.72A.5.5 0 0 0 13.1 0h-3.2a.5.5 0 0 0-.49.42l-.25 1.72a7.8 7.8 0 0 0-2.5 1.45l-1.62-.66a.5.5 0 0 0-.62.22L1.88 5.8a.5.5 0 0 0 .2.65l1.63.94c-.1.46-.15.94-.15 1.45c0 .5.05.99.15 1.45l-1.63.94a.5.5 0 0 0-.2.65l1.54 2.66a.5.5 0 0 0 .62.22l1.62-.66c.74.6 1.6 1.08 2.5 1.45l.25 1.72c.03.24.25.42.49.42h3.2c.24 0 .45-.18.49-.42l.25-1.72c.9-.37 1.76-.85 2.5-1.45l1.62.66a.5.5 0 0 0 .62-.22l1.54-2.66a.5.5 0 0 0-.2-.65ZM12 17a5 5 0 1 1 0-10a5 5 0 0 1 0 10Z"
                 />
               </svg>
+              {menuOpen ? "Close menu" : "Menu"}
+            </button>
+          )}
+          {!instructionsOpen && !descriptionOpen && !dataSourcesOpen && !nextStepsOpen && menuOpen && (
+            <button
+              type="button"
+              className="panel-toggle menu-btn"
+              onClick={() => setFiltersOpen((v) => !v)}
+              aria-expanded={filtersOpen}
+              aria-controls="filters-panel"
+              style={{
+                padding: "6px 10px",
+                borderRadius: 999,
+                border: "1px solid rgba(255,255,255,0.18)",
+                background: "rgba(255,255,255,0.08)",
+                color: "white",
+                fontSize: 11,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
               {filtersOpen ? "Hide filters" : "Filters"}
             </button>
           )}
-          {!instructionsOpen && !descriptionOpen && !dataSourcesOpen && !nextStepsOpen && (
+          {!instructionsOpen && !descriptionOpen && !dataSourcesOpen && !nextStepsOpen && menuOpen && (
             <button
               type="button"
               onClick={() => setLegendOpen((v) => !v)}
-              className="legend-toggle"
+              className="legend-toggle menu-btn"
               style={{
                 cursor: "pointer",
                 border: "1px solid rgba(255,255,255,0.18)",
@@ -324,7 +348,7 @@ export default function Home() {
               {legendOpen ? "Hide legend" : "Show legend"}
             </button>
           )}
-          {!instructionsOpen && !descriptionOpen && !dataSourcesOpen && !nextStepsOpen && (
+          {!instructionsOpen && !descriptionOpen && !dataSourcesOpen && !nextStepsOpen && menuOpen && (
             <button
               type="button"
               onClick={() => {
@@ -333,8 +357,9 @@ export default function Home() {
                 setDataSourcesOpen(false);
                 setNextStepsOpen(false);
                 setFiltersOpen(false);
+                setMenuOpen(false);
               }}
-              className="instructions-toggle"
+              className="instructions-toggle menu-btn"
               style={{
                 cursor: "pointer",
                 border: "1px solid rgba(255,255,255,0.18)",
@@ -348,7 +373,7 @@ export default function Home() {
               Instructions
             </button>
           )}
-          {!instructionsOpen && !descriptionOpen && !nextStepsOpen && (
+          {!instructionsOpen && !descriptionOpen && !nextStepsOpen && menuOpen && (
             <button
               type="button"
               onClick={() => {
@@ -358,8 +383,9 @@ export default function Home() {
                 setDataSourcesOpen(false);
                 setNextStepsOpen(false);
                 setFiltersOpen(false);
+                setMenuOpen(false);
               }}
-              className="description-toggle"
+              className="description-toggle menu-btn"
               style={{
                 cursor: "pointer",
                 border: "1px solid rgba(255,255,255,0.18)",
@@ -373,7 +399,7 @@ export default function Home() {
               Description
             </button>
           )}
-          {!instructionsOpen && !descriptionOpen && !dataSourcesOpen && !nextStepsOpen && (
+          {!instructionsOpen && !descriptionOpen && !dataSourcesOpen && !nextStepsOpen && menuOpen && (
             <button
               type="button"
               onClick={() => {
@@ -382,8 +408,9 @@ export default function Home() {
                 setDescriptionOpen(false);
                 setNextStepsOpen(false);
                 setFiltersOpen(false);
+                setMenuOpen(false);
               }}
-              className="datasources-toggle"
+              className="datasources-toggle menu-btn"
               style={{
                 cursor: "pointer",
                 border: "1px solid rgba(255,255,255,0.18)",
@@ -397,7 +424,7 @@ export default function Home() {
               Data sources
             </button>
           )}
-          {!instructionsOpen && !descriptionOpen && !dataSourcesOpen && !nextStepsOpen && (
+          {!instructionsOpen && !descriptionOpen && !dataSourcesOpen && !nextStepsOpen && menuOpen && (
             <button
               type="button"
               onClick={() => {
@@ -406,8 +433,9 @@ export default function Home() {
                 setDescriptionOpen(false);
                 setDataSourcesOpen(false);
                 setFiltersOpen(false);
+                setMenuOpen(false);
               }}
-              className="nextsteps-toggle"
+              className="nextsteps-toggle menu-btn"
               style={{
                 cursor: "pointer",
                 border: "1px solid rgba(255,255,255,0.18)",
@@ -445,7 +473,6 @@ export default function Home() {
                   type="button"
                   onClick={() => {
                     setInstructionsOpen(false);
-                    setFiltersOpen(true);
                   }}
                   style={{
                     cursor: "pointer",
@@ -457,7 +484,7 @@ export default function Home() {
                     fontSize: 10,
                   }}
                 >
-                  Back to filters
+                  Back
                 </button>
               </div>
               <ol start={1} style={{ margin: "0 0 10px 16px", padding: 0 }}>
@@ -551,46 +578,6 @@ export default function Home() {
                 />
               </ControlRow>
 
-              {state.metric === "median" && (
-                <>
-                  <ControlRow label="Value filter">
-                    <Segment
-                      options={["off", "lte", "gte"]}
-                      value={state.valueFilterMode}
-                      onChange={(v) => setState((s) => ({ ...s, valueFilterMode: v as ValueFilterMode }))}
-                      renderOption={(v) => {
-                        const labels: Record<string, string> = {
-                          off: "Off",
-                          lte: "Below",
-                          gte: "Above",
-                        };
-                        return labels[v] ?? v;
-                      }}
-                    />
-                  </ControlRow>
-                  {state.valueFilterMode !== "off" && (
-                    <div style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, alignItems: "center" }}>
-                      <div style={{ fontSize: 12, opacity: 0.8 }}>Threshold</div>
-                      <div style={{ display: "grid", gap: 6 }}>
-                        <input
-                          type="range"
-                          min={sliderMin}
-                          max={sliderMax}
-                          step={sliderStep}
-                          value={state.valueThreshold}
-                          onChange={(e) =>
-                            setState((s) => ({ ...s, valueThreshold: snapThreshold(Number(e.target.value)) }))
-                          }
-                          style={{ width: "100%" }}
-                        />
-                        <div style={{ fontSize: 11, opacity: 0.75 }}>
-                          {state.valueFilterMode === "lte" ? "Below" : "Above"} {formatFilterValue(state.valueThreshold)}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
             </div>
 
             {/* Quick debug so you can see it working */}
@@ -633,7 +620,6 @@ export default function Home() {
                 onClick={() => {
                   setDescriptionOpen(false);
                   setDescriptionPage(1);
-                  setFiltersOpen(true);
                 }}
                 style={{
                   cursor: "pointer",
@@ -645,7 +631,7 @@ export default function Home() {
                   fontSize: 10,
                 }}
               >
-                Back to filters
+                Back
               </button>
             </div>
             {descriptionPage === 1 && (
@@ -729,7 +715,6 @@ export default function Home() {
                 type="button"
                 onClick={() => {
                   setDataSourcesOpen(false);
-                  setFiltersOpen(true);
                 }}
                 style={{
                   cursor: "pointer",
@@ -741,7 +726,7 @@ export default function Home() {
                   fontSize: 10,
                 }}
               >
-                Back to filters
+                Back
               </button>
             </div>
             <ol start={1} style={{ margin: 0, padding: "0 0 0 16px" }}>
@@ -773,7 +758,6 @@ export default function Home() {
                 type="button"
                 onClick={() => {
                   setNextStepsOpen(false);
-                  setFiltersOpen(true);
                 }}
                 style={{
                   cursor: "pointer",
@@ -785,7 +769,7 @@ export default function Home() {
                   fontSize: 10,
                 }}
               >
-                Back to filters
+                Back
               </button>
             </div>
             <ol start={1} style={{ margin: 0, padding: "0 0 0 16px" }}>
@@ -811,15 +795,16 @@ export default function Home() {
       </div>
 
       {/* Right-side stacked panels */}
-      {!postcodeOpen && legendOpen && (
+      {!postcodeOpen && (legendOpen || state.metric === "median") && (
         <div
+          className="right-panels"
           style={{
             position: "absolute",
             right: 18,
             bottom: 18,
             display: "flex",
             flexDirection: "column",
-            gap: 0,
+            gap: 8,
             width: 560,
             maxWidth: "calc(100vw - 36px)",
             zIndex: 3,
@@ -918,21 +903,93 @@ export default function Home() {
             </div>
           )}
 
-          <div
-            className="legend"
-            style={{
-              width: "100%",
-              padding: "20px 28px",
-              borderRadius: 14,
-              background: "rgba(10, 12, 20, 0.85)",
-              border: "1px solid rgba(255,255,255,0.12)",
-              backdropFilter: "blur(10px)",
-              color: "white",
-              fontSize: 14,
-            }}
-          >
-            {legendContent}
-          </div>
+          {state.metric === "median" && (
+            <div
+              className="value-filter-panel"
+              style={{
+                width: "100%",
+                padding: "12px 14px",
+                borderRadius: 14,
+                background: "rgba(10, 12, 20, 0.85)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                backdropFilter: "blur(10px)",
+                color: "white",
+                fontSize: 12,
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <div style={{ fontWeight: 600 }}>Median value filter</div>
+                {medianLegend && (
+                  <div style={{ fontSize: 10, opacity: 0.7 }}>
+                    {formatLegendCurrency(medianLegend.breaks[0])}–
+                    {formatLegendCurrency(medianLegend.breaks[medianLegend.breaks.length - 1])}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: "grid", gap: 10 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, alignItems: "center" }}>
+                  <div style={{ fontSize: 12, opacity: 0.8 }}>Mode</div>
+                  <Segment
+                    options={["off", "lte", "gte"]}
+                    value={state.valueFilterMode}
+                    onChange={(v) => setState((s) => ({ ...s, valueFilterMode: v as ValueFilterMode }))}
+                    renderOption={(v) => {
+                      const labels: Record<string, string> = {
+                        off: "Off",
+                        lte: "Below",
+                        gte: "Above",
+                      };
+                      return labels[v] ?? v;
+                    }}
+                  />
+                </div>
+
+                {state.valueFilterMode !== "off" && (
+                  <div style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, alignItems: "center" }}>
+                    <div style={{ fontSize: 12, opacity: 0.8 }}>Threshold</div>
+                    <div style={{ display: "grid", gap: 6 }}>
+                      <input
+                        type="range"
+                        min={sliderMin}
+                        max={sliderMax}
+                        step={sliderStep}
+                        value={state.valueThreshold}
+                        disabled={!medianLegend}
+                        onChange={(e) =>
+                          setState((s) => ({ ...s, valueThreshold: snapThreshold(Number(e.target.value)) }))
+                        }
+                        style={{ width: "100%" }}
+                      />
+                      <div style={{ fontSize: 11, opacity: 0.75 }}>
+                        {!medianLegend
+                          ? "Loading scale…"
+                          : `${state.valueFilterMode === "lte" ? "Below" : "Above"} ${formatFilterValue(state.valueThreshold)}`}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {legendOpen && (
+            <div
+              className="legend"
+              style={{
+                width: "100%",
+                padding: "20px 28px",
+                borderRadius: 14,
+                background: "rgba(10, 12, 20, 0.85)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                backdropFilter: "blur(10px)",
+                color: "white",
+                fontSize: 14,
+              }}
+            >
+              {legendContent}
+            </div>
+          )}
         </div>
       )}
     </main>
@@ -1001,7 +1058,27 @@ function Segment({
 export function Styles() {
   return (
     <style jsx global>{`
+      .panel-actions {
+        align-items: stretch;
+      }
+      .panel-actions .menu-btn {
+        flex: 1 1 120px;
+        text-align: center;
+        justify-content: center;
+        white-space: nowrap;
+      }
       @media (max-width: 640px) {
+        .panel-actions {
+          display: grid !important;
+          grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          gap: 8px !important;
+        }
+        .panel-actions .menu-toggle {
+          grid-column: 1 / -1;
+        }
+        .panel-actions .menu-btn {
+          width: 100% !important;
+        }
         .outcode-panel {
           display: none !important;
         }
@@ -1107,17 +1184,30 @@ export function Styles() {
         .postcode-list {
           max-height: 110px !important;
         }
-        .legend {
+        .right-panels {
           right: 12px !important;
           left: 12px !important;
           width: auto !important;
           max-width: none !important;
-          padding: 6px 8px !important;
           bottom: 12px !important;
-          max-height: 32svh !important;
-          overflow: auto !important;
           position: fixed !important;
           z-index: 3 !important;
+          gap: 8px !important;
+          max-height: 60svh !important;
+          overflow: auto !important;
+          -webkit-overflow-scrolling: touch;
+        }
+        .value-filter-panel {
+          padding: 8px 10px !important;
+        }
+        .legend {
+          width: 100% !important;
+          max-width: none !important;
+          padding: 6px 8px !important;
+          max-height: 32svh !important;
+          overflow: auto !important;
+          position: static !important;
+          z-index: auto !important;
         }
         .legend .legend-bars {
           height: 18px !important;
