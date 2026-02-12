@@ -53,7 +53,7 @@ type ApiRow = {
 type VisibleRankRow = {
   id: string;
   value: number;
-  tx: number;
+  txCount: number;
 };
 
 const FLOOD_TESTING_GEOJSON: any = {
@@ -289,9 +289,24 @@ export default function ValueMap({
 
   const confidenceFromTx = (tx: number) => {
     if (!Number.isFinite(tx) || tx <= 0) return "No sales";
-    if (tx < 10) return "Low confidence";
-    if (tx < 30) return "Medium confidence";
-    return "High confidence";
+    if (tx < 10) return "Low";
+    if (tx < 30) return "Medium";
+    return "High";
+  };
+
+  const formatCurrencyValue = (value: number) => {
+    if (!Number.isFinite(value)) return "n/a";
+    return `GBP ${Math.round(value).toLocaleString()}`;
+  };
+
+  const formatDeltaValue = (metric: Metric, value: number) => {
+    if (!Number.isFinite(value)) return "n/a";
+    if (metric === "delta_pct") {
+      const sign = value > 0 ? "+" : value < 0 ? "-" : "";
+      return `${sign}${Math.abs(value).toFixed(1)}%`;
+    }
+    const sign = value > 0 ? "+" : value < 0 ? "-" : "";
+    return `${sign}GBP ${Math.abs(Math.round(value)).toLocaleString()}`;
   };
 
   const metricValueFromProperties = (properties: any, metric: Metric) => {
@@ -321,7 +336,7 @@ export default function ValueMap({
       const tx = Number(p.tx_count ?? 0);
       if (!Number.isFinite(value) || tx <= 0) continue;
 
-      byId.set(id, { id, value, tx });
+      byId.set(id, { id, value, txCount: tx });
     }
 
     const list = Array.from(byId.values());
@@ -854,7 +869,7 @@ export default function ValueMap({
             {(rankMode === "top" ? visibleTop : visibleBottom).map((row, idx) => {
               const label =
                 state.metric === "median"
-                  ? formatCurrency(row.value)
+                  ? formatCurrencyValue(row.value)
                   : formatDeltaValue(state.metric, row.value);
               const confidence = confidenceFromTx(row.txCount);
               return (
