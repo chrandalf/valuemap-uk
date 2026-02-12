@@ -659,69 +659,117 @@ export default function Home() {
               </div>
               {instructionsPage === 1 && (
                 <>
+                  <div style={{ fontSize: 10, opacity: 0.7, marginBottom: 8 }}>Page 1 of 3 · Start here</div>
+                  <div style={{ marginBottom: 8 }}>
+                    This map answers a simple question: <b>where are prices higher, lower, or changing faster</b>, and how that varies when you compare like-for-like homes.
+                    The quickest way to use it is to set the area size first, then choose what kind of change you want to see.
+                  </div>
                   <ol start={1} style={{ margin: "0 0 10px 16px", padding: 0 }}>
-                    <li>Open <b>Menu</b> to access Filters, Description, Data sources, Next steps, and Reset.</li>
-                    <li>Use <b>Filters</b> for Grid, Metric, Type, New build, and Period.</li>
-                    <li>Use <b>Value filter</b> on the right for Median, Change (£), or Change (%) with Above/Below thresholds.</li>
-                    <li>Use <b>Overlay filters</b> to toggle Flood overlay (<b>testing only</b>).</li>
-                    <li>Click a grid cell to open postcode context and launch Zoopla links.</li>
+                    <li><b>Grid</b> controls the level of detail. Smaller cells show street-level variation; larger cells are better for regional patterns.</li>
+                    <li><b>Metric</b> changes what the colours mean: median price, change in pounds, or change in percent.</li>
+                    <li><b>Type</b> and <b>New build</b> keep comparisons fair by avoiding mixed property stock.</li>
+                    <li><b>Period</b> lets you compare different years so you can check whether patterns are recent or persistent.</li>
                   </ol>
-                  <div style={{ fontWeight: 600, marginBottom: 6 }}>Mobile tips</div>
-                  <ol start={1} style={{ margin: "0 0 10px 16px", padding: 0 }}>
-                    <li>Overlay and Value panels can collapse into small left-side boxes using the arrow button.</li>
-                    <li>Tap the arrow again to expand the full panel controls.</li>
-                    <li>Current filters are shown as compact text under the Scotland note.</li>
-                  </ol>
-                  <button
-                    type="button"
-                    onClick={() => setInstructionsPage(2)}
-                    style={{
-                      cursor: "pointer",
-                      border: "1px solid rgba(255,255,255,0.18)",
-                      background: "rgba(255,255,255,0.08)",
-                      color: "white",
-                      padding: "4px 8px",
-                      borderRadius: 999,
-                      fontSize: 10,
-                    }}
-                  >
-                    Next page
-                  </button>
+                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => setInstructionsPage(2)}
+                      style={{
+                        cursor: "pointer",
+                        border: "1px solid rgba(255,255,255,0.18)",
+                        background: "rgba(255,255,255,0.08)",
+                        color: "white",
+                        padding: "4px 8px",
+                        borderRadius: 999,
+                        fontSize: 10,
+                      }}
+                    >
+                      Next page
+                    </button>
+                  </div>
                 </>
               )}
 
               {instructionsPage === 2 && (
                 <>
-                  <div style={{ fontWeight: 600, marginBottom: 6 }}>What this is useful for</div>
+                  <div style={{ fontSize: 10, opacity: 0.7, marginBottom: 8 }}>Page 2 of 3 · Filters and overlays</div>
+                  <div style={{ marginBottom: 8 }}>
+                    The right-side panels are for focused testing. They are separate from the main menu so you can adjust thresholds quickly while keeping the map visible.
+                  </div>
                   <ol start={1} style={{ margin: "0 0 10px 16px", padding: 0 }}>
-                    <li>Spotting undervalued or expensive pockets within the same town or city.</li>
-                    <li>Comparing local markets without postcode boundary distortions.</li>
-                    <li>Understanding how prices change as you move away from city centres.</li>
-                    <li>Testing whether flood-prone areas overlap with weaker price performance.</li>
+                    <li><b>Value filter</b> shows only areas above or below a threshold. Use this to isolate cheap/expensive areas or strong movers.</li>
+                    <li>The threshold scale is <b>metric-specific</b>: £ range for median/change-£ and % range for change-%.</li>
+                    <li><b>Overlay filters</b> currently includes Flood (<b>testing</b>) so you can trial overlap analysis without treating it as final risk data.</li>
+                    <li>On mobile, Overlay and Value panels can be collapsed into small boxes so the map remains readable.</li>
                   </ol>
-                  <div style={{ fontWeight: 600, marginBottom: 6 }}>Notes on the data</div>
+                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => setInstructionsPage(1)}
+                      style={{
+                        cursor: "pointer",
+                        border: "1px solid rgba(255,255,255,0.18)",
+                        background: "rgba(255,255,255,0.08)",
+                        color: "white",
+                        padding: "4px 8px",
+                        borderRadius: 999,
+                        fontSize: 10,
+                      }}
+                    >
+                      Previous page
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setInstructionsPage(3)}
+                      style={{
+                        cursor: "pointer",
+                        border: "1px solid rgba(255,255,255,0.18)",
+                        background: "rgba(255,255,255,0.08)",
+                        color: "white",
+                        padding: "4px 8px",
+                        borderRadius: 999,
+                        fontSize: 10,
+                      }}
+                    >
+                      Next page
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {instructionsPage === 3 && (
+                <>
+                  <div style={{ fontSize: 10, opacity: 0.7, marginBottom: 8 }}>Page 3 of 3 · Reading results carefully</div>
+                  <div style={{ fontWeight: 600, marginBottom: 6 }}>How to interpret what you see</div>
+                  <ol start={1} style={{ margin: "0 0 10px 16px", padding: 0 }}>
+                    <li>Clicking a cell opens postcode context; this helps move from pattern-finding to practical checking.</li>
+                    <li>Use medians as a robust baseline, then switch to change metrics to test momentum.</li>
+                    <li>If a pattern appears, change one filter at a time to check whether the signal still holds.</li>
+                    <li>Treat flood overlay as exploratory context until production-grade historic datasets are integrated.</li>
+                  </ol>
+                  <div style={{ fontWeight: 600, marginBottom: 6 }}>Data notes</div>
                   <ol start={1} style={{ margin: 0, padding: "0 0 0 16px" }}>
-                    <li>Prices are based on sold prices, not asking prices.</li>
-                    <li>Values are medians, not averages, to reduce distortion from outliers.</li>
-                    <li>Coverage is strongest for England and Wales; Scotland is partial and may be less recent.</li>
-                    <li>Flood overlay is currently labelled <b>testing</b> and not production risk data.</li>
+                    <li>Prices are sold prices, not asking prices.</li>
+                    <li>Medians reduce outlier distortion but can still move if the mix of sold homes changes.</li>
+                    <li>Scotland coverage is partial and may lag by 1–2 years in places.</li>
                   </ol>
-                  <button
-                    type="button"
-                    onClick={() => setInstructionsPage(1)}
-                    style={{
-                      marginTop: 10,
-                      cursor: "pointer",
-                      border: "1px solid rgba(255,255,255,0.18)",
-                      background: "rgba(255,255,255,0.08)",
-                      color: "white",
-                      padding: "4px 8px",
-                      borderRadius: 999,
-                      fontSize: 10,
-                    }}
-                  >
-                    Previous page
-                  </button>
+                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => setInstructionsPage(2)}
+                      style={{
+                        cursor: "pointer",
+                        border: "1px solid rgba(255,255,255,0.18)",
+                        background: "rgba(255,255,255,0.08)",
+                        color: "white",
+                        padding: "4px 8px",
+                        borderRadius: 999,
+                        fontSize: 10,
+                      }}
+                    >
+                      Previous page
+                    </button>
+                  </div>
                 </>
               )}
           </div>
