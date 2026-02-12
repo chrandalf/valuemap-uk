@@ -238,54 +238,127 @@ export default function Home() {
   const formatFilterValue = (value: number) => `£${formatLegendCurrency(value)}`;
 
   const periodLabel = PERIOD_LABEL[state.endMonth ?? "2025-12-01"] ?? (state.endMonth ?? "LATEST");
+
+  const formatSignedPounds = (value: number) => {
+    if (!Number.isFinite(value)) return "N/A";
+    const sign = value > 0 ? "+" : value < 0 ? "-" : "";
+    return `${sign}£${Math.round(Math.abs(value)).toLocaleString()}`;
+  };
+  const formatSignedPercent = (value: number) => {
+    if (!Number.isFinite(value)) return "N/A";
+    const sign = value > 0 ? "+" : value < 0 ? "-" : "";
+    return `${sign}${Math.abs(value).toFixed(1)}%`;
+  };
+
+  const formatMetricFilterValue = (metric: Metric, value: number) => {
+    if (metric === "median") return formatFilterValue(value);
+    return metric === "delta_gbp" ? formatSignedPounds(value) : formatSignedPercent(value);
+  };
+
   const valueFilterLabel =
-    state.metric !== "median" || state.valueFilterMode === "off"
+    state.valueFilterMode === "off"
       ? "Off"
-      : `${state.valueFilterMode === "lte" ? "Below" : "Above"} ${formatFilterValue(state.valueThreshold)}`;
+      : `${state.valueFilterMode === "lte" ? "Below" : "Above"} ${formatMetricFilterValue(state.metric, state.valueThreshold)}`;
   const currentFiltersSummary =
     `Grid: ${state.grid} · Metric: ${METRIC_LABEL[state.metric]} · ` +
     `Type: ${PROPERTY_LABEL[state.propertyType]} · New build: ${NEWBUILD_LABEL[state.newBuild]} · ` +
     `Period: ${periodLabel}`;
 
-  // Global value-filter scale (stable across other filters)
-  const VALUE_FILTER_GLOBAL_MIN = 50_000;
-  const VALUE_FILTER_GLOBAL_MAX = 3_000_000;
-  const valueFilterMin = VALUE_FILTER_GLOBAL_MIN;
-  const valueFilterMax = VALUE_FILTER_GLOBAL_MAX;
+  // Global value-filter scales (stable across other filters), per metric
+  const MEDIAN_FILTER_MIN = 50_000;
+  const MEDIAN_FILTER_MAX = 3_000_000;
+  const DELTA_GBP_FILTER_MAX_ABS = 200_000;
+  const DELTA_PCT_FILTER_MAX_ABS = 30;
+
+  const valueFilterMin =
+    state.metric === "median"
+      ? MEDIAN_FILTER_MIN
+      : state.metric === "delta_gbp"
+        ? -DELTA_GBP_FILTER_MAX_ABS
+        : -DELTA_PCT_FILTER_MAX_ABS;
+  const valueFilterMax =
+    state.metric === "median"
+      ? MEDIAN_FILTER_MAX
+      : state.metric === "delta_gbp"
+        ? DELTA_GBP_FILTER_MAX_ABS
+        : DELTA_PCT_FILTER_MAX_ABS;
 
   const clamp = (n: number, lo: number, hi: number) => Math.min(Math.max(n, lo), hi);
 
-  // Slider is logarithmic to give much more resolution at lower values.
-  // We keep the UI slider in "position" space and map to a price threshold.
+  // Slider is logarithmic for median (more resolution at lower values) and
+  // signed-power for deltas (more resolution around 0, symmetric).
   const SLIDER_POS_MAX = 1000;
-  const safeMin = Math.max(1, valueFilterMin);
-  const safeMax = Math.max(safeMin + 1, valueFilterMax);
-  const logMin = Math.log(safeMin);
-  const logMax = Math.log(safeMax);
-  const logRange = Math.max(1e-9, logMax - logMin);
 
   const posToThreshold = (pos: number) => {
     const p = clamp(pos, 0, SLIDER_POS_MAX);
-    const t = p / SLIDER_POS_MAX;
-    const raw = Math.exp(logMin + logRange * t);
-    // Round to nearest £1k for stable display + predictable filtering
-    return Math.round(raw / 1000) * 1000;
+
+    if (state.metric === "median") {
+      const safeMin = Math.max(1, MEDIAN_FILTER_MIN);
+      const safeMax = Math.max(safeMin + 1, MEDIAN_FILTER_MAX);
+      const logMin = Math.log(safeMin);
+      const logMax = Math.log(safeMax);
+      const logRange = Math.max(1e-9, logMax - logMin);
+      const t = p / SLIDER_POS_MAX;
+      const raw = Math.exp(logMin + logRange * t);
+      return Math.round(raw / 1000) * 1000;
+    }
+
+    const mid = SLIDER_POS_MAX / 2;
+    const x = (p - mid) / mid; // [-1, 1]
+    const k = 3;
+    const maxAbs = state.metric === "delta_gbp" ? DELTA_GBP_FILTER_MAX_ABS : DELTA_PCT_FILTER_MAX_ABS;
+    const raw = Math.sign(x) * Math.pow(Math.abs(x), k) * maxAbs;
+    return state.metric === "delta_gbp" ? Math.round(raw / 1000) * 1000 : Math.round(raw * 10) / 10;
   };
 
   const thresholdToPos = (value: number) => {
-    const v = clamp(Number.isFinite(value) ? value : 300000, safeMin, safeMax);
-    const t = (Math.log(v) - logMin) / logRange;
-    return Math.round(clamp(t, 0, 1) * SLIDER_POS_MAX);
+    const v = Number.isFinite(value) ? value : 0;
+
+    if (state.metric === "median") {
+      const safeMin = Math.max(1, MEDIAN_FILTER_MIN);
+      const safeMax = Math.max(safeMin + 1, MEDIAN_FILTER_MAX);
+      const logMin = Math.log(safeMin);
+      const logMax = Math.log(safeMax);
+      const logRange = Math.max(1e-9, logMax - logMin);
+      const vv = clamp(v, safeMin, safeMax);
+      const t = (Math.log(vv) - logMin) / logRange;
+      return Math.round(clamp(t, 0, 1) * SLIDER_POS_MAX);
+    }
+
+    const maxAbs = state.metric === "delta_gbp" ? DELTA_GBP_FILTER_MAX_ABS : DELTA_PCT_FILTER_MAX_ABS;
+    const vv = clamp(v, -maxAbs, maxAbs);
+    const k = 3;
+    const t = Math.sign(vv) * Math.pow(Math.abs(vv) / maxAbs, 1 / k);
+    const mid = SLIDER_POS_MAX / 2;
+    return Math.round((t * mid) + mid);
   };
 
   useEffect(() => {
-    if (state.metric !== "median") return;
     setState((s) => {
-      const raw = Number.isFinite(s.valueThreshold) ? s.valueThreshold : 300000;
-      const rounded = Math.round(raw / 1000) * 1000;
-      const clamped = clamp(rounded, safeMin, safeMax);
-      if (clamped === s.valueThreshold) return s;
-      return { ...s, valueThreshold: clamped };
+      const raw = Number.isFinite(s.valueThreshold) ? s.valueThreshold : 0;
+
+      if (s.metric === "median") {
+        const rounded = Math.round(raw / 1000) * 1000;
+        const clamped = clamp(rounded, MEDIAN_FILTER_MIN, MEDIAN_FILTER_MAX);
+        if (clamped === s.valueThreshold) return s;
+        return { ...s, valueThreshold: clamped };
+      }
+
+      if (s.metric === "delta_gbp") {
+        const maxAbs = DELTA_GBP_FILTER_MAX_ABS;
+        const rounded = Math.round(raw / 1000) * 1000;
+        const clamped = clamp(rounded, -maxAbs, maxAbs);
+        const next = Math.abs(raw) > maxAbs ? 0 : clamped;
+        if (next === s.valueThreshold) return s;
+        return { ...s, valueThreshold: next };
+      }
+
+      const maxAbs = DELTA_PCT_FILTER_MAX_ABS;
+      const rounded = Math.round(raw * 10) / 10;
+      const clamped = clamp(rounded, -maxAbs, maxAbs);
+      const next = Math.abs(raw) > maxAbs ? 0 : clamped;
+      if (next === s.valueThreshold) return s;
+      return { ...s, valueThreshold: next };
     });
   }, [state.metric]);
 
@@ -884,7 +957,7 @@ export default function Home() {
       </div>
 
       {/* Right-side stacked panels */}
-      {!postcodeOpen && (legendOpen || state.metric === "median") && (
+      {!postcodeOpen && (legendOpen || state.metric === "median" || state.metric === "delta_gbp" || state.metric === "delta_pct") && (
         <div
           className="right-panels"
           style={{
@@ -992,7 +1065,11 @@ export default function Home() {
             </div>
           )}
 
-          {state.metric === "median" && (
+          {(
+            state.metric === "median" ||
+            state.metric === "delta_gbp" ||
+            state.metric === "delta_pct"
+          ) && (
             <div
               className="value-filter-panel"
               style={{
@@ -1007,9 +1084,17 @@ export default function Home() {
               }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                <div style={{ fontWeight: 600 }}>Median value filter</div>
+                <div style={{ fontWeight: 600 }}>
+                  {state.metric === "median"
+                    ? "Median value filter"
+                    : state.metric === "delta_gbp"
+                      ? "Change (£) filter"
+                      : "Change (%) filter"}
+                </div>
                 <div style={{ fontSize: 10, opacity: 0.7 }}>
-                  {formatLegendCurrency(valueFilterMin)}–{formatLegendCurrency(valueFilterMax)}
+                  {state.metric === "median"
+                    ? `${formatFilterValue(valueFilterMin)}–${formatFilterValue(valueFilterMax)}`
+                    : `${formatMetricFilterValue(state.metric, valueFilterMin)}–${formatMetricFilterValue(state.metric, valueFilterMax)}`}
                 </div>
               </div>
 
@@ -1049,7 +1134,7 @@ export default function Home() {
                         style={{ width: "100%" }}
                       />
                       <div style={{ fontSize: 11, opacity: 0.75 }}>
-                        {`${state.valueFilterMode === "lte" ? "Below" : "Above"} ${formatFilterValue(state.valueThreshold)}`}
+                        {valueFilterLabel}
                       </div>
                     </div>
                   </div>

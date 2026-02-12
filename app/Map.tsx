@@ -994,12 +994,20 @@ function gridToMeters(grid: "1km" | "5km" | "10km" | "25km") {
 }
 
 function buildValueFilter(state: MapState) {
-  if (state.metric !== "median") return null;
   const mode = state.valueFilterMode ?? "off";
   const threshold = state.valueThreshold;
   if (mode === "off" || !Number.isFinite(threshold)) return null;
   const op = mode === "lte" ? "<=" : ">=";
-  return [op, ["get", "median"], threshold] as any;
+
+  const prop =
+    state.metric === "median"
+      ? "median"
+      : state.metric === "delta_gbp"
+        ? "delta_gbp"
+        : "delta_pct";
+
+  // Coalesce missing values to 0 so the filter behaves deterministically.
+  return [op, ["coalesce", ["get", prop], 0], threshold] as any;
 }
 
 function applyValueFilter(map: maplibregl.Map, state: MapState) {
