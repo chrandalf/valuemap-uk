@@ -17,6 +17,7 @@ type MapState = {
   endMonth?: string;
   valueFilterMode: ValueFilterMode;
   valueThreshold: number;
+  floodOverlay: boolean;
 };
 
 type OutcodeRank = {
@@ -62,6 +63,7 @@ export default function Home() {
     endMonth: "2025-12-01",
     valueFilterMode: "off",
     valueThreshold: 300000,
+    floodOverlay: false,
   });
   const [legend, setLegend] = useState<LegendData | null>(null);
   const medianLegend =
@@ -95,6 +97,7 @@ export default function Home() {
     endMonth: "2025-12-01",
     valueFilterMode: "off",
     valueThreshold: 300000,
+    floodOverlay: false,
   };
   const closeAllSubpanels = () => {
     setFiltersOpen(false);
@@ -262,7 +265,7 @@ export default function Home() {
   const currentFiltersSummary =
     `Grid: ${state.grid} · Metric: ${METRIC_LABEL[state.metric]} · ` +
     `Type: ${PROPERTY_LABEL[state.propertyType]} · New build: ${NEWBUILD_LABEL[state.newBuild]} · ` +
-    `Period: ${periodLabel}`;
+    `Period: ${periodLabel} · Flood: ${state.floodOverlay ? "On (testing)" : "Off"}`;
 
   // Global value-filter scales (stable across other filters), per metric
   const MEDIAN_FILTER_MIN = 50_000;
@@ -700,6 +703,15 @@ export default function Home() {
                 />
               </ControlRow>
 
+              <ControlRow label="Flood">
+                <Segment
+                  options={["off", "on"]}
+                  value={state.floodOverlay ? "on" : "off"}
+                  onChange={(v) => setState((s) => ({ ...s, floodOverlay: v === "on" }))}
+                  renderOption={(v) => (v === "on" ? "On (testing)" : "Off")}
+                />
+              </ControlRow>
+
               <ControlRow label="Type">
                 <Segment
                   options={["ALL", "D", "S", "T", "F"]}
@@ -936,19 +948,22 @@ export default function Home() {
             </div>
             <ol start={1} style={{ margin: 0, padding: "0 0 0 16px" }}>
               <li>
-                v0.2: I will add EPC-linked property detail so I can filter by rooms and compute price per square metre or square foot.
+                v0.2: I will add flood exposure data (rivers/sea and surface water) so I can test whether price drops correlate with flood risk.
               </li>
               <li>
-                v0.3: I will add confidence/coverage indicators per cell (e.g., sales count banding or a low-data flag).
+                v0.3: I will add EPC-linked property detail so I can filter by rooms and compute price per square metre or square foot.
               </li>
               <li>
-                v0.4: I will add a comparison mode with side-by-side metrics or a then vs now slider.
+                v0.4: I will add confidence/coverage indicators per cell (e.g., sales count banding or a low-data flag).
               </li>
               <li>
-                v0.5: I will add commuting/transport overlays (rail/metro stations) to contextualize price gradients.
+                v0.5: I will add a comparison mode with side-by-side metrics or a then vs now slider.
               </li>
               <li>
-                v0.6: I will add affordability layers after I add income data (price-to-income ratios).
+                v0.6: I will add commuting/transport overlays (rail/metro stations) to contextualize price gradients.
+              </li>
+              <li>
+                v0.7: I will add affordability layers after I add income data (price-to-income ratios).
               </li>
             </ol>
           </div>

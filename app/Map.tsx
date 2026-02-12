@@ -16,6 +16,7 @@ export type MapState = {
   endMonth?: string;
   valueFilterMode?: ValueFilterMode;
   valueThreshold?: number;
+  floodOverlay?: boolean;
 };
 
 export type LegendData =
@@ -46,6 +47,60 @@ type ApiRow = {
   delta_gbp?: number;
   delta_pct?: number;
   years_stale?: number;
+};
+
+const FLOOD_TESTING_GEOJSON: any = {
+  type: "FeatureCollection",
+  features: [
+    {
+      type: "Feature",
+      properties: { severity: "high", label: "Thames (testing)" },
+      geometry: {
+        type: "Polygon",
+        coordinates: [
+          [
+            [-0.20, 51.46],
+            [-0.20, 51.56],
+            [0.05, 51.56],
+            [0.05, 51.46],
+            [-0.20, 51.46],
+          ],
+        ],
+      },
+    },
+    {
+      type: "Feature",
+      properties: { severity: "med", label: "Severn (testing)" },
+      geometry: {
+        type: "Polygon",
+        coordinates: [
+          [
+            [-2.33, 51.80],
+            [-2.33, 51.92],
+            [-2.15, 51.92],
+            [-2.15, 51.80],
+            [-2.33, 51.80],
+          ],
+        ],
+      },
+    },
+    {
+      type: "Feature",
+      properties: { severity: "low", label: "Trent (testing)" },
+      geometry: {
+        type: "Polygon",
+        coordinates: [
+          [
+            [-1.22, 52.92],
+            [-1.22, 53.05],
+            [-1.02, 53.05],
+            [-1.02, 52.92],
+            [-1.22, 52.92],
+          ],
+        ],
+      },
+    },
+  ],
 };
 
 export default function ValueMap({
@@ -176,6 +231,12 @@ export default function ValueMap({
         data: { type: "FeatureCollection", features: [] },
   });
 
+  // Testing flood overlay (not real data)
+  map.addSource("flood-testing", {
+    type: "geojson",
+    data: FLOOD_TESTING_GEOJSON,
+  });
+
   map.addLayer({
     id: "cells-fill",
     type: "fill",
@@ -183,6 +244,44 @@ export default function ValueMap({
     paint: {
       "fill-color": getFillColorExpression(state.metric),
       "fill-opacity": 0.42,
+    },
+  });
+
+  map.addLayer({
+    id: "flood-testing-fill",
+    type: "fill",
+    source: "flood-testing",
+    layout: {
+      visibility: stateRef.current.floodOverlay ? "visible" : "none",
+    },
+    paint: {
+      "fill-color": "#fdae61",
+      "fill-opacity": [
+        "match",
+        ["get", "severity"],
+        "high",
+        0.25,
+        "med",
+        0.16,
+        "low",
+        0.1,
+        0.12,
+      ] as any,
+    },
+  });
+
+  map.addLayer({
+    id: "flood-testing-outline",
+    type: "line",
+    source: "flood-testing",
+    layout: {
+      visibility: stateRef.current.floodOverlay ? "visible" : "none",
+    },
+    paint: {
+      "line-color": "rgba(0,0,0,0.65)",
+      "line-width": 2,
+      "line-dasharray": [2, 2],
+      "line-opacity": 0.9,
     },
   });
 
@@ -377,6 +476,24 @@ export default function ValueMap({
 
     applyValueFilter(map, state);
   }, [state.metric, state.valueFilterMode, state.valueThreshold]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (!map.isStyleLoaded()) return;
+
+    const visibility = state.floodOverlay ? "visible" : "none";
+    try {
+      if (map.getLayer("flood-testing-fill")) {
+        map.setLayoutProperty("flood-testing-fill", "visibility", visibility);
+      }
+      if (map.getLayer("flood-testing-outline")) {
+        map.setLayoutProperty("flood-testing-outline", "visibility", visibility);
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [state.floodOverlay]);
 
   // Note: metric changes already trigger setRealData (via deps below).
   // Avoid a separate recolor effect to prevent stale data/legend during rapid filter changes.
