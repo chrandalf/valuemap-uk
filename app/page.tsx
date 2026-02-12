@@ -591,6 +591,33 @@ export default function Home() {
           {menuOpen && !anySubpanelOpen && (
             <button
               type="button"
+              className="panel-toggle menu-btn"
+              onClick={() => {
+                closeAllSubpanels();
+                setFiltersOpen(true);
+              }}
+              aria-expanded={filtersOpen}
+              aria-controls="filters-panel"
+              style={{
+                padding: "6px 10px",
+                borderRadius: 999,
+                border: "2px solid rgba(147,197,253,0.9)",
+                background: "rgba(59,130,246,0.22)",
+                color: "white",
+                fontSize: 11,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              {filtersOpen ? "Hide filters" : "Filters"}
+            </button>
+          )}
+
+          {menuOpen && !anySubpanelOpen && (
+            <button
+              type="button"
               onClick={resetAll}
               className="reset-toggle menu-btn"
               style={{
@@ -604,51 +631,6 @@ export default function Home() {
               }}
             >
               Reset
-            </button>
-          )}
-
-          {menuOpen && !anySubpanelOpen && (
-            <button
-              type="button"
-              className="panel-toggle menu-btn"
-              onClick={() => {
-                closeAllSubpanels();
-                setFiltersOpen(true);
-              }}
-              aria-expanded={filtersOpen}
-              aria-controls="filters-panel"
-              style={{
-                padding: "6px 10px",
-                borderRadius: 999,
-                border: "1px solid rgba(255,255,255,0.18)",
-                background: "rgba(255,255,255,0.08)",
-                color: "white",
-                fontSize: 11,
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-              }}
-            >
-              {filtersOpen ? "Hide filters" : "Filters"}
-            </button>
-          )}
-          {menuOpen && !anySubpanelOpen && (
-            <button
-              type="button"
-              onClick={() => setLegendOpen((v) => !v)}
-              className="legend-toggle menu-btn"
-              style={{
-                cursor: "pointer",
-                border: "1px solid rgba(255,255,255,0.18)",
-                background: "rgba(255,255,255,0.08)",
-                color: "white",
-                padding: "6px 10px",
-                borderRadius: 999,
-                fontSize: 11,
-              }}
-            >
-              {legendOpen ? "Hide legend" : "Show legend"}
             </button>
           )}
           {menuOpen && !anySubpanelOpen && (
@@ -1736,8 +1718,10 @@ export function Styles() {
           line-height: 1.1;
         }
         .mobile-grid-btn.active {
-          background: rgba(255,255,255,0.2);
-          border-color: rgba(255,255,255,0.5);
+          background: rgba(147,197,253,0.95);
+          color: rgba(10,12,20,0.95);
+          border-color: rgba(191,219,254,1);
+          box-shadow: 0 0 0 1px rgba(10,12,20,0.45) inset, 0 2px 10px rgba(0,0,0,0.35);
         }
         .mobile-grid-btn:disabled {
           opacity: 0.45;
