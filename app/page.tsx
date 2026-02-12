@@ -87,12 +87,27 @@ export default function Home() {
   const [outcodeLimit, setOutcodeLimit] = useState(3);
 
   const anySubpanelOpen = filtersOpen || instructionsOpen || descriptionOpen || dataSourcesOpen || nextStepsOpen;
+  const DEFAULT_STATE: MapState = {
+    grid: "5km",
+    metric: "median",
+    propertyType: "ALL",
+    newBuild: "ALL",
+    endMonth: "2025-12-01",
+    valueFilterMode: "off",
+    valueThreshold: 300000,
+  };
   const closeAllSubpanels = () => {
     setFiltersOpen(false);
     setInstructionsOpen(false);
     setDescriptionOpen(false);
     setDataSourcesOpen(false);
     setNextStepsOpen(false);
+  };
+  const resetAll = () => {
+    setState(DEFAULT_STATE);
+    setLegendOpen(true);
+    closeAllSubpanels();
+    setMenuOpen(true);
   };
 
   const formatLegendCurrency = (value: number) => {
@@ -318,7 +333,7 @@ export default function Home() {
         </div>
         <div
           className="panel-actions"
-          data-menu-open={menuOpen ? "true" : "false"}
+          data-menu-open={menuOpen && !anySubpanelOpen ? "true" : "false"}
           style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}
         >
           <button
@@ -362,6 +377,25 @@ export default function Home() {
             </svg>
             {anySubpanelOpen ? "Back" : menuOpen ? "Close menu" : "Menu"}
           </button>
+
+          {menuOpen && !anySubpanelOpen && (
+            <button
+              type="button"
+              onClick={resetAll}
+              className="reset-toggle menu-btn"
+              style={{
+                cursor: "pointer",
+                border: "1px solid rgba(255,255,255,0.18)",
+                background: "rgba(255,255,255,0.08)",
+                color: "white",
+                padding: "6px 10px",
+                borderRadius: 999,
+                fontSize: 11,
+              }}
+            >
+              Reset
+            </button>
+          )}
 
           {menuOpen && !anySubpanelOpen && (
             <button
@@ -1138,11 +1172,8 @@ export function Styles() {
       }
       .panel-actions[data-menu-open="true"] {
         display: grid !important;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 8px;
-      }
-      .panel-actions[data-menu-open="true"] .menu-toggle {
-        grid-column: 1 / -1;
       }
       .panel-actions .menu-btn {
         flex: 1 1 120px;
@@ -1161,9 +1192,6 @@ export function Styles() {
           display: grid !important;
           grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
           gap: 8px !important;
-        }
-        .panel-actions .menu-toggle {
-          grid-column: 1 / -1;
         }
         .panel-actions .menu-btn {
           width: 100% !important;
