@@ -281,13 +281,6 @@ export default function ValueMap({
   const [postcodeMaxPrice, setPostcodeMaxPrice] = useState<number | null>(null);
   const fetchPostcodesRef = useRef<(gx: number, gy: number, offset: number, append: boolean) => void>(() => {});
 
-  const confidenceFromTx = (tx: number) => {
-    if (!Number.isFinite(tx) || tx <= 0) return "No sales";
-    if (tx < 10) return "Low";
-    if (tx < 30) return "Medium";
-    return "High";
-  };
-
 
   useEffect(() => {
     stateRef.current = state;
@@ -532,7 +525,6 @@ export default function ValueMap({
     const tx = Number(p.tx_count ?? 0);
     const dg = Number(p.delta_gbp ?? 0);
     const dp = Number(p.delta_pct ?? 0);
-    const confidence = confidenceFromTx(tx);
 
     // Show delta popup only if we're actually looking at delta data (deltas are non-zero)
     let html = "";
@@ -542,16 +534,14 @@ export default function ValueMap({
         <div style="font-family: system-ui; font-size: 12px; line-height: 1.25;">
           <div style="font-weight: 700; margin-bottom: 4px;">${sign}GBP ${Math.abs(dg).toLocaleString()}</div>
           <div>Change %: <b>${dp.toFixed(1)}%</b></div>
-          <div>Sales: <b>${tx}</b></div>
-          <div>Confidence: <b>${confidence}</b></div>
+          <div>Sales sample: <b>${tx}</b></div>
         </div>
       `;
     } else {
       html = `
         <div style="font-family: system-ui; font-size: 12px; line-height: 1.25;">
           <div style="font-weight: 700; margin-bottom: 4px;">GBP ${median.toLocaleString()}</div>
-          <div>Sales: <b>${tx}</b></div>
-          <div>Confidence: <b>${confidence}</b></div>
+          <div>Sales sample: <b>${tx}</b></div>
         </div>
       `;
     }
