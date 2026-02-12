@@ -78,6 +78,15 @@ export default function Home() {
   const [outcodeMode, setOutcodeMode] = useState<"top" | "bottom">("bottom");
   const [outcodeLimit, setOutcodeLimit] = useState(3);
 
+  const anySubpanelOpen = filtersOpen || instructionsOpen || descriptionOpen || dataSourcesOpen || nextStepsOpen;
+  const closeAllSubpanels = () => {
+    setFiltersOpen(false);
+    setInstructionsOpen(false);
+    setDescriptionOpen(false);
+    setDataSourcesOpen(false);
+    setNextStepsOpen(false);
+  };
+
   const formatLegendCurrency = (value: number) => {
     if (!Number.isFinite(value)) return "N/A";
     const rounded = Math.round(value);
@@ -205,10 +214,11 @@ export default function Home() {
 
   const formatFilterValue = (value: number) => `£${formatLegendCurrency(value)}`;
 
-  const medianMin = medianLegend?.breaks?.[0];
-  const medianMax = medianLegend?.breaks?.[medianLegend.breaks.length - 1];
-  const valueFilterMin = Number.isFinite(medianMin) ? Math.floor((medianMin as number) / 1000) * 1000 : 50000;
-  const valueFilterMax = Number.isFinite(medianMax) ? Math.ceil((medianMax as number) / 1000) * 1000 : 1500000;
+  // Global value-filter scale (stable across other filters)
+  const VALUE_FILTER_GLOBAL_MIN = 50_000;
+  const VALUE_FILTER_GLOBAL_MAX = 3_000_000;
+  const valueFilterMin = VALUE_FILTER_GLOBAL_MIN;
+  const valueFilterMax = VALUE_FILTER_GLOBAL_MAX;
 
   const clamp = (n: number, lo: number, hi: number) => Math.min(Math.max(n, lo), hi);
 
@@ -237,7 +247,6 @@ export default function Home() {
 
   useEffect(() => {
     if (state.metric !== "median") return;
-    if (!Number.isFinite(medianMin) || !Number.isFinite(medianMax)) return;
     setState((s) => {
       const raw = Number.isFinite(s.valueThreshold) ? s.valueThreshold : 300000;
       const rounded = Math.round(raw / 1000) * 1000;
@@ -245,7 +254,7 @@ export default function Home() {
       if (clamped === s.valueThreshold) return s;
       return { ...s, valueThreshold: clamped };
     });
-  }, [medianMin, medianMax, state.metric]);
+  }, [state.metric]);
 
   const showOutcodePanel = false;
 
@@ -288,49 +297,59 @@ export default function Home() {
         </div>
         <div
           className="panel-actions"
+          data-menu-open={menuOpen ? "true" : "false"}
           style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}
         >
-          {!instructionsOpen && !descriptionOpen && !dataSourcesOpen && !nextStepsOpen && (
-            <button
-              type="button"
-              className="menu-toggle"
-              onClick={() => setMenuOpen((v) => !v)}
-              aria-expanded={menuOpen}
-              aria-controls="master-menu"
-              style={{
-                padding: "6px 10px",
-                borderRadius: 999,
-                border: "1px solid rgba(255,255,255,0.18)",
-                background: "rgba(255,255,255,0.08)",
-                color: "white",
-                fontSize: 11,
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-              }}
+          <button
+            type="button"
+            className="menu-toggle"
+            onClick={() => {
+              if (anySubpanelOpen) {
+                closeAllSubpanels();
+                setMenuOpen(true);
+                return;
+              }
+              setMenuOpen((v) => !v);
+            }}
+            aria-expanded={menuOpen}
+            aria-controls="master-menu"
+            style={{
+              padding: "6px 10px",
+              borderRadius: 999,
+              border: "1px solid rgba(255,255,255,0.18)",
+              background: "rgba(255,255,255,0.08)",
+              color: "white",
+              fontSize: 11,
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              focusable="false"
+              style={{ display: "block" }}
             >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-                focusable="false"
-                style={{ display: "block" }}
-              >
-                <path
-                  fill="currentColor"
-                  d="M12 8.5a3.5 3.5 0 1 0 0 7a3.5 3.5 0 0 0 0-7Zm8.94 2.39-1.63-.94c.1-.46.15-.94.15-1.45c0-.5-.05-.99-.15-1.45l1.63-.94a.5.5 0 0 0 .2-.65l-1.54-2.66a.5.5 0 0 0-.62-.22l-1.62.66a7.8 7.8 0 0 0-2.5-1.45l-.25-1.72A.5.5 0 0 0 13.1 0h-3.2a.5.5 0 0 0-.49.42l-.25 1.72a7.8 7.8 0 0 0-2.5 1.45l-1.62-.66a.5.5 0 0 0-.62.22L1.88 5.8a.5.5 0 0 0 .2.65l1.63.94c-.1.46-.15.94-.15 1.45c0 .5.05.99.15 1.45l-1.63.94a.5.5 0 0 0-.2.65l1.54 2.66a.5.5 0 0 0 .62.22l1.62-.66c.74.6 1.6 1.08 2.5 1.45l.25 1.72c.03.24.25.42.49.42h3.2c.24 0 .45-.18.49-.42l.25-1.72c.9-.37 1.76-.85 2.5-1.45l1.62.66a.5.5 0 0 0 .62-.22l1.54-2.66a.5.5 0 0 0-.2-.65ZM12 17a5 5 0 1 1 0-10a5 5 0 0 1 0 10Z"
-                />
-              </svg>
-              {menuOpen ? "Close menu" : "Menu"}
-            </button>
-          )}
-          {!instructionsOpen && !descriptionOpen && !dataSourcesOpen && !nextStepsOpen && menuOpen && (
+              <path
+                fill="currentColor"
+                d="M12 8.5a3.5 3.5 0 1 0 0 7a3.5 3.5 0 0 0 0-7Zm8.94 2.39-1.63-.94c.1-.46.15-.94.15-1.45c0-.5-.05-.99-.15-1.45l1.63-.94a.5.5 0 0 0 .2-.65l-1.54-2.66a.5.5 0 0 0-.62-.22l-1.62.66a7.8 7.8 0 0 0-2.5-1.45l-.25-1.72A.5.5 0 0 0 13.1 0h-3.2a.5.5 0 0 0-.49.42l-.25 1.72a7.8 7.8 0 0 0-2.5 1.45l-1.62-.66a.5.5 0 0 0-.62.22L1.88 5.8a.5.5 0 0 0 .2.65l1.63.94c-.1.46-.15.94-.15 1.45c0 .5.05.99.15 1.45l-1.63.94a.5.5 0 0 0-.2.65l1.54 2.66a.5.5 0 0 0 .62.22l1.62-.66c.74.6 1.6 1.08 2.5 1.45l.25 1.72c.03.24.25.42.49.42h3.2c.24 0 .45-.18.49-.42l.25-1.72c.9-.37 1.76-.85 2.5-1.45l1.62.66a.5.5 0 0 0 .62-.22l1.54-2.66a.5.5 0 0 0-.2-.65ZM12 17a5 5 0 1 1 0-10a5 5 0 0 1 0 10Z"
+              />
+            </svg>
+            {anySubpanelOpen ? "Back" : menuOpen ? "Close menu" : "Menu"}
+          </button>
+
+          {menuOpen && !anySubpanelOpen && (
             <button
               type="button"
               className="panel-toggle menu-btn"
-              onClick={() => setFiltersOpen((v) => !v)}
+              onClick={() => {
+                closeAllSubpanels();
+                setFiltersOpen(true);
+              }}
               aria-expanded={filtersOpen}
               aria-controls="filters-panel"
               style={{
@@ -349,7 +368,7 @@ export default function Home() {
               {filtersOpen ? "Hide filters" : "Filters"}
             </button>
           )}
-          {!instructionsOpen && !descriptionOpen && !dataSourcesOpen && !nextStepsOpen && menuOpen && (
+          {menuOpen && !anySubpanelOpen && (
             <button
               type="button"
               onClick={() => setLegendOpen((v) => !v)}
@@ -367,16 +386,13 @@ export default function Home() {
               {legendOpen ? "Hide legend" : "Show legend"}
             </button>
           )}
-          {!instructionsOpen && !descriptionOpen && !dataSourcesOpen && !nextStepsOpen && menuOpen && (
+          {menuOpen && !anySubpanelOpen && (
             <button
               type="button"
               onClick={() => {
+                closeAllSubpanels();
                 setInstructionsOpen(true);
-                setDescriptionOpen(false);
-                setDataSourcesOpen(false);
-                setNextStepsOpen(false);
-                setFiltersOpen(false);
-                setMenuOpen(false);
+                setMenuOpen(true);
               }}
               className="instructions-toggle menu-btn"
               style={{
@@ -392,17 +408,14 @@ export default function Home() {
               Instructions
             </button>
           )}
-          {!instructionsOpen && !descriptionOpen && !nextStepsOpen && menuOpen && (
+          {menuOpen && !anySubpanelOpen && (
             <button
               type="button"
               onClick={() => {
+                closeAllSubpanels();
                 setDescriptionOpen(true);
                 setDescriptionPage(1);
-                setInstructionsOpen(false);
-                setDataSourcesOpen(false);
-                setNextStepsOpen(false);
-                setFiltersOpen(false);
-                setMenuOpen(false);
+                setMenuOpen(true);
               }}
               className="description-toggle menu-btn"
               style={{
@@ -418,16 +431,13 @@ export default function Home() {
               Description
             </button>
           )}
-          {!instructionsOpen && !descriptionOpen && !dataSourcesOpen && !nextStepsOpen && menuOpen && (
+          {menuOpen && !anySubpanelOpen && (
             <button
               type="button"
               onClick={() => {
+                closeAllSubpanels();
                 setDataSourcesOpen(true);
-                setInstructionsOpen(false);
-                setDescriptionOpen(false);
-                setNextStepsOpen(false);
-                setFiltersOpen(false);
-                setMenuOpen(false);
+                setMenuOpen(true);
               }}
               className="datasources-toggle menu-btn"
               style={{
@@ -443,16 +453,13 @@ export default function Home() {
               Data sources
             </button>
           )}
-          {!instructionsOpen && !descriptionOpen && !dataSourcesOpen && !nextStepsOpen && menuOpen && (
+          {menuOpen && !anySubpanelOpen && (
             <button
               type="button"
               onClick={() => {
+                closeAllSubpanels();
                 setNextStepsOpen(true);
-                setInstructionsOpen(false);
-                setDescriptionOpen(false);
-                setDataSourcesOpen(false);
-                setFiltersOpen(false);
-                setMenuOpen(false);
+                setMenuOpen(true);
               }}
               className="nextsteps-toggle menu-btn"
               style={{
@@ -492,6 +499,7 @@ export default function Home() {
                   type="button"
                   onClick={() => {
                     setInstructionsOpen(false);
+                    setMenuOpen(true);
                   }}
                   style={{
                     cursor: "pointer",
@@ -639,6 +647,7 @@ export default function Home() {
                 onClick={() => {
                   setDescriptionOpen(false);
                   setDescriptionPage(1);
+                  setMenuOpen(true);
                 }}
                 style={{
                   cursor: "pointer",
@@ -734,6 +743,7 @@ export default function Home() {
                 type="button"
                 onClick={() => {
                   setDataSourcesOpen(false);
+                  setMenuOpen(true);
                 }}
                 style={{
                   cursor: "pointer",
@@ -777,6 +787,7 @@ export default function Home() {
                 type="button"
                 onClick={() => {
                   setNextStepsOpen(false);
+                  setMenuOpen(true);
                 }}
                 style={{
                   cursor: "pointer",
@@ -938,12 +949,9 @@ export default function Home() {
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                 <div style={{ fontWeight: 600 }}>Median value filter</div>
-                {medianLegend && (
-                  <div style={{ fontSize: 10, opacity: 0.7 }}>
-                    {formatLegendCurrency(medianLegend.breaks[0])}–
-                    {formatLegendCurrency(medianLegend.breaks[medianLegend.breaks.length - 1])}
-                  </div>
-                )}
+                <div style={{ fontSize: 10, opacity: 0.7 }}>
+                  {formatLegendCurrency(valueFilterMin)}–{formatLegendCurrency(valueFilterMax)}
+                </div>
               </div>
 
               <div style={{ display: "grid", gap: 10 }}>
@@ -974,7 +982,6 @@ export default function Home() {
                         max={1000}
                         step={1}
                         value={thresholdToPos(state.valueThreshold)}
-                        disabled={!medianLegend}
                         onChange={(e) => {
                           const pos = Number(e.target.value);
                           const next = posToThreshold(pos);
@@ -983,9 +990,7 @@ export default function Home() {
                         style={{ width: "100%" }}
                       />
                       <div style={{ fontSize: 11, opacity: 0.75 }}>
-                        {!medianLegend
-                          ? "Loading scale…"
-                          : `${state.valueFilterMode === "lte" ? "Below" : "Above"} ${formatFilterValue(state.valueThreshold)}`}
+                        {`${state.valueFilterMode === "lte" ? "Below" : "Above"} ${formatFilterValue(state.valueThreshold)}`}
                       </div>
                     </div>
                   </div>
@@ -1081,6 +1086,14 @@ export function Styles() {
     <style jsx global>{`
       .panel-actions {
         align-items: stretch;
+      }
+      .panel-actions[data-menu-open="true"] {
+        display: grid !important;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .panel-actions[data-menu-open="true"] .menu-toggle {
+        grid-column: 1 / -1;
       }
       .panel-actions .menu-btn {
         flex: 1 1 120px;
