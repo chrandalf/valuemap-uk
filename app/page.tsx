@@ -139,7 +139,7 @@ export default function Home() {
       setFiltersOpen(false);
       setOverlayPanelCollapsed(true);
       setValuePanelCollapsed(true);
-      setGridMode("auto");
+      setGridMode("manual");
     }
   }, []);
 
@@ -838,6 +838,7 @@ export default function Home() {
                     The right-side panels are for focused testing. They are separate from the main menu so you can adjust thresholds quickly while keeping the map visible.
                   </div>
                   <ol start={1} style={{ margin: "0 0 10px 16px", padding: 0 }}>
+                    <li>On mobile, the default is <b>Manual grid</b>. Use the <b>Auto</b> button beside <b>Filters</b> if you want grid size to follow zoom.</li>
                     <li><b>Value filter</b> shows only areas above or below a threshold. Use this to isolate cheap/expensive areas or strong movers.</li>
                     <li>The threshold scale is <b>metric-specific</b>: £ range for median/change-£ and % range for change-%.</li>
                     <li><b>Overlay filters</b> currently includes Flood (<b>testing</b>) so you can trial overlap analysis without treating it as final risk data.</li>
@@ -1538,18 +1539,27 @@ export default function Home() {
         </div>
       )}
 
-      {!filtersOpen && !instructionsOpen && !descriptionOpen && !dataSourcesOpen && !nextStepsOpen && (
-        <button
-          type="button"
-          className="mobile-filters-cta"
-          onClick={() => {
-            closeAllSubpanels();
-            setMenuOpen(true);
-            setFiltersOpen(true);
-          }}
-        >
-          Filters{activeFilterCount > 0 ? ` (${activeFilterCount} active)` : ""}
-        </button>
+      {!filtersOpen && !menuOpen && !postcodeOpen && !instructionsOpen && !descriptionOpen && !dataSourcesOpen && !nextStepsOpen && (
+        <div className="mobile-filters-bar">
+          <button
+            type="button"
+            className="mobile-filters-cta"
+            onClick={() => {
+              closeAllSubpanels();
+              setMenuOpen(true);
+              setFiltersOpen(true);
+            }}
+          >
+            Filters{activeFilterCount > 0 ? ` (${activeFilterCount} active)` : ""}
+          </button>
+          <button
+            type="button"
+            className="mobile-auto-cta"
+            onClick={() => setGridMode((v) => (v === "auto" ? "manual" : "auto"))}
+          >
+            {gridMode === "auto" ? "Auto" : "Manual"}
+          </button>
+        </div>
       )}
     </main>
   );
@@ -1635,7 +1645,7 @@ export function Styles() {
         white-space: nowrap;
       }
       .menu-filter-summary {
-        display: block;
+        display: none;
       }
       .panel button,
       .right-panels button {
@@ -1652,22 +1662,36 @@ export function Styles() {
       .mobile-filters-cta {
         display: none;
       }
+      .mobile-auto-cta {
+        display: none;
+      }
+      .mobile-filters-bar {
+        display: none;
+      }
       .mobile-collapsible .title-mini {
         display: none;
       }
       @media (max-width: 640px) {
         .menu-filter-summary {
-          display: none !important;
+          display: block !important;
         }
         .auto-grid-row {
           display: flex !important;
         }
-        .mobile-filters-cta {
+        .mobile-filters-bar {
           display: inline-flex !important;
           position: fixed !important;
           right: 12px !important;
-          bottom: 12px !important;
+          top: calc(76px + env(safe-area-inset-top)) !important;
+          bottom: auto !important;
           z-index: 5 !important;
+          gap: 6px;
+        }
+        .mobile-filters-cta,
+        .mobile-auto-cta {
+          display: inline-flex !important;
+          align-items: center;
+          justify-content: center;
           cursor: pointer;
           border: 1px solid rgba(255,255,255,0.24);
           background: rgba(10, 12, 20, 0.9);
