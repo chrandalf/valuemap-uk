@@ -94,6 +94,7 @@ export default function Home() {
   const [valuePanelCollapsed, setValuePanelCollapsed] = useState(false);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [gridMode, setGridMode] = useState<GridMode>("manual");
+  const [mapZoom, setMapZoom] = useState<number | null>(null);
   const urlHydratedRef = useRef(false);
 
   const anySubpanelOpen = filtersOpen || instructionsOpen || descriptionOpen || dataSourcesOpen || nextStepsOpen;
@@ -143,18 +144,21 @@ export default function Home() {
   }, []);
 
   const autoGridForZoom = (zoom: number, metric: Metric): GridSize => {
-    if (zoom >= 11) return metric === "median" ? "1km" : "5km";
-    if (zoom >= 9) return "5km";
-    if (zoom >= 7) return "10km";
+    if (zoom >= 10.4) return metric === "median" ? "1km" : "5km";
+    if (zoom >= 8.8) return "5km";
+    if (zoom >= 6.7) return "10km";
     return "25km";
   };
 
   const handleMapZoomChange = (zoom: number) => {
+    setMapZoom(zoom);
     if (!isMobileViewport) return;
     if (gridMode !== "auto") return;
-    const nextGrid = autoGridForZoom(zoom, state.metric);
-    if (nextGrid === state.grid) return;
-    setState((s) => ({ ...s, grid: nextGrid }));
+    setState((s) => {
+      const nextGrid = autoGridForZoom(zoom, s.metric);
+      if (nextGrid === s.grid) return s;
+      return { ...s, grid: nextGrid };
+    });
   };
 
   useEffect(() => {
@@ -163,6 +167,16 @@ export default function Home() {
       setState((s) => ({ ...s, grid: "5km" }));
     }
   }, [isMobileViewport, gridMode, state.metric, state.grid]);
+
+  useEffect(() => {
+    if (!isMobileViewport || gridMode !== "auto") return;
+    if (mapZoom == null) return;
+    setState((s) => {
+      const nextGrid = autoGridForZoom(mapZoom, s.metric);
+      if (nextGrid === s.grid) return s;
+      return { ...s, grid: nextGrid };
+    });
+  }, [isMobileViewport, gridMode, mapZoom, state.metric]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -362,6 +376,8 @@ export default function Home() {
     `Grid: ${state.grid} · Metric: ${METRIC_LABEL[state.metric]} · ` +
     `Type: ${PROPERTY_LABEL[state.propertyType]} · New build: ${NEWBUILD_LABEL[state.newBuild]} · ` +
     `Period: ${periodLabel} · Flood: ${floodOverlayLabel}`;
+  const headerFilterSummary =
+    `${state.grid} · ${METRIC_LABEL[state.metric]} · ${PROPERTY_LABEL[state.propertyType]} · ${NEWBUILD_LABEL[state.newBuild]} · ${periodLabel}`;
 
   // Global value-filter scales (stable across other filters), per metric
   const MEDIAN_FILTER_MIN = 50_000;
@@ -560,6 +576,27 @@ export default function Home() {
             </svg>
             {anySubpanelOpen ? "Back" : menuOpen ? "Close menu" : "Menu"}
           </button>
+
+          <div
+            className="menu-filter-summary"
+            aria-live="polite"
+            style={{
+              padding: "6px 9px",
+              borderRadius: 10,
+              border: "1px solid rgba(255,255,255,0.12)",
+              background: "rgba(255,255,255,0.04)",
+              color: "rgba(255,255,255,0.9)",
+              fontSize: 10,
+              lineHeight: 1.25,
+              maxWidth: 310,
+              flex: "1 1 220px",
+              minWidth: 0,
+              whiteSpace: "normal",
+              overflowWrap: "anywhere",
+            }}
+          >
+            {`Current: ${headerFilterSummary}`}
+          </div>
 
           {menuOpen && !anySubpanelOpen && (
             <button
@@ -1597,6 +1634,9 @@ export function Styles() {
         justify-content: center;
         white-space: nowrap;
       }
+      .menu-filter-summary {
+        display: block;
+      }
       .panel button,
       .right-panels button {
         transition: background-color 120ms ease, border-color 120ms ease, opacity 120ms ease;
@@ -1616,6 +1656,9 @@ export function Styles() {
         display: none;
       }
       @media (max-width: 640px) {
+        .menu-filter-summary {
+          display: none !important;
+        }
         .auto-grid-row {
           display: flex !important;
         }
