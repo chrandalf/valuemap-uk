@@ -225,6 +225,31 @@ const FLOOD_TESTING_GEOJSON: any = {
         ],
       },
     },
+    {
+      type: "Feature",
+      properties: { severity: "high", label: "Somerset county-wide (testing, large)" },
+      geometry: {
+        type: "Polygon",
+        coordinates: [
+          [
+            [-3.86, 50.86],
+            [-3.62, 50.98],
+            [-3.30, 51.10],
+            [-2.98, 51.18],
+            [-2.66, 51.24],
+            [-2.46, 51.30],
+            [-2.35, 51.18],
+            [-2.39, 51.03],
+            [-2.49, 50.90],
+            [-2.73, 50.84],
+            [-3.05, 50.80],
+            [-3.42, 50.79],
+            [-3.72, 50.81],
+            [-3.86, 50.86],
+          ],
+        ],
+      },
+    },
   ],
 };
 
@@ -639,7 +664,7 @@ export default function ValueMap({
 
     const mode = state.floodOverlayMode ?? "off";
     const floodVisibility = mode === "off" ? "none" : "visible";
-    const cellsVisibility = mode === "on_hide_cells" ? "none" : "visible";
+    const hideCellsMode = mode === "on_hide_cells";
     try {
       if (map.getLayer("flood-testing-fill")) {
         map.setLayoutProperty("flood-testing-fill", "visibility", floodVisibility);
@@ -648,13 +673,16 @@ export default function ValueMap({
         map.setLayoutProperty("flood-testing-outline", "visibility", floodVisibility);
       }
       if (map.getLayer("cells-fill")) {
-        map.setLayoutProperty("cells-fill", "visibility", cellsVisibility);
+        map.setLayoutProperty("cells-fill", "visibility", "visible");
+        map.setPaintProperty("cells-fill", "fill-opacity", hideCellsMode ? 0.09 : 0.42);
       }
       if (map.getLayer("cells-outline")) {
-        map.setLayoutProperty("cells-outline", "visibility", cellsVisibility);
+        map.setLayoutProperty("cells-outline", "visibility", "visible");
+        map.setPaintProperty("cells-outline", "line-opacity", hideCellsMode ? 0.22 : 1);
       }
       if (map.getLayer("cells-no-sales")) {
-        map.setLayoutProperty("cells-no-sales", "visibility", cellsVisibility);
+        map.setLayoutProperty("cells-no-sales", "visibility", "visible");
+        map.setPaintProperty("cells-no-sales", "text-opacity", hideCellsMode ? 0.2 : 1);
       }
     } catch (e) {
       // ignore
