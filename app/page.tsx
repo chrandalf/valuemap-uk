@@ -144,9 +144,9 @@ export default function Home() {
   }, []);
 
   const autoGridForZoom = (zoom: number, metric: Metric): GridSize => {
-    if (zoom >= 10.4) return metric === "median" ? "1km" : "5km";
-    if (zoom >= 8.8) return "5km";
-    if (zoom >= 6.7) return "10km";
+    if (zoom >= 9.4) return metric === "median" ? "1km" : "5km";
+    if (zoom >= 8.2) return "5km";
+    if (zoom >= 6.0) return "10km";
     return "25km";
   };
 
@@ -1231,6 +1231,7 @@ export default function Home() {
       {!postcodeOpen && !instructionsOpen && !descriptionOpen && (legendOpen || state.metric === "median" || state.metric === "delta_gbp" || state.metric === "delta_pct") && (
         <div
           className="right-panels"
+          data-menu-open={menuOpen ? "true" : "false"}
           style={{
             position: "absolute",
             right: 18,
@@ -1681,11 +1682,14 @@ export function Styles() {
         .mobile-filters-bar {
           display: inline-flex !important;
           position: fixed !important;
-          right: 12px !important;
-          top: calc(76px + env(safe-area-inset-top)) !important;
+          left: 10px !important;
+          right: auto !important;
+          top: 50% !important;
           bottom: auto !important;
+          transform: translateY(-50%);
           z-index: 5 !important;
           gap: 6px;
+          flex-direction: column;
         }
         .mobile-filters-cta,
         .mobile-auto-cta {
@@ -1701,6 +1705,10 @@ export function Styles() {
           font-size: 11px;
           font-weight: 600;
           box-shadow: 0 2px 10px rgba(0,0,0,0.35);
+          max-width: 132px;
+          text-align: center;
+          white-space: normal;
+          line-height: 1.1;
         }
         .current-filters-mobile {
           display: block;
@@ -1832,6 +1840,9 @@ export function Styles() {
           max-height: 60svh !important;
           overflow: auto !important;
           -webkit-overflow-scrolling: touch;
+        }
+        .right-panels[data-menu-open="true"] {
+          display: none !important;
         }
         .mobile-collapse-toggle {
           display: inline-flex !important;
