@@ -227,6 +227,10 @@ export default function Home() {
     state.metric !== "median" || state.valueFilterMode === "off"
       ? "Off"
       : `${state.valueFilterMode === "lte" ? "Below" : "Above"} ${formatFilterValue(state.valueThreshold)}`;
+  const currentFiltersSummary =
+    `Grid: ${state.grid} · Metric: ${METRIC_LABEL[state.metric]} · ` +
+    `Type: ${PROPERTY_LABEL[state.propertyType]} · New build: ${NEWBUILD_LABEL[state.newBuild]} · ` +
+    `Period: ${periodLabel}`;
 
   // Global value-filter scale (stable across other filters)
   const VALUE_FILTER_GLOBAL_MIN = 50_000;
@@ -495,6 +499,9 @@ export default function Home() {
         </div>
         <div style={{ marginTop: 6, fontSize: 11, opacity: 0.7 }}>
           Scotland coverage is partial and may be 1–2 years out of date.
+        </div>
+        <div className="current-filters-mobile" style={{ marginTop: 6, fontSize: 10, opacity: 0.65, lineHeight: 1.25 }}>
+          {`Current filters: ${currentFiltersSummary} · Value filter: ${valueFilterLabel}`}
         </div>
         {instructionsOpen && (
           <div
@@ -1015,6 +1022,7 @@ export default function Home() {
                 )}
 
                 <div
+                  className="current-filters-box"
                   style={{
                     marginTop: 2,
                     padding: "8px 10px",
@@ -1027,7 +1035,7 @@ export default function Home() {
                     Current filters
                   </div>
                   <div style={{ fontSize: 11, opacity: 0.8, lineHeight: 1.35 }}>
-                    {`Grid: ${state.grid} · Metric: ${METRIC_LABEL[state.metric]} · Type: ${PROPERTY_LABEL[state.propertyType]} · New build: ${NEWBUILD_LABEL[state.newBuild]} · Period: ${periodLabel}`}
+                    {currentFiltersSummary}
                   </div>
                   <div style={{ fontSize: 11, opacity: 0.8, marginTop: 4 }}>
                     {`Value filter: ${valueFilterLabel}`}
@@ -1125,6 +1133,9 @@ export function Styles() {
       .panel-actions {
         align-items: stretch;
       }
+      .current-filters-mobile {
+        display: none;
+      }
       .panel-actions[data-menu-open="true"] {
         display: grid !important;
         grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1140,6 +1151,12 @@ export function Styles() {
         white-space: nowrap;
       }
       @media (max-width: 640px) {
+        .current-filters-mobile {
+          display: block;
+        }
+        .current-filters-box {
+          display: none !important;
+        }
         .panel-actions {
           display: grid !important;
           grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
