@@ -403,40 +403,19 @@ export default function ValueMap({
     popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
   };
 
-  map.on("mousemove", "flood-overlay-points", (e) => {
+  map.on("click", "flood-overlay-points", (e) => {
     if (!useFloodPopupMode()) return;
-    map.getCanvas().style.cursor = "pointer";
     showFloodPointPopup(e);
   });
 
-  map.on("mouseleave", "flood-overlay-points", () => {
+  map.on("click", "flood-overlay-clusters", (e) => {
     if (!useFloodPopupMode()) return;
-    map.getCanvas().style.cursor = "";
-    popup.remove();
-  });
-
-  map.on("mousemove", "flood-overlay-clusters", (e) => {
-    if (!useFloodPopupMode()) return;
-    map.getCanvas().style.cursor = "pointer";
     showFloodClusterPopup(e);
   });
 
-  map.on("mouseleave", "flood-overlay-clusters", () => {
+  map.on("click", "flood-overlay-cluster-count", (e) => {
     if (!useFloodPopupMode()) return;
-    map.getCanvas().style.cursor = "";
-    popup.remove();
-  });
-
-  map.on("mousemove", "flood-overlay-cluster-count", (e) => {
-    if (!useFloodPopupMode()) return;
-    map.getCanvas().style.cursor = "pointer";
     showFloodClusterPopup(e);
-  });
-
-  map.on("mouseleave", "flood-overlay-cluster-count", () => {
-    if (!useFloodPopupMode()) return;
-    map.getCanvas().style.cursor = "";
-    popup.remove();
   });
 
   map.on("mousemove", "cells-fill", (e) => {
@@ -522,6 +501,10 @@ export default function ValueMap({
   fetchPostcodesRef.current = fetchPostcodes;
 
   map.on("click", "cells-fill", (e) => {
+    if (useFloodPopupMode()) {
+      return;
+    }
+
     const f = e.features?.[0] as any;
     if (!f) return;
     const gx = Number(f.properties?.gx);
