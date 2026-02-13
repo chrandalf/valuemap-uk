@@ -50,209 +50,6 @@ type ApiRow = {
   years_stale?: number;
 };
 
-const FLOOD_TESTING_GEOJSON: any = {
-  type: "FeatureCollection",
-  features: [
-    {
-      type: "Feature",
-      properties: { severity: "high", label: "Thames (testing)" },
-      geometry: {
-        type: "Polygon",
-        coordinates: [
-          [
-            [-0.142, 51.493],
-            [-0.124, 51.498],
-            [-0.109, 51.504],
-            [-0.095, 51.509],
-            [-0.078, 51.515],
-            [-0.061, 51.519],
-            [-0.058, 51.527],
-            [-0.076, 51.522],
-            [-0.093, 51.516],
-            [-0.111, 51.511],
-            [-0.127, 51.505],
-            [-0.145, 51.499],
-            [-0.142, 51.493],
-          ],
-        ],
-      },
-    },
-    {
-      type: "Feature",
-      properties: { severity: "med", label: "Severn (testing)" },
-      geometry: {
-        type: "Polygon",
-        coordinates: [
-          [
-            [-2.281, 51.853],
-            [-2.267, 51.862],
-            [-2.252, 51.871],
-            [-2.239, 51.882],
-            [-2.229, 51.892],
-            [-2.216, 51.901],
-            [-2.209, 51.896],
-            [-2.221, 51.887],
-            [-2.233, 51.877],
-            [-2.247, 51.866],
-            [-2.262, 51.857],
-            [-2.276, 51.848],
-            [-2.281, 51.853],
-          ],
-        ],
-      },
-    },
-    {
-      type: "Feature",
-      properties: { severity: "low", label: "Trent (testing)" },
-      geometry: {
-        type: "Polygon",
-        coordinates: [
-          [
-            [-1.187, 52.968],
-            [-1.173, 52.972],
-            [-1.159, 52.976],
-            [-1.144, 52.981],
-            [-1.130, 52.986],
-            [-1.116, 52.992],
-            [-1.120, 52.999],
-            [-1.135, 52.993],
-            [-1.149, 52.988],
-            [-1.164, 52.983],
-            [-1.178, 52.978],
-            [-1.191, 52.973],
-            [-1.187, 52.968],
-          ],
-        ],
-      },
-    },
-    {
-      type: "Feature",
-      properties: { severity: "med", label: "Ouse/York (testing)" },
-      geometry: {
-        type: "Polygon",
-        coordinates: [
-          [
-            [-1.132, 53.930],
-            [-1.112, 53.936],
-            [-1.094, 53.944],
-            [-1.078, 53.952],
-            [-1.064, 53.960],
-            [-1.056, 53.969],
-            [-1.062, 53.975],
-            [-1.077, 53.966],
-            [-1.093, 53.958],
-            [-1.111, 53.950],
-            [-1.128, 53.942],
-            [-1.138, 53.934],
-            [-1.132, 53.930],
-          ],
-        ],
-      },
-    },
-    {
-      type: "Feature",
-      properties: { severity: "high", label: "Mersey/Irwell (testing)" },
-      geometry: {
-        type: "Polygon",
-        coordinates: [
-          [
-            [-2.330, 53.462],
-            [-2.312, 53.469],
-            [-2.295, 53.476],
-            [-2.280, 53.485],
-            [-2.266, 53.493],
-            [-2.252, 53.500],
-            [-2.258, 53.507],
-            [-2.273, 53.499],
-            [-2.288, 53.491],
-            [-2.304, 53.483],
-            [-2.320, 53.475],
-            [-2.336, 53.468],
-            [-2.330, 53.462],
-          ],
-        ],
-      },
-    },
-    {
-      type: "Feature",
-      properties: { severity: "low", label: "Tyne (testing)" },
-      geometry: {
-        type: "Polygon",
-        coordinates: [
-          [
-            [-1.678, 54.940],
-            [-1.660, 54.946],
-            [-1.642, 54.952],
-            [-1.625, 54.960],
-            [-1.610, 54.967],
-            [-1.595, 54.973],
-            [-1.601, 54.979],
-            [-1.617, 54.972],
-            [-1.633, 54.965],
-            [-1.650, 54.958],
-            [-1.668, 54.951],
-            [-1.684, 54.945],
-            [-1.678, 54.940],
-          ],
-        ],
-      },
-    },
-    {
-      type: "Feature",
-      properties: { severity: "high", label: "Mid Wales floodplain (testing, larger)" },
-      geometry: {
-        type: "Polygon",
-        coordinates: [
-          [
-            [-3.845, 52.230],
-            [-3.805, 52.254],
-            [-3.760, 52.276],
-            [-3.715, 52.295],
-            [-3.668, 52.314],
-            [-3.622, 52.334],
-            [-3.586, 52.354],
-            [-3.558, 52.378],
-            [-3.570, 52.393],
-            [-3.606, 52.372],
-            [-3.650, 52.351],
-            [-3.695, 52.332],
-            [-3.742, 52.312],
-            [-3.788, 52.292],
-            [-3.832, 52.269],
-            [-3.856, 52.245],
-            [-3.845, 52.230],
-          ],
-        ],
-      },
-    },
-    {
-      type: "Feature",
-      properties: { severity: "high", label: "Somerset county-wide (testing, large)" },
-      geometry: {
-        type: "Polygon",
-        coordinates: [
-          [
-            [-3.86, 50.86],
-            [-3.62, 50.98],
-            [-3.30, 51.10],
-            [-2.98, 51.18],
-            [-2.66, 51.24],
-            [-2.46, 51.30],
-            [-2.35, 51.18],
-            [-2.39, 51.03],
-            [-2.49, 50.90],
-            [-2.73, 50.84],
-            [-3.05, 50.80],
-            [-3.42, 50.79],
-            [-3.72, 50.81],
-            [-3.86, 50.86],
-          ],
-        ],
-      },
-    },
-  ],
-};
-
 export default function ValueMap({
   state,
   onLegendChange,
@@ -397,7 +194,7 @@ export default function ValueMap({
 
   map.addSource("flood-overlay", {
     type: "geojson",
-    data: { type: "FeatureCollection", features: [] },
+    data: "/api/flood",
   });
 
   map.addLayer({
@@ -508,15 +305,6 @@ export default function ValueMap({
   });
 
   applyValueFilter(map, stateRef.current);
-
-  void loadFloodOverlayData().then((fc) => {
-    const floodSrc = map.getSource("flood-overlay") as maplibregl.GeoJSONSource | undefined;
-    floodSrc?.setData(fc as any);
-  }).catch((e) => {
-    console.warn("Failed to load flood overlay from /api/flood; using fallback", e);
-    const floodSrc = map.getSource("flood-overlay") as maplibregl.GeoJSONSource | undefined;
-    floodSrc?.setData(FLOOD_TESTING_GEOJSON as any);
-  });
 
   // Add hover tooltip (after layers exist)
   const popup = new maplibregl.Popup({
@@ -926,8 +714,6 @@ export default function ValueMap({
 
 /** ---------------- Real data wiring ---------------- */
 
-let floodOverlayPromise: Promise<any> | null = null;
-
 function floodSeverityExpression() {
   return [
     "coalesce",
@@ -963,23 +749,6 @@ function floodSeverityExpression() {
     ],
     0,
   ] as any;
-}
-
-async function loadFloodOverlayData() {
-  if (!floodOverlayPromise) {
-    floodOverlayPromise = (async () => {
-      const res = await fetch("/api/flood");
-      if (!res.ok) {
-        throw new Error(`Flood overlay API failed ${res.status}`);
-      }
-      const payload: any = await res.json();
-      if (payload?.type === "FeatureCollection" && Array.isArray(payload?.features)) {
-        return payload;
-      }
-      return { type: "FeatureCollection", features: [] };
-    })();
-  }
-  return floodOverlayPromise;
 }
 
 async function setRealData(
