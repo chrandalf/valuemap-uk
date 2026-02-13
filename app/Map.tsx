@@ -55,11 +55,17 @@ export default function ValueMap({
   onLegendChange,
   onPostcodePanelChange,
   onZoomChange,
+  postcodeSearchQuery,
+  postcodeSearchToken,
+  onPostcodeSearchResult,
 }: {
   state: MapState;
   onLegendChange?: (legend: LegendData | null) => void;
   onPostcodePanelChange?: (open: boolean) => void;
   onZoomChange?: (zoom: number) => void;
+  postcodeSearchQuery?: string;
+  postcodeSearchToken?: number;
+  onPostcodeSearchResult?: (found: boolean, normalizedQuery: string) => void;
 }) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -100,6 +106,59 @@ export default function ValueMap({
   useEffect(() => {
     onPostcodePanelChange?.(Boolean(postcodeCell));
   }, [postcodeCell, onPostcodePanelChange]);
+
+  useEffect(() => {
+    const rawQuery = (postcodeSearchQuery ?? "").trim();
+    const normalized = normalizePostcodeSearch(rawQuery);
+    if (!normalized) return;
+
+    const map = mapRef.current;
+    if (!map) return;
+
+    const runSearch = () => {
+      let features: any[] = [];
+      try {
+        features = map.querySourceFeatures("flood-overlay") as any[];
+      } catch {
+        onPostcodeSearchResult?.(false, normalized);
+        return;
+      }
+
+      let match: any | null = null;
+      for (const feature of features) {
+        const properties = feature?.properties ?? {};
+        if (properties?.point_count != null) continue;
+        const postcode = String(properties.postcode ?? "");
+        const postcodeKey = String(properties.postcode_key ?? postcode);
+        const candidates = [normalizePostcodeSearch(postcode), normalizePostcodeSearch(postcodeKey)];
+        if (candidates.includes(normalized)) {
+          match = feature;
+          break;
+        }
+      }
+
+      if (!match) {
+        onPostcodeSearchResult?.(false, normalized);
+        return;
+      }
+
+      const coordinates = (match.geometry as any)?.coordinates;
+      if (!Array.isArray(coordinates) || coordinates.length < 2) {
+        onPostcodeSearchResult?.(false, normalized);
+        return;
+      }
+
+      map.flyTo({ center: [Number(coordinates[0]), Number(coordinates[1])], zoom: Math.max(map.getZoom(), 13), essential: true });
+      onPostcodeSearchResult?.(true, normalized);
+    };
+
+    if (!map.isStyleLoaded()) {
+      map.once("idle", runSearch);
+      return;
+    }
+
+    runSearch();
+  }, [postcodeSearchToken, postcodeSearchQuery, onPostcodeSearchResult]);
 
 
   // Cache: avoid recomputing polygons when toggling metric only
@@ -1543,6 +1602,10 @@ function cartesianToLatLon(x: number, y: number, z: number, a_: number, b_: numb
 
 function degToRad(d: number) { return (d * Math.PI) / 180; }
 function radToDeg(r: number) { return (r * 180) / Math.PI; }
+
+function normalizePostcodeSearch(value: string) {
+  return value.replace(/\s+/g, "").toUpperCase().trim();
+}
 
 
 

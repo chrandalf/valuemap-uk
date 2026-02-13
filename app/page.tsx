@@ -92,6 +92,9 @@ export default function Home() {
   const [outcodeLimit, setOutcodeLimit] = useState(3);
   const [overlayPanelCollapsed, setOverlayPanelCollapsed] = useState(false);
   const [valuePanelCollapsed, setValuePanelCollapsed] = useState(false);
+  const [postcodeSearch, setPostcodeSearch] = useState("");
+  const [postcodeSearchToken, setPostcodeSearchToken] = useState(0);
+  const [postcodeSearchStatus, setPostcodeSearchStatus] = useState<string | null>(null);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [gridMode, setGridMode] = useState<GridMode>("manual");
   const [mapZoom, setMapZoom] = useState<number | null>(null);
@@ -487,6 +490,15 @@ export default function Home() {
         onLegendChange={setLegend}
         onPostcodePanelChange={setPostcodeOpen}
         onZoomChange={handleMapZoomChange}
+        postcodeSearchQuery={postcodeSearch}
+        postcodeSearchToken={postcodeSearchToken}
+        onPostcodeSearchResult={(found, normalizedQuery) => {
+          if (found) {
+            setPostcodeSearchStatus(`Found ${normalizedQuery}`);
+          } else {
+            setPostcodeSearchStatus(`Postcode not found: ${normalizedQuery}`);
+          }
+        }}
       />
 
       {/* Top-left product panel */}
@@ -732,6 +744,26 @@ export default function Home() {
         {(menuOpen || anySubpanelOpen) && (
           <div className="current-filters-mobile" style={{ marginTop: 6, fontSize: 10, opacity: 0.65, lineHeight: 1.25 }}>
             {`Current filters: ${currentFiltersSummary} · Value filter: ${valueFilterLabel}`}
+          </div>
+        )}
+        {(menuOpen || anySubpanelOpen) && (
+          <div
+            style={{
+              marginTop: 8,
+              padding: "8px 10px",
+              borderRadius: 10,
+              background: "rgba(255,255,255,0.08)",
+              border: "1px solid rgba(255,255,255,0.18)",
+              fontSize: 10,
+              lineHeight: 1.35,
+              opacity: 0.9,
+            }}
+          >
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>Information only</div>
+            <div>
+              Flood data shown here is for general information only and may be incomplete or out of date.
+              Always verify details with official sources and professional advice before making decisions.
+            </div>
           </div>
         )}
         {instructionsOpen && (
@@ -980,6 +1012,56 @@ export default function Home() {
                   }}
                 />
               </ControlRow>
+
+              <ControlRow label="Postcode">
+                <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, width: "100%" }}>
+                  <input
+                    type="text"
+                    value={postcodeSearch}
+                    onChange={(e) => {
+                      setPostcodeSearch(e.target.value);
+                      if (postcodeSearchStatus) setPostcodeSearchStatus(null);
+                    }}
+                    placeholder="e.g. AL10 0AA"
+                    aria-label="Search postcode"
+                    style={{
+                      width: "100%",
+                      borderRadius: 8,
+                      border: "1px solid rgba(255,255,255,0.2)",
+                      background: "rgba(255,255,255,0.08)",
+                      color: "white",
+                      padding: "6px 8px",
+                      fontSize: 12,
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!postcodeSearch.trim()) {
+                        setPostcodeSearchStatus("Enter a postcode");
+                        return;
+                      }
+                      setPostcodeSearchToken((v) => v + 1);
+                    }}
+                    style={{
+                      cursor: "pointer",
+                      border: "1px solid rgba(255,255,255,0.2)",
+                      background: "rgba(255,255,255,0.08)",
+                      color: "white",
+                      padding: "6px 10px",
+                      borderRadius: 8,
+                      fontSize: 12,
+                    }}
+                  >
+                    Go
+                  </button>
+                </div>
+              </ControlRow>
+              {postcodeSearchStatus && (
+                <div style={{ fontSize: 11, opacity: 0.78, marginTop: -4 }}>
+                  {postcodeSearchStatus}
+                </div>
+              )}
 
             </div>
 
