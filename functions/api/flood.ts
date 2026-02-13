@@ -45,10 +45,6 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
       return Response.json({ error: `Flood overlay not found for key '${key}'.` }, { status: 404 });
     }
 
-    if (!obj.body) {
-      return Response.json({ error: `Flood overlay object '${foundKey}' has no body.` }, { status: 500 });
-    }
-
     const headers = new Headers();
     headers.set("Cache-Control", "public, max-age=3600");
     headers.set("Content-Type", foundKey.endsWith(".geojson") || foundKey.endsWith(".geojson.gz") ? "application/geo+json; charset=utf-8" : "application/json; charset=utf-8");
@@ -57,7 +53,9 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     }
     headers.set("X-Flood-Key", foundKey);
 
-    return new Response(obj.body, {
+    const body = await obj.arrayBuffer();
+
+    return new Response(body, {
       status: 200,
       headers,
     });
