@@ -369,8 +369,8 @@ export default function Home() {
     state.floodOverlayMode === "off"
       ? "Off"
       : state.floodOverlayMode === "on"
-        ? "On (testing)"
-        : "On (hide cells, testing)";
+        ? "On"
+        : "On (hide cells)";
 
   const currentFiltersSummary =
     `Grid: ${state.grid} · Metric: ${METRIC_LABEL[state.metric]} · ` +
@@ -807,13 +807,13 @@ export default function Home() {
                 <>
                   <div style={{ fontSize: 10, opacity: 0.7, marginBottom: 8 }}>Page 2 of 3 · Filters and overlays</div>
                   <div style={{ marginBottom: 8 }}>
-                    The right-side panels are for focused testing. They are separate from the main menu so you can adjust thresholds quickly while keeping the map visible.
+                    The right-side panels are for focused filtering. They are separate from the main menu so you can adjust thresholds quickly while keeping the map visible.
                   </div>
                   <ol start={1} style={{ margin: "0 0 10px 16px", padding: 0 }}>
                     <li>On mobile, filters stay in the menu. Use the left-side zoom stack (<b>Auto</b>, 25km, 10km, 5km, 1km) to change map detail quickly.</li>
                     <li><b>Value filter</b> shows only areas above or below a threshold. Use this to isolate cheap/expensive areas or strong movers.</li>
                     <li>The threshold scale is <b>metric-specific</b>: £ range for median/change-£ and % range for change-%.</li>
-                    <li><b>Overlay filters</b> currently includes Flood (<b>testing</b>) so you can trial overlap analysis without treating it as final risk data.</li>
+                    <li><b>Overlay filters</b> includes Flood so you can compare value patterns against flood-risk hotspots.</li>
                     <li>On mobile, Overlay and Value panels can be collapsed into small boxes so the map remains readable.</li>
                   </ol>
                   <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
@@ -1328,7 +1328,7 @@ export default function Home() {
                 <span className="title-full">Overlay filters</span>
                 <span className="title-mini">Overlay</span>
               </div>
-              <div className="mobile-header-extra" style={{ fontSize: 10, opacity: 0.7 }}>Testing only</div>
+              <div className="mobile-header-extra" style={{ fontSize: 10, opacity: 0.7 }}>Flood risk overlay</div>
               <button
                 type="button"
                 className="mobile-collapse-toggle"
@@ -1359,8 +1359,8 @@ export default function Home() {
                 value={state.floodOverlayMode}
                 onChange={(v) => setState((s) => ({ ...s, floodOverlayMode: v as FloodOverlayMode }))}
                 renderOption={(v) => {
-                  if (v === "on") return "On (testing)";
-                  if (v === "on_hide_cells") return "On (hide cells, testing)";
+                  if (v === "on") return "On";
+                  if (v === "on_hide_cells") return "On (hide cells)";
                   return "Off";
                 }}
               />

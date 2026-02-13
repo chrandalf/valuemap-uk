@@ -395,10 +395,9 @@ export default function ValueMap({
         data: { type: "FeatureCollection", features: [] },
   });
 
-  // Testing flood overlay (not real data)
-  map.addSource("flood-testing", {
+  map.addSource("flood-overlay", {
     type: "geojson",
-    data: FLOOD_TESTING_GEOJSON,
+    data: { type: "FeatureCollection", features: [] },
   });
 
   map.addLayer({
@@ -412,70 +411,73 @@ export default function ValueMap({
   });
 
   map.addLayer({
-    id: "flood-testing-fill",
+    id: "flood-overlay-fill",
     type: "fill",
-    source: "flood-testing",
+    source: "flood-overlay",
+    filter: ["any", ["==", ["geometry-type"], "Polygon"], ["==", ["geometry-type"], "MultiPolygon"]] as any,
     layout: {
       visibility: stateRef.current.floodOverlayMode && stateRef.current.floodOverlayMode !== "off" ? "visible" : "none",
     },
     paint: {
       "fill-color": [
-        "match",
-        ["get", "severity"],
-        "high",
-        "#2563eb",
-        "med",
-        "#3b82f6",
-        "low",
+        "interpolate",
+        ["linear"],
+        floodSeverityExpression(),
+        0,
+        "#93c5fd",
+        2,
         "#60a5fa",
+        3,
         "#3b82f6",
+        4,
+        "#2563eb",
       ] as any,
-      "fill-opacity": [
-        "match",
-        ["get", "severity"],
-        "high",
-        0.12,
-        "med",
-        0.08,
-        "low",
-        0.05,
-        0.07,
-      ] as any,
+      "fill-opacity": ["interpolate", ["linear"], floodSeverityExpression(), 0, 0.03, 4, 0.12] as any,
     },
   });
 
   map.addLayer({
-    id: "flood-testing-outline",
+    id: "flood-overlay-outline",
     type: "line",
-    source: "flood-testing",
+    source: "flood-overlay",
+    filter: ["any", ["==", ["geometry-type"], "Polygon"], ["==", ["geometry-type"], "MultiPolygon"]] as any,
     layout: {
       visibility: stateRef.current.floodOverlayMode && stateRef.current.floodOverlayMode !== "off" ? "visible" : "none",
     },
     paint: {
-      "line-color": [
-        "match",
-        ["get", "severity"],
-        "high",
-        "rgba(37,99,235,0.95)",
-        "med",
-        "rgba(59,130,246,0.9)",
-        "low",
-        "rgba(96,165,250,0.85)",
-        "rgba(59,130,246,0.9)",
-      ] as any,
-      "line-width": [
-        "match",
-        ["get", "severity"],
-        "high",
-        1.8,
-        "med",
-        1.4,
-        "low",
-        1.1,
-        1.3,
-      ] as any,
+      "line-color": ["interpolate", ["linear"], floodSeverityExpression(), 0, "rgba(147,197,253,0.8)", 4, "rgba(37,99,235,0.95)"] as any,
+      "line-width": ["interpolate", ["linear"], floodSeverityExpression(), 0, 0.8, 4, 1.8] as any,
       "line-dasharray": [1, 1.5],
       "line-opacity": 0.9,
+    },
+  });
+
+  map.addLayer({
+    id: "flood-overlay-points",
+    type: "circle",
+    source: "flood-overlay",
+    filter: ["any", ["==", ["geometry-type"], "Point"], ["==", ["geometry-type"], "MultiPoint"]] as any,
+    layout: {
+      visibility: stateRef.current.floodOverlayMode && stateRef.current.floodOverlayMode !== "off" ? "visible" : "none",
+    },
+    paint: {
+      "circle-color": [
+        "interpolate",
+        ["linear"],
+        floodSeverityExpression(),
+        0,
+        "#93c5fd",
+        2,
+        "#60a5fa",
+        3,
+        "#3b82f6",
+        4,
+        "#2563eb",
+      ] as any,
+      "circle-opacity": ["interpolate", ["linear"], floodSeverityExpression(), 0, 0.2, 4, 0.55] as any,
+      "circle-radius": ["interpolate", ["linear"], floodSeverityExpression(), 0, 1.8, 4, 4.6] as any,
+      "circle-stroke-color": "rgba(255,255,255,0.85)",
+      "circle-stroke-width": 0.5,
     },
   });
 
@@ -506,6 +508,15 @@ export default function ValueMap({
   });
 
   applyValueFilter(map, stateRef.current);
+
+  void loadFloodOverlayData().then((fc) => {
+    const floodSrc = map.getSource("flood-overlay") as maplibregl.GeoJSONSource | undefined;
+    floodSrc?.setData(fc as any);
+  }).catch((e) => {
+    console.warn("Failed to load flood overlay from /api/flood; using fallback", e);
+    const floodSrc = map.getSource("flood-overlay") as maplibregl.GeoJSONSource | undefined;
+    floodSrc?.setData(FLOOD_TESTING_GEOJSON as any);
+  });
 
   // Add hover tooltip (after layers exist)
   const popup = new maplibregl.Popup({
@@ -680,11 +691,14 @@ export default function ValueMap({
     const floodVisibility = mode === "off" ? "none" : "visible";
     const hideCellsMode = mode === "on_hide_cells";
     try {
-      if (map.getLayer("flood-testing-fill")) {
-        map.setLayoutProperty("flood-testing-fill", "visibility", floodVisibility);
+      if (map.getLayer("flood-overlay-fill")) {
+        map.setLayoutProperty("flood-overlay-fill", "visibility", floodVisibility);
       }
-      if (map.getLayer("flood-testing-outline")) {
-        map.setLayoutProperty("flood-testing-outline", "visibility", floodVisibility);
+      if (map.getLayer("flood-overlay-outline")) {
+        map.setLayoutProperty("flood-overlay-outline", "visibility", floodVisibility);
+      }
+      if (map.getLayer("flood-overlay-points")) {
+        map.setLayoutProperty("flood-overlay-points", "visibility", floodVisibility);
       }
       if (map.getLayer("cells-fill")) {
         map.setLayoutProperty("cells-fill", "visibility", "visible");
@@ -911,6 +925,62 @@ export default function ValueMap({
 }
 
 /** ---------------- Real data wiring ---------------- */
+
+let floodOverlayPromise: Promise<any> | null = null;
+
+function floodSeverityExpression() {
+  return [
+    "coalesce",
+    ["to-number", ["get", "risk_score"]],
+    [
+      "match",
+      ["downcase", ["to-string", ["get", "risk_band"]]],
+      "high",
+      4,
+      "medium",
+      3,
+      "med",
+      3,
+      "low",
+      2,
+      "very low",
+      1,
+      "none",
+      0,
+      [
+        "match",
+        ["downcase", ["to-string", ["get", "severity"]]],
+        "high",
+        4,
+        "medium",
+        3,
+        "med",
+        3,
+        "low",
+        2,
+        0,
+      ],
+    ],
+    0,
+  ] as any;
+}
+
+async function loadFloodOverlayData() {
+  if (!floodOverlayPromise) {
+    floodOverlayPromise = (async () => {
+      const res = await fetch("/api/flood");
+      if (!res.ok) {
+        throw new Error(`Flood overlay API failed ${res.status}`);
+      }
+      const payload: any = await res.json();
+      if (payload?.type === "FeatureCollection" && Array.isArray(payload?.features)) {
+        return payload;
+      }
+      return { type: "FeatureCollection", features: [] };
+    })();
+  }
+  return floodOverlayPromise;
+}
 
 async function setRealData(
   map: maplibregl.Map,
