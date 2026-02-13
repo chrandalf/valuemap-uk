@@ -75,7 +75,7 @@ def write_json_gz(path: Path, payload: object) -> None:
         json.dump(payload, f, ensure_ascii=False)
 
 
-def build_assets(input_csv: Path, out_dir: Path) -> None:
+def build_assets(input_csv: Path, out_dir: Path, include_no_risk_points: bool = False) -> None:
     df = pd.read_csv(input_csv, dtype=str)
     df.columns = [normalize_colname(c) for c in df.columns]
 
@@ -171,8 +171,10 @@ def build_assets(input_csv: Path, out_dir: Path) -> None:
             }
         )
 
+    point_rows = dedup if include_no_risk_points else dedup[dedup["risk_score"] > 0]
+
     point_features = []
-    for row in dedup.itertuples(index=False):
+    for row in point_rows.itertuples(index=False):
         lon = to_float_or_none(row.longitude)
         lat = to_float_or_none(row.latitude)
         if lon is None or lat is None:
@@ -210,6 +212,7 @@ def build_assets(input_csv: Path, out_dir: Path) -> None:
         "postcodes": len(postcode_lookup),
         "outcodes": len(outcode_payload),
         "geojson_points": len(point_features),
+        "include_no_risk_points": bool(include_no_risk_points),
         "files": {
             "postcode_lookup": "flood_postcode_lookup.json.gz",
             "outcode_summary": "flood_outcode_summary.json.gz",
@@ -223,10 +226,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Build postcode-level flood assets for ValueMap.")
     parser.add_argument("--input-csv", type=Path, default=Path(DEFAULT_INPUT), help="Source flood CSV path")
     parser.add_argument("--out-dir", type=Path, default=Path(DEFAULT_OUT), help="Output folder")
+    parser.add_argument(
+        "--include-no-risk-points",
+        action="store_true",
+        help="Include risk_score=0 points in flood_postcode_points.geojson.gz (default excludes them).",
+    )
 
     # Notebook kernels (Kaggle/Colab/Jupyter) inject args like "-f <kernel.json>".
     # parse_known_args keeps CLI behaviour while ignoring those unrelated args.
     args, _unknown = parser.parse_known_args()
 
-    build_assets(args.input_csv, args.out_dir)
+    build_assets(args.input_csv, args.out_dir, include_no_risk_points=args.include_no_risk_points)
     print(f"Wrote flood assets to: {args.out_dir}")
