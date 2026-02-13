@@ -76,9 +76,6 @@ export default function ValueMap({
   const [postcodeError, setPostcodeError] = useState<string | null>(null);
   const [scotlandNote, setScotlandNote] = useState<string | null>(null);
   const [postcodeMaxPrice, setPostcodeMaxPrice] = useState<number | null>(null);
-  const [floodLoadState, setFloodLoadState] = useState<"idle" | "loading" | "ready" | "error">("idle");
-  const [floodRenderedCount, setFloodRenderedCount] = useState<number | null>(null);
-  const [floodError, setFloodError] = useState<string | null>(null);
   const fetchPostcodesRef = useRef<(gx: number, gy: number, offset: number, append: boolean) => void>(() => {});
 
 
@@ -202,20 +199,6 @@ export default function ValueMap({
     clusterMaxZoom: 10,
     clusterRadius: 50,
   });
-  setFloodLoadState("loading");
-  setFloodRenderedCount(null);
-  setFloodError(null);
-
-  const updateFloodRenderedCount = () => {
-    try {
-      const visibleFeatures = map.queryRenderedFeatures(undefined, {
-        layers: ["flood-overlay-clusters", "flood-overlay-cluster-count", "flood-overlay-points", "flood-overlay-fill", "flood-overlay-outline"],
-      });
-      setFloodRenderedCount(visibleFeatures.length);
-    } catch {
-      setFloodRenderedCount(null);
-    }
-  };
 
   map.addLayer({
     id: "flood-overlay-clusters",
@@ -264,29 +247,6 @@ export default function ValueMap({
       "text-color": "rgba(255,255,255,0.95)",
     },
   });
-
-  const onFloodSourceData = (evt: any) => {
-    if (evt?.sourceId !== "flood-overlay") return;
-    if (!evt?.isSourceLoaded) return;
-
-    updateFloodRenderedCount();
-    setFloodLoadState("ready");
-    setFloodError(null);
-  };
-
-  const onFloodError = (evt: any) => {
-    const sourceId = String(evt?.sourceId ?? "");
-    const message = String(evt?.error?.message ?? evt?.message ?? "Flood source failed to load");
-    if (sourceId === "flood-overlay" || message.includes("/api/flood")) {
-      setFloodLoadState("error");
-      setFloodError(message);
-    }
-  };
-
-  map.on("sourcedata", onFloodSourceData);
-  map.on("error", onFloodError);
-  map.on("moveend", updateFloodRenderedCount);
-  map.on("zoomend", updateFloodRenderedCount);
 
   map.addLayer({
     id: "cells-fill",
@@ -633,26 +593,6 @@ export default function ValueMap({
       >
         Loading...
       </div>
-      <div
-        style={{
-          position: "absolute",
-          top: 12,
-          right: 12,
-          background: "rgba(0,0,0,0.7)",
-          color: "white",
-          padding: "4px 8px",
-          borderRadius: 6,
-          fontSize: 11,
-          zIndex: 3,
-          maxWidth: 380,
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-        }}
-      >
-        {`Flood: ${state.floodOverlayMode === "off" ? "off" : floodLoadState}${floodRenderedCount != null ? ` (${floodRenderedCount.toLocaleString()} rendered in view)` : ""}${floodLoadState === "error" && floodError ? ` - ${floodError}` : ""}`}
-      </div>
-
       {postcodeCell && (
         <div
           className="postcode-wrap"
