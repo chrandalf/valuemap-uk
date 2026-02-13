@@ -146,14 +146,14 @@ export default function ValueMap({
 
         const exact = entries.find((entry) => entry.postcodeKey === normalized || normalizePostcodeSearch(entry.postcode) === normalized);
         if (exact) {
-          map.flyTo({ center: [exact.lon, exact.lat], zoom: Math.max(map.getZoom(), 13), essential: true });
+          animateToPostcodeTarget(map, [exact.lon, exact.lat], Math.max(map.getZoom(), 13));
           onPostcodeSearchResult?.({ status: "found", normalizedQuery: normalized, matchedPostcode: exact.postcode });
           return;
         }
 
         const nearest = findNearestPostcodeMatch(normalized, entries);
         if (nearest) {
-          map.flyTo({ center: [nearest.lon, nearest.lat], zoom: Math.max(map.getZoom(), 12), essential: true });
+          animateToPostcodeTarget(map, [nearest.lon, nearest.lat], Math.max(map.getZoom(), 12));
           onPostcodeSearchResult?.({
             status: "no-risk-nearest",
             normalizedQuery: normalized,
@@ -1623,6 +1623,27 @@ function radToDeg(r: number) { return (r * 180) / Math.PI; }
 
 function normalizePostcodeSearch(value: string) {
   return value.replace(/\s+/g, "").toUpperCase().trim();
+}
+
+function animateToPostcodeTarget(map: maplibregl.Map, center: [number, number], targetZoom: number) {
+  const currentZoom = map.getZoom();
+  const finalZoom = Math.max(currentZoom, targetZoom);
+
+  map.stop();
+
+  if (finalZoom - currentZoom > 3) {
+    map.jumpTo({
+      center,
+      zoom: Math.max(currentZoom + 2, finalZoom - 2),
+    });
+  }
+
+  map.easeTo({
+    center,
+    zoom: finalZoom,
+    duration: 650,
+    essential: true,
+  });
 }
 
 async function getFloodSearchEntries(
