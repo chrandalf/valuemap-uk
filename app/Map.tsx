@@ -127,6 +127,8 @@ export default function ValueMap({
   }, [postcodeCell, onPostcodePanelChange]);
 
   useEffect(() => {
+    if (!postcodeSearchToken || postcodeSearchToken < 1) return;
+
     const rawQuery = (postcodeSearchQuery ?? "").trim();
     const normalized = normalizePostcodeSearch(rawQuery);
     if (!normalized) return;
@@ -174,7 +176,7 @@ export default function ValueMap({
     }
 
     void runSearch();
-  }, [postcodeSearchToken, postcodeSearchQuery, onPostcodeSearchResult]);
+  }, [postcodeSearchToken, onPostcodeSearchResult]);
 
 
   // Cache: avoid recomputing polygons when toggling metric only
