@@ -198,6 +198,9 @@ export default function ValueMap({
   map.addSource("flood-overlay", {
     type: "geojson",
     data: "/api/flood?plain=1",
+    cluster: true,
+    clusterMaxZoom: 10,
+    clusterRadius: 50,
   });
   setFloodLoadState("loading");
   setFloodRenderedCount(null);
@@ -206,13 +209,61 @@ export default function ValueMap({
   const updateFloodRenderedCount = () => {
     try {
       const visibleFeatures = map.queryRenderedFeatures(undefined, {
-        layers: ["flood-overlay-points", "flood-overlay-fill", "flood-overlay-outline"],
+        layers: ["flood-overlay-clusters", "flood-overlay-cluster-count", "flood-overlay-points", "flood-overlay-fill", "flood-overlay-outline"],
       });
       setFloodRenderedCount(visibleFeatures.length);
     } catch {
       setFloodRenderedCount(null);
     }
   };
+
+  map.addLayer({
+    id: "flood-overlay-clusters",
+    type: "circle",
+    source: "flood-overlay",
+    filter: ["has", "point_count"] as any,
+    layout: {
+      visibility: stateRef.current.floodOverlayMode && stateRef.current.floodOverlayMode !== "off" ? "visible" : "none",
+    },
+    paint: {
+      "circle-color": [
+        "step",
+        ["get", "point_count"],
+        "rgba(103,232,249,0.55)",
+        100,
+        "rgba(14,165,233,0.7)",
+        1000,
+        "rgba(2,132,199,0.85)",
+      ] as any,
+      "circle-radius": [
+        "step",
+        ["get", "point_count"],
+        16,
+        100,
+        22,
+        1000,
+        30,
+      ] as any,
+      "circle-stroke-color": "rgba(255,255,255,0.9)",
+      "circle-stroke-width": 1,
+    },
+  });
+
+  map.addLayer({
+    id: "flood-overlay-cluster-count",
+    type: "symbol",
+    source: "flood-overlay",
+    filter: ["has", "point_count"] as any,
+    layout: {
+      visibility: stateRef.current.floodOverlayMode && stateRef.current.floodOverlayMode !== "off" ? "visible" : "none",
+      "text-field": ["get", "point_count_abbreviated"] as any,
+      "text-size": 11,
+      "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
+    },
+    paint: {
+      "text-color": "rgba(255,255,255,0.95)",
+    },
+  });
 
   const onFloodSourceData = (evt: any) => {
     if (evt?.sourceId !== "flood-overlay") return;
@@ -293,6 +344,7 @@ export default function ValueMap({
     id: "flood-overlay-points",
     type: "circle",
     source: "flood-overlay",
+    filter: ["!", ["has", "point_count"]] as any,
     layout: {
       visibility: stateRef.current.floodOverlayMode && stateRef.current.floodOverlayMode !== "off" ? "visible" : "none",
     },
@@ -527,6 +579,12 @@ export default function ValueMap({
       }
       if (map.getLayer("flood-overlay-points")) {
         map.setLayoutProperty("flood-overlay-points", "visibility", floodVisibility);
+      }
+      if (map.getLayer("flood-overlay-clusters")) {
+        map.setLayoutProperty("flood-overlay-clusters", "visibility", floodVisibility);
+      }
+      if (map.getLayer("flood-overlay-cluster-count")) {
+        map.setLayoutProperty("flood-overlay-cluster-count", "visibility", floodVisibility);
       }
       if (map.getLayer("cells-fill")) {
         map.setLayoutProperty("cells-fill", "visibility", "visible");
