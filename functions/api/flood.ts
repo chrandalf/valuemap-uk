@@ -1,17 +1,10 @@
 import type { R2Bucket } from "@cloudflare/workers-types";
 
-type FloodGeoJson = {
-  type: "FeatureCollection";
-  features: unknown[];
-};
-
 interface Env {
   R2?: R2Bucket;
   BRICKGRID_BUCKET?: R2Bucket;
   FLOOD_OVERLAY_KEY?: string;
 }
-
-const FLOOD_CACHE = new Map<string, FloodGeoJson>();
 
 export const onRequestGet = async ({ env, request }: { env: Env; request: Request }) => {
   try {
@@ -19,15 +12,6 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     const rawKey = (url.searchParams.get("key") ?? env.FLOOD_OVERLAY_KEY ?? "flood_postcode_points.geojson.gz").trim();
     const keyMatch = rawKey.match(/[a-zA-Z0-9/_.-]+\.(?:geojson|json)(?:\.gz)?/i);
     const key = keyMatch ? keyMatch[0] : "flood_postcode_points.geojson.gz";
-
-    const cached = FLOOD_CACHE.get(key);
-    if (cached) {
-      return Response.json(cached, {
-        headers: {
-          "Cache-Control": "public, max-age=3600",
-        },
-      });
-    }
 
     const bucket = env.BRICKGRID_BUCKET ?? env.R2;
     if (!bucket) {
@@ -46,7 +30,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
       ])
     );
 
-    let obj: { arrayBuffer: () => Promise<ArrayBuffer> } | null = null;
+    let obj: (Awaited<ReturnType<R2Bucket["get"]>>) | null = null;
     let foundKey: string | null = null;
     for (const candidate of candidates) {
       const attempt = await bucket.get(candidate);
@@ -61,22 +45,21 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
       return Response.json({ error: `Flood overlay not found for key '${key}'.` }, { status: 404 });
     }
 
-    const bytes = await obj.arrayBuffer();
-    const text = foundKey.endsWith(".gz")
-      ? new TextDecoder().decode(await decompressGzip(bytes))
-      : new TextDecoder().decode(bytes);
+    if (!obj.body) {
+      return Response.json({ error: `Flood overlay object '${foundKey}' has no body.` }, { status: 500 });
+    }
 
-    const parsed: unknown = JSON.parse(text);
-    const normalized: FloodGeoJson = isFeatureCollection(parsed)
-      ? { type: "FeatureCollection", features: parsed.features }
-      : { type: "FeatureCollection", features: [] };
+    const headers = new Headers();
+    headers.set("Cache-Control", "public, max-age=3600");
+    headers.set("Content-Type", foundKey.endsWith(".geojson") || foundKey.endsWith(".geojson.gz") ? "application/geo+json; charset=utf-8" : "application/json; charset=utf-8");
+    if (foundKey.endsWith(".gz")) {
+      headers.set("Content-Encoding", "gzip");
+    }
+    headers.set("X-Flood-Key", foundKey);
 
-    FLOOD_CACHE.set(key, normalized);
-
-    return Response.json(normalized, {
-      headers: {
-        "Cache-Control": "public, max-age=3600",
-      },
+    return new Response(obj.body, {
+      status: 200,
+      headers,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
@@ -86,38 +69,3 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     });
   }
 };
-
-async function decompressGzip(buffer: ArrayBuffer): Promise<ArrayBuffer> {
-  const stream = new ReadableStream({
-    start(controller) {
-      controller.enqueue(new Uint8Array(buffer));
-      controller.close();
-    },
-  });
-
-  const decompressedStream = stream.pipeThrough(new DecompressionStream("gzip"));
-  const reader = decompressedStream.getReader();
-  const chunks: Uint8Array[] = [];
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-  }
-
-  const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
-  const result = new Uint8Array(totalLength);
-  let offset = 0;
-  for (const chunk of chunks) {
-    result.set(chunk, offset);
-    offset += chunk.length;
-  }
-
-  return result.buffer;
-}
-
-function isFeatureCollection(value: unknown): value is FloodGeoJson {
-  if (!value || typeof value !== "object") return false;
-  const maybe = value as { type?: unknown; features?: unknown };
-  return maybe.type === "FeatureCollection" && Array.isArray(maybe.features);
-}
