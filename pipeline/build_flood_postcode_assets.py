@@ -124,6 +124,8 @@ def build_assets(
     out_dir: Path,
     include_no_risk_points: bool = False,
     restrict_postcodes_file: Path | None = None,
+    include_no_risk_lookup: bool = False,
+    include_lookup_text_fields: bool = False,
 ) -> None:
     df = pd.read_csv(input_csv, dtype=str)
     df.columns = [normalize_colname(c) for c in df.columns]
@@ -178,21 +180,25 @@ def build_assets(
         allowed_keys = load_allowed_postcode_keys(restrict_postcodes_file)
         dedup = dedup[dedup["postcode_key"].isin(allowed_keys)].copy()
 
+    lookup_rows = dedup if include_no_risk_lookup else dedup[dedup["risk_score"] > 0]
+
     postcode_lookup: dict[str, dict[str, object]] = {}
-    for row in dedup.itertuples(index=False):
-        postcode_lookup[row.postcode_key] = {
+    for row in lookup_rows.itertuples(index=False):
+        item: dict[str, object] = {
             "postcode": row.postcode,
             "outcode": row.outcode,
             "risk_band": to_str_or_none(row.risk_band),
             "risk_score": int(row.risk_score),
-            "suitability": to_str_or_none(row.suitability),
-            "risk_for_insurance_sop": to_str_or_none(row.risk_for_insurance_sop),
             "pub_date": to_str_or_none(row.pub_date),
             "easting": to_int_or_none(row.easting),
             "northing": to_int_or_none(row.northing),
             "latitude": to_float_or_none(row.latitude),
             "longitude": to_float_or_none(row.longitude),
         }
+        if include_lookup_text_fields:
+            item["suitability"] = to_str_or_none(row.suitability)
+            item["risk_for_insurance_sop"] = to_str_or_none(row.risk_for_insurance_sop)
+        postcode_lookup[row.postcode_key] = item
 
     outcode_summary = (
         dedup.groupby("outcode", dropna=False)
@@ -267,6 +273,9 @@ def build_assets(
         "outcodes": len(outcode_payload),
         "geojson_points": len(point_features),
         "include_no_risk_points": bool(include_no_risk_points),
+        "lookup_postcodes": len(postcode_lookup),
+        "include_no_risk_lookup": bool(include_no_risk_lookup),
+        "include_lookup_text_fields": bool(include_lookup_text_fields),
         "restrict_postcodes_file": str(restrict_postcodes_file) if restrict_postcodes_file else None,
         "allowed_postcode_keys": len(allowed_keys) if allowed_keys is not None else None,
         "files": {
@@ -288,6 +297,16 @@ if __name__ == "__main__":
         help="Include risk_score=0 points in flood_postcode_points.geojson.gz (default excludes them).",
     )
     parser.add_argument(
+        "--include-no-risk-lookup",
+        action="store_true",
+        help="Include risk_score=0 rows in flood_postcode_lookup.json.gz (default excludes them).",
+    )
+    parser.add_argument(
+        "--include-lookup-text-fields",
+        action="store_true",
+        help="Include verbose lookup text fields (suitability, risk_for_insurance_sop).",
+    )
+    parser.add_argument(
         "--restrict-postcodes-file",
         type=Path,
         default=None,
@@ -307,5 +326,7 @@ if __name__ == "__main__":
         args.out_dir,
         include_no_risk_points=args.include_no_risk_points,
         restrict_postcodes_file=args.restrict_postcodes_file,
+        include_no_risk_lookup=args.include_no_risk_lookup,
+        include_lookup_text_fields=args.include_lookup_text_fields,
     )
     print(f"Wrote flood assets to: {args.out_dir}")
