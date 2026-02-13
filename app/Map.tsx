@@ -77,7 +77,7 @@ export default function ValueMap({
   const [scotlandNote, setScotlandNote] = useState<string | null>(null);
   const [postcodeMaxPrice, setPostcodeMaxPrice] = useState<number | null>(null);
   const [floodLoadState, setFloodLoadState] = useState<"idle" | "loading" | "ready" | "error">("idle");
-  const [floodFeatureCount, setFloodFeatureCount] = useState<number | null>(null);
+  const [floodRenderedCount, setFloodRenderedCount] = useState<number | null>(null);
   const [floodError, setFloodError] = useState<string | null>(null);
   const fetchPostcodesRef = useRef<(gx: number, gy: number, offset: number, append: boolean) => void>(() => {});
 
@@ -200,27 +200,25 @@ export default function ValueMap({
     data: "/api/flood",
   });
   setFloodLoadState("loading");
-  setFloodFeatureCount(null);
+  setFloodRenderedCount(null);
   setFloodError(null);
+
+  const updateFloodRenderedCount = () => {
+    try {
+      const visibleFeatures = map.queryRenderedFeatures(undefined, {
+        layers: ["flood-overlay-points", "flood-overlay-fill", "flood-overlay-outline"],
+      });
+      setFloodRenderedCount(visibleFeatures.length);
+    } catch {
+      setFloodRenderedCount(null);
+    }
+  };
 
   const onFloodSourceData = (evt: any) => {
     if (evt?.sourceId !== "flood-overlay") return;
     if (!evt?.isSourceLoaded) return;
 
-    let count: number | null = null;
-    try {
-      count = map.querySourceFeatures("flood-overlay").length;
-    } catch {
-      try {
-        const src = map.getSource("flood-overlay") as maplibregl.GeoJSONSource | undefined;
-        const data: any = src ? (src as any)._data ?? null : null;
-        count = Array.isArray(data?.features) ? data.features.length : null;
-      } catch {
-        count = null;
-      }
-    }
-
-    setFloodFeatureCount(count);
+    updateFloodRenderedCount();
     setFloodLoadState("ready");
     setFloodError(null);
   };
@@ -236,6 +234,8 @@ export default function ValueMap({
 
   map.on("sourcedata", onFloodSourceData);
   map.on("error", onFloodError);
+  map.on("moveend", updateFloodRenderedCount);
+  map.on("zoomend", updateFloodRenderedCount);
 
   map.addLayer({
     id: "cells-fill",
@@ -303,18 +303,19 @@ export default function ValueMap({
         ["linear"],
         floodSeverityExpression(),
         0,
-        "#93c5fd",
+        "#67e8f9",
         2,
-        "#60a5fa",
+        "#06b6d4",
         3,
-        "#3b82f6",
+        "#0ea5e9",
         4,
-        "#2563eb",
+        "#0284c7",
       ] as any,
-      "circle-opacity": ["interpolate", ["linear"], floodSeverityExpression(), 0, 0.2, 4, 0.55] as any,
-      "circle-radius": ["interpolate", ["linear"], floodSeverityExpression(), 0, 1.8, 4, 4.6] as any,
-      "circle-stroke-color": "rgba(255,255,255,0.85)",
-      "circle-stroke-width": 0.5,
+      "circle-opacity": ["interpolate", ["linear"], floodSeverityExpression(), 0, 0.55, 4, 0.95] as any,
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 3.4, 6, 5.5, 8, 8.5, 10, 12.5] as any,
+      "circle-stroke-color": "rgba(255,255,255,0.95)",
+      "circle-stroke-width": 1,
+      "circle-blur": 0.03,
     },
   });
 
@@ -602,7 +603,7 @@ export default function ValueMap({
           textOverflow: "ellipsis",
         }}
       >
-        {`Flood: ${state.floodOverlayMode === "off" ? "off" : floodLoadState}${floodFeatureCount != null ? ` (${floodFeatureCount.toLocaleString()} features)` : ""}${floodLoadState === "error" && floodError ? ` - ${floodError}` : ""}`}
+        {`Flood: ${state.floodOverlayMode === "off" ? "off" : floodLoadState}${floodRenderedCount != null ? ` (${floodRenderedCount.toLocaleString()} rendered in view)` : ""}${floodLoadState === "error" && floodError ? ` - ${floodError}` : ""}`}
       </div>
 
       {postcodeCell && (
