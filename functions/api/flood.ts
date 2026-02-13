@@ -23,7 +23,8 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     const headers = new Headers();
     headers.set("Cache-Control", "public, max-age=3600");
     headers.set("Content-Type", resolved.key.endsWith(".geojson") || resolved.key.endsWith(".geojson.gz") ? "application/geo+json; charset=utf-8" : "application/json; charset=utf-8");
-    if (resolved.key.endsWith(".gz")) {
+    const wantsPlain = url.searchParams.get("plain") === "1";
+    if (resolved.key.endsWith(".gz") && !wantsPlain) {
       headers.set("Content-Encoding", "gzip");
     }
     headers.set("X-Flood-Key", resolved.key);
@@ -39,6 +40,16 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
         },
         { headers }
       );
+    }
+
+    if (wantsPlain && resolved.key.endsWith(".gz") && resolved.object.body) {
+      const decompressed = (resolved.object.body as any).pipeThrough(new DecompressionStream("gzip") as any);
+      headers.delete("Content-Encoding");
+      headers.set("X-Flood-Plain", "1");
+      return new Response(decompressed, {
+        status: 200,
+        headers,
+      });
     }
 
     const body = await resolved.object.arrayBuffer();
@@ -66,11 +77,14 @@ export const onRequestHead = async ({ env, request }: { env: Env; request: Reque
     const headers = new Headers();
     headers.set("Cache-Control", "public, max-age=3600");
     headers.set("Content-Type", resolved.key.endsWith(".geojson") || resolved.key.endsWith(".geojson.gz") ? "application/geo+json; charset=utf-8" : "application/json; charset=utf-8");
-    if (resolved.key.endsWith(".gz")) {
+    const url = new URL(request.url);
+    const wantsPlain = url.searchParams.get("plain") === "1";
+    if (resolved.key.endsWith(".gz") && !wantsPlain) {
       headers.set("Content-Encoding", "gzip");
     }
     headers.set("X-Flood-Key", resolved.key);
     headers.set("X-Flood-Size", String(resolved.object.size ?? 0));
+    if (wantsPlain) headers.set("X-Flood-Plain", "1");
 
     return new Response(null, { status: 200, headers });
   } catch {

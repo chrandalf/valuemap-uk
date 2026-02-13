@@ -197,7 +197,7 @@ export default function ValueMap({
 
   map.addSource("flood-overlay", {
     type: "geojson",
-    data: "/api/flood",
+    data: "/api/flood?plain=1",
   });
   setFloodLoadState("loading");
   setFloodRenderedCount(null);
