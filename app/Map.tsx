@@ -293,7 +293,6 @@ export default function ValueMap({
     id: "flood-overlay-points",
     type: "circle",
     source: "flood-overlay",
-    filter: ["any", ["==", ["geometry-type"], "Point"], ["==", ["geometry-type"], "MultiPoint"]] as any,
     layout: {
       visibility: stateRef.current.floodOverlayMode && stateRef.current.floodOverlayMode !== "off" ? "visible" : "none",
     },
@@ -589,15 +588,15 @@ export default function ValueMap({
       <div
         style={{
           position: "absolute",
-          top: 52,
-          left: 12,
+          top: 12,
+          right: 12,
           background: "rgba(0,0,0,0.7)",
           color: "white",
           padding: "4px 8px",
           borderRadius: 6,
           fontSize: 11,
           zIndex: 3,
-          maxWidth: 320,
+          maxWidth: 380,
           whiteSpace: "nowrap",
           overflow: "hidden",
           textOverflow: "ellipsis",
