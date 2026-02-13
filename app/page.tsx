@@ -492,12 +492,22 @@ export default function Home() {
         onZoomChange={handleMapZoomChange}
         postcodeSearchQuery={postcodeSearch}
         postcodeSearchToken={postcodeSearchToken}
-        onPostcodeSearchResult={(found, normalizedQuery) => {
-          if (found) {
-            setPostcodeSearchStatus(`Found ${normalizedQuery}`);
-          } else {
-            setPostcodeSearchStatus(`Postcode not found: ${normalizedQuery}`);
+        onPostcodeSearchResult={(result) => {
+          if (result.status === "found") {
+            setPostcodeSearchStatus(`Found ${result.matchedPostcode ?? result.normalizedQuery}`);
+            return;
           }
+          if (result.status === "no-risk-nearest") {
+            setPostcodeSearchStatus(
+              `No flood risk in this postcode. Nearest mapped postcode: ${result.nearestPostcode ?? "available"}`
+            );
+            return;
+          }
+          if (result.status === "not-found") {
+            setPostcodeSearchStatus(`No postcode match found for ${result.normalizedQuery}`);
+            return;
+          }
+          setPostcodeSearchStatus("Postcode search unavailable right now");
         }}
       />
 
@@ -736,6 +746,57 @@ export default function Home() {
             </button>
           )}
         </div>
+        {!menuOpen && !anySubpanelOpen && (
+          <div style={{ marginTop: 8 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, width: "100%" }}>
+              <input
+                type="text"
+                value={postcodeSearch}
+                onChange={(e) => {
+                  setPostcodeSearch(e.target.value);
+                  if (postcodeSearchStatus) setPostcodeSearchStatus(null);
+                }}
+                placeholder="Search postcode (e.g. AL10 0AA)"
+                aria-label="Search postcode"
+                style={{
+                  width: "100%",
+                  borderRadius: 8,
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  background: "rgba(255,255,255,0.08)",
+                  color: "white",
+                  padding: "6px 8px",
+                  fontSize: 12,
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (!postcodeSearch.trim()) {
+                    setPostcodeSearchStatus("Enter a postcode");
+                    return;
+                  }
+                  setPostcodeSearchToken((v) => v + 1);
+                }}
+                style={{
+                  cursor: "pointer",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  background: "rgba(255,255,255,0.08)",
+                  color: "white",
+                  padding: "6px 10px",
+                  borderRadius: 8,
+                  fontSize: 12,
+                }}
+              >
+                Go
+              </button>
+            </div>
+            {postcodeSearchStatus && (
+              <div style={{ fontSize: 11, opacity: 0.82, marginTop: 6 }}>
+                {postcodeSearchStatus}
+              </div>
+            )}
+          </div>
+        )}
         {(menuOpen || anySubpanelOpen) && (
           <div style={{ marginTop: 6, fontSize: 11, opacity: 0.7 }}>
             Scotland coverage is partial and may be 1–2 years out of date.
@@ -1012,56 +1073,6 @@ export default function Home() {
                   }}
                 />
               </ControlRow>
-
-              <ControlRow label="Postcode">
-                <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, width: "100%" }}>
-                  <input
-                    type="text"
-                    value={postcodeSearch}
-                    onChange={(e) => {
-                      setPostcodeSearch(e.target.value);
-                      if (postcodeSearchStatus) setPostcodeSearchStatus(null);
-                    }}
-                    placeholder="e.g. AL10 0AA"
-                    aria-label="Search postcode"
-                    style={{
-                      width: "100%",
-                      borderRadius: 8,
-                      border: "1px solid rgba(255,255,255,0.2)",
-                      background: "rgba(255,255,255,0.08)",
-                      color: "white",
-                      padding: "6px 8px",
-                      fontSize: 12,
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!postcodeSearch.trim()) {
-                        setPostcodeSearchStatus("Enter a postcode");
-                        return;
-                      }
-                      setPostcodeSearchToken((v) => v + 1);
-                    }}
-                    style={{
-                      cursor: "pointer",
-                      border: "1px solid rgba(255,255,255,0.2)",
-                      background: "rgba(255,255,255,0.08)",
-                      color: "white",
-                      padding: "6px 10px",
-                      borderRadius: 8,
-                      fontSize: 12,
-                    }}
-                  >
-                    Go
-                  </button>
-                </div>
-              </ControlRow>
-              {postcodeSearchStatus && (
-                <div style={{ fontSize: 11, opacity: 0.78, marginTop: -4 }}>
-                  {postcodeSearchStatus}
-                </div>
-              )}
 
             </div>
 

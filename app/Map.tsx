@@ -50,6 +50,23 @@ type ApiRow = {
   years_stale?: number;
 };
 
+type FloodSearchStatus = "found" | "no-risk-nearest" | "not-found" | "error";
+
+type FloodSearchResult = {
+  status: FloodSearchStatus;
+  normalizedQuery: string;
+  matchedPostcode?: string;
+  nearestPostcode?: string;
+};
+
+type FloodSearchEntry = {
+  postcode: string;
+  postcodeKey: string;
+  riskScore: number;
+  lon: number;
+  lat: number;
+};
+
 export default function ValueMap({
   state,
   onLegendChange,
@@ -65,7 +82,7 @@ export default function ValueMap({
   onZoomChange?: (zoom: number) => void;
   postcodeSearchQuery?: string;
   postcodeSearchToken?: number;
-  onPostcodeSearchResult?: (found: boolean, normalizedQuery: string) => void;
+  onPostcodeSearchResult?: (result: FloodSearchResult) => void;
 }) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -83,6 +100,8 @@ export default function ValueMap({
   const [scotlandNote, setScotlandNote] = useState<string | null>(null);
   const [postcodeMaxPrice, setPostcodeMaxPrice] = useState<number | null>(null);
   const fetchPostcodesRef = useRef<(gx: number, gy: number, offset: number, append: boolean) => void>(() => {});
+  const floodSearchEntriesRef = useRef<FloodSearchEntry[] | null>(null);
+  const floodSearchEntriesPromiseRef = useRef<Promise<FloodSearchEntry[]> | null>(null);
 
 
   useEffect(() => {
@@ -115,49 +134,46 @@ export default function ValueMap({
     const map = mapRef.current;
     if (!map) return;
 
-    const runSearch = () => {
-      let features: any[] = [];
+    const runSearch = async () => {
       try {
-        features = map.querySourceFeatures("flood-overlay") as any[];
-      } catch {
-        onPostcodeSearchResult?.(false, normalized);
-        return;
-      }
-
-      let match: any | null = null;
-      for (const feature of features) {
-        const properties = feature?.properties ?? {};
-        if (properties?.point_count != null) continue;
-        const postcode = String(properties.postcode ?? "");
-        const postcodeKey = String(properties.postcode_key ?? postcode);
-        const candidates = [normalizePostcodeSearch(postcode), normalizePostcodeSearch(postcodeKey)];
-        if (candidates.includes(normalized)) {
-          match = feature;
-          break;
+        const entries = await getFloodSearchEntries(floodSearchEntriesRef, floodSearchEntriesPromiseRef);
+        if (!entries.length) {
+          onPostcodeSearchResult?.({ status: "error", normalizedQuery: normalized });
+          return;
         }
-      }
 
-      if (!match) {
-        onPostcodeSearchResult?.(false, normalized);
-        return;
-      }
+        const exact = entries.find((entry) => entry.postcodeKey === normalized || normalizePostcodeSearch(entry.postcode) === normalized);
+        if (exact) {
+          map.flyTo({ center: [exact.lon, exact.lat], zoom: Math.max(map.getZoom(), 13), essential: true });
+          onPostcodeSearchResult?.({ status: "found", normalizedQuery: normalized, matchedPostcode: exact.postcode });
+          return;
+        }
 
-      const coordinates = (match.geometry as any)?.coordinates;
-      if (!Array.isArray(coordinates) || coordinates.length < 2) {
-        onPostcodeSearchResult?.(false, normalized);
-        return;
-      }
+        const nearest = findNearestPostcodeMatch(normalized, entries);
+        if (nearest) {
+          map.flyTo({ center: [nearest.lon, nearest.lat], zoom: Math.max(map.getZoom(), 12), essential: true });
+          onPostcodeSearchResult?.({
+            status: "no-risk-nearest",
+            normalizedQuery: normalized,
+            nearestPostcode: nearest.postcode,
+          });
+          return;
+        }
 
-      map.flyTo({ center: [Number(coordinates[0]), Number(coordinates[1])], zoom: Math.max(map.getZoom(), 13), essential: true });
-      onPostcodeSearchResult?.(true, normalized);
+        onPostcodeSearchResult?.({ status: "not-found", normalizedQuery: normalized });
+      } catch {
+        onPostcodeSearchResult?.({ status: "error", normalizedQuery: normalized });
+      }
     };
 
     if (!map.isStyleLoaded()) {
-      map.once("idle", runSearch);
+      map.once("idle", () => {
+        void runSearch();
+      });
       return;
     }
 
-    runSearch();
+    void runSearch();
   }, [postcodeSearchToken, postcodeSearchQuery, onPostcodeSearchResult]);
 
 
@@ -1605,6 +1621,116 @@ function radToDeg(r: number) { return (r * 180) / Math.PI; }
 
 function normalizePostcodeSearch(value: string) {
   return value.replace(/\s+/g, "").toUpperCase().trim();
+}
+
+async function getFloodSearchEntries(
+  cacheRef: { current: FloodSearchEntry[] | null },
+  promiseRef: { current: Promise<FloodSearchEntry[]> | null }
+): Promise<FloodSearchEntry[]> {
+  if (cacheRef.current) return cacheRef.current;
+  if (promiseRef.current) return promiseRef.current;
+
+  promiseRef.current = (async () => {
+    const res = await fetch("/api/flood?plain=1", { cache: "no-store" });
+    if (!res.ok) {
+      throw new Error(`Flood search load failed (${res.status})`);
+    }
+
+    const payload = (await res.json()) as { features?: any[] };
+    const features = Array.isArray(payload?.features) ? payload.features : [];
+    const next: FloodSearchEntry[] = [];
+
+    for (const feature of features) {
+      const coordinates = feature?.geometry?.coordinates;
+      if (!Array.isArray(coordinates) || coordinates.length < 2) continue;
+      const lon = Number(coordinates[0]);
+      const lat = Number(coordinates[1]);
+      if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+
+      const properties = feature?.properties ?? {};
+      const postcodeRaw = String(properties.postcode ?? "").trim();
+      if (!postcodeRaw) continue;
+
+      const postcodeKeyRaw = String(properties.postcode_key ?? postcodeRaw);
+      const postcodeKey = normalizePostcodeSearch(postcodeKeyRaw);
+      if (!postcodeKey) continue;
+
+      next.push({
+        postcode: postcodeRaw,
+        postcodeKey,
+        riskScore: Number(properties.risk_score ?? 0) || 0,
+        lon,
+        lat,
+      });
+    }
+
+    cacheRef.current = next;
+    return next;
+  })();
+
+  try {
+    return await promiseRef.current;
+  } finally {
+    promiseRef.current = null;
+  }
+}
+
+function findNearestPostcodeMatch(query: string, entries: FloodSearchEntry[]): FloodSearchEntry | null {
+  if (!entries.length) return null;
+
+  const queryOutcode = deriveSearchOutcode(query);
+  let best: FloodSearchEntry | null = null;
+  let bestScore = Number.POSITIVE_INFINITY;
+
+  for (const entry of entries) {
+    const entryKey = entry.postcodeKey;
+    if (!entryKey) continue;
+
+    const entryOutcode = deriveSearchOutcode(entryKey);
+    const sameOutcodePenalty = queryOutcode && entryOutcode && queryOutcode === entryOutcode ? 0 : 3;
+    const distance = levenshteinDistance(query, entryKey);
+    const score = distance + sameOutcodePenalty;
+
+    if (score < bestScore) {
+      bestScore = score;
+      best = entry;
+      if (score === 0) break;
+    }
+  }
+
+  return best;
+}
+
+function deriveSearchOutcode(postcodeKey: string): string {
+  const text = normalizePostcodeSearch(postcodeKey);
+  if (text.length <= 3) return text;
+  return text.slice(0, text.length - 3);
+}
+
+function levenshteinDistance(a: string, b: string): number {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+
+  const prev = new Array<number>(b.length + 1);
+  const curr = new Array<number>(b.length + 1);
+
+  for (let j = 0; j <= b.length; j += 1) prev[j] = j;
+
+  for (let i = 1; i <= a.length; i += 1) {
+    curr[0] = i;
+    const aChar = a.charCodeAt(i - 1);
+    for (let j = 1; j <= b.length; j += 1) {
+      const cost = aChar === b.charCodeAt(j - 1) ? 0 : 1;
+      const deletion = prev[j] + 1;
+      const insertion = curr[j - 1] + 1;
+      const substitution = prev[j - 1] + cost;
+      curr[j] = Math.min(deletion, insertion, substitution);
+    }
+    for (let j = 0; j <= b.length; j += 1) prev[j] = curr[j];
+  }
+
+  return prev[b.length];
 }
 
 
