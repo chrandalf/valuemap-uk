@@ -76,6 +76,9 @@ export default function ValueMap({
   const [postcodeError, setPostcodeError] = useState<string | null>(null);
   const [scotlandNote, setScotlandNote] = useState<string | null>(null);
   const [postcodeMaxPrice, setPostcodeMaxPrice] = useState<number | null>(null);
+  const [floodLoadState, setFloodLoadState] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [floodFeatureCount, setFloodFeatureCount] = useState<number | null>(null);
+  const [floodError, setFloodError] = useState<string | null>(null);
   const fetchPostcodesRef = useRef<(gx: number, gy: number, offset: number, append: boolean) => void>(() => {});
 
 
@@ -196,6 +199,43 @@ export default function ValueMap({
     type: "geojson",
     data: "/api/flood",
   });
+  setFloodLoadState("loading");
+  setFloodFeatureCount(null);
+  setFloodError(null);
+
+  const onFloodSourceData = (evt: any) => {
+    if (evt?.sourceId !== "flood-overlay") return;
+    if (!evt?.isSourceLoaded) return;
+
+    let count: number | null = null;
+    try {
+      count = map.querySourceFeatures("flood-overlay").length;
+    } catch {
+      try {
+        const src = map.getSource("flood-overlay") as maplibregl.GeoJSONSource | undefined;
+        const data: any = src ? (src as any)._data ?? null : null;
+        count = Array.isArray(data?.features) ? data.features.length : null;
+      } catch {
+        count = null;
+      }
+    }
+
+    setFloodFeatureCount(count);
+    setFloodLoadState("ready");
+    setFloodError(null);
+  };
+
+  const onFloodError = (evt: any) => {
+    const sourceId = String(evt?.sourceId ?? "");
+    const message = String(evt?.error?.message ?? evt?.message ?? "Flood source failed to load");
+    if (sourceId === "flood-overlay" || message.includes("/api/flood")) {
+      setFloodLoadState("error");
+      setFloodError(message);
+    }
+  };
+
+  map.on("sourcedata", onFloodSourceData);
+  map.on("error", onFloodError);
 
   map.addLayer({
     id: "cells-fill",
@@ -544,6 +584,25 @@ export default function ValueMap({
         }}
       >
         Loading...
+      </div>
+      <div
+        style={{
+          position: "absolute",
+          top: 52,
+          left: 12,
+          background: "rgba(0,0,0,0.7)",
+          color: "white",
+          padding: "4px 8px",
+          borderRadius: 6,
+          fontSize: 11,
+          zIndex: 3,
+          maxWidth: 320,
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+      >
+        {`Flood: ${state.floodOverlayMode === "off" ? "off" : floodLoadState}${floodFeatureCount != null ? ` (${floodFeatureCount.toLocaleString()} features)` : ""}${floodLoadState === "error" && floodError ? ` - ${floodError}` : ""}`}
       </div>
 
       {postcodeCell && (
