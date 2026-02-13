@@ -90,6 +90,7 @@ export default function ValueMap({
   const requestSeqRef = useRef(0);
   const stateRef = useRef<MapState>(state);
   const onZoomChangeRef = useRef<typeof onZoomChange>(onZoomChange);
+  const onPostcodeSearchResultRef = useRef<typeof onPostcodeSearchResult>(onPostcodeSearchResult);
 
   const [postcodeCell, setPostcodeCell] = useState<string | null>(null);
   const [postcodeItems, setPostcodeItems] = useState<string[]>([]);
@@ -111,6 +112,10 @@ export default function ValueMap({
   useEffect(() => {
     onZoomChangeRef.current = onZoomChange;
   }, [onZoomChange]);
+
+  useEffect(() => {
+    onPostcodeSearchResultRef.current = onPostcodeSearchResult;
+  }, [onPostcodeSearchResult]);
 
   useEffect(() => {
     setPostcodeCell(null);
@@ -140,21 +145,21 @@ export default function ValueMap({
       try {
         const entries = await getFloodSearchEntries(floodSearchEntriesRef, floodSearchEntriesPromiseRef);
         if (!entries.length) {
-          onPostcodeSearchResult?.({ status: "error", normalizedQuery: normalized });
+          onPostcodeSearchResultRef.current?.({ status: "error", normalizedQuery: normalized });
           return;
         }
 
         const exact = entries.find((entry) => entry.postcodeKey === normalized || normalizePostcodeSearch(entry.postcode) === normalized);
         if (exact) {
           animateToPostcodeTarget(map, [exact.lon, exact.lat], Math.max(map.getZoom(), 13));
-          onPostcodeSearchResult?.({ status: "found", normalizedQuery: normalized, matchedPostcode: exact.postcode });
+          onPostcodeSearchResultRef.current?.({ status: "found", normalizedQuery: normalized, matchedPostcode: exact.postcode });
           return;
         }
 
         const nearest = findNearestPostcodeMatch(normalized, entries);
         if (nearest) {
           animateToPostcodeTarget(map, [nearest.lon, nearest.lat], Math.max(map.getZoom(), 12));
-          onPostcodeSearchResult?.({
+          onPostcodeSearchResultRef.current?.({
             status: "no-risk-nearest",
             normalizedQuery: normalized,
             nearestPostcode: nearest.postcode,
@@ -162,9 +167,9 @@ export default function ValueMap({
           return;
         }
 
-        onPostcodeSearchResult?.({ status: "not-found", normalizedQuery: normalized });
+        onPostcodeSearchResultRef.current?.({ status: "not-found", normalizedQuery: normalized });
       } catch {
-        onPostcodeSearchResult?.({ status: "error", normalizedQuery: normalized });
+        onPostcodeSearchResultRef.current?.({ status: "error", normalizedQuery: normalized });
       }
     };
 
@@ -176,7 +181,7 @@ export default function ValueMap({
     }
 
     void runSearch();
-  }, [postcodeSearchToken, onPostcodeSearchResult]);
+  }, [postcodeSearchToken]);
 
 
   // Cache: avoid recomputing polygons when toggling metric only
