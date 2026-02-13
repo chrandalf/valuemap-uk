@@ -368,16 +368,12 @@ export default function ValueMap({
     return "None";
   };
 
-  map.on("mousemove", "flood-overlay-points", (e) => {
-    if (!useFloodPopupMode()) return;
-    map.getCanvas().style.cursor = "pointer";
-
+  const showFloodPointPopup = (e: any) => {
     const f = e.features?.[0] as any;
     if (!f) return;
 
     const p = f.properties || {};
     const postcode = String(p.postcode ?? p.postcode_key ?? "Unknown postcode");
-    const outcode = String(p.outcode ?? "");
     const riskScore = Number(p.risk_score ?? 0);
     const riskBandRaw = String(p.risk_band ?? "").trim();
     const riskBand = riskBandRaw ? riskBandRaw : riskLabelFromScore(riskScore);
@@ -386,14 +382,58 @@ export default function ValueMap({
       <div style="font-family: system-ui; font-size: 12px; line-height: 1.25;">
         <div style="font-weight: 700; margin-bottom: 4px;">${postcode}</div>
         <div>Flood risk: <b>${riskBand}</b></div>
-        <div>Score: <b>${riskScore}</b>${outcode ? ` · Outcode: <b>${outcode}</b>` : ""}</div>
+        <div>Score: <b>${riskScore}</b></div>
       </div>
     `;
 
     popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+  };
+
+  const showFloodClusterPopup = (e: any) => {
+    const f = e.features?.[0] as any;
+    if (!f) return;
+    const count = Number(f.properties?.point_count ?? 0);
+    const html = `
+      <div style="font-family: system-ui; font-size: 12px; line-height: 1.25;">
+        <div style="font-weight: 700; margin-bottom: 4px;">Flood cluster</div>
+        <div>Postcodes in cluster: <b>${count.toLocaleString()}</b></div>
+        <div style="opacity: 0.8; margin-top: 2px;">Zoom in for postcode-level points.</div>
+      </div>
+    `;
+    popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+  };
+
+  map.on("mousemove", "flood-overlay-points", (e) => {
+    if (!useFloodPopupMode()) return;
+    map.getCanvas().style.cursor = "pointer";
+    showFloodPointPopup(e);
   });
 
   map.on("mouseleave", "flood-overlay-points", () => {
+    if (!useFloodPopupMode()) return;
+    map.getCanvas().style.cursor = "";
+    popup.remove();
+  });
+
+  map.on("mousemove", "flood-overlay-clusters", (e) => {
+    if (!useFloodPopupMode()) return;
+    map.getCanvas().style.cursor = "pointer";
+    showFloodClusterPopup(e);
+  });
+
+  map.on("mouseleave", "flood-overlay-clusters", () => {
+    if (!useFloodPopupMode()) return;
+    map.getCanvas().style.cursor = "";
+    popup.remove();
+  });
+
+  map.on("mousemove", "flood-overlay-cluster-count", (e) => {
+    if (!useFloodPopupMode()) return;
+    map.getCanvas().style.cursor = "pointer";
+    showFloodClusterPopup(e);
+  });
+
+  map.on("mouseleave", "flood-overlay-cluster-count", () => {
     if (!useFloodPopupMode()) return;
     map.getCanvas().style.cursor = "";
     popup.remove();
