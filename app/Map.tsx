@@ -355,7 +355,56 @@ export default function ValueMap({
     offset: 10,
   });
 
+  const useFloodPopupMode = () => {
+    const current = stateRef.current;
+    return current.floodOverlayMode === "on_hide_cells" && map.getZoom() >= 10;
+  };
+
+  const riskLabelFromScore = (score: number) => {
+    if (score >= 4) return "High";
+    if (score >= 3) return "Medium";
+    if (score >= 2) return "Low";
+    if (score >= 1) return "Very low";
+    return "None";
+  };
+
+  map.on("mousemove", "flood-overlay-points", (e) => {
+    if (!useFloodPopupMode()) return;
+    map.getCanvas().style.cursor = "pointer";
+
+    const f = e.features?.[0] as any;
+    if (!f) return;
+
+    const p = f.properties || {};
+    const postcode = String(p.postcode ?? p.postcode_key ?? "Unknown postcode");
+    const outcode = String(p.outcode ?? "");
+    const riskScore = Number(p.risk_score ?? 0);
+    const riskBandRaw = String(p.risk_band ?? "").trim();
+    const riskBand = riskBandRaw ? riskBandRaw : riskLabelFromScore(riskScore);
+
+    const html = `
+      <div style="font-family: system-ui; font-size: 12px; line-height: 1.25;">
+        <div style="font-weight: 700; margin-bottom: 4px;">${postcode}</div>
+        <div>Flood risk: <b>${riskBand}</b></div>
+        <div>Score: <b>${riskScore}</b>${outcode ? ` · Outcode: <b>${outcode}</b>` : ""}</div>
+      </div>
+    `;
+
+    popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+  });
+
+  map.on("mouseleave", "flood-overlay-points", () => {
+    if (!useFloodPopupMode()) return;
+    map.getCanvas().style.cursor = "";
+    popup.remove();
+  });
+
   map.on("mousemove", "cells-fill", (e) => {
+    if (useFloodPopupMode()) {
+      popup.remove();
+      return;
+    }
+
     map.getCanvas().style.cursor = "pointer";
 
     const f = e.features?.[0] as any;
