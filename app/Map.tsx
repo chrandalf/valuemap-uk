@@ -307,19 +307,7 @@ export default function ValueMap({
       visibility: stateRef.current.floodOverlayMode && stateRef.current.floodOverlayMode !== "off" ? "visible" : "none",
     },
     paint: {
-      "fill-color": [
-        "interpolate",
-        ["linear"],
-        floodSeverityExpression(),
-        0,
-        "#93c5fd",
-        2,
-        "#60a5fa",
-        3,
-        "#3b82f6",
-        4,
-        "#2563eb",
-      ] as any,
+      "fill-color": floodBandColorExpression(),
       "fill-opacity": ["interpolate", ["linear"], floodSeverityExpression(), 0, 0.03, 4, 0.12] as any,
     },
   });
@@ -333,7 +321,7 @@ export default function ValueMap({
       visibility: stateRef.current.floodOverlayMode && stateRef.current.floodOverlayMode !== "off" ? "visible" : "none",
     },
     paint: {
-      "line-color": ["interpolate", ["linear"], floodSeverityExpression(), 0, "rgba(147,197,253,0.8)", 4, "rgba(37,99,235,0.95)"] as any,
+      "line-color": floodBandColorExpression(),
       "line-width": ["interpolate", ["linear"], floodSeverityExpression(), 0, 0.8, 4, 1.8] as any,
       "line-dasharray": [1, 1.5],
       "line-opacity": 0.9,
@@ -350,17 +338,19 @@ export default function ValueMap({
     },
     paint: {
       "circle-color": [
-        "interpolate",
-        ["linear"],
-        floodSeverityExpression(),
+        "match",
+        ["round", floodSeverityExpression()],
         0,
-        "#67e8f9",
+        "#22c55e",
+        1,
+        "#3b82f6",
         2,
-        "#06b6d4",
+        "#1d4ed8",
         3,
-        "#0ea5e9",
+        "#f59e0b",
         4,
-        "#0284c7",
+        "#dc2626",
+        "#22c55e",
       ] as any,
       "circle-opacity": ["interpolate", ["linear"], floodSeverityExpression(), 0, 0.55, 4, 0.95] as any,
       "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 3.4, 6, 5.5, 8, 8.5, 10, 12.5] as any,
@@ -865,6 +855,24 @@ function floodSeverityExpression() {
       ],
     ],
     0,
+  ] as any;
+}
+
+function floodBandColorExpression() {
+  return [
+    "match",
+    ["round", floodSeverityExpression()],
+    0,
+    "#22c55e",
+    1,
+    "#3b82f6",
+    2,
+    "#1d4ed8",
+    3,
+    "#f59e0b",
+    4,
+    "#dc2626",
+    "#22c55e",
   ] as any;
 }
 
