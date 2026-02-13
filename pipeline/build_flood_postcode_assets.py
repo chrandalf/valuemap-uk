@@ -75,7 +75,56 @@ def write_json_gz(path: Path, payload: object) -> None:
         json.dump(payload, f, ensure_ascii=False)
 
 
-def build_assets(input_csv: Path, out_dir: Path, include_no_risk_points: bool = False) -> None:
+def read_json_maybe_gz(path: Path) -> object:
+    if path.suffix == ".gz":
+        with gzip.open(path, "rt", encoding="utf-8") as f:
+            return json.load(f)
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def load_allowed_postcode_keys(path: Path) -> set[str]:
+    if not path.exists():
+        raise FileNotFoundError(f"Allowed postcodes file not found: {path}")
+
+    suffixes = "".join(path.suffixes).lower()
+
+    if suffixes.endswith(".json") or suffixes.endswith(".json.gz"):
+        payload = read_json_maybe_gz(path)
+        if isinstance(payload, dict):
+            return {normalize_postcode_key(k) for k in payload.keys() if str(k).strip()}
+        if isinstance(payload, list):
+            keys: set[str] = set()
+            for item in payload:
+                if isinstance(item, str):
+                    text = item.strip()
+                    if text:
+                        keys.add(normalize_postcode_key(text))
+                elif isinstance(item, dict):
+                    for candidate in ("postcode_key", "postcode", "pc_key", "pcds", "pcd7", "pcd8"):
+                        value = item.get(candidate)
+                        if value is not None and str(value).strip():
+                            keys.add(normalize_postcode_key(str(value)))
+                            break
+            return keys
+        raise ValueError(f"Unsupported JSON structure in allowed postcodes file: {path}")
+
+    if suffixes.endswith(".csv"):
+        frame = pd.read_csv(path, dtype=str)
+        frame.columns = [normalize_colname(c) for c in frame.columns]
+        key_col = pick_column(list(frame.columns), ["postcode_key", "postcode", "pc_key", "pcds", "pcd7", "pcd8"])
+        series = frame[key_col].dropna().astype("string").str.strip()
+        return {normalize_postcode_key(v) for v in series if v}
+
+    lines = path.read_text(encoding="utf-8").splitlines()
+    return {normalize_postcode_key(v) for v in lines if v.strip()}
+
+
+def build_assets(
+    input_csv: Path,
+    out_dir: Path,
+    include_no_risk_points: bool = False,
+    restrict_postcodes_file: Path | None = None,
+) -> None:
     df = pd.read_csv(input_csv, dtype=str)
     df.columns = [normalize_colname(c) for c in df.columns]
 
@@ -123,6 +172,11 @@ def build_assets(input_csv: Path, out_dir: Path, include_no_risk_points: bool = 
 
     work = work.sort_values(["postcode_key", "risk_score", "pub_date_ts"], ascending=[True, False, False])
     dedup = work.drop_duplicates(subset=["postcode_key"], keep="first").copy()
+
+    allowed_keys: set[str] | None = None
+    if restrict_postcodes_file is not None:
+        allowed_keys = load_allowed_postcode_keys(restrict_postcodes_file)
+        dedup = dedup[dedup["postcode_key"].isin(allowed_keys)].copy()
 
     postcode_lookup: dict[str, dict[str, object]] = {}
     for row in dedup.itertuples(index=False):
@@ -213,6 +267,8 @@ def build_assets(input_csv: Path, out_dir: Path, include_no_risk_points: bool = 
         "outcodes": len(outcode_payload),
         "geojson_points": len(point_features),
         "include_no_risk_points": bool(include_no_risk_points),
+        "restrict_postcodes_file": str(restrict_postcodes_file) if restrict_postcodes_file else None,
+        "allowed_postcode_keys": len(allowed_keys) if allowed_keys is not None else None,
         "files": {
             "postcode_lookup": "flood_postcode_lookup.json.gz",
             "outcode_summary": "flood_outcode_summary.json.gz",
@@ -231,10 +287,25 @@ if __name__ == "__main__":
         action="store_true",
         help="Include risk_score=0 points in flood_postcode_points.geojson.gz (default excludes them).",
     )
+    parser.add_argument(
+        "--restrict-postcodes-file",
+        type=Path,
+        default=None,
+        help=(
+            "Optional path to allowed postcode list. Supports .json/.json.gz (dict keys or list), "
+            ".csv (postcode/postcode_key column), or newline-delimited text. "
+            "When set, outputs are restricted to these postcode keys."
+        ),
+    )
 
     # Notebook kernels (Kaggle/Colab/Jupyter) inject args like "-f <kernel.json>".
     # parse_known_args keeps CLI behaviour while ignoring those unrelated args.
     args, _unknown = parser.parse_known_args()
 
-    build_assets(args.input_csv, args.out_dir, include_no_risk_points=args.include_no_risk_points)
+    build_assets(
+        args.input_csv,
+        args.out_dir,
+        include_no_risk_points=args.include_no_risk_points,
+        restrict_postcodes_file=args.restrict_postcodes_file,
+    )
     print(f"Wrote flood assets to: {args.out_dir}")
