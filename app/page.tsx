@@ -775,6 +775,46 @@ export default function Home() {
               Contact
             </a>
           )}
+          {menuOpen && !anySubpanelOpen && (
+            <a
+              href="/legal"
+              className="legal-toggle menu-btn"
+              style={{
+                cursor: "pointer",
+                border: "1px solid rgba(255,255,255,0.18)",
+                background: "rgba(255,255,255,0.08)",
+                color: "white",
+                padding: "6px 10px",
+                borderRadius: 999,
+                fontSize: 11,
+                textDecoration: "none",
+                display: "inline-flex",
+                alignItems: "center",
+              }}
+            >
+              Legal
+            </a>
+          )}
+          {menuOpen && !anySubpanelOpen && (
+            <a
+              href="/privacy"
+              className="privacy-toggle menu-btn"
+              style={{
+                cursor: "pointer",
+                border: "1px solid rgba(255,255,255,0.18)",
+                background: "rgba(255,255,255,0.08)",
+                color: "white",
+                padding: "6px 10px",
+                borderRadius: 999,
+                fontSize: 11,
+                textDecoration: "none",
+                display: "inline-flex",
+                alignItems: "center",
+              }}
+            >
+              Privacy
+            </a>
+          )}
         </div>
         {!menuOpen && !anySubpanelOpen && (
           <div style={{ marginTop: 8 }}>
