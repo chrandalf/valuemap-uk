@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import ValueMap, { type LegendData } from "./Map";
+import ValueMap, { type LegendData, type LocateMeResult } from "./Map";
 
 type GridSize = "1km" | "5km" | "10km" | "25km";
 type Metric = "median" | "delta_gbp" | "delta_pct";
@@ -95,6 +95,9 @@ export default function Home() {
   const [postcodeSearch, setPostcodeSearch] = useState("");
   const [postcodeSearchToken, setPostcodeSearchToken] = useState(0);
   const [postcodeSearchStatus, setPostcodeSearchStatus] = useState<string | null>(null);
+  const [locateMeToken, setLocateMeToken] = useState(0);
+  const [locateMeStatus, setLocateMeStatus] = useState<string | null>(null);
+  const [locateMeSummary, setLocateMeSummary] = useState<string | null>(null);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [gridMode, setGridMode] = useState<GridMode>("manual");
   const [mapZoom, setMapZoom] = useState<number | null>(null);
@@ -359,6 +362,33 @@ export default function Home() {
     return `${sign}${Math.abs(value).toFixed(1)}%`;
   };
 
+  const handleLocateMeResult = (result: LocateMeResult) => {
+    if (result.status !== "success") {
+      setLocateMeStatus(result.message);
+      setLocateMeSummary(null);
+      return;
+    }
+
+    const chunks: string[] = [];
+    if (result.accuracyMeters != null) {
+      chunks.push(`Accuracy ±${result.accuracyMeters}m`);
+    }
+    if (result.cell?.median != null && Number.isFinite(result.cell.median)) {
+      chunks.push(`Median £${Math.round(result.cell.median).toLocaleString()}`);
+    }
+    if (result.cell?.txCount != null && Number.isFinite(result.cell.txCount)) {
+      chunks.push(`Sales ${Math.round(result.cell.txCount)}`);
+    }
+    if (result.floodNearest) {
+      chunks.push(
+        `Nearest flood postcode ${result.floodNearest.postcode} (${result.floodNearest.riskBand}, ${result.floodNearest.distanceMeters}m)`
+      );
+    }
+
+    setLocateMeStatus("Location found");
+    setLocateMeSummary(chunks.join(" · "));
+  };
+
   const formatMetricFilterValue = (metric: Metric, value: number) => {
     if (metric === "median") return formatFilterValue(value);
     return metric === "delta_gbp" ? formatSignedPounds(value) : formatSignedPercent(value);
@@ -492,6 +522,8 @@ export default function Home() {
         onZoomChange={handleMapZoomChange}
         postcodeSearchQuery={postcodeSearch}
         postcodeSearchToken={postcodeSearchToken}
+        locateMeToken={locateMeToken}
+        onLocateMeResult={handleLocateMeResult}
         onPostcodeSearchResult={(result) => {
           if (result.status === "found") {
             setPostcodeSearchStatus(`Found ${result.matchedPostcode ?? result.normalizedQuery}`);
@@ -795,6 +827,39 @@ export default function Home() {
                 {postcodeSearchStatus}
               </div>
             )}
+            <div style={{ marginTop: 8 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setLocateMeStatus("Requesting location permission...");
+                  setLocateMeSummary(null);
+                  setLocateMeToken((v) => v + 1);
+                }}
+                style={{
+                  width: "100%",
+                  cursor: "pointer",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  background: "rgba(59,130,246,0.2)",
+                  color: "white",
+                  padding: "7px 10px",
+                  borderRadius: 8,
+                  fontSize: 12,
+                  textAlign: "center",
+                }}
+              >
+                Use my location (one-shot)
+              </button>
+              {locateMeStatus && (
+                <div style={{ fontSize: 11, opacity: 0.85, marginTop: 6 }}>
+                  {locateMeStatus}
+                </div>
+              )}
+              {locateMeSummary && (
+                <div style={{ fontSize: 11, opacity: 0.8, marginTop: 4, lineHeight: 1.35 }}>
+                  {locateMeSummary}
+                </div>
+              )}
+            </div>
           </div>
         )}
         <div

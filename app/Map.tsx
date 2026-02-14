@@ -67,6 +67,26 @@ type FloodSearchEntry = {
   lat: number;
 };
 
+export type LocateMeResult = {
+  status: "success" | "denied" | "unavailable" | "timeout" | "error";
+  message: string;
+  accuracyMeters?: number;
+  coords?: { lng: number; lat: number };
+  cell?: {
+    grid: GridSize;
+    median?: number;
+    txCount?: number;
+    deltaGbp?: number;
+    deltaPct?: number;
+  };
+  floodNearest?: {
+    postcode: string;
+    riskScore: number;
+    riskBand: string;
+    distanceMeters: number;
+  };
+};
+
 export default function ValueMap({
   state,
   onLegendChange,
@@ -75,6 +95,8 @@ export default function ValueMap({
   postcodeSearchQuery,
   postcodeSearchToken,
   onPostcodeSearchResult,
+  locateMeToken,
+  onLocateMeResult,
 }: {
   state: MapState;
   onLegendChange?: (legend: LegendData | null) => void;
@@ -83,6 +105,8 @@ export default function ValueMap({
   postcodeSearchQuery?: string;
   postcodeSearchToken?: number;
   onPostcodeSearchResult?: (result: FloodSearchResult) => void;
+  locateMeToken?: number;
+  onLocateMeResult?: (result: LocateMeResult) => void;
 }) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -91,6 +115,8 @@ export default function ValueMap({
   const stateRef = useRef<MapState>(state);
   const onZoomChangeRef = useRef<typeof onZoomChange>(onZoomChange);
   const onPostcodeSearchResultRef = useRef<typeof onPostcodeSearchResult>(onPostcodeSearchResult);
+  const onLocateMeResultRef = useRef<typeof onLocateMeResult>(onLocateMeResult);
+  const locateMarkerRef = useRef<maplibregl.Marker | null>(null);
 
   const [postcodeCell, setPostcodeCell] = useState<string | null>(null);
   const [postcodeItems, setPostcodeItems] = useState<string[]>([]);
@@ -116,6 +142,10 @@ export default function ValueMap({
   useEffect(() => {
     onPostcodeSearchResultRef.current = onPostcodeSearchResult;
   }, [onPostcodeSearchResult]);
+
+  useEffect(() => {
+    onLocateMeResultRef.current = onLocateMeResult;
+  }, [onLocateMeResult]);
 
   useEffect(() => {
     setPostcodeCell(null);
@@ -182,6 +212,114 @@ export default function ValueMap({
 
     void runSearch();
   }, [postcodeSearchToken]);
+
+  useEffect(() => {
+    if (!locateMeToken || locateMeToken < 1) return;
+
+    const map = mapRef.current;
+    if (!map) {
+      onLocateMeResultRef.current?.({ status: "error", message: "Map not ready" });
+      return;
+    }
+
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      onLocateMeResultRef.current?.({
+        status: "unavailable",
+        message: "Location is not supported on this device/browser",
+      });
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const lng = Number(position.coords.longitude);
+        const lat = Number(position.coords.latitude);
+        const accuracyMeters = Number(position.coords.accuracy);
+
+        if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+          onLocateMeResultRef.current?.({ status: "error", message: "Invalid location coordinates" });
+          return;
+        }
+
+        const run = async () => {
+          animateToPostcodeTarget(map, [lng, lat], Math.max(map.getZoom(), 14));
+
+          locateMarkerRef.current?.remove();
+          locateMarkerRef.current = new maplibregl.Marker({ color: "#3b82f6" })
+            .setLngLat([lng, lat])
+            .addTo(map);
+
+          const cellFeature = getCellFeatureAtLngLat(map, lng, lat);
+          const cellProps = cellFeature?.properties ?? {};
+
+          const gx = Number(cellProps?.gx);
+          const gy = Number(cellProps?.gy);
+          const median = Number(cellProps?.median);
+          if (Number.isFinite(gx) && Number.isFinite(gy)) {
+            setPostcodeMaxPrice(Number.isFinite(median) ? median * 1.25 : null);
+            setScotlandNote(gy >= 568300 ? "Scotland data coverage is partial and may be 1–2 years out of date." : null);
+            void fetchPostcodesRef.current(gx, gy, 0, false);
+          }
+
+          let floodNearest: LocateMeResult["floodNearest"];
+          try {
+            const entries = await getFloodSearchEntries(floodSearchEntriesRef, floodSearchEntriesPromiseRef);
+            const nearest = findNearestFloodEntryByDistance(lng, lat, entries);
+            if (nearest) {
+              floodNearest = {
+                postcode: nearest.postcode,
+                riskScore: nearest.riskScore,
+                riskBand: riskBandFromScore(nearest.riskScore),
+                distanceMeters: Math.round(nearest.distanceMeters),
+              };
+            }
+          } catch {
+            // ignore flood nearest errors
+          }
+
+          onLocateMeResultRef.current?.({
+            status: "success",
+            message: "Location found",
+            accuracyMeters: Number.isFinite(accuracyMeters) ? Math.round(accuracyMeters) : undefined,
+            coords: { lng, lat },
+            cell: {
+              grid: stateRef.current.grid,
+              median: Number.isFinite(median) ? median : undefined,
+              txCount: Number.isFinite(Number(cellProps?.tx_count)) ? Number(cellProps.tx_count) : undefined,
+              deltaGbp: Number.isFinite(Number(cellProps?.delta_gbp)) ? Number(cellProps.delta_gbp) : undefined,
+              deltaPct: Number.isFinite(Number(cellProps?.delta_pct)) ? Number(cellProps.delta_pct) : undefined,
+            },
+            floodNearest,
+          });
+        };
+
+        if (!map.isStyleLoaded()) {
+          map.once("idle", () => {
+            void run();
+          });
+          return;
+        }
+
+        await run();
+      },
+      (error) => {
+        if (error.code === error.PERMISSION_DENIED) {
+          onLocateMeResultRef.current?.({ status: "denied", message: "Location permission denied" });
+          return;
+        }
+        if (error.code === error.TIMEOUT) {
+          onLocateMeResultRef.current?.({ status: "timeout", message: "Location request timed out" });
+          return;
+        }
+        onLocateMeResultRef.current?.({ status: "error", message: "Unable to get your location" });
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 60000,
+      }
+    );
+  }, [locateMeToken]);
 
 
   // Cache: avoid recomputing polygons when toggling metric only
@@ -1602,6 +1740,48 @@ function radToDeg(r: number) { return (r * 180) / Math.PI; }
 
 function normalizePostcodeSearch(value: string) {
   return value.replace(/\s+/g, "").toUpperCase().trim();
+}
+
+function getCellFeatureAtLngLat(map: maplibregl.Map, lng: number, lat: number) {
+  const point = map.project([lng, lat]);
+  const features = map.queryRenderedFeatures(point, { layers: ["cells-fill"] }) as any[];
+  return features.length ? features[0] : null;
+}
+
+function findNearestFloodEntryByDistance(lng: number, lat: number, entries: FloodSearchEntry[]) {
+  if (!entries.length) return null;
+
+  let best: (FloodSearchEntry & { distanceMeters: number }) | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  for (const entry of entries) {
+    const distanceMeters = haversineDistanceMeters(lat, lng, entry.lat, entry.lon);
+    if (distanceMeters < bestDistance) {
+      bestDistance = distanceMeters;
+      best = { ...entry, distanceMeters };
+    }
+  }
+
+  return best;
+}
+
+function riskBandFromScore(score: number) {
+  if (score >= 4) return "High";
+  if (score >= 3) return "Medium";
+  if (score >= 2) return "Low";
+  if (score >= 1) return "Very low";
+  return "None";
+}
+
+function haversineDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const R = 6_371_000;
+  const dLat = degToRad(lat2 - lat1);
+  const dLon = degToRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(degToRad(lat1)) * Math.cos(degToRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
 }
 
 function animateToPostcodeTarget(map: maplibregl.Map, center: [number, number], targetZoom: number) {
