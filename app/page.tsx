@@ -797,6 +797,38 @@ export default function Home() {
             )}
           </div>
         )}
+        <div
+          style={{
+            marginTop: 8,
+            display: "flex",
+            justifyContent: "flex-start",
+          }}
+        >
+          <a
+            href="https://buymeacoffee.com/chrandalf"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Buy me a coffee"
+            title="Buy me a coffee"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "6px 10px",
+              borderRadius: 999,
+              background: "rgba(255,255,255,0.08)",
+              border: "1px solid rgba(255,255,255,0.22)",
+              color: "white",
+              textDecoration: "none",
+              fontSize: 11,
+              whiteSpace: "nowrap",
+              maxWidth: "100%",
+            }}
+          >
+            <span aria-hidden="true">☕</span>
+            <span>Buy me a coffee</span>
+          </a>
+        </div>
         {(menuOpen || anySubpanelOpen) && (
           <div style={{ marginTop: 6, fontSize: 11, opacity: 0.7 }}>
             Scotland coverage is partial and may be 1–2 years out of date.

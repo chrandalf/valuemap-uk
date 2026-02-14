@@ -465,6 +465,12 @@ export default function ValueMap({
         <div style="font-weight: 700; margin-bottom: 4px;">${postcode}</div>
         <div>Flood risk: <b>${riskBand}</b></div>
         <div>Score: <b>${riskScore}</b></div>
+        <a
+          href="https://buymeacoffee.com/chrandalf"
+          target="_blank"
+          rel="noreferrer"
+          style="display:inline-block; margin-top:6px; color:#ffffff; text-decoration:underline; font-size:11px;"
+        >Buy me a coffee</a>
       </div>
     `;
 
@@ -480,6 +486,12 @@ export default function ValueMap({
         <div style="font-weight: 700; margin-bottom: 4px;">Flood cluster</div>
         <div>Postcodes in cluster: <b>${count.toLocaleString()}</b></div>
         <div style="opacity: 0.8; margin-top: 2px;">Zoom in for postcode-level points.</div>
+        <a
+          href="https://buymeacoffee.com/chrandalf"
+          target="_blank"
+          rel="noreferrer"
+          style="display:inline-block; margin-top:6px; color:#ffffff; text-decoration:underline; font-size:11px;"
+        >Buy me a coffee</a>
       </div>
     `;
     popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
