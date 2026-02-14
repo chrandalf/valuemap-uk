@@ -184,6 +184,7 @@ export default function ValueMap({
         if (exact) {
           animateToPostcodeTarget(map, [exact.lon, exact.lat], Math.max(map.getZoom(), 13));
           setFloodSearchFocus(map, exact);
+          setFloodSearchContext(map, null);
           onPostcodeSearchResultRef.current?.({ status: "found", normalizedQuery: normalized, matchedPostcode: exact.postcode });
           return;
         }
@@ -193,6 +194,7 @@ export default function ValueMap({
           const representative = pickRepresentativeHierarchyMatch(map, hierarchyMatches);
           animateToPostcodeTarget(map, [representative.lon, representative.lat], Math.max(map.getZoom(), 12));
           setFloodSearchFocus(map, representative);
+          setFloodSearchContext(map, null);
           onPostcodeSearchResultRef.current?.({
             status: "broad-has-risk",
             normalizedQuery: normalized,
@@ -204,8 +206,18 @@ export default function ValueMap({
 
         const nearest = findNearestPostcodeMatch(normalized, entries);
         if (nearest) {
+          const requestedCoords = await lookupPostcodeCoords(normalized);
           animateToPostcodeTarget(map, [nearest.lon, nearest.lat], Math.max(map.getZoom(), 12));
           setFloodSearchFocus(map, nearest);
+          setFloodSearchContext(
+            map,
+            requestedCoords
+              ? {
+                  requested: requestedCoords,
+                  nearest: { lon: nearest.lon, lat: nearest.lat },
+                }
+              : null
+          );
           onPostcodeSearchResultRef.current?.({
             status: "no-risk-nearest",
             normalizedQuery: normalized,
@@ -215,9 +227,11 @@ export default function ValueMap({
         }
 
         setFloodSearchFocus(map, null);
+        setFloodSearchContext(map, null);
         onPostcodeSearchResultRef.current?.({ status: "not-found", normalizedQuery: normalized });
       } catch {
         setFloodSearchFocus(map, null);
+        setFloodSearchContext(map, null);
         onPostcodeSearchResultRef.current?.({ status: "error", normalizedQuery: normalized });
       }
     };
@@ -444,6 +458,11 @@ export default function ValueMap({
     data: { type: "FeatureCollection", features: [] },
   });
 
+  map.addSource("flood-search-context", {
+    type: "geojson",
+    data: { type: "FeatureCollection", features: [] },
+  });
+
   map.addLayer({
     id: "flood-overlay-clusters",
     type: "circle",
@@ -587,6 +606,45 @@ export default function ValueMap({
       "circle-stroke-color": "#111827",
       "circle-stroke-width": 1,
       "circle-opacity": 0.95,
+    },
+  });
+
+  map.addLayer({
+    id: "flood-search-context-line",
+    type: "line",
+    source: "flood-search-context",
+    filter: ["==", ["geometry-type"], "LineString"] as any,
+    paint: {
+      "line-color": "#93c5fd",
+      "line-width": 2,
+      "line-dasharray": [2, 2],
+      "line-opacity": 0.92,
+    },
+  });
+
+  map.addLayer({
+    id: "flood-search-context-requested-ring",
+    type: "circle",
+    source: "flood-search-context",
+    filter: ["all", ["==", ["geometry-type"], "Point"], ["==", ["get", "role"], "requested"]] as any,
+    paint: {
+      "circle-color": "rgba(0,0,0,0)",
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 9, 8, 13, 12, 17] as any,
+      "circle-stroke-color": "#93c5fd",
+      "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 4, 2.2, 8, 3, 12, 3.8] as any,
+      "circle-stroke-opacity": 0.98,
+    },
+  });
+
+  map.addLayer({
+    id: "flood-search-context-requested-dot",
+    type: "circle",
+    source: "flood-search-context",
+    filter: ["all", ["==", ["geometry-type"], "Point"], ["==", ["get", "role"], "requested"]] as any,
+    paint: {
+      "circle-color": "#93c5fd",
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 2, 8, 2.8, 12, 3.5] as any,
+      "circle-opacity": 0.92,
     },
   });
 
@@ -1820,6 +1878,61 @@ function setFloodSearchFocus(map: maplibregl.Map, entry: FloodSearchEntry | null
           geometry: {
             type: "Point",
             coordinates: [entry.lon, entry.lat],
+          },
+        },
+      ],
+    } as any
+  );
+}
+
+async function lookupPostcodeCoords(postcodeKey: string): Promise<{ lon: number; lat: number } | null> {
+  const encoded = encodeURIComponent(postcodeKey);
+  try {
+    const res = await fetch(`https://api.postcodes.io/postcodes/${encoded}`);
+    if (!res.ok) return null;
+    const data = (await res.json()) as any;
+    const lon = Number(data?.result?.longitude);
+    const lat = Number(data?.result?.latitude);
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null;
+    return { lon, lat };
+  } catch {
+    return null;
+  }
+}
+
+function setFloodSearchContext(
+  map: maplibregl.Map,
+  context: { requested: { lon: number; lat: number }; nearest: { lon: number; lat: number } } | null
+) {
+  const source = map.getSource("flood-search-context") as maplibregl.GeoJSONSource | undefined;
+  if (!source) return;
+
+  if (!context) {
+    source.setData({ type: "FeatureCollection", features: [] } as any);
+    return;
+  }
+
+  source.setData(
+    {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: { role: "requested" },
+          geometry: {
+            type: "Point",
+            coordinates: [context.requested.lon, context.requested.lat],
+          },
+        },
+        {
+          type: "Feature",
+          properties: { role: "link" },
+          geometry: {
+            type: "LineString",
+            coordinates: [
+              [context.requested.lon, context.requested.lat],
+              [context.nearest.lon, context.nearest.lat],
+            ],
           },
         },
       ],
