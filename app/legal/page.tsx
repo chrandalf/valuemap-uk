@@ -66,17 +66,23 @@ export default function LegalPage() {
           licences, and privacy policies apply separately.
         </Section>
 
-        <Section title="8) User responsibility">
+        <Section title="8) Free access and voluntary support">
+          This app and its data are provided free of charge. “Buy me a coffee” is optional support
+          only. Donations do not purchase advice, enhanced accuracy, priority support, or special
+          access.
+        </Section>
+
+        <Section title="9) User responsibility">
           You are responsible for independently verifying all material facts before making any
           property, insurance, or financial decision.
         </Section>
 
-        <Section title="9) Privacy (location)">
+        <Section title="10) Privacy (location)">
           If you use location features, your device will request permission. Location is used to
           provide map context. See the Privacy Notice for details on processing and retention.
         </Section>
 
-        <Section title="10) Contact">
+        <Section title="11) Contact">
           For legal/privacy/data enquiries:{" "}
           <a href="mailto:chris.randallse@gmail.com" style={{ color: "#93c5fd" }}>
             chris.randallse@gmail.com

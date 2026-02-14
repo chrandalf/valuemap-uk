@@ -906,30 +906,35 @@ export default function Home() {
             justifyContent: "flex-start",
           }}
         >
-          <a
-            href="https://buymeacoffee.com/chrandalf"
-            target="_blank"
-            rel="noreferrer"
-            aria-label="Buy me a coffee"
-            title="Buy me a coffee"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "6px 10px",
-              borderRadius: 999,
-              background: "rgba(255,255,255,0.08)",
-              border: "1px solid rgba(255,255,255,0.22)",
-              color: "white",
-              textDecoration: "none",
-              fontSize: 11,
-              whiteSpace: "nowrap",
-              maxWidth: "100%",
-            }}
-          >
-            <span aria-hidden="true">☕</span>
-            <span>Buy me a coffee</span>
-          </a>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <a
+              href="https://buymeacoffee.com/chrandalf"
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Buy me a coffee"
+              title="Buy me a coffee"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "6px 10px",
+                borderRadius: 999,
+                background: "rgba(255,255,255,0.08)",
+                border: "1px solid rgba(255,255,255,0.22)",
+                color: "white",
+                textDecoration: "none",
+                fontSize: 11,
+                whiteSpace: "nowrap",
+                maxWidth: "100%",
+              }}
+            >
+              <span aria-hidden="true">☕</span>
+              <span>Buy me a coffee</span>
+            </a>
+            <div style={{ fontSize: 10, opacity: 0.72, lineHeight: 1.25 }}>
+              Free to use. Optional support only; no paid priority or guarantees.
+            </div>
+          </div>
         </div>
         {(menuOpen || anySubpanelOpen) && (
           <div style={{ marginTop: 6, fontSize: 11, opacity: 0.7 }}>
