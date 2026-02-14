@@ -102,8 +102,12 @@ export default function Home() {
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [gridMode, setGridMode] = useState<GridMode>("manual");
   const [mapZoom, setMapZoom] = useState<number | null>(null);
+  const [cleanScreenMode, setCleanScreenMode] = useState(false);
+  const [mobileOverlayRatio, setMobileOverlayRatio] = useState(0);
   const urlHydratedRef = useRef(false);
   const supportersScrollerRef = useRef<HTMLDivElement | null>(null);
+  const topPanelRef = useRef<HTMLDivElement | null>(null);
+  const rightPanelsRef = useRef<HTMLDivElement | null>(null);
 
   const anySubpanelOpen = filtersOpen || instructionsOpen || descriptionOpen || dataSourcesOpen || nextStepsOpen;
   const DEFAULT_STATE: MapState = {
@@ -191,6 +195,48 @@ export default function Home() {
       return { ...s, grid: nextGrid };
     });
   }, [isMobileViewport, gridMode, mapZoom, state.metric]);
+
+  useEffect(() => {
+    if (!isMobileViewport || cleanScreenMode) {
+      setMobileOverlayRatio(0);
+      return;
+    }
+
+    const computeOverlayRatio = () => {
+      const viewportArea = Math.max(1, window.innerWidth * window.innerHeight);
+      const refs = [topPanelRef.current, rightPanelsRef.current];
+      let area = 0;
+      for (const el of refs) {
+        if (!el) continue;
+        const rect = el.getBoundingClientRect();
+        const w = Math.max(0, rect.width);
+        const h = Math.max(0, rect.height);
+        if (w === 0 || h === 0) continue;
+        area += w * h;
+      }
+      setMobileOverlayRatio(area / viewportArea);
+    };
+
+    computeOverlayRatio();
+    window.addEventListener("resize", computeOverlayRatio);
+    return () => window.removeEventListener("resize", computeOverlayRatio);
+  }, [
+    isMobileViewport,
+    cleanScreenMode,
+    menuOpen,
+    filtersOpen,
+    instructionsOpen,
+    descriptionOpen,
+    dataSourcesOpen,
+    nextStepsOpen,
+    postcodeOpen,
+    legendOpen,
+    overlayPanelCollapsed,
+    valuePanelCollapsed,
+    state.metric,
+    state.valueFilterMode,
+    state.floodOverlayMode,
+  ]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -551,6 +597,7 @@ export default function Home() {
 
       {/* Top-left product panel */}
       <div
+        ref={topPanelRef}
         className="panel"
         data-open={filtersOpen ? "true" : "false"}
         style={{
@@ -565,6 +612,7 @@ export default function Home() {
           border: "1px solid rgba(255,255,255,0.12)",
           backdropFilter: "blur(10px)",
           color: "white",
+          display: isMobileViewport && cleanScreenMode ? "none" : "block",
         }}
       >
         <div className="panel-header" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
@@ -1544,8 +1592,13 @@ export default function Home() {
       </div>
 
       {/* Right-side stacked panels */}
-      {(!isMobileViewport || !postcodeOpen) && !instructionsOpen && !descriptionOpen && (legendOpen || state.metric === "median" || state.metric === "delta_gbp" || state.metric === "delta_pct") && (
+      {(!isMobileViewport || !postcodeOpen) &&
+        !instructionsOpen &&
+        !descriptionOpen &&
+        !cleanScreenMode &&
+        (legendOpen || state.metric === "median" || state.metric === "delta_gbp" || state.metric === "delta_pct") && (
         <div
+          ref={rightPanelsRef}
           className="right-panels"
           data-menu-open={menuOpen ? "true" : "false"}
           style={{
@@ -1856,7 +1909,92 @@ export default function Home() {
         </div>
       )}
 
-      {!filtersOpen && !menuOpen && !instructionsOpen && !descriptionOpen && !dataSourcesOpen && !nextStepsOpen && (
+      {isMobileViewport && cleanScreenMode && !postcodeOpen && !instructionsOpen && !descriptionOpen && (
+        <div
+          className="right-panels"
+          style={{
+            right: 12,
+            left: 12,
+            width: "auto",
+            maxWidth: "none",
+            bottom: 12,
+            position: "fixed",
+            zIndex: 3,
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+            maxHeight: "54svh",
+            overflow: "auto",
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              padding: "8px 10px",
+              borderRadius: 12,
+              background: "rgba(10, 12, 20, 0.85)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              color: "white",
+              fontSize: 10,
+              lineHeight: 1.35,
+            }}
+          >
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>Current filters</div>
+            <div style={{ opacity: 0.82 }}>{currentFiltersSummary}</div>
+            <div style={{ opacity: 0.82, marginTop: 3 }}>{`Value filter: ${valueFilterLabel}`}</div>
+          </div>
+          <div
+            className="legend"
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              borderRadius: 12,
+              background: "rgba(10, 12, 20, 0.85)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              color: "white",
+              fontSize: 12,
+            }}
+          >
+            {legendContent}
+          </div>
+        </div>
+      )}
+
+      {isMobileViewport && (
+        <button
+          type="button"
+          onClick={() => setCleanScreenMode((v) => !v)}
+          aria-label={cleanScreenMode ? "Restore previous screen" : "Clear screen"}
+          title={cleanScreenMode ? "Restore previous screen" : "Clear screen"}
+          style={{
+            position: "fixed",
+            right: 12,
+            top: 96,
+            zIndex: 6,
+            border: "1px solid rgba(255,255,255,0.24)",
+            background: cleanScreenMode ? "rgba(147,197,253,0.9)" : "rgba(10, 12, 20, 0.88)",
+            color: "white",
+            borderRadius: 999,
+            padding: "6px 10px",
+            fontSize: 10,
+            fontWeight: 600,
+            lineHeight: 1,
+            cursor: "pointer",
+            boxShadow: "0 2px 10px rgba(0,0,0,0.35)",
+            animation: !cleanScreenMode && mobileOverlayRatio > 0.5 ? "cleanScreenPulse 1100ms ease-in-out infinite" : "none",
+          }}
+        >
+          {cleanScreenMode ? "Restore" : "Clear screen"}
+        </button>
+      )}
+
+      {!cleanScreenMode &&
+        !filtersOpen &&
+        !menuOpen &&
+        !instructionsOpen &&
+        !descriptionOpen &&
+        !dataSourcesOpen &&
+        !nextStepsOpen && (
         <div className="mobile-grid-dock" aria-label="Map grid controls">
           <button
             type="button"
@@ -1983,6 +2121,20 @@ function Segment({
 export function Styles() {
   return (
     <style jsx global>{`
+      @keyframes cleanScreenPulse {
+        0% {
+          transform: scale(1);
+          box-shadow: 0 2px 10px rgba(0,0,0,0.35);
+        }
+        50% {
+          transform: scale(1.04);
+          box-shadow: 0 0 0 5px rgba(147,197,253,0.3), 0 2px 12px rgba(0,0,0,0.4);
+        }
+        100% {
+          transform: scale(1);
+          box-shadow: 0 2px 10px rgba(0,0,0,0.35);
+        }
+      }
       .panel-actions {
         align-items: stretch;
       }
