@@ -204,9 +204,12 @@ export default function ValueMap({
           return;
         }
 
-        const nearest = findNearestPostcodeMatch(normalized, entries);
+        const requestedCoords = await lookupPostcodeCoords(normalized);
+        const nearestByDistance = requestedCoords
+          ? findNearestFloodEntryByDistance(requestedCoords.lon, requestedCoords.lat, entries)
+          : null;
+        const nearest = nearestByDistance ?? findNearestPostcodeMatch(normalized, entries);
         if (nearest) {
-          const requestedCoords = await lookupPostcodeCoords(normalized);
           animateToPostcodeTarget(map, [nearest.lon, nearest.lat], Math.max(map.getZoom(), 12));
           setFloodSearchFocus(map, nearest);
           setFloodSearchContext(
