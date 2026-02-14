@@ -1968,11 +1968,11 @@ export default function Home() {
           title={cleanScreenMode ? "Restore previous screen" : "Clear screen"}
           style={{
             position: "fixed",
-            right: 12,
-            top: 96,
+            right: 8,
+            top: 106,
             zIndex: 6,
-            border: "1px solid rgba(255,255,255,0.24)",
-            background: cleanScreenMode ? "rgba(147,197,253,0.9)" : "rgba(10, 12, 20, 0.88)",
+            border: "1px solid rgba(248,113,113,0.85)",
+            background: cleanScreenMode ? "rgba(147,197,253,0.9)" : "rgba(185,28,28,0.9)",
             color: "white",
             borderRadius: 999,
             padding: "6px 10px",
@@ -2124,15 +2124,15 @@ export function Styles() {
       @keyframes cleanScreenPulse {
         0% {
           transform: scale(1);
-          box-shadow: 0 2px 10px rgba(0,0,0,0.35);
+          box-shadow: 0 2px 10px rgba(0,0,0,0.35), 0 0 0 0 rgba(239,68,68,0.35);
         }
         50% {
-          transform: scale(1.04);
-          box-shadow: 0 0 0 5px rgba(147,197,253,0.3), 0 2px 12px rgba(0,0,0,0.4);
+          transform: scale(1.06);
+          box-shadow: 0 0 0 7px rgba(239,68,68,0.42), 0 2px 14px rgba(0,0,0,0.45);
         }
         100% {
           transform: scale(1);
-          box-shadow: 0 2px 10px rgba(0,0,0,0.35);
+          box-shadow: 0 2px 10px rgba(0,0,0,0.35), 0 0 0 0 rgba(239,68,68,0.35);
         }
       }
       .panel-actions {
