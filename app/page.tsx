@@ -103,6 +103,7 @@ export default function Home() {
   const [gridMode, setGridMode] = useState<GridMode>("manual");
   const [mapZoom, setMapZoom] = useState<number | null>(null);
   const urlHydratedRef = useRef(false);
+  const supportersScrollerRef = useRef<HTMLDivElement | null>(null);
 
   const anySubpanelOpen = filtersOpen || instructionsOpen || descriptionOpen || dataSourcesOpen || nextStepsOpen;
   const DEFAULT_STATE: MapState = {
@@ -127,6 +128,12 @@ export default function Home() {
     setLegendOpen(true);
     closeAllSubpanels();
     setMenuOpen(true);
+  };
+
+  const scrollSupportersRight = () => {
+    const el = supportersScrollerRef.current;
+    if (!el) return;
+    el.scrollBy({ left: 180, behavior: "smooth" });
   };
 
   const formatLegendCurrency = (value: number) => {
@@ -193,7 +200,10 @@ export default function Home() {
         if (!res.ok) return;
         const payload = (await res.json()) as { items?: string[] };
         const items = Array.isArray(payload.items) ? payload.items : [];
-        setSupporterNames(items);
+        const sortedItems = [...items].sort((a, b) =>
+          a.localeCompare(b, undefined, { sensitivity: "base" })
+        );
+        setSupporterNames(sortedItems);
       } catch {
         // ignore optional supporters feed failures
       }
@@ -953,8 +963,45 @@ export default function Home() {
               Free to use. Optional support only; no paid priority or guarantees.
             </div>
             {supporterNames.length > 0 && (
-              <div style={{ fontSize: 10, opacity: 0.78, lineHeight: 1.35, maxWidth: 380 }}>
-                Thanks to supporters: {supporterNames.join(", ")}
+              <div style={{ display: "flex", alignItems: "center", gap: 6, maxWidth: 380 }}>
+                <div
+                  ref={supportersScrollerRef}
+                  style={{
+                    fontSize: 10,
+                    opacity: 0.78,
+                    lineHeight: 1.35,
+                    whiteSpace: "nowrap",
+                    overflowX: "hidden",
+                    overflowY: "hidden",
+                    flex: 1,
+                  }}
+                >
+                  Thanks to supporters: {supporterNames.join(", ")}
+                </div>
+                <button
+                  type="button"
+                  onClick={scrollSupportersRight}
+                  aria-label="Scroll supporter names"
+                  title="Show more supporters"
+                  style={{
+                    border: "1px solid rgba(255,255,255,0.22)",
+                    background: "rgba(255,255,255,0.08)",
+                    color: "white",
+                    borderRadius: 999,
+                    width: 18,
+                    height: 18,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 11,
+                    lineHeight: 1,
+                    padding: 0,
+                    cursor: "pointer",
+                    flexShrink: 0,
+                  }}
+                >
+                  →
+                </button>
               </div>
             )}
           </div>
