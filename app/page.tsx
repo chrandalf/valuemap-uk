@@ -98,6 +98,7 @@ export default function Home() {
   const [locateMeToken, setLocateMeToken] = useState(0);
   const [locateMeStatus, setLocateMeStatus] = useState<string | null>(null);
   const [locateMeSummary, setLocateMeSummary] = useState<string | null>(null);
+  const [supporterNames, setSupporterNames] = useState<string[]>([]);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [gridMode, setGridMode] = useState<GridMode>("manual");
   const [mapZoom, setMapZoom] = useState<number | null>(null);
@@ -183,6 +184,23 @@ export default function Home() {
       return { ...s, grid: nextGrid };
     });
   }, [isMobileViewport, gridMode, mapZoom, state.metric]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const loadSupporters = async () => {
+      try {
+        const res = await fetch("/api/supporters?limit=10", { signal: controller.signal });
+        if (!res.ok) return;
+        const payload = (await res.json()) as { items?: string[] };
+        const items = Array.isArray(payload.items) ? payload.items : [];
+        setSupporterNames(items);
+      } catch {
+        // ignore optional supporters feed failures
+      }
+    };
+    void loadSupporters();
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     urlHydratedRef.current = true;
@@ -934,6 +952,11 @@ export default function Home() {
             <div style={{ fontSize: 10, opacity: 0.72, lineHeight: 1.25 }}>
               Free to use. Optional support only; no paid priority or guarantees.
             </div>
+            {supporterNames.length > 0 && (
+              <div style={{ fontSize: 10, opacity: 0.78, lineHeight: 1.35, maxWidth: 380 }}>
+                Thanks to supporters: {supporterNames.join(", ")}
+              </div>
+            )}
           </div>
         </div>
         {(menuOpen || anySubpanelOpen) && (
