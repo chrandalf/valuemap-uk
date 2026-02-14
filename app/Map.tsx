@@ -50,13 +50,14 @@ type ApiRow = {
   years_stale?: number;
 };
 
-type FloodSearchStatus = "found" | "no-risk-nearest" | "not-found" | "error";
+type FloodSearchStatus = "found" | "broad-has-risk" | "no-risk-nearest" | "not-found" | "error";
 
 type FloodSearchResult = {
   status: FloodSearchStatus;
   normalizedQuery: string;
   matchedPostcode?: string;
   nearestPostcode?: string;
+  hierarchyMatchCount?: number;
 };
 
 type FloodSearchEntry = {
@@ -182,13 +183,29 @@ export default function ValueMap({
         const exact = entries.find((entry) => entry.postcodeKey === normalized || normalizePostcodeSearch(entry.postcode) === normalized);
         if (exact) {
           animateToPostcodeTarget(map, [exact.lon, exact.lat], Math.max(map.getZoom(), 13));
+          setFloodSearchFocus(map, exact);
           onPostcodeSearchResultRef.current?.({ status: "found", normalizedQuery: normalized, matchedPostcode: exact.postcode });
+          return;
+        }
+
+        const hierarchyMatches = entries.filter((entry) => entry.postcodeKey.startsWith(normalized));
+        if (hierarchyMatches.length > 0) {
+          const representative = pickRepresentativeHierarchyMatch(map, hierarchyMatches);
+          animateToPostcodeTarget(map, [representative.lon, representative.lat], Math.max(map.getZoom(), 12));
+          setFloodSearchFocus(map, representative);
+          onPostcodeSearchResultRef.current?.({
+            status: "broad-has-risk",
+            normalizedQuery: normalized,
+            nearestPostcode: representative.postcode,
+            hierarchyMatchCount: hierarchyMatches.length,
+          });
           return;
         }
 
         const nearest = findNearestPostcodeMatch(normalized, entries);
         if (nearest) {
           animateToPostcodeTarget(map, [nearest.lon, nearest.lat], Math.max(map.getZoom(), 12));
+          setFloodSearchFocus(map, nearest);
           onPostcodeSearchResultRef.current?.({
             status: "no-risk-nearest",
             normalizedQuery: normalized,
@@ -197,8 +214,10 @@ export default function ValueMap({
           return;
         }
 
+        setFloodSearchFocus(map, null);
         onPostcodeSearchResultRef.current?.({ status: "not-found", normalizedQuery: normalized });
       } catch {
+        setFloodSearchFocus(map, null);
         onPostcodeSearchResultRef.current?.({ status: "error", normalizedQuery: normalized });
       }
     };
@@ -420,6 +439,11 @@ export default function ValueMap({
     clusterRadius: 50,
   });
 
+  map.addSource("flood-search-focus", {
+    type: "geojson",
+    data: { type: "FeatureCollection", features: [] },
+  });
+
   map.addLayer({
     id: "flood-overlay-clusters",
     type: "circle",
@@ -537,6 +561,32 @@ export default function ValueMap({
       "circle-stroke-color": "rgba(255,255,255,0.95)",
       "circle-stroke-width": 1,
       "circle-blur": 0.03,
+    },
+  });
+
+  map.addLayer({
+    id: "flood-search-focus-ring",
+    type: "circle",
+    source: "flood-search-focus",
+    paint: {
+      "circle-color": "rgba(0,0,0,0)",
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 10, 8, 15, 12, 21] as any,
+      "circle-stroke-color": "#fde047",
+      "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 4, 2.5, 8, 3.5, 12, 4.5] as any,
+      "circle-stroke-opacity": 0.98,
+    },
+  });
+
+  map.addLayer({
+    id: "flood-search-focus-dot",
+    type: "circle",
+    source: "flood-search-focus",
+    paint: {
+      "circle-color": "#ffffff",
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 2, 8, 3, 12, 4] as any,
+      "circle-stroke-color": "#111827",
+      "circle-stroke-width": 1,
+      "circle-opacity": 0.95,
     },
   });
 
@@ -1748,6 +1798,35 @@ function getCellFeatureAtLngLat(map: maplibregl.Map, lng: number, lat: number) {
   return features.length ? features[0] : null;
 }
 
+function setFloodSearchFocus(map: maplibregl.Map, entry: FloodSearchEntry | null) {
+  const source = map.getSource("flood-search-focus") as maplibregl.GeoJSONSource | undefined;
+  if (!source) return;
+
+  if (!entry) {
+    source.setData({ type: "FeatureCollection", features: [] } as any);
+    return;
+  }
+
+  source.setData(
+    {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: {
+            postcode: entry.postcode,
+            risk_score: entry.riskScore,
+          },
+          geometry: {
+            type: "Point",
+            coordinates: [entry.lon, entry.lat],
+          },
+        },
+      ],
+    } as any
+  );
+}
+
 function findNearestFloodEntryByDistance(lng: number, lat: number, entries: FloodSearchEntry[]) {
   if (!entries.length) return null;
 
@@ -1877,6 +1956,25 @@ function findNearestPostcodeMatch(query: string, entries: FloodSearchEntry[]): F
       bestScore = score;
       best = entry;
       if (score === 0) break;
+    }
+  }
+
+  return best;
+}
+
+function pickRepresentativeHierarchyMatch(map: maplibregl.Map, entries: FloodSearchEntry[]): FloodSearchEntry {
+  if (entries.length === 1) return entries[0];
+
+  const center = map.getCenter();
+  let best = entries[0];
+  let bestDistance = haversineDistanceMeters(center.lat, center.lng, best.lat, best.lon);
+
+  for (let i = 1; i < entries.length; i += 1) {
+    const candidate = entries[i];
+    const distance = haversineDistanceMeters(center.lat, center.lng, candidate.lat, candidate.lon);
+    if (distance < bestDistance) {
+      best = candidate;
+      bestDistance = distance;
     }
   }
 

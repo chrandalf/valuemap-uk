@@ -185,37 +185,6 @@ export default function Home() {
   }, [isMobileViewport, gridMode, mapZoom, state.metric]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const params = new URLSearchParams(window.location.search);
-    const grid = params.get("grid");
-    const metric = params.get("metric");
-    const propertyType = params.get("type");
-    const newBuild = params.get("newBuild");
-    const endMonth = params.get("period");
-    const valueFilterMode = params.get("vfm");
-    const valueThreshold = Number(params.get("vth"));
-    const floodOverlayMode = params.get("flood");
-
-    const validGrid = ["1km", "5km", "10km", "25km"];
-    const validMetric = ["median", "delta_gbp", "delta_pct"];
-    const validType = ["ALL", "D", "S", "T", "F"];
-    const validNewBuild = ["ALL", "Y", "N"];
-    const validVfm = ["off", "lte", "gte"];
-    const validFlood = ["off", "on", "on_hide_cells"];
-
-    setState((s) => ({
-      ...s,
-      grid: validGrid.includes(grid ?? "") ? (grid as GridSize) : s.grid,
-      metric: validMetric.includes(metric ?? "") ? (metric as Metric) : s.metric,
-      propertyType: validType.includes(propertyType ?? "") ? (propertyType as PropertyType) : s.propertyType,
-      newBuild: validNewBuild.includes(newBuild ?? "") ? (newBuild as NewBuild) : s.newBuild,
-      endMonth: endMonth ?? s.endMonth,
-      valueFilterMode: validVfm.includes(valueFilterMode ?? "") ? (valueFilterMode as ValueFilterMode) : s.valueFilterMode,
-      valueThreshold: Number.isFinite(valueThreshold) ? valueThreshold : s.valueThreshold,
-      floodOverlayMode: validFlood.includes(floodOverlayMode ?? "") ? (floodOverlayMode as FloodOverlayMode) : s.floodOverlayMode,
-    }));
-
     urlHydratedRef.current = true;
   }, []);
 
@@ -529,9 +498,18 @@ export default function Home() {
             setPostcodeSearchStatus(`Found ${result.matchedPostcode ?? result.normalizedQuery}`);
             return;
           }
+          if (result.status === "broad-has-risk") {
+            const count = result.hierarchyMatchCount ?? 0;
+            setPostcodeSearchStatus(
+              `${result.normalizedQuery} is a broader postcode area. ${count.toLocaleString()} flood-risk postcodes found under it${
+                result.nearestPostcode ? ` (showing ${result.nearestPostcode})` : ""
+              }.`
+            );
+            return;
+          }
           if (result.status === "no-risk-nearest") {
             setPostcodeSearchStatus(
-              `No flood risk in this postcode. Nearest mapped postcode: ${result.nearestPostcode ?? "available"}`
+              `No mapped flood-risk postcode found for ${result.normalizedQuery}. Nearest mapped postcode: ${result.nearestPostcode ?? "available"}`
             );
             return;
           }
