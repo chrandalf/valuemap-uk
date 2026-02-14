@@ -961,8 +961,9 @@ export default function Home() {
           >
             <div style={{ fontWeight: 600, marginBottom: 4 }}>Information only</div>
             <div>
-              Flood data shown here is for general information only and may be incomplete or out of date.
-              Always verify details with official sources and professional advice before making decisions.
+              Flood data shown here is for information only and comes from a flood risk database.
+              Data may be incomplete or out of date at the time of use. Always verify with official
+              sources before making decisions.
             </div>
           </div>
         )}

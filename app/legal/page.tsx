@@ -34,10 +34,11 @@ export default function LegalPage() {
         </Section>
 
         <Section title="2) Flood data limitations">
-          Flood information in this app is presented for contextual awareness only. It does not
-          replace official flood searches, environmental reports, insurer checks, lender
-          requirements, or professional advice. Where a nearest-risk postcode is shown, this does
-          not mean the searched postcode has that same risk.
+          Flood information in this app is for information only and comes from a flood risk
+          database. Data may be incomplete or out of date at the time of use. It does not replace
+          official flood searches, environmental reports, insurer checks, lender requirements, or
+          professional advice. Where a nearest-risk postcode is shown, this does not mean the
+          searched postcode has that same risk.
         </Section>
 
         <Section title="3) Property value metrics limitations">
