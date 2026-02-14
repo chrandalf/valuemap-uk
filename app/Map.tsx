@@ -881,44 +881,6 @@ export default function ValueMap({
             </>
           )}
           </div>
-          <a
-            href="https://buymeacoffee.com/chrandalf"
-            target="_blank"
-            rel="noreferrer"
-            aria-label="Buy me a coffee"
-            title="Buy me a coffee"
-            style={{
-              alignSelf: "flex-start",
-              height: 24,
-              padding: "0 9px 0 7px",
-              borderRadius: 999,
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              background: "rgba(10, 12, 20, 0.92)",
-              border: "1px solid rgba(255,255,255,0.2)",
-              color: "white",
-              textDecoration: "none",
-              fontSize: 10,
-              lineHeight: 1,
-              letterSpacing: 0.2,
-              whiteSpace: "nowrap",
-              boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
-            }}
-          >
-            <svg
-              viewBox="0 0 24 24"
-              width="14"
-              height="14"
-              aria-hidden="true"
-              focusable="false"
-              fill="currentColor"
-            >
-              <path d="M5 6h10a0 0 0 0 1 0 0v6a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V6Zm10 1h1.5a2.5 2.5 0 1 1 0 5H15V7Zm-8 2h6v3H7V9Zm1 9h6a3 3 0 0 0 3-3v-1h-1.5a3.5 3.5 0 1 0 0-7H5v4a3 3 0 0 0 3 3Z" />
-              <path d="M6 5h8v1H6V5Z" />
-            </svg>
-            <span>buy me a coffee?</span>
-          </a>
         </div>
       )}
     </div>
