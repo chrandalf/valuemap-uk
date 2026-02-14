@@ -1006,6 +1006,47 @@ export default function Home() {
             )}
           </div>
         </div>
+        {state.floodOverlayMode !== "off" && (
+          <div
+            style={{
+              marginTop: 8,
+              borderRadius: 10,
+              border: "1px solid rgba(248,113,113,0.55)",
+              background: "rgba(239,68,68,0.12)",
+              padding: "8px 10px",
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 8,
+            }}
+          >
+            <div
+              aria-hidden="true"
+              style={{
+                width: 18,
+                height: 18,
+                borderRadius: 999,
+                background: "rgba(239,68,68,0.9)",
+                color: "white",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 12,
+                fontWeight: 700,
+                lineHeight: 1,
+                flexShrink: 0,
+                marginTop: 1,
+              }}
+            >
+              !
+            </div>
+            <div style={{ fontSize: 10, lineHeight: 1.35, opacity: 0.95 }}>
+              <b>Important:</b> Flood overlay uses open flood data and representative mapped points.
+              Data may be out of date for some postcodes. Other points within the same postcode can
+              fall into different flood areas and have different risk levels. Always verify with
+              official UK government sources before making decisions.
+            </div>
+          </div>
+        )}
         {(menuOpen || anySubpanelOpen) && (
           <div style={{ marginTop: 6, fontSize: 11, opacity: 0.7 }}>
             Scotland coverage is partial and may be 1–2 years out of date.
@@ -1031,9 +1072,9 @@ export default function Home() {
           >
             <div style={{ fontWeight: 600, marginBottom: 4 }}>Information only</div>
             <div>
-              Flood data shown here is for information only and comes from a flood risk database.
-              Data may be incomplete or out of date at the time of use. Always verify with official
-              sources before making decisions.
+              Flood data shown here is open flood data for information only. Data may be incomplete or
+              out of date in some postcodes at the time of use. Always verify with official UK
+              government sources before making decisions.
             </div>
           </div>
         )}
@@ -1479,7 +1520,7 @@ export default function Home() {
             </div>
             <ol start={1} style={{ margin: 0, padding: "0 0 0 16px" }}>
               <li>
-                v0.2: I will add flood exposure data (rivers/sea and surface water) so I can test whether price drops correlate with flood risk.
+                v0.2: I will improve and migrate flood data sourcing toward more official UK government flood datasets (rivers/sea and surface water) so I can test whether price drops correlate with flood risk.
               </li>
               <li>
                 v0.3: I will add EPC-linked property detail so I can filter by rooms and compute price per square metre or square foot.
