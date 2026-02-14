@@ -780,7 +780,7 @@ export default function Home() {
         </div>
         {!menuOpen && !anySubpanelOpen && (
           <div style={{ marginTop: 8 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, width: "100%" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 8, width: "100%" }}>
               <input
                 type="text"
                 value={postcodeSearch}
@@ -821,13 +821,6 @@ export default function Home() {
               >
                 Go
               </button>
-            </div>
-            {postcodeSearchStatus && (
-              <div style={{ fontSize: 11, opacity: 0.82, marginTop: 6 }}>
-                {postcodeSearchStatus}
-              </div>
-            )}
-            <div style={{ marginTop: 8 }}>
               <button
                 type="button"
                 onClick={() => {
@@ -835,31 +828,37 @@ export default function Home() {
                   setLocateMeSummary(null);
                   setLocateMeToken((v) => v + 1);
                 }}
+                title="Use my location (one-shot)"
+                aria-label="Use my location once"
                 style={{
-                  width: "100%",
                   cursor: "pointer",
                   border: "1px solid rgba(255,255,255,0.2)",
                   background: "rgba(59,130,246,0.2)",
                   color: "white",
-                  padding: "7px 10px",
+                  padding: "6px 8px",
                   borderRadius: 8,
-                  fontSize: 12,
-                  textAlign: "center",
+                  fontSize: 11,
+                  whiteSpace: "nowrap",
                 }}
               >
-                Use my location (one-shot)
+                Locate me
               </button>
-              {locateMeStatus && (
-                <div style={{ fontSize: 11, opacity: 0.85, marginTop: 6 }}>
-                  {locateMeStatus}
-                </div>
-              )}
-              {locateMeSummary && (
-                <div style={{ fontSize: 11, opacity: 0.8, marginTop: 4, lineHeight: 1.35 }}>
-                  {locateMeSummary}
-                </div>
-              )}
             </div>
+            {postcodeSearchStatus && (
+              <div style={{ fontSize: 11, opacity: 0.82, marginTop: 6 }}>
+                {postcodeSearchStatus}
+              </div>
+            )}
+            {locateMeStatus && (
+              <div style={{ fontSize: 11, opacity: 0.85, marginTop: 6 }}>
+                {locateMeStatus}
+              </div>
+            )}
+            {locateMeSummary && (
+              <div style={{ fontSize: 11, opacity: 0.8, marginTop: 4, lineHeight: 1.35 }}>
+                {locateMeSummary}
+              </div>
+            )}
           </div>
         )}
         <div
