@@ -1971,20 +1971,28 @@ export default function Home() {
             right: 8,
             top: 106,
             zIndex: 6,
-            border: "1px solid rgba(248,113,113,0.85)",
-            background: cleanScreenMode ? "rgba(147,197,253,0.9)" : "rgba(185,28,28,0.9)",
+            border: "1px solid rgba(255,255,255,0.24)",
+            background: cleanScreenMode ? "rgba(147,197,253,0.9)" : "rgba(10, 12, 20, 0.88)",
             color: "white",
-            borderRadius: 999,
-            padding: "6px 10px",
+            borderRadius: 8,
+            width: 64,
+            height: 28,
+            minWidth: 64,
+            minHeight: 28,
             fontSize: 10,
             fontWeight: 600,
             lineHeight: 1,
             cursor: "pointer",
             boxShadow: "0 2px 10px rgba(0,0,0,0.35)",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
             animation: !cleanScreenMode && mobileOverlayRatio > 0.5 ? "cleanScreenPulse 1100ms ease-in-out infinite" : "none",
           }}
         >
-          {cleanScreenMode ? "Restore" : "Clear screen"}
+          {cleanScreenMode ? "Restore" : "Clear"}
         </button>
       )}
 
