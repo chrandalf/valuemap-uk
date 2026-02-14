@@ -755,6 +755,26 @@ export default function Home() {
               Next steps
             </button>
           )}
+          {menuOpen && !anySubpanelOpen && (
+            <a
+              href="/contact"
+              className="contact-toggle menu-btn"
+              style={{
+                cursor: "pointer",
+                border: "1px solid rgba(255,255,255,0.18)",
+                background: "rgba(255,255,255,0.08)",
+                color: "white",
+                padding: "6px 10px",
+                borderRadius: 999,
+                fontSize: 11,
+                textDecoration: "none",
+                display: "inline-flex",
+                alignItems: "center",
+              }}
+            >
+              Contact
+            </a>
+          )}
         </div>
         {!menuOpen && !anySubpanelOpen && (
           <div style={{ marginTop: 8 }}>
