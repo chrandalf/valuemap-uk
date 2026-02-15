@@ -1108,9 +1108,9 @@ export default function Home() {
           >
             <div style={{ fontWeight: 600, marginBottom: 4 }}>Information only</div>
             <div>
-              Flood data shown here is open flood data for information only. Data may be incomplete or
-              out of date in some postcodes at the time of use. Always verify with official UK
-              government sources before making decisions.
+              {state.floodOverlayMode !== "off"
+                ? "Map outputs are for information only and may be incomplete or out of date. Always verify important details with official UK government sources before making decisions."
+                : "Flood data shown here is open flood data for information only. Data may be incomplete or out of date in some postcodes at the time of use. Always verify with official UK government sources before making decisions."}
             </div>
           </div>
         )}
