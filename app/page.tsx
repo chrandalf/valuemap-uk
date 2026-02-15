@@ -78,10 +78,7 @@ export default function Home() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [instructionsOpen, setInstructionsOpen] = useState(false);
   const [instructionsPage, setInstructionsPage] = useState(1);
-  const [descriptionOpen, setDescriptionOpen] = useState(false);
-  const [descriptionPage, setDescriptionPage] = useState(1);
   const [dataSourcesOpen, setDataSourcesOpen] = useState(false);
-  const [nextStepsOpen, setNextStepsOpen] = useState(false);
   const [postcodeOpen, setPostcodeOpen] = useState(false);
   const [legendOpen, setLegendOpen] = useState(true);
   const [outcodeTop, setOutcodeTop] = useState<OutcodeRank[]>([]);
@@ -109,7 +106,7 @@ export default function Home() {
   const topPanelRef = useRef<HTMLDivElement | null>(null);
   const rightPanelsRef = useRef<HTMLDivElement | null>(null);
 
-  const anySubpanelOpen = filtersOpen || instructionsOpen || descriptionOpen || dataSourcesOpen || nextStepsOpen;
+  const anySubpanelOpen = filtersOpen || instructionsOpen || dataSourcesOpen;
   const DEFAULT_STATE: MapState = {
     grid: "5km",
     metric: "median",
@@ -123,9 +120,7 @@ export default function Home() {
   const closeAllSubpanels = () => {
     setFiltersOpen(false);
     setInstructionsOpen(false);
-    setDescriptionOpen(false);
     setDataSourcesOpen(false);
-    setNextStepsOpen(false);
   };
   const resetAll = () => {
     setState(DEFAULT_STATE);
@@ -226,9 +221,7 @@ export default function Home() {
     menuOpen,
     filtersOpen,
     instructionsOpen,
-    descriptionOpen,
     dataSourcesOpen,
-    nextStepsOpen,
     postcodeOpen,
     legendOpen,
     overlayPanelCollapsed,
@@ -765,14 +758,8 @@ export default function Home() {
             </button>
           )}
           {menuOpen && !anySubpanelOpen && (
-            <button
-              type="button"
-              onClick={() => {
-                closeAllSubpanels();
-                setDescriptionOpen(true);
-                setDescriptionPage(1);
-                setMenuOpen(true);
-              }}
+            <a
+              href="/description"
               className="description-toggle menu-btn"
               style={{
                 cursor: "pointer",
@@ -782,10 +769,13 @@ export default function Home() {
                 padding: "6px 10px",
                 borderRadius: 999,
                 fontSize: 11,
+                textDecoration: "none",
+                display: "inline-flex",
+                alignItems: "center",
               }}
             >
               Description
-            </button>
+            </a>
           )}
           {menuOpen && !anySubpanelOpen && (
             <button
@@ -810,13 +800,8 @@ export default function Home() {
             </button>
           )}
           {menuOpen && !anySubpanelOpen && (
-            <button
-              type="button"
-              onClick={() => {
-                closeAllSubpanels();
-                setNextStepsOpen(true);
-                setMenuOpen(true);
-              }}
+            <a
+              href="/next-steps"
               className="nextsteps-toggle menu-btn"
               style={{
                 cursor: "pointer",
@@ -826,10 +811,13 @@ export default function Home() {
                 padding: "6px 10px",
                 borderRadius: 999,
                 fontSize: 11,
+                textDecoration: "none",
+                display: "inline-flex",
+                alignItems: "center",
               }}
             >
               Next steps
-            </button>
+            </a>
           )}
           {menuOpen && !anySubpanelOpen && (
             <a
@@ -1389,103 +1377,6 @@ export default function Home() {
             )}
           </>
         )}
-        {descriptionOpen && (
-          <div
-            className="description-panel"
-            style={{
-              marginTop: 8,
-              padding: 10,
-              borderRadius: 10,
-              background: "rgba(0,0,0,0.35)",
-              border: "1px solid rgba(255,255,255,0.12)",
-              fontSize: 11,
-              lineHeight: 1.45,
-              opacity: 0.92,
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <div style={{ fontWeight: 600 }}>Description</div>
-              <button
-                type="button"
-                onClick={() => {
-                  setDescriptionOpen(false);
-                  setDescriptionPage(1);
-                  setMenuOpen(true);
-                }}
-                style={{
-                  cursor: "pointer",
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  background: "rgba(255,255,255,0.08)",
-                  color: "white",
-                  padding: "4px 8px",
-                  borderRadius: 999,
-                  fontSize: 10,
-                }}
-              >
-                Back
-              </button>
-            </div>
-            {descriptionPage === 1 && (
-              <>
-                <div style={{ fontWeight: 600, marginBottom: 6 }}>
-                  UK House Price Map - Grid-Based Analysis
-                </div>
-                <div style={{ marginBottom: 8 }}>
-                  This interactive UK house price map shows how property prices vary across the country using a grid-based approach rather than traditional postcode averages. By aggregating sales into evenly sized grid cells (from 1km up to 25km), it becomes much easier to spot regional patterns, price gradients, and local anomalies that are often hidden when data is grouped by administrative boundaries.
-                </div>
-                <div style={{ marginBottom: 8 }}>
-                  The map is built using Land Registry price paid data, aggregated over a trailing 12-month period to smooth short-term volatility. For each grid cell, prices are summarised using median values, which are more robust than simple averages and less distorted by very high or very low individual sales. Where enough transactions exist, the map also shows recent price changes, helping to highlight areas where prices are rising or falling relative to the recent past.
-                </div>
-                <div style={{ marginBottom: 8 }}>
-                  You can switch between different grid sizes depending on the level of detail you want. Smaller grids (such as 1km or 5km) reveal fine-grained local variation, while larger grids provide a broader regional view that is useful for comparing towns, cities, or wider housing markets. Filters allow prices to be explored by property type (detached, semi-detached, terraced, or flats) and by new build versus existing homes, making it easier to compare like with like.
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setDescriptionPage(2)}
-                  style={{
-                    cursor: "pointer",
-                    border: "1px solid rgba(255,255,255,0.18)",
-                    background: "rgba(255,255,255,0.08)",
-                    color: "white",
-                    padding: "4px 8px",
-                    borderRadius: 999,
-                    fontSize: 10,
-                  }}
-                >
-                  Next page
-                </button>
-              </>
-            )}
-            {descriptionPage === 2 && (
-              <>
-                <div style={{ marginBottom: 8 }}>
-                  This grid-based view is particularly useful for people researching a move, comparing affordability between regions, or trying to understand how house prices change as you move away from city centres. Because grid cells are consistent in size, they avoid some of the distortions caused by postcode areas, which can vary widely in shape and population.
-                </div>
-                <div style={{ marginBottom: 8 }}>
-                  The map is designed as an exploratory tool rather than a property listing service. Clicking on a grid cell reveals the underlying price context for that area, and individual postcodes can be explored further using external listing sites if desired. Coverage is strongest for England and Wales, with Scotland included where data availability allows.
-                </div>
-                <div style={{ marginBottom: 8 }}>
-                  All data shown is aggregated and anonymised. The aim is not to predict prices, but to provide a clear, data-driven picture of UK house prices by area, helping patterns emerge that are difficult to see in traditional tables or charts.
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setDescriptionPage(1)}
-                  style={{
-                    cursor: "pointer",
-                    border: "1px solid rgba(255,255,255,0.18)",
-                    background: "rgba(255,255,255,0.08)",
-                    color: "white",
-                    padding: "4px 8px",
-                    borderRadius: 999,
-                    fontSize: 10,
-                  }}
-                >
-                  Previous page
-                </button>
-              </>
-            )}
-          </div>
-        )}
         {dataSourcesOpen && (
           <div
             className="datasources-panel"
@@ -1531,70 +1422,11 @@ export default function Home() {
             </div>
           </div>
         )}
-        {nextStepsOpen && (
-          <div
-            className="nextsteps-panel"
-            style={{
-              marginTop: 8,
-              padding: 10,
-              borderRadius: 10,
-              background: "rgba(0,0,0,0.35)",
-              border: "1px solid rgba(255,255,255,0.12)",
-              fontSize: 11,
-              lineHeight: 1.45,
-              opacity: 0.92,
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <div style={{ fontWeight: 600 }}>Next steps</div>
-              <button
-                type="button"
-                onClick={() => {
-                  setNextStepsOpen(false);
-                  setMenuOpen(true);
-                }}
-                style={{
-                  cursor: "pointer",
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  background: "rgba(255,255,255,0.08)",
-                  color: "white",
-                  padding: "4px 8px",
-                  borderRadius: 999,
-                  fontSize: 10,
-                }}
-              >
-                Back
-              </button>
-            </div>
-            <ol start={1} style={{ margin: 0, padding: "0 0 0 16px" }}>
-              <li>
-                v0.2: I will improve and migrate flood data sourcing toward more official UK government flood datasets (rivers/sea and surface water) so I can test whether price drops correlate with flood risk.
-              </li>
-              <li>
-                v0.3: I will add EPC-linked property detail so I can filter by rooms and compute price per square metre or square foot.
-              </li>
-              <li>
-                v0.4: I will add confidence/coverage indicators per cell (e.g., sales count banding or a low-data flag).
-              </li>
-              <li>
-                v0.5: I will add a comparison mode with side-by-side metrics or a then vs now slider.
-              </li>
-              <li>
-                v0.6: I will add commuting/transport overlays (rail/metro stations) to contextualize price gradients.
-              </li>
-              <li>
-                v0.7: I will add affordability layers after I add income data (price-to-income ratios).
-              </li>
-            </ol>
-          </div>
-        )}
-
       </div>
 
       {/* Right-side stacked panels */}
       {(!isMobileViewport || !postcodeOpen) &&
         !instructionsOpen &&
-        !descriptionOpen &&
         !cleanScreenMode &&
         (legendOpen || state.metric === "median" || state.metric === "delta_gbp" || state.metric === "delta_pct") && (
         <div
@@ -1909,7 +1741,7 @@ export default function Home() {
         </div>
       )}
 
-      {isMobileViewport && cleanScreenMode && !postcodeOpen && !instructionsOpen && !descriptionOpen && (
+      {isMobileViewport && cleanScreenMode && !postcodeOpen && !instructionsOpen && (
         <div
           className="right-panels"
           style={{
@@ -2000,9 +1832,8 @@ export default function Home() {
         !filtersOpen &&
         !menuOpen &&
         !instructionsOpen &&
-        !descriptionOpen &&
         !dataSourcesOpen &&
-        !nextStepsOpen && (
+        (
         <div className="mobile-grid-dock" aria-label="Map grid controls">
           <button
             type="button"
