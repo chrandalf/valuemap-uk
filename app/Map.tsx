@@ -8,6 +8,7 @@ type GridSize = "1km" | "5km" | "10km" | "25km";
 type Metric = "median" | "median_ppsf" | "delta_gbp" | "delta_pct";
 type ValueFilterMode = "off" | "lte" | "gte";
 type FloodOverlayMode = "off" | "on" | "on_hide_cells";
+type VoteOverlayMode = "off" | "progressive" | "conservative" | "popular_right";
 
 export type MapState = {
   grid: GridSize;
@@ -18,6 +19,7 @@ export type MapState = {
   valueFilterMode?: ValueFilterMode;
   valueThreshold?: number;
   floodOverlayMode?: FloodOverlayMode;
+  voteOverlayMode?: VoteOverlayMode;
 };
 
 export type LegendData =
@@ -457,6 +459,11 @@ export default function ValueMap({
         data: { type: "FeatureCollection", features: [] },
   });
 
+  map.addSource("vote-overlay", {
+    type: "geojson",
+    data: "/data/ge2024_vote_blocks_map.geojson",
+  });
+
   map.addSource("flood-overlay", {
     type: "geojson",
     data: "/api/flood?plain=1",
@@ -530,6 +537,33 @@ export default function ValueMap({
     paint: {
       "fill-color": getFillColorExpression(state.metric),
       "fill-opacity": 0.42,
+    },
+  });
+
+  map.addLayer({
+    id: "vote-overlay-fill",
+    type: "fill",
+    source: "vote-overlay",
+    layout: {
+      visibility: stateRef.current.voteOverlayMode && stateRef.current.voteOverlayMode !== "off" ? "visible" : "none",
+    },
+    paint: {
+      "fill-color": voteOverlayFillColorExpression(stateRef.current.voteOverlayMode ?? "off"),
+      "fill-opacity": 0.58,
+    },
+  });
+
+  map.addLayer({
+    id: "vote-overlay-outline",
+    type: "line",
+    source: "vote-overlay",
+    layout: {
+      visibility: stateRef.current.voteOverlayMode && stateRef.current.voteOverlayMode !== "off" ? "visible" : "none",
+    },
+    paint: {
+      "line-color": "rgba(15,23,42,0.70)",
+      "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.25, 7, 0.45, 10, 0.9] as any,
+      "line-opacity": 0.8,
     },
   });
 
@@ -770,7 +804,42 @@ export default function ValueMap({
     showFloodClusterPopup(e);
   });
 
+  map.on("mousemove", "vote-overlay-fill", (e) => {
+    if ((stateRef.current.voteOverlayMode ?? "off") === "off") {
+      popup.remove();
+      return;
+    }
+
+    map.getCanvas().style.cursor = "pointer";
+    const f = e.features?.[0] as any;
+    if (!f) return;
+    const p = f.properties || {};
+    const constituency = String(p.constituency ?? p.PCON24NM ?? "Constituency");
+    const prog = Number(p.pct_progressive ?? 0);
+    const cons = Number(p.pct_conservative ?? 0);
+    const right = Number(p.pct_popular_right ?? 0);
+
+    const html = `
+      <div style="font-family: system-ui; font-size: 12px; line-height: 1.3;">
+        <div style="font-weight: 700; margin-bottom: 4px;">${constituency}</div>
+        <div>Progressive: <b>${(prog * 100).toFixed(1)}%</b></div>
+        <div>Conservative: <b>${(cons * 100).toFixed(1)}%</b></div>
+        <div>Popular Right: <b>${(right * 100).toFixed(1)}%</b></div>
+      </div>
+    `;
+
+    popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+  });
+
+  map.on("mouseleave", "vote-overlay-fill", () => {
+    map.getCanvas().style.cursor = "";
+    popup.remove();
+  });
+
   map.on("mousemove", "cells-fill", (e) => {
+    if ((stateRef.current.voteOverlayMode ?? "off") !== "off") {
+      return;
+    }
     if (useFloodPopupMode()) {
       popup.remove();
       return;
@@ -980,6 +1049,27 @@ export default function ValueMap({
     }
   }, [state.floodOverlayMode]);
 
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (!map.isStyleLoaded()) return;
+
+    const mode = state.voteOverlayMode ?? "off";
+    const visibility = mode === "off" ? "none" : "visible";
+
+    try {
+      if (map.getLayer("vote-overlay-fill")) {
+        map.setLayoutProperty("vote-overlay-fill", "visibility", visibility);
+        map.setPaintProperty("vote-overlay-fill", "fill-color", voteOverlayFillColorExpression(mode));
+      }
+      if (map.getLayer("vote-overlay-outline")) {
+        map.setLayoutProperty("vote-overlay-outline", "visibility", visibility);
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [state.voteOverlayMode]);
+
   // Note: metric changes already trigger setRealData (via deps below).
   // Avoid a separate recolor effect to prevent stale data/legend during rapid filter changes.
 
@@ -1149,6 +1239,38 @@ export default function ValueMap({
 }
 
 /** ---------------- Real data wiring ---------------- */
+
+function voteOverlayMetricProperty(mode: VoteOverlayMode): "pct_progressive" | "pct_conservative" | "pct_popular_right" {
+  if (mode === "conservative") return "pct_conservative";
+  if (mode === "popular_right") return "pct_popular_right";
+  return "pct_progressive";
+}
+
+function voteOverlayFillColorExpression(mode: VoteOverlayMode) {
+  const prop = voteOverlayMetricProperty(mode);
+  const colors =
+    mode === "conservative"
+      ? ["#f8fafc", "#dbeafe", "#93c5fd", "#3b82f6", "#1d4ed8"]
+      : mode === "popular_right"
+        ? ["#f8fafc", "#fde68a", "#f59e0b", "#d97706", "#92400e"]
+        : ["#f8fafc", "#dcfce7", "#86efac", "#22c55e", "#166534"];
+
+  return [
+    "interpolate",
+    ["linear"],
+    ["coalesce", ["to-number", ["get", prop]], 0],
+    0,
+    colors[0],
+    0.25,
+    colors[1],
+    0.5,
+    colors[2],
+    0.75,
+    colors[3],
+    1,
+    colors[4],
+  ] as any;
+}
 
 function floodSeverityExpression() {
   return [

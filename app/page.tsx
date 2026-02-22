@@ -9,6 +9,7 @@ type PropertyType = "ALL" | "D" | "S" | "T" | "F"; // Detached / Semi / Terraced
 type NewBuild = "ALL" | "Y" | "N";
 type ValueFilterMode = "off" | "lte" | "gte";
 type FloodOverlayMode = "off" | "on" | "on_hide_cells";
+type VoteOverlayMode = "off" | "progressive" | "conservative" | "popular_right";
 type GridMode = "auto" | "manual";
 
 type MapState = {
@@ -20,6 +21,7 @@ type MapState = {
   valueFilterMode: ValueFilterMode;
   valueThreshold: number;
   floodOverlayMode: FloodOverlayMode;
+  voteOverlayMode: VoteOverlayMode;
 };
 
 type OutcodeRank = {
@@ -74,6 +76,7 @@ export default function Home() {
     valueFilterMode: "off",
     valueThreshold: 300000,
     floodOverlayMode: "off",
+    voteOverlayMode: "off",
   });
   const [legend, setLegend] = useState<LegendData | null>(null);
   const medianLegend =
@@ -87,6 +90,8 @@ export default function Home() {
   const [instructionsOpen, setInstructionsOpen] = useState(false);
   const [instructionsPage, setInstructionsPage] = useState(1);
   const [dataSourcesOpen, setDataSourcesOpen] = useState(false);
+  const [electionInfoOpen, setElectionInfoOpen] = useState(false);
+  const [voteKeyOpen, setVoteKeyOpen] = useState(false);
   const [postcodeOpen, setPostcodeOpen] = useState(false);
   const [legendOpen, setLegendOpen] = useState(true);
   const [outcodeTop, setOutcodeTop] = useState<OutcodeRank[]>([]);
@@ -115,7 +120,7 @@ export default function Home() {
   const topPanelRef = useRef<HTMLDivElement | null>(null);
   const rightPanelsRef = useRef<HTMLDivElement | null>(null);
 
-  const anySubpanelOpen = filtersOpen || instructionsOpen || dataSourcesOpen;
+  const anySubpanelOpen = filtersOpen || instructionsOpen || dataSourcesOpen || electionInfoOpen;
   const DEFAULT_STATE: MapState = {
     grid: "5km",
     metric: "median",
@@ -125,11 +130,13 @@ export default function Home() {
     valueFilterMode: "off",
     valueThreshold: 300000,
     floodOverlayMode: "off",
+    voteOverlayMode: "off",
   };
   const closeAllSubpanels = () => {
     setFiltersOpen(false);
     setInstructionsOpen(false);
     setDataSourcesOpen(false);
+    setElectionInfoOpen(false);
   };
   const resetAll = () => {
     setState(DEFAULT_STATE);
@@ -295,6 +302,7 @@ export default function Home() {
     params.set("vfm", state.valueFilterMode);
     params.set("vth", String(Math.round(state.valueThreshold * 10) / 10));
     params.set("flood", state.floodOverlayMode);
+    params.set("vote", state.voteOverlayMode);
 
     const nextUrl = `${window.location.pathname}?${params.toString()}`;
     window.history.replaceState(null, "", nextUrl);
@@ -480,11 +488,19 @@ export default function Home() {
       : state.floodOverlayMode === "on"
         ? "On"
         : "On (hide cells)";
+  const voteOverlayLabel =
+    state.voteOverlayMode === "off"
+      ? "Off"
+      : state.voteOverlayMode === "progressive"
+        ? "Progressive"
+        : state.voteOverlayMode === "conservative"
+          ? "Conservative"
+          : "Popular Right";
 
   const currentFiltersSummary =
     `Grid: ${state.grid} · Metric: ${METRIC_LABEL[state.metric]} · ` +
     `Type: ${PROPERTY_LABEL[state.propertyType]} · New build: ${NEWBUILD_LABEL[state.newBuild]} · ` +
-    `Period: ${periodLabel} · Flood: ${floodOverlayLabel}`;
+    `Period: ${periodLabel} · Flood: ${floodOverlayLabel} · Vote overlay: ${voteOverlayLabel}`;
   const headerFilterSummary =
     `${state.grid} · ${METRIC_LABEL[state.metric]} · ${PROPERTY_LABEL[state.propertyType]} · ${NEWBUILD_LABEL[state.newBuild]} · ${periodLabel}`;
 
@@ -872,6 +888,28 @@ export default function Home() {
               }}
             >
               Data sources
+            </button>
+          )}
+          {menuOpen && !anySubpanelOpen && (
+            <button
+              type="button"
+              onClick={() => {
+                closeAllSubpanels();
+                setElectionInfoOpen(true);
+                setMenuOpen(true);
+              }}
+              className="electioninfo-toggle menu-btn"
+              style={{
+                cursor: "pointer",
+                border: "1px solid rgba(255,255,255,0.18)",
+                background: "rgba(255,255,255,0.08)",
+                color: "white",
+                padding: "6px 10px",
+                borderRadius: 999,
+                fontSize: 11,
+              }}
+            >
+              Election info
             </button>
           )}
           {menuOpen && !anySubpanelOpen && (
@@ -1499,6 +1537,56 @@ export default function Home() {
             </div>
           </div>
         )}
+        {electionInfoOpen && (
+          <div
+            className="electioninfo-panel"
+            style={{
+              marginTop: 8,
+              padding: 10,
+              borderRadius: 10,
+              background: "rgba(0,0,0,0.35)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              fontSize: 11,
+              lineHeight: 1.45,
+              opacity: 0.92,
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <div style={{ fontWeight: 600 }}>Election overlay (GE 2024)</div>
+              <button
+                type="button"
+                onClick={() => {
+                  setElectionInfoOpen(false);
+                  setMenuOpen(true);
+                }}
+                style={{
+                  cursor: "pointer",
+                  border: "1px solid rgba(255,255,255,0.18)",
+                  background: "rgba(255,255,255,0.08)",
+                  color: "white",
+                  padding: "4px 8px",
+                  borderRadius: 999,
+                  fontSize: 10,
+                }}
+              >
+                Back
+              </button>
+            </div>
+            <div style={{ marginBottom: 8 }}>
+              This overlay maps General Election 2024 vote shares by constituency boundary. Turn it on in Overlay filters,
+              then choose a category (Progressive, Conservative, or Popular Right).
+            </div>
+            <ol start={1} style={{ margin: 0, padding: "0 0 0 16px" }}>
+              <li><b>Progressive</b>: Labour, Lib Dem, Green, SNP, Plaid Cymru, Alliance, SDLP, Sinn Féin and related centre-left parties.</li>
+              <li><b>Conservative</b>: Conservative and Unionist family parties.</li>
+              <li><b>Popular Right</b>: Reform UK and related right-populist parties.</li>
+              <li><b>Other</b>: all remaining parties/candidates not in those three groupings.</li>
+            </ol>
+            <div style={{ marginTop: 8, opacity: 0.8 }}>
+              Percentages are vote-share within each constituency and are for exploratory information only.
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Right-side stacked panels */}
@@ -1670,7 +1758,55 @@ export default function Home() {
                   return "Off";
                 }}
               />
+              <div style={{ fontSize: 12, opacity: 0.8 }}>Votes</div>
+              <Segment
+                options={["off", "progressive", "conservative", "popular_right"]}
+                value={state.voteOverlayMode}
+                onChange={(v) => setState((s) => ({ ...s, voteOverlayMode: v as VoteOverlayMode }))}
+                renderOption={(v) => {
+                  if (v === "progressive") return "Prog";
+                  if (v === "conservative") return "Cons";
+                  if (v === "popular_right") return "Pop Right";
+                  return "Off";
+                }}
+              />
+              <div style={{ fontSize: 12, opacity: 0.8 }}>Vote key</div>
+              <button
+                type="button"
+                onClick={() => setVoteKeyOpen((x) => !x)}
+                style={{
+                  cursor: "pointer",
+                  border: "1px solid rgba(255,255,255,0.18)",
+                  background: "rgba(255,255,255,0.08)",
+                  color: "white",
+                  padding: "6px 10px",
+                  borderRadius: 999,
+                  fontSize: 11,
+                  justifySelf: "start",
+                }}
+              >
+                {voteKeyOpen ? "Hide key" : "Open key"}
+              </button>
             </div>
+            {voteKeyOpen && (
+              <div
+                style={{
+                  marginTop: 8,
+                  padding: "8px 10px",
+                  borderRadius: 10,
+                  background: "rgba(255,255,255,0.08)",
+                  border: "1px solid rgba(255,255,255,0.16)",
+                  fontSize: 10,
+                  lineHeight: 1.35,
+                  opacity: 0.9,
+                }}
+              >
+                <div style={{ fontWeight: 700, marginBottom: 4 }}>Election overlay key</div>
+                <div><b>Progressive:</b> Labour, Lib Dem, Green, SNP, Plaid Cymru, Alliance, SDLP, Sinn Féin (+ aligned).</div>
+                <div style={{ marginTop: 4 }}><b>Conservative:</b> Conservative and unionist family parties.</div>
+                <div style={{ marginTop: 4 }}><b>Popular Right:</b> Reform UK and related right-populist parties.</div>
+              </div>
+            )}
           </div>
 
           {(
