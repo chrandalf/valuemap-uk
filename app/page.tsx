@@ -1506,7 +1506,7 @@ export default function Home() {
       {(!isMobileViewport || !postcodeOpen) &&
         !instructionsOpen &&
         !cleanScreenMode &&
-        (legendOpen || state.metric === "median" || state.metric === "delta_gbp" || state.metric === "delta_pct") && (
+        (legendOpen || state.metric === "median" || state.metric === "median_ppsf" || state.metric === "delta_gbp" || state.metric === "delta_pct") && (
         <div
           ref={rightPanelsRef}
           className="right-panels"
@@ -1676,6 +1676,7 @@ export default function Home() {
 
           {(
             state.metric === "median" ||
+            state.metric === "median_ppsf" ||
             state.metric === "delta_gbp" ||
             state.metric === "delta_pct"
           ) && (
@@ -1698,6 +1699,8 @@ export default function Home() {
                   <span className="title-full">
                     {state.metric === "median"
                       ? "Median value filter"
+                      : state.metric === "median_ppsf"
+                        ? "Price / ft² filter"
                       : state.metric === "delta_gbp"
                         ? "Change (£) filter"
                         : "Change (%) filter"}
