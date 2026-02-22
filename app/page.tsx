@@ -10,6 +10,7 @@ type NewBuild = "ALL" | "Y" | "N";
 type ValueFilterMode = "off" | "lte" | "gte";
 type FloodOverlayMode = "off" | "on" | "on_hide_cells";
 type VoteOverlayMode = "off" | "progressive" | "conservative" | "popular_right";
+type VoteColorScale = "relative" | "absolute";
 type GridMode = "auto" | "manual";
 
 type MapState = {
@@ -22,6 +23,7 @@ type MapState = {
   valueThreshold: number;
   floodOverlayMode: FloodOverlayMode;
   voteOverlayMode: VoteOverlayMode;
+  voteColorScale: VoteColorScale;
 };
 
 type OutcodeRank = {
@@ -77,6 +79,7 @@ export default function Home() {
     valueThreshold: 300000,
     floodOverlayMode: "off",
     voteOverlayMode: "off",
+    voteColorScale: "relative",
   });
   const [legend, setLegend] = useState<LegendData | null>(null);
   const medianLegend =
@@ -131,6 +134,7 @@ export default function Home() {
     valueThreshold: 300000,
     floodOverlayMode: "off",
     voteOverlayMode: "off",
+    voteColorScale: "relative",
   };
   const closeAllSubpanels = () => {
     setFiltersOpen(false);
@@ -303,6 +307,7 @@ export default function Home() {
     params.set("vth", String(Math.round(state.valueThreshold * 10) / 10));
     params.set("flood", state.floodOverlayMode);
     params.set("vote", state.voteOverlayMode);
+    params.set("voteScale", state.voteColorScale);
 
     const nextUrl = `${window.location.pathname}?${params.toString()}`;
     window.history.replaceState(null, "", nextUrl);
@@ -496,11 +501,12 @@ export default function Home() {
         : state.voteOverlayMode === "conservative"
           ? "Conservative"
           : "Popular Right";
+  const voteScaleLabel = state.voteColorScale === "relative" ? "Relative" : "Absolute";
 
   const currentFiltersSummary =
     `Grid: ${state.grid} · Metric: ${METRIC_LABEL[state.metric]} · ` +
     `Type: ${PROPERTY_LABEL[state.propertyType]} · New build: ${NEWBUILD_LABEL[state.newBuild]} · ` +
-    `Period: ${periodLabel} · Flood: ${floodOverlayLabel} · Vote overlay: ${voteOverlayLabel}`;
+    `Period: ${periodLabel} · Flood: ${floodOverlayLabel} · Vote overlay: ${voteOverlayLabel} (${voteScaleLabel})`;
   const headerFilterSummary =
     `${state.grid} · ${METRIC_LABEL[state.metric]} · ${PROPERTY_LABEL[state.propertyType]} · ${NEWBUILD_LABEL[state.newBuild]} · ${periodLabel}`;
 
@@ -1769,6 +1775,13 @@ export default function Home() {
                   if (v === "popular_right") return "Pop Right";
                   return "Off";
                 }}
+              />
+              <div style={{ fontSize: 12, opacity: 0.8 }}>Vote scale</div>
+              <Segment
+                options={["relative", "absolute"]}
+                value={state.voteColorScale}
+                onChange={(v) => setState((s) => ({ ...s, voteColorScale: v as VoteColorScale }))}
+                renderOption={(v) => (v === "relative" ? "Relative" : "Absolute")}
               />
               <div style={{ fontSize: 12, opacity: 0.8 }}>Vote key</div>
               <button

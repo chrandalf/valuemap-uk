@@ -9,6 +9,7 @@ type Metric = "median" | "median_ppsf" | "delta_gbp" | "delta_pct";
 type ValueFilterMode = "off" | "lte" | "gte";
 type FloodOverlayMode = "off" | "on" | "on_hide_cells";
 type VoteOverlayMode = "off" | "progressive" | "conservative" | "popular_right";
+type VoteColorScale = "relative" | "absolute";
 
 export type MapState = {
   grid: GridSize;
@@ -20,6 +21,7 @@ export type MapState = {
   valueThreshold?: number;
   floodOverlayMode?: FloodOverlayMode;
   voteOverlayMode?: VoteOverlayMode;
+  voteColorScale?: VoteColorScale;
 };
 
 export type LegendData =
@@ -1035,19 +1037,20 @@ export default function ValueMap({
     if (!map.isStyleLoaded()) return;
 
     const mode = state.voteOverlayMode ?? "off";
+    const scale = state.voteColorScale ?? "relative";
 
     try {
       if (map.getLayer("cells-fill")) {
         if (mode === "off") {
           void ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange);
         } else {
-          map.setPaintProperty("cells-fill", "fill-color", voteOverlayFillColorExpression(mode));
+          applyVoteOverlayColorFromSource(map, mode, scale);
         }
       }
     } catch (e) {
       // ignore
     }
-  }, [state.voteOverlayMode, onLegendChange]);
+  }, [state.voteOverlayMode, state.voteColorScale, onLegendChange]);
 
   // Note: metric changes already trigger setRealData (via deps below).
   // Avoid a separate recolor effect to prevent stale data/legend during rapid filter changes.
@@ -1225,32 +1228,116 @@ function voteOverlayMetricProperty(mode: VoteOverlayMode): "pct_progressive" | "
   return "pct_progressive";
 }
 
-function voteOverlayFillColorExpression(mode: VoteOverlayMode) {
-  const prop = voteOverlayMetricProperty(mode);
-  const colors =
-    mode === "conservative"
+function voteOverlayPalette(mode: VoteOverlayMode, scale: VoteColorScale) {
+  if (scale === "absolute") {
+    return mode === "conservative"
       ? ["#f8fafc", "#dbeafe", "#93c5fd", "#3b82f6", "#1d4ed8", "#172554"]
       : mode === "popular_right"
-        ? ["#f8fafc", "#fde68a", "#fbbf24", "#f59e0b", "#d97706", "#92400e"]
-        : ["#f8fafc", "#dcfce7", "#86efac", "#4ade80", "#22c55e", "#166534"];
+        ? ["#f8fbff", "#e0f2fe", "#bae6fd", "#7dd3fc", "#38bdf8", "#0ea5e9"]
+        : ["#fee2e2", "#fecaca", "#fde68a", "#86efac", "#22c55e", "#166534"];
+  }
+
+  return mode === "conservative"
+    ? ["#e5e7eb", "#dbeafe", "#bfdbfe", "#60a5fa", "#2563eb", "#1e3a8a"]
+    : mode === "popular_right"
+      ? ["#e5e7eb", "#dbeafe", "#bae6fd", "#7dd3fc", "#38bdf8", "#0c4a6e"]
+      : ["#fee2e2", "#fca5a5", "#fde68a", "#86efac", "#22c55e", "#14532d"];
+}
+
+function voteOverlayFillColorExpression(mode: VoteOverlayMode, scale: VoteColorScale = "relative", fc?: any) {
+  const prop = voteOverlayMetricProperty(mode);
+  const colors = voteOverlayPalette(mode, scale);
+  const inputExpr = ["*", ["coalesce", ["to-number", ["get", prop]], 0], 100] as any;
+
+  if (scale === "absolute") {
+    return [
+      "interpolate",
+      ["linear"],
+      inputExpr,
+      0,
+      colors[0],
+      10,
+      colors[1],
+      20,
+      colors[2],
+      30,
+      colors[3],
+      40,
+      colors[4],
+      55,
+      colors[5],
+    ] as any;
+  }
+
+  const relativeBreaks = computeVoteRelativeBreaks(fc, prop);
+  if (!relativeBreaks) {
+    return voteOverlayFillColorExpression(mode, "absolute");
+  }
 
   return [
     "interpolate",
     ["linear"],
-    ["*", ["coalesce", ["to-number", ["get", prop]], 0], 100],
-    0,
+    inputExpr,
+    relativeBreaks[0],
     colors[0],
-    10,
+    relativeBreaks[1],
     colors[1],
-    20,
+    relativeBreaks[2],
     colors[2],
-    30,
+    relativeBreaks[3],
     colors[3],
-    40,
+    relativeBreaks[4],
     colors[4],
-    55,
+    relativeBreaks[5],
     colors[5],
   ] as any;
+}
+
+function computeVoteRelativeBreaks(fc: any, prop: "pct_progressive" | "pct_conservative" | "pct_popular_right") {
+  const features = (fc?.features ?? []) as any[];
+  const values: number[] = [];
+
+  for (const f of features) {
+    const p = f.properties || {};
+    const pct = Number(p[prop] ?? NaN);
+    if (!Number.isFinite(pct)) continue;
+    values.push(pct * 100);
+  }
+
+  if (values.length < 8) return null;
+  const breaks = computeQuantilesFromValues(values, [0, 0.2, 0.4, 0.6, 0.8, 1]);
+  if (!breaks || !hasVariance(breaks)) return null;
+  return ensureStrictlyIncreasingBreaks(breaks);
+}
+
+function computeQuantilesFromValues(values: number[], probs: number[]) {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const last = sorted.length - 1;
+  return probs.map((prob) => {
+    const clamped = Math.min(1, Math.max(0, prob));
+    const index = clamped * last;
+    const lo = Math.floor(index);
+    const hi = Math.ceil(index);
+    if (lo === hi) return sorted[lo];
+    const t = index - lo;
+    return sorted[lo] * (1 - t) + sorted[hi] * t;
+  });
+}
+
+function applyVoteOverlayColorFromSource(
+  map: maplibregl.Map,
+  mode: VoteOverlayMode,
+  scale: VoteColorScale,
+  sourceData?: any
+) {
+  if (mode === "off") return;
+  const src = map.getSource("cells") as maplibregl.GeoJSONSource | undefined;
+  const fc = sourceData ?? (src ? (src as any)._data ?? null : null);
+  const expr = voteOverlayFillColorExpression(mode, scale, fc);
+  if (map.getLayer("cells-fill")) {
+    map.setPaintProperty("cells-fill", "fill-color", expr);
+  }
 }
 
 function floodSeverityExpression() {
@@ -1325,6 +1412,9 @@ async function setRealData(
   if (cached) {
     const src = map.getSource("cells") as maplibregl.GeoJSONSource;
     src.setData(cached);
+    if ((state.voteOverlayMode ?? "off") !== "off") {
+      applyVoteOverlayColorFromSource(map, state.voteOverlayMode ?? "off", state.voteColorScale ?? "relative", cached);
+    }
     await ensureAggregatesAndUpdate(map, state, cache, onLegendChange);
     return;
   }
@@ -1373,6 +1463,9 @@ async function setRealData(
 
   const src = map.getSource("cells") as maplibregl.GeoJSONSource;
   src.setData(fc as any);
+  if ((state.voteOverlayMode ?? "off") !== "off") {
+    applyVoteOverlayColorFromSource(map, state.voteOverlayMode ?? "off", state.voteColorScale ?? "relative", fc);
+  }
   await ensureAggregatesAndUpdate(map, state, cache, onLegendChange);
 }
 
