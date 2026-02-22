@@ -193,7 +193,6 @@ export default function Home() {
 
   const handleMapZoomChange = (zoom: number) => {
     setMapZoom(zoom);
-    if (!isMobileViewport) return;
     if (gridMode !== "auto") return;
     setState((s) => {
       const nextGrid = autoGridForZoom(zoom, s.metric);
@@ -203,21 +202,21 @@ export default function Home() {
   };
 
   useEffect(() => {
-    if (!isMobileViewport || gridMode !== "auto") return;
+    if (gridMode !== "auto") return;
     if (isDeltaMetric(state.metric) && state.grid === "1km") {
       setState((s) => ({ ...s, grid: "5km" }));
     }
-  }, [isMobileViewport, gridMode, state.metric, state.grid]);
+  }, [gridMode, state.metric, state.grid]);
 
   useEffect(() => {
-    if (!isMobileViewport || gridMode !== "auto") return;
+    if (gridMode !== "auto") return;
     if (mapZoom == null) return;
     setState((s) => {
       const nextGrid = autoGridForZoom(mapZoom, s.metric);
       if (nextGrid === s.grid) return s;
       return { ...s, grid: nextGrid };
     });
-  }, [isMobileViewport, gridMode, mapZoom, state.metric]);
+  }, [gridMode, mapZoom, state.metric]);
 
   useEffect(() => {
     if (!isMobileViewport || cleanScreenMode) {
@@ -2182,6 +2181,16 @@ export function Styles() {
         text-align: center;
         white-space: nowrap;
         line-height: 1.1;
+      }
+      .mobile-grid-btn.active {
+        background: rgba(147,197,253,0.95);
+        color: rgba(10,12,20,0.95);
+        border-color: rgba(191,219,254,1);
+        box-shadow: 0 0 0 1px rgba(10,12,20,0.45) inset, 0 2px 10px rgba(0,0,0,0.35);
+      }
+      .mobile-grid-btn:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
       }
       .mobile-grid-label {
         display: inline-flex;
