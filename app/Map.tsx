@@ -1436,18 +1436,21 @@ async function ensureAggregatesAndUpdate(
 
       if (breaks && breaks.length > 0 && breaks.every((v) => Number.isFinite(v)) && hasVariance(breaks)) {
         const colors = makeTailColors();
-        const expr = buildTailColorExpression(metricPropName(state.metric), breaks, colors, true);
+        const safeBreaks = ensureStrictlyIncreasingBreaks(breaks);
+        const expr = buildTailColorExpression(metricPropName(state.metric), safeBreaks, colors, true);
         if (map.getLayer("cells-fill")) {
           map.setPaintProperty("cells-fill", "fill-color", expr);
         }
         if (onLegendChange) {
-          onLegendChange({ kind: "median", breaks, colors, probs: QUANTILE_PROBS });
+          onLegendChange({ kind: "median", breaks: safeBreaks, colors, probs: QUANTILE_PROBS });
         }
       } else {
         const colors = makeTailColors();
         const stats = computeMinMax(sourceFc, state.metric);
         if (stats) {
-          const linearBreaks = buildLinearBreaks(stats.min, stats.max, QUANTILE_PROBS.length);
+          const linearBreaks = ensureStrictlyIncreasingBreaks(
+            buildLinearBreaks(stats.min, stats.max, QUANTILE_PROBS.length)
+          );
           const expr = buildTailColorExpression(metricPropName(state.metric), linearBreaks, colors, true);
           if (map.getLayer("cells-fill")) {
             map.setPaintProperty("cells-fill", "fill-color", expr);
@@ -1455,8 +1458,13 @@ async function ensureAggregatesAndUpdate(
           if (onLegendChange) {
             onLegendChange({ kind: "median", breaks: linearBreaks, colors, probs: QUANTILE_PROBS });
           }
-        } else if (onLegendChange) {
-          onLegendChange(null);
+        } else {
+          if (map.getLayer("cells-fill")) {
+            map.setPaintProperty("cells-fill", "fill-color", getFillColorExpression(state.metric));
+          }
+          if (onLegendChange) {
+            onLegendChange(null);
+          }
         }
       }
     } catch (e) {
@@ -1529,6 +1537,27 @@ function buildLinearBreaks(min: number, max: number, count: number) {
   if (min === max) return Array.from({ length: count }, () => min);
   const step = (max - min) / (count - 1);
   return Array.from({ length: count }, (_, i) => min + step * i);
+}
+
+function ensureStrictlyIncreasingBreaks(breaks: number[]) {
+  if (!Array.isArray(breaks) || breaks.length === 0) return breaks;
+  const adjusted: number[] = [];
+  const EPS = 1e-9;
+
+  for (let i = 0; i < breaks.length; i++) {
+    const raw = Number(breaks[i]);
+    if (!Number.isFinite(raw)) {
+      adjusted.push(i === 0 ? 0 : adjusted[i - 1] + EPS);
+      continue;
+    }
+    if (i === 0) {
+      adjusted.push(raw);
+      continue;
+    }
+    adjusted.push(raw <= adjusted[i - 1] ? adjusted[i - 1] + EPS : raw);
+  }
+
+  return adjusted;
 }
 
 function hasVariance(breaks: number[]) {
