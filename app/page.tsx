@@ -9,7 +9,7 @@ type PropertyType = "ALL" | "D" | "S" | "T" | "F"; // Detached / Semi / Terraced
 type NewBuild = "ALL" | "Y" | "N";
 type ValueFilterMode = "off" | "lte" | "gte";
 type FloodOverlayMode = "off" | "on" | "on_hide_cells";
-type VoteOverlayMode = "off" | "progressive" | "conservative" | "popular_right";
+type VoteOverlayMode = "off" | "on";
 type VoteColorScale = "relative" | "absolute";
 type GridMode = "auto" | "manual";
 
@@ -496,11 +496,7 @@ export default function Home() {
   const voteOverlayLabel =
     state.voteOverlayMode === "off"
       ? "Off"
-      : state.voteOverlayMode === "progressive"
-        ? "Progressive"
-        : state.voteOverlayMode === "conservative"
-          ? "Conservative"
-          : "Popular Right";
+      : "On";
   const voteScaleLabel = state.voteColorScale === "relative" ? "Relative" : "Absolute";
 
   const currentFiltersSummary =
@@ -1579,8 +1575,8 @@ export default function Home() {
               </button>
             </div>
             <div style={{ marginBottom: 8 }}>
-              This overlay maps General Election 2024 vote shares by constituency boundary. Turn it on in Overlay filters,
-              then choose a category (Progressive, Conservative, or Popular Right).
+              This overlay maps General Election 2024 vote shares by constituency boundary. Turn it on in Overlay filters;
+              colours automatically reflect which grouping is strongest in each area.
             </div>
             <ol start={1} style={{ margin: 0, padding: "0 0 0 16px" }}>
               <li><b>Progressive</b>: Labour, Lib Dem, Green, SNP, Plaid Cymru, Alliance, SDLP, Sinn Féin and related centre-left parties.</li>
@@ -1766,15 +1762,10 @@ export default function Home() {
               />
               <div style={{ fontSize: 12, opacity: 0.8 }}>Votes</div>
               <Segment
-                options={["off", "progressive", "conservative", "popular_right"]}
+                options={["off", "on"]}
                 value={state.voteOverlayMode}
                 onChange={(v) => setState((s) => ({ ...s, voteOverlayMode: v as VoteOverlayMode }))}
-                renderOption={(v) => {
-                  if (v === "progressive") return "Prog";
-                  if (v === "conservative") return "Cons";
-                  if (v === "popular_right") return "Pop Right";
-                  return "Off";
-                }}
+                renderOption={(v) => (v === "on" ? "On" : "Off")}
               />
               <div style={{ fontSize: 12, opacity: 0.8 }}>Vote scale</div>
               <Segment
