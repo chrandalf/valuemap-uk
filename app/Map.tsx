@@ -81,6 +81,9 @@ type FloodSearchEntry = {
   lat: number;
 };
 
+const VOTE_OVERLAY_VERSION = process.env.NEXT_PUBLIC_VOTE_OVERLAY_VERSION ?? "20260222";
+const VOTE_OVERLAY_SOURCE_URL = `/data/ge2024_vote_blocks_map.geojson?v=${encodeURIComponent(VOTE_OVERLAY_VERSION)}`;
+
 export type LocateMeResult = {
   status: "success" | "denied" | "unavailable" | "timeout" | "error";
   message: string;
@@ -143,6 +146,9 @@ export default function ValueMap({
   const fetchPostcodesRef = useRef<(gx: number, gy: number, offset: number, append: boolean) => void>(() => {});
   const floodSearchEntriesRef = useRef<FloodSearchEntry[] | null>(null);
   const floodSearchEntriesPromiseRef = useRef<Promise<FloodSearchEntry[]> | null>(null);
+  const voteOverlayLoadRequestedRef = useRef(false);
+  const voteOverlayReadyRef = useRef(false);
+  const voteOverlayLoadStartedAtRef = useRef<number | null>(null);
 
 
   useEffect(() => {
@@ -423,6 +429,23 @@ export default function ValueMap({
     return `${path}?${params.toString()}`;
   };
 
+  const ensureVoteOverlayLoaded = (map: maplibregl.Map) => {
+    if (voteOverlayReadyRef.current || voteOverlayLoadRequestedRef.current) return;
+    const src = map.getSource("vote-overlay") as maplibregl.GeoJSONSource | undefined;
+    if (!src) return;
+
+    voteOverlayLoadRequestedRef.current = true;
+    voteOverlayLoadStartedAtRef.current = Date.now();
+    console.info(`[vote-overlay] requesting ${VOTE_OVERLAY_SOURCE_URL}`);
+
+    try {
+      src.setData(VOTE_OVERLAY_SOURCE_URL as any);
+    } catch (error) {
+      voteOverlayLoadRequestedRef.current = false;
+      console.error("[vote-overlay] setData failed", error);
+    }
+  };
+
   // Create map once
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -463,7 +486,34 @@ export default function ValueMap({
 
   map.addSource("vote-overlay", {
     type: "geojson",
-    data: "/data/ge2024_vote_blocks_map.geojson",
+    data: { type: "FeatureCollection", features: [] },
+  });
+
+  map.on("error", (event: any) => {
+    const msg = String(event?.error?.message ?? "");
+    const relatesToVoteOverlay =
+      event?.sourceId === "vote-overlay" ||
+      msg.includes("vote-overlay") ||
+      msg.includes("ge2024_vote_blocks_map.geojson");
+    if (relatesToVoteOverlay) {
+      if (!voteOverlayReadyRef.current) {
+        voteOverlayLoadRequestedRef.current = false;
+      }
+      console.error("[vote-overlay] load error", event?.error ?? event);
+    }
+  });
+
+  map.on("sourcedata", (event: any) => {
+    if (event?.sourceId === "vote-overlay" && event?.isSourceLoaded) {
+      voteOverlayReadyRef.current = true;
+      const startedAt = voteOverlayLoadStartedAtRef.current;
+      if (startedAt) {
+        const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(1);
+        console.info(`[vote-overlay] source loaded in ${elapsedSec}s from ${VOTE_OVERLAY_SOURCE_URL}`);
+      } else {
+        console.info("[vote-overlay] source loaded");
+      }
+    }
   });
 
   map.addSource("flood-overlay", {
@@ -1076,6 +1126,10 @@ export default function ValueMap({
     const mode = state.voteOverlayMode ?? "off";
     const visibility = mode === "off" ? "none" : "visible";
     const invert = Boolean(state.voteOverlayInvert);
+
+    if (mode !== "off") {
+      ensureVoteOverlayLoaded(map);
+    }
 
     try {
       if (map.getLayer("vote-overlay-fill")) {
