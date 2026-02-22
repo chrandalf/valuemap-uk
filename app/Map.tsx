@@ -20,8 +20,6 @@ export type MapState = {
   valueThreshold?: number;
   floodOverlayMode?: FloodOverlayMode;
   voteOverlayMode?: VoteOverlayMode;
-  voteOverlayInvert?: boolean;
-  voteOverlayHideCells?: boolean;
 };
 
 export type LegendData =
@@ -1011,8 +1009,7 @@ export default function ValueMap({
     if (!map.isStyleLoaded()) return;
 
     const floodHideCells = (state.floodOverlayMode ?? "off") === "on_hide_cells";
-    const voteHideCells = Boolean(state.voteOverlayHideCells) && (state.voteOverlayMode ?? "off") !== "off";
-    const hideCellsMode = floodHideCells || voteHideCells;
+    const hideCellsMode = floodHideCells;
 
     try {
       if (map.getLayer("cells-fill")) {
@@ -1030,7 +1027,7 @@ export default function ValueMap({
     } catch (e) {
       // ignore
     }
-  }, [state.floodOverlayMode, state.voteOverlayMode, state.voteOverlayHideCells]);
+  }, [state.floodOverlayMode]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1038,20 +1035,19 @@ export default function ValueMap({
     if (!map.isStyleLoaded()) return;
 
     const mode = state.voteOverlayMode ?? "off";
-    const invert = Boolean(state.voteOverlayInvert);
 
     try {
       if (map.getLayer("cells-fill")) {
         if (mode === "off") {
           void ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange);
         } else {
-          map.setPaintProperty("cells-fill", "fill-color", voteOverlayFillColorExpression(mode, invert));
+          map.setPaintProperty("cells-fill", "fill-color", voteOverlayFillColorExpression(mode));
         }
       }
     } catch (e) {
       // ignore
     }
-  }, [state.voteOverlayMode, state.voteOverlayInvert, onLegendChange]);
+  }, [state.voteOverlayMode, onLegendChange]);
 
   // Note: metric changes already trigger setRealData (via deps below).
   // Avoid a separate recolor effect to prevent stale data/legend during rapid filter changes.
@@ -1229,30 +1225,31 @@ function voteOverlayMetricProperty(mode: VoteOverlayMode): "pct_progressive" | "
   return "pct_progressive";
 }
 
-function voteOverlayFillColorExpression(mode: VoteOverlayMode, invert = false) {
+function voteOverlayFillColorExpression(mode: VoteOverlayMode) {
   const prop = voteOverlayMetricProperty(mode);
-  const baseColors =
+  const colors =
     mode === "conservative"
-      ? ["#f8fafc", "#dbeafe", "#93c5fd", "#3b82f6", "#1d4ed8"]
+      ? ["#f8fafc", "#dbeafe", "#93c5fd", "#3b82f6", "#1d4ed8", "#172554"]
       : mode === "popular_right"
-        ? ["#f8fafc", "#fde68a", "#f59e0b", "#d97706", "#92400e"]
-        : ["#f8fafc", "#dcfce7", "#86efac", "#22c55e", "#166534"];
-  const colors = invert ? [...baseColors].reverse() : baseColors;
+        ? ["#f8fafc", "#fde68a", "#fbbf24", "#f59e0b", "#d97706", "#92400e"]
+        : ["#f8fafc", "#dcfce7", "#86efac", "#4ade80", "#22c55e", "#166534"];
 
   return [
     "interpolate",
     ["linear"],
-    ["coalesce", ["to-number", ["get", prop]], 0],
+    ["*", ["coalesce", ["to-number", ["get", prop]], 0], 100],
     0,
     colors[0],
-    0.25,
+    10,
     colors[1],
-    0.5,
+    20,
     colors[2],
-    0.75,
+    30,
     colors[3],
-    1,
+    40,
     colors[4],
+    55,
+    colors[5],
   ] as any;
 }
 
