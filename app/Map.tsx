@@ -85,6 +85,8 @@ type FloodSearchEntry = {
   lat: number;
 };
 
+const VOTE_CELLS_DATA_VERSION = process.env.NEXT_PUBLIC_VOTE_CELLS_DATA_VERSION ?? "20260222b";
+
 export type LocateMeResult = {
   status: "success" | "denied" | "unavailable" | "timeout" | "error";
   message: string;
@@ -962,7 +964,7 @@ export default function ValueMap({
       abortController.abort();
       if (requestSeqRef.current === seq) setIsLoading(false);
     };
-  }, [state.grid, state.propertyType, state.newBuild, state.endMonth, state.metric]);
+  }, [state.grid, state.propertyType, state.newBuild, state.endMonth, state.metric, state.voteOverlayMode]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1321,7 +1323,7 @@ async function setRealData(
   const endpoint = isDelta ? "/api/deltas" : "/api/cells";
 
   const endMonth = isDelta ? undefined : state.endMonth ?? "LATEST";
-  const cacheKey = `${state.grid}|${state.propertyType}|${state.newBuild}|${state.metric}|${endMonth ?? "LATEST"}`;
+  const cacheKey = `${state.grid}|${state.propertyType}|${state.newBuild}|${state.metric}|${endMonth ?? "LATEST"}|${VOTE_CELLS_DATA_VERSION}`;
   const cached = cache.get(cacheKey);
   if (cached) {
     const src = map.getSource("cells") as maplibregl.GeoJSONSource;
@@ -1350,6 +1352,7 @@ async function setRealData(
     qs.set("metric", state.metric);
     qs.set("endMonth", endMonth!);
   }
+  qs.set("voteDataVersion", VOTE_CELLS_DATA_VERSION);
 
   const res = await fetch(`${endpoint}?${qs.toString()}`, { signal });
   if (!res.ok) {
@@ -1442,7 +1445,7 @@ async function ensureAggregatesAndUpdate(
 
     // 1) ensure 25km aggregate for the overlay (unchanged behaviour)
     const endMonth = state.endMonth ?? "LATEST";
-    const key25 = `25km|${state.propertyType}|${state.newBuild}|${state.metric}|${endMonth}`;
+    const key25 = `25km|${state.propertyType}|${state.newBuild}|${state.metric}|${endMonth}|${VOTE_CELLS_DATA_VERSION}`;
     let fc25 = cache.get(key25);
 
     if (!fc25) {
@@ -1453,6 +1456,7 @@ async function ensureAggregatesAndUpdate(
         metric: state.metric,
         endMonth: endMonth,
       });
+      qs25.set("voteDataVersion", VOTE_CELLS_DATA_VERSION);
 
       try {
         const res25 = await fetch(`/api/cells?${qs25.toString()}`);
@@ -1487,7 +1491,7 @@ async function ensureAggregatesAndUpdate(
     }
 
     // 2) ensure current-grid aggregate for colour breaks (per-grid deciles)
-    const keyCur = `${state.grid}|${state.propertyType}|${state.newBuild}|${state.metric}|${endMonth}`;
+    const keyCur = `${state.grid}|${state.propertyType}|${state.newBuild}|${state.metric}|${endMonth}|${VOTE_CELLS_DATA_VERSION}`;
     let fcCur = cache.get(keyCur);
 
     if (!fcCur) {
@@ -1513,6 +1517,7 @@ async function ensureAggregatesAndUpdate(
         metric: state.metric,
         endMonth: endMonth,
       });
+      qsCur.set("voteDataVersion", VOTE_CELLS_DATA_VERSION);
 
       try {
         const resCur = await fetch(`/api/cells?${qsCur.toString()}`);
