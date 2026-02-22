@@ -1369,13 +1369,13 @@ async function ensureAggregatesAndUpdate(
     }
 
     if (fc25) {
-      updateOverlayFromFeatureCollection(map, fc25);
+      updateOverlayFromFeatureCollection(map, fc25, state.metric);
     } else {
       // fallback: use any available featurecollection (current map source)
       try {
         const src = map.getSource("cells") as maplibregl.GeoJSONSource | undefined;
         const data: any = src ? (src as any)._data ?? null : null;
-        if (data) updateOverlayFromFeatureCollection(map, data);
+        if (data) updateOverlayFromFeatureCollection(map, data, state.metric);
       } catch (e) {
         // ignore
       }
@@ -1574,7 +1574,7 @@ function makeTailColors() {
   return [...bottom, ...middle, ...top];
 }
 
-function updateOverlayFromFeatureCollection(map: maplibregl.Map, fc: any) {
+function updateOverlayFromFeatureCollection(map: maplibregl.Map, fc: any, metric: Metric) {
   try {
     const features = fc?.features ?? [];
     let sumW = 0;
@@ -1591,15 +1591,15 @@ function updateOverlayFromFeatureCollection(map: maplibregl.Map, fc: any) {
     }
 
     const el = map.getContainer().querySelector("#median-overlay") as HTMLElement | null;
-    const metricLabel = isDeltaMetric(stateRef.current.metric)
+    const metricLabel = isDeltaMetric(metric)
       ? "Weighted value"
-      : stateRef.current.metric === "median_ppsf"
+      : metric === "median_ppsf"
         ? "Weighted median PPSF"
         : "Weighted median";
     let html = `<div style="font-weight:700">${metricLabel}: N/A</div>`;
     if (sumW > 0) {
       const avg = Math.round(sumWX / sumW);
-      const val = stateRef.current.metric === "median_ppsf"
+      const val = metric === "median_ppsf"
         ? `GBP ${avg.toLocaleString()} / ft²`
         : `GBP ${avg.toLocaleString()}`;
       html = `<div style="font-weight:700">${metricLabel}: ${val}</div>`;
