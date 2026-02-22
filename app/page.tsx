@@ -2166,13 +2166,50 @@ export function Styles() {
         display: none !important;
       }
       .mobile-grid-btn {
-        display: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        border: 1px solid rgba(255,255,255,0.24);
+        background: rgba(10, 12, 20, 0.9);
+        color: white;
+        padding: 7px 10px;
+        border-radius: 9px;
+        font-size: 11px;
+        font-weight: 600;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.35);
+        min-width: 58px;
+        text-align: center;
+        white-space: nowrap;
+        line-height: 1.1;
       }
       .mobile-grid-label {
-        display: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid rgba(255,255,255,0.24);
+        background: rgba(30, 41, 59, 0.9);
+        color: white;
+        padding: 7px 10px;
+        border-radius: 9px;
+        font-size: 11px;
+        font-weight: 800;
+        min-width: 58px;
+        text-align: center;
+        line-height: 1.1;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.35);
       }
       .mobile-grid-dock {
-        display: none;
+        display: inline-flex;
+        position: fixed;
+        left: 14px;
+        right: auto;
+        top: 56%;
+        bottom: auto;
+        transform: translateY(-50%);
+        z-index: 5;
+        gap: 5px;
+        flex-direction: column;
       }
       .mobile-collapsible .title-mini {
         display: none;
