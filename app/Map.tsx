@@ -1222,18 +1222,23 @@ export default function ValueMap({
 
 /** ---------------- Real data wiring ---------------- */
 
-function voteOverlayFillColorExpression(scale: VoteColorScale = "relative", fc?: any) {
+function voteOverlayFillColorExpression(scale: VoteColorScale = "relative") {
   const progInput = ["*", ["coalesce", ["to-number", ["get", "pct_progressive"]], 0], 100] as any;
   const consInput = ["*", ["coalesce", ["to-number", ["get", "pct_conservative"]], 0], 100] as any;
   const rightInput = ["*", ["coalesce", ["to-number", ["get", "pct_popular_right"]], 0], 100] as any;
 
-  const progBreaks = scale === "relative" ? computeVoteRelativeBreaks(fc, "pct_progressive") : null;
-  const consBreaks = scale === "relative" ? computeVoteRelativeBreaks(fc, "pct_conservative") : null;
-  const rightBreaks = scale === "relative" ? computeVoteRelativeBreaks(fc, "pct_popular_right") : null;
-
-  const progScore = buildVoteScoreExpression(progInput, progBreaks);
-  const consScore = buildVoteScoreExpression(consInput, consBreaks);
-  const rightScore = buildVoteScoreExpression(rightInput, rightBreaks);
+  const progScore =
+    scale === "relative"
+      ? (["coalesce", ["to-number", ["get", "vote_rank_progressive"]], 0] as any)
+      : buildVoteScoreExpression(progInput, null);
+  const consScore =
+    scale === "relative"
+      ? (["coalesce", ["to-number", ["get", "vote_rank_conservative"]], 0] as any)
+      : buildVoteScoreExpression(consInput, null);
+  const rightScore =
+    scale === "relative"
+      ? (["coalesce", ["to-number", ["get", "vote_rank_popular_right"]], 0] as any)
+      : buildVoteScoreExpression(rightInput, null);
 
   const dominantScore = ["max", progScore, consScore, rightScore] as any;
 
@@ -1315,38 +1320,6 @@ function buildVoteDominanceRamp(scoreExpr: any, colors: string[]) {
   ] as any;
 }
 
-function computeVoteRelativeBreaks(fc: any, prop: "pct_progressive" | "pct_conservative" | "pct_popular_right") {
-  const features = (fc?.features ?? []) as any[];
-  const values: number[] = [];
-
-  for (const f of features) {
-    const p = f.properties || {};
-    const pct = Number(p[prop] ?? NaN);
-    if (!Number.isFinite(pct)) continue;
-    values.push(pct * 100);
-  }
-
-  if (values.length < 8) return null;
-  const breaks = computeQuantilesFromValues(values, [0, 0.2, 0.4, 0.6, 0.8, 1]);
-  if (!breaks || !hasVariance(breaks)) return null;
-  return ensureStrictlyIncreasingBreaks(breaks);
-}
-
-function computeQuantilesFromValues(values: number[], probs: number[]) {
-  if (!values.length) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const last = sorted.length - 1;
-  return probs.map((prob) => {
-    const clamped = Math.min(1, Math.max(0, prob));
-    const index = clamped * last;
-    const lo = Math.floor(index);
-    const hi = Math.ceil(index);
-    if (lo === hi) return sorted[lo];
-    const t = index - lo;
-    return sorted[lo] * (1 - t) + sorted[hi] * t;
-  });
-}
-
 function applyVoteOverlayColorFromSource(
   map: maplibregl.Map,
   scale: VoteColorScale,
@@ -1354,10 +1327,49 @@ function applyVoteOverlayColorFromSource(
 ) {
   const src = map.getSource("cells") as maplibregl.GeoJSONSource | undefined;
   const fc = sourceData ?? (src ? (src as any)._data ?? null : null);
-  const expr = voteOverlayFillColorExpression(scale, fc);
+  if (scale === "relative" && fc) {
+    const changed = ensureVoteRelativeRanks(fc);
+    if (changed && src) {
+      src.setData(fc as any);
+    }
+  }
+  const expr = voteOverlayFillColorExpression(scale);
   if (map.getLayer("cells-fill")) {
     map.setPaintProperty("cells-fill", "fill-color", expr);
   }
+}
+
+function ensureVoteRelativeRanks(fc: any) {
+  const features = (fc?.features ?? []) as any[];
+  if (!features.length) return false;
+
+  const changedProg = assignVoteRank(features, "pct_progressive", "vote_rank_progressive");
+  const changedCons = assignVoteRank(features, "pct_conservative", "vote_rank_conservative");
+  const changedRight = assignVoteRank(features, "pct_popular_right", "vote_rank_popular_right");
+
+  return changedProg || changedCons || changedRight;
+}
+
+function assignVoteRank(features: any[], valueKey: "pct_progressive" | "pct_conservative" | "pct_popular_right", rankKey: string) {
+  const hasAll = features.every((f) => Number.isFinite(Number(f?.properties?.[rankKey])));
+  if (hasAll) return false;
+
+  const ranked: Array<{ index: number; value: number }> = [];
+  for (let i = 0; i < features.length; i++) {
+    const value = Number(features[i]?.properties?.[valueKey]);
+    ranked.push({ index: i, value: Number.isFinite(value) ? value : 0 });
+  }
+
+  ranked.sort((a, b) => a.value - b.value);
+  const denom = Math.max(1, ranked.length - 1);
+  for (let pos = 0; pos < ranked.length; pos++) {
+    const rank = pos / denom;
+    const feature = features[ranked[pos].index];
+    if (!feature.properties) feature.properties = {};
+    feature.properties[rankKey] = rank;
+  }
+
+  return true;
 }
 
 function floodSeverityExpression() {
