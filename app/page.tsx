@@ -60,7 +60,7 @@ const PERIOD_LABEL: Record<string, string> = {
 };
 
 const PERIOD_OPTIONS = ["2025-12-01", "2024-12-01", "2023-12-01", "2022-12-01", "2021-12-01"] as const;
-const MOBILE_QUICK_FILTER_ORDER = ["metric", "propertyType", "newBuild", "period"] as const;
+const MOBILE_QUICK_FILTER_ORDER = ["metric", "propertyType", "newBuild", "period", "grid"] as const;
 
 type MobileQuickFilterKey = (typeof MOBILE_QUICK_FILTER_ORDER)[number];
 
@@ -109,7 +109,7 @@ export default function Home() {
   const [mapZoom, setMapZoom] = useState<number | null>(null);
   const [cleanScreenMode, setCleanScreenMode] = useState(false);
   const [mobileOverlayRatio, setMobileOverlayRatio] = useState(0);
-  const [mobileQuickFilterStep, setMobileQuickFilterStep] = useState(0);
+  const [mobileQuickFilterKey, setMobileQuickFilterKey] = useState<MobileQuickFilterKey>("metric");
   const urlHydratedRef = useRef(false);
   const supportersScrollerRef = useRef<HTMLDivElement | null>(null);
   const topPanelRef = useRef<HTMLDivElement | null>(null);
@@ -144,52 +144,23 @@ export default function Home() {
     el.scrollBy({ left: 180, behavior: "smooth" });
   };
 
-  const cycleOption = <T extends string>(options: readonly T[], current: T): T => {
-    const index = options.indexOf(current);
-    if (index < 0) return options[0];
-    return options[(index + 1) % options.length];
-  };
-
-  const currentMobileQuickFilterKey: MobileQuickFilterKey =
-    MOBILE_QUICK_FILTER_ORDER[mobileQuickFilterStep % MOBILE_QUICK_FILTER_ORDER.length];
   const currentMobileQuickFilterLabel =
-    currentMobileQuickFilterKey === "metric"
+    mobileQuickFilterKey === "metric"
       ? "Metric"
-      : currentMobileQuickFilterKey === "propertyType"
+      : mobileQuickFilterKey === "propertyType"
         ? "Type"
-        : currentMobileQuickFilterKey === "newBuild"
+        : mobileQuickFilterKey === "newBuild"
           ? "New build"
-          : "Period";
+          : mobileQuickFilterKey === "period"
+            ? "Period"
+            : "Grid";
 
   const cycleMobileQuickFilter = () => {
-    const activeKey = currentMobileQuickFilterKey;
-    setState((prev) => {
-      if (activeKey === "metric") {
-        const nextMetric = cycleOption(["median", "median_ppsf", "delta_gbp", "delta_pct"] as const, prev.metric);
-        const nextGrid = nextMetric === "median" || nextMetric === "median_ppsf"
-          ? prev.grid
-          : prev.grid === "1km"
-            ? "5km"
-            : prev.grid;
-        return { ...prev, metric: nextMetric, grid: nextGrid };
-      }
-
-      if (activeKey === "propertyType") {
-        const nextType = cycleOption(["ALL", "D", "S", "T", "F"] as const, prev.propertyType);
-        return { ...prev, propertyType: nextType };
-      }
-
-      if (activeKey === "newBuild") {
-        const nextBuild = cycleOption(["ALL", "Y", "N"] as const, prev.newBuild);
-        return { ...prev, newBuild: nextBuild };
-      }
-
-      const currentPeriod = (prev.endMonth ?? "2025-12-01") as (typeof PERIOD_OPTIONS)[number];
-      const nextPeriod = cycleOption(PERIOD_OPTIONS, currentPeriod);
-      return { ...prev, endMonth: nextPeriod };
+    setMobileQuickFilterKey((current) => {
+      const idx = MOBILE_QUICK_FILTER_ORDER.indexOf(current);
+      const nextIdx = idx < 0 ? 0 : (idx + 1) % MOBILE_QUICK_FILTER_ORDER.length;
+      return MOBILE_QUICK_FILTER_ORDER[nextIdx];
     });
-
-    setMobileQuickFilterStep((step) => (step + 1) % MOBILE_QUICK_FILTER_ORDER.length);
   };
 
   const formatLegendCurrency = (value: number) => {
@@ -1942,6 +1913,9 @@ export default function Home() {
         !dataSourcesOpen &&
         (
         <div className="mobile-grid-dock" aria-label="Map grid controls">
+          <div className="mobile-grid-label" aria-live="polite">
+            {currentMobileQuickFilterLabel}
+          </div>
           <button
             type="button"
             className="mobile-grid-btn"
@@ -1951,63 +1925,129 @@ export default function Home() {
           >
             →
           </button>
-          <button
-            type="button"
-            className={gridMode === "auto" ? "mobile-grid-btn active" : "mobile-grid-btn"}
-            onClick={() => {
-              setGridMode("auto");
-              if (mapZoom == null) return;
-              setState((s) => {
-                const nextGrid = autoGridForZoom(mapZoom, s.metric);
-                if (nextGrid === s.grid) return s;
-                return { ...s, grid: nextGrid };
-              });
-            }}
-          >
-            Auto
-          </button>
-          <button
-            type="button"
-            className={gridMode === "manual" && state.grid === "25km" ? "mobile-grid-btn active" : "mobile-grid-btn"}
-            onClick={() => {
-              setGridMode("manual");
-              setState((s) => ({ ...s, grid: "25km" }));
-            }}
-          >
-            25km
-          </button>
-          <button
-            type="button"
-            className={gridMode === "manual" && state.grid === "10km" ? "mobile-grid-btn active" : "mobile-grid-btn"}
-            onClick={() => {
-              setGridMode("manual");
-              setState((s) => ({ ...s, grid: "10km" }));
-            }}
-          >
-            10km
-          </button>
-          <button
-            type="button"
-            className={gridMode === "manual" && state.grid === "5km" ? "mobile-grid-btn active" : "mobile-grid-btn"}
-            onClick={() => {
-              setGridMode("manual");
-              setState((s) => ({ ...s, grid: "5km" }));
-            }}
-          >
-            5km
-          </button>
-          <button
-            type="button"
-            disabled={state.metric !== "median"}
-            className={gridMode === "manual" && state.grid === "1km" ? "mobile-grid-btn active" : "mobile-grid-btn"}
-            onClick={() => {
-              if (state.metric !== "median") return;
-              setGridMode("manual");
-              setState((s) => ({ ...s, grid: "1km" }));
-            }}
-          >
-            1km
-          </button>
+          {mobileQuickFilterKey === "metric" && (
+            <>
+              <button
+                type="button"
+                className={state.metric === "median" ? "mobile-grid-btn active" : "mobile-grid-btn"}
+                onClick={() => setState((s) => ({ ...s, metric: "median" }))}
+              >
+                Median
+              </button>
+              <button
+                type="button"
+                className={state.metric === "median_ppsf" ? "mobile-grid-btn active" : "mobile-grid-btn"}
+                onClick={() => setState((s) => ({ ...s, metric: "median_ppsf" }))}
+              >
+                £/ft²
+              </button>
+              <button
+                type="button"
+                className={state.metric === "delta_gbp" ? "mobile-grid-btn active" : "mobile-grid-btn"}
+                onClick={() => setState((s) => ({ ...s, metric: "delta_gbp", grid: s.grid === "1km" ? "5km" : s.grid }))}
+              >
+                Δ GBP
+              </button>
+              <button
+                type="button"
+                className={state.metric === "delta_pct" ? "mobile-grid-btn active" : "mobile-grid-btn"}
+                onClick={() => setState((s) => ({ ...s, metric: "delta_pct", grid: s.grid === "1km" ? "5km" : s.grid }))}
+              >
+                Δ %
+              </button>
+            </>
+          )}
+          {mobileQuickFilterKey === "propertyType" && (
+            <>
+              <button type="button" className={state.propertyType === "ALL" ? "mobile-grid-btn active" : "mobile-grid-btn"} onClick={() => setState((s) => ({ ...s, propertyType: "ALL" }))}>All</button>
+              <button type="button" className={state.propertyType === "D" ? "mobile-grid-btn active" : "mobile-grid-btn"} onClick={() => setState((s) => ({ ...s, propertyType: "D" }))}>D</button>
+              <button type="button" className={state.propertyType === "S" ? "mobile-grid-btn active" : "mobile-grid-btn"} onClick={() => setState((s) => ({ ...s, propertyType: "S" }))}>S</button>
+              <button type="button" className={state.propertyType === "T" ? "mobile-grid-btn active" : "mobile-grid-btn"} onClick={() => setState((s) => ({ ...s, propertyType: "T" }))}>T</button>
+              <button type="button" className={state.propertyType === "F" ? "mobile-grid-btn active" : "mobile-grid-btn"} onClick={() => setState((s) => ({ ...s, propertyType: "F" }))}>F</button>
+            </>
+          )}
+          {mobileQuickFilterKey === "newBuild" && (
+            <>
+              <button type="button" className={state.newBuild === "ALL" ? "mobile-grid-btn active" : "mobile-grid-btn"} onClick={() => setState((s) => ({ ...s, newBuild: "ALL" }))}>All</button>
+              <button type="button" className={state.newBuild === "Y" ? "mobile-grid-btn active" : "mobile-grid-btn"} onClick={() => setState((s) => ({ ...s, newBuild: "Y" }))}>New</button>
+              <button type="button" className={state.newBuild === "N" ? "mobile-grid-btn active" : "mobile-grid-btn"} onClick={() => setState((s) => ({ ...s, newBuild: "N" }))}>Existing</button>
+            </>
+          )}
+          {mobileQuickFilterKey === "period" && (
+            <>
+              {PERIOD_OPTIONS.map((period) => (
+                <button
+                  key={period}
+                  type="button"
+                  className={(state.endMonth ?? "2025-12-01") === period ? "mobile-grid-btn active" : "mobile-grid-btn"}
+                  onClick={() => setState((s) => ({ ...s, endMonth: period }))}
+                >
+                  {PERIOD_LABEL[period] ?? period}
+                </button>
+              ))}
+            </>
+          )}
+          {mobileQuickFilterKey === "grid" && (
+            <>
+              <button
+                type="button"
+                className={gridMode === "auto" ? "mobile-grid-btn active" : "mobile-grid-btn"}
+                onClick={() => {
+                  setGridMode("auto");
+                  if (mapZoom == null) return;
+                  setState((s) => {
+                    const nextGrid = autoGridForZoom(mapZoom, s.metric);
+                    if (nextGrid === s.grid) return s;
+                    return { ...s, grid: nextGrid };
+                  });
+                }}
+              >
+                Auto
+              </button>
+              <button
+                type="button"
+                className={gridMode === "manual" && state.grid === "25km" ? "mobile-grid-btn active" : "mobile-grid-btn"}
+                onClick={() => {
+                  setGridMode("manual");
+                  setState((s) => ({ ...s, grid: "25km" }));
+                }}
+              >
+                25km
+              </button>
+              <button
+                type="button"
+                className={gridMode === "manual" && state.grid === "10km" ? "mobile-grid-btn active" : "mobile-grid-btn"}
+                onClick={() => {
+                  setGridMode("manual");
+                  setState((s) => ({ ...s, grid: "10km" }));
+                }}
+              >
+                10km
+              </button>
+              <button
+                type="button"
+                className={gridMode === "manual" && state.grid === "5km" ? "mobile-grid-btn active" : "mobile-grid-btn"}
+                onClick={() => {
+                  setGridMode("manual");
+                  setState((s) => ({ ...s, grid: "5km" }));
+                }}
+              >
+                5km
+              </button>
+              <button
+                type="button"
+                disabled={state.metric !== "median" && state.metric !== "median_ppsf"}
+                className={gridMode === "manual" && state.grid === "1km" ? "mobile-grid-btn active" : "mobile-grid-btn"}
+                onClick={() => {
+                  if (state.metric !== "median" && state.metric !== "median_ppsf") return;
+                  setGridMode("manual");
+                  setState((s) => ({ ...s, grid: "1km" }));
+                }}
+              >
+                1km
+              </button>
+            </>
+          )}
         </div>
       )}
     </main>
@@ -2125,6 +2165,9 @@ export function Styles() {
       .mobile-grid-btn {
         display: none;
       }
+      .mobile-grid-label {
+        display: none;
+      }
       .mobile-grid-dock {
         display: none;
       }
@@ -2167,6 +2210,22 @@ export function Styles() {
           text-align: center;
           white-space: nowrap;
           line-height: 1.1;
+        }
+        .mobile-grid-label {
+          display: inline-flex !important;
+          align-items: center;
+          justify-content: center;
+          border: 1px solid rgba(255,255,255,0.24);
+          background: rgba(30, 41, 59, 0.9);
+          color: white;
+          padding: 6px 8px;
+          border-radius: 8px;
+          font-size: 10px;
+          font-weight: 700;
+          min-width: 48px;
+          text-align: center;
+          line-height: 1.1;
+          box-shadow: 0 2px 10px rgba(0,0,0,0.35);
         }
         .mobile-grid-btn.active {
           background: rgba(147,197,253,0.95);
