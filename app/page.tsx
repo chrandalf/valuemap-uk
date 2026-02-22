@@ -1760,37 +1760,48 @@ export default function Home() {
                   return "Off";
                 }}
               />
-              <div style={{ fontSize: 12, opacity: 0.8 }}>Votes</div>
-              <Segment
-                options={["off", "on"]}
-                value={state.voteOverlayMode}
-                onChange={(v) => setState((s) => ({ ...s, voteOverlayMode: v as VoteOverlayMode }))}
-                renderOption={(v) => (v === "on" ? "On" : "Off")}
-              />
-              <div style={{ fontSize: 12, opacity: 0.8 }}>Vote scale</div>
-              <Segment
-                options={["relative", "absolute"]}
-                value={state.voteColorScale}
-                onChange={(v) => setState((s) => ({ ...s, voteColorScale: v as VoteColorScale }))}
-                renderOption={(v) => (v === "relative" ? "Relative" : "Absolute")}
-              />
-              <div style={{ fontSize: 12, opacity: 0.8 }}>Vote key</div>
-              <button
-                type="button"
-                onClick={() => setVoteKeyOpen((x) => !x)}
+              <div style={{ fontSize: 12, opacity: 0.8 }}>Political votes</div>
+              <div
                 style={{
-                  cursor: "pointer",
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  background: "rgba(255,255,255,0.08)",
-                  color: "white",
-                  padding: "6px 10px",
-                  borderRadius: 999,
-                  fontSize: 11,
-                  justifySelf: "end",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  flexWrap: "nowrap",
+                  overflowX: "auto",
+                  whiteSpace: "nowrap",
                 }}
               >
-                {voteKeyOpen ? "Hide key" : "Open key"}
-              </button>
+                <Segment
+                  compact
+                  options={["off", "on"]}
+                  value={state.voteOverlayMode}
+                  onChange={(v) => setState((s) => ({ ...s, voteOverlayMode: v as VoteOverlayMode }))}
+                  renderOption={(v) => (v === "on" ? "On" : "Off")}
+                />
+                <Segment
+                  compact
+                  options={["relative", "absolute"]}
+                  value={state.voteColorScale}
+                  onChange={(v) => setState((s) => ({ ...s, voteColorScale: v as VoteColorScale }))}
+                  renderOption={(v) => (v === "relative" ? "Relative" : "Absolute")}
+                />
+                <button
+                  type="button"
+                  onClick={() => setVoteKeyOpen((x) => !x)}
+                  style={{
+                    cursor: "pointer",
+                    border: "1px solid rgba(255,255,255,0.18)",
+                    background: "rgba(255,255,255,0.08)",
+                    color: "white",
+                    padding: "6px 10px",
+                    borderRadius: 999,
+                    fontSize: 11,
+                    flex: "0 0 auto",
+                  }}
+                >
+                  {voteKeyOpen ? "Hide key" : "Open key"}
+                </button>
+              </div>
             </div>
             {voteKeyOpen && (
               <div
@@ -2210,15 +2221,17 @@ function Segment({
   value,
   onChange,
   renderOption,
+  compact = false,
 }: {
   options: string[];
   value: string;
   onChange: (v: string) => void;
   renderOption?: (v: string) => string;
+  compact?: boolean;
 }) {
   return (
     <div
-      className="segment"
+      className={compact ? "segment segment-compact" : "segment"}
       style={{
         display: "flex",
         borderRadius: 999,
@@ -2226,7 +2239,7 @@ function Segment({
         border: "1px solid rgba(255,255,255,0.14)",
         background: "rgba(255,255,255,0.06)",
         width: "fit-content",
-        flexWrap: "wrap",
+        flexWrap: compact ? "nowrap" : "wrap",
       }}
     >
       {options.map((opt) => {
@@ -2521,6 +2534,29 @@ export function Styles() {
           background: rgba(255,255,255,0.22) !important;
           border-color: rgba(255,255,255,0.5) !important;
           box-shadow: 0 0 0 1px rgba(0,0,0,0.35) inset !important;
+        }
+        .segment-compact {
+          width: fit-content !important;
+          display: inline-flex !important;
+          grid-template-columns: none !important;
+          gap: 0 !important;
+          border: 1px solid rgba(255,255,255,0.14) !important;
+          background: rgba(255,255,255,0.06) !important;
+          padding: 0 !important;
+        }
+        .segment-compact .segment-btn {
+          border: none !important;
+          border-radius: 0 !important;
+          min-width: 0 !important;
+          padding: 6px 10px !important;
+          font-size: 11px !important;
+          background: transparent !important;
+          white-space: nowrap !important;
+        }
+        .segment-compact .segment-btn.active {
+          background: rgba(255,255,255,0.16) !important;
+          border-color: transparent !important;
+          box-shadow: none !important;
         }
         .control-row:first-of-type .segment {
           grid-template-columns: repeat(4, minmax(0, 1fr)) !important;

@@ -1230,11 +1230,10 @@ function voteOverlayFillColorExpression(scale: VoteColorScale = "relative", fc?:
   const progBreaks = scale === "relative" ? computeVoteRelativeBreaks(fc, "pct_progressive") : null;
   const consBreaks = scale === "relative" ? computeVoteRelativeBreaks(fc, "pct_conservative") : null;
   const rightBreaks = scale === "relative" ? computeVoteRelativeBreaks(fc, "pct_popular_right") : null;
-  const useAbsolute = !progBreaks || !consBreaks || !rightBreaks;
 
-  const progScore = buildVoteScoreExpression(progInput, useAbsolute ? null : progBreaks);
-  const consScore = buildVoteScoreExpression(consInput, useAbsolute ? null : consBreaks);
-  const rightScore = buildVoteScoreExpression(rightInput, useAbsolute ? null : rightBreaks);
+  const progScore = buildVoteScoreExpression(progInput, progBreaks);
+  const consScore = buildVoteScoreExpression(consInput, consBreaks);
+  const rightScore = buildVoteScoreExpression(rightInput, rightBreaks);
 
   const dominantScore = ["max", progScore, consScore, rightScore] as any;
 
