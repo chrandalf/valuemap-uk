@@ -3,6 +3,15 @@ import os, time, requests
 URL = "http://prod.publicdata.landregistry.gov.uk.s3-website-eu-west-1.amazonaws.com/pp-complete.txt"
 ##URL = "https://s3.eu-west-1.amazonaws.com/prod1.publicdata.landregistry.gov.uk/pp-2025.txt"
 OUT = "pp-2025.txt"
+MAX_FILE_AGE_DAYS = int(os.getenv("PP_DOWNLOAD_MAX_AGE_DAYS", "90"))
+
+def file_is_fresh(path, max_age_days=90):
+    if not os.path.exists(path):
+        return False
+    if os.path.getsize(path) <= 0:
+        return False
+    age_days = (time.time() - os.path.getmtime(path)) / 86400
+    return age_days < max_age_days
 
 def download_resume(url, out_path, retries=20, chunk_size=1024*1024):
     s = requests.Session()
@@ -43,7 +52,15 @@ def download_resume(url, out_path, retries=20, chunk_size=1024*1024):
 
     raise RuntimeError("Failed after retries")
 
-download_resume(URL, OUT)
+if file_is_fresh(OUT, MAX_FILE_AGE_DAYS):
+    age_days = (time.time() - os.path.getmtime(OUT)) / 86400
+    print(f"Skipping download: {OUT} is {age_days:.1f} days old (< {MAX_FILE_AGE_DAYS} days)")
+else:
+    if os.path.exists(OUT):
+        age_days = (time.time() - os.path.getmtime(OUT)) / 86400
+        print(f"Refreshing stale file: {OUT} is {age_days:.1f} days old (>= {MAX_FILE_AGE_DAYS} days)")
+        os.remove(OUT)
+    download_resume(URL, OUT)
 
 # %% [code] {"jupyter":{"outputs_hidden":false},"execution":{"iopub.status.busy":"2026-02-07T08:24:45.971601Z","iopub.execute_input":"2026-02-07T08:24:45.972901Z","iopub.status.idle":"2026-02-07T08:24:45.983231Z","shell.execute_reply.started":"2026-02-07T08:24:45.972850Z","shell.execute_reply":"2026-02-07T08:24:45.981610Z"}}
 import os
@@ -338,6 +355,134 @@ df = df.merge(lookup, on="pc_key", how="left")
 OUTPUT_DIR = Path(os.getenv("OUTPUT_DIR", "/kaggle/working"))
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
+WRITTEN_ARTIFACTS = []
+
+import io
+import hashlib
+import numpy as np
+
+def json_safe(value):
+    if value is None:
+        return None
+    if value is pd.NA:
+        return None
+    if isinstance(value, float) and np.isnan(value):
+        return None
+    if isinstance(value, (np.integer,)):
+        return int(value)
+    if isinstance(value, (np.floating,)):
+        return float(value)
+    if isinstance(value, (np.bool_,)):
+        return bool(value)
+    return value
+
+def dataframe_records_json_safe(df_in: pd.DataFrame):
+    records = df_in.replace({pd.NA: None}).to_dict(orient="records")
+    return [{k: json_safe(v) for k, v in r.items()} for r in records]
+
+def dump_json_gz(path: str, payload):
+    with open(path, "wb") as raw:
+        with gzip.GzipFile(fileobj=raw, mode="wb", compresslevel=9, mtime=0) as gz_raw:
+            with io.TextIOWrapper(gz_raw, encoding="utf-8") as gz_text:
+                json.dump(payload, gz_text, ensure_ascii=False, separators=(",", ":"))
+
+def audit_output_files(paths, manifest_path: str):
+    rows = []
+    for path in sorted({str(p) for p in paths}):
+        if not os.path.exists(path):
+            continue
+
+        record = {
+            "file": os.path.basename(path),
+            "path": path,
+            "bytes": os.path.getsize(path),
+            "sha256": None,
+            "uncompressed_sha256": None,
+            "json_kind": None,
+            "json_rows": None,
+            "json_unique_keys": None,
+        }
+
+        data = Path(path).read_bytes()
+        record["sha256"] = hashlib.sha256(data).hexdigest()
+
+        if path.endswith(".json.gz"):
+            decompressed = gzip.decompress(data)
+            record["uncompressed_sha256"] = hashlib.sha256(decompressed).hexdigest()
+            try:
+                payload = json.loads(decompressed.decode("utf-8"))
+                if isinstance(payload, list):
+                    record["json_kind"] = "list"
+                    record["json_rows"] = len(payload)
+                    keys = set()
+                    for item in payload:
+                        if isinstance(item, dict):
+                            keys.update(item.keys())
+                    record["json_unique_keys"] = sorted(keys)
+                elif isinstance(payload, dict):
+                    record["json_kind"] = "dict"
+                    record["json_rows"] = len(payload)
+                else:
+                    record["json_kind"] = type(payload).__name__
+            except Exception as err:
+                record["json_kind"] = f"parse_error: {err}"
+
+        rows.append(record)
+
+    with open(manifest_path, "w", encoding="utf-8") as f:
+        json.dump({"generated_at": pd.Timestamp.utcnow().isoformat(), "files": rows}, f, indent=2)
+
+    print(f"Wrote output audit manifest: {manifest_path} ({len(rows)} files)")
+
+def upload_to_r2_if_configured(paths):
+    account_id = os.getenv("R2_ACCOUNT_ID")
+    bucket_name = os.getenv("R2_BUCKET")
+    access_key = os.getenv("R2_ACCESS_KEY_ID")
+    secret_key = os.getenv("R2_SECRET_ACCESS_KEY")
+    prefix = os.getenv("R2_PREFIX", "").strip("/")
+
+    if not all([account_id, bucket_name, access_key, secret_key]):
+        print("R2 upload skipped (set R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY to enable).")
+        return
+
+    try:
+        import boto3
+    except ImportError:
+        print("R2 upload skipped (`boto3` not installed). Run: pip install boto3")
+        return
+
+    endpoint = f"https://{account_id}.r2.cloudflarestorage.com"
+    client = boto3.client(
+        "s3",
+        endpoint_url=endpoint,
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        region_name="auto",
+    )
+
+    upload_count = 0
+    for path in sorted({str(p) for p in paths}):
+        if not os.path.exists(path):
+            continue
+
+        filename = os.path.basename(path)
+        object_key = f"{prefix}/{filename}" if prefix else filename
+
+        extra = {}
+        if filename.endswith(".json.gz"):
+            extra = {"ContentType": "application/json", "ContentEncoding": "gzip"}
+        elif filename.endswith(".json"):
+            extra = {"ContentType": "application/json"}
+
+        if extra:
+            client.upload_file(path, bucket_name, object_key, ExtraArgs=extra)
+        else:
+            client.upload_file(path, bucket_name, object_key)
+        upload_count += 1
+        print(f"Uploaded to R2: {object_key}")
+
+    print(f"R2 upload complete: {upload_count} files -> {bucket_name}")
+
 postcode_lookup = df_en[[
     "PCDS",
     "cell_1000", "cell_5000", "cell_10000", "cell_25000",
@@ -376,10 +521,11 @@ postcode_lookup_out_parquet = str(OUTPUT_DIR / "postcode_grid_outcode_lookup.par
 postcode_lookup_out_json = str(OUTPUT_DIR / "postcode_grid_outcode_lookup.json.gz")
 
 postcode_lookup.to_parquet(postcode_lookup_out_parquet, index=False)
+WRITTEN_ARTIFACTS.append(postcode_lookup_out_parquet)
 
 import json, gzip
-with gzip.open(postcode_lookup_out_json, "wt", encoding="utf-8") as f:
-    json.dump(postcode_lookup.where(pd.notnull(postcode_lookup), None).to_dict(orient="records"), f)
+dump_json_gz(postcode_lookup_out_json, dataframe_records_json_safe(postcode_lookup))
+WRITTEN_ARTIFACTS.append(postcode_lookup_out_json)
 
 print("Wrote postcode lookup:", postcode_lookup_out_parquet, "rows:", len(postcode_lookup))
 
@@ -403,8 +549,8 @@ def build_outcode_index(df_lookup: pd.DataFrame, g: int) -> dict:
 for g in [1000, 5000, 10000, 25000]:
     index = build_outcode_index(postcode_lookup, g)
     out_path = str(OUTPUT_DIR / f"postcode_outcode_index_{g//1000}km.json.gz")
-    with gzip.open(out_path, "wt", encoding="utf-8") as f:
-        json.dump(index, f)
+    dump_json_gz(out_path, index)
+    WRITTEN_ARTIFACTS.append(out_path)
     print("Wrote postcode outcode index:", out_path, "cells:", len(index))
 
 
@@ -591,9 +737,8 @@ for grid_size, grid_annual in [
     d = d[keep].dropna(subset=["gx","gy","median"]).copy()
 
     out_path = str(OUTPUT_DIR / f"grid_{g//1000}km_full.json.gz")
-    with gzip.open(out_path, "wt", encoding="utf-8") as f:
-        # JSON array (easy to parse/cached in worker)
-        json.dump(d.to_dict(orient="records"), f)
+    dump_json_gz(out_path, dataframe_records_json_safe(d))
+    WRITTEN_ARTIFACTS.append(out_path)
 
     print("Wrote:", out_path, "rows:", len(d))
 
@@ -617,6 +762,7 @@ for grid_size, grid_annual in [
 metadata_path = "/kaggle/working/grid_metadata.json"
 with open(metadata_path, "w") as f:
     json.dump(grid_metadata, f, indent=2)
+WRITTEN_ARTIFACTS.append(metadata_path)
 
 print(f"\nGrid availability metadata:")
 print(json.dumps(grid_metadata, indent=2))
@@ -927,8 +1073,8 @@ for grid_size, grid_annual in [
 
         # Save to JSON (memory-efficient for Kaggle)
         output_path = f"/kaggle/working/deltas_overall_{grid_label}.json.gz"
-        with gzip.open(output_path, "wt", encoding="utf-8") as f:
-            json.dump(overall_deltas.where(pd.notnull(overall_deltas), None).to_dict(orient="records"), f)
+        dump_json_gz(output_path, dataframe_records_json_safe(overall_deltas))
+        WRITTEN_ARTIFACTS.append(output_path)
         print(f"\nSaved to {output_path}")
     else:
         print(f"\nNo deltas generated for {grid_label}")
@@ -938,10 +1084,15 @@ if delta_metadata:
     delta_metadata_path = "/kaggle/working/deltas_metadata.json"
     with open(delta_metadata_path, "w") as f:
         json.dump(delta_metadata, f, indent=2)
+    WRITTEN_ARTIFACTS.append(delta_metadata_path)
     print(f"\n{'='*60}")
     print("Delta metadata:")
     print(json.dumps(delta_metadata, indent=2))
     print(f"Saved to {delta_metadata_path}")
+
+audit_manifest_path = str(OUTPUT_DIR / "build_output_audit.json")
+audit_output_files(WRITTEN_ARTIFACTS, audit_manifest_path)
+upload_to_r2_if_configured(WRITTEN_ARTIFACTS + [audit_manifest_path])
 #plot_top_movers(delta_25, n=20)
 
 # %% [code] {"execution":{"iopub.status.busy":"2026-02-07T06:12:42.743172Z","iopub.execute_input":"2026-02-07T06:12:42.743521Z","iopub.status.idle":"2026-02-07T06:12:42.764984Z","shell.execute_reply.started":"2026-02-07T06:12:42.743495Z","shell.execute_reply":"2026-02-07T06:12:42.764124Z"}}
