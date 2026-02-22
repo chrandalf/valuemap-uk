@@ -317,6 +317,29 @@ export default function Home() {
     return () => controller.abort();
   }, [state.grid, state.propertyType, state.newBuild, state.endMonth, state.metric]);
 
+  const formatFilterValue = (value: number) => `£${formatLegendCurrency(value)}`;
+  const formatPpsfValue = (value: number) => {
+    if (!Number.isFinite(value)) return "N/A";
+    return `£${Math.round(value).toLocaleString()}/ft²`;
+  };
+
+  const formatSignedPounds = (value: number) => {
+    if (!Number.isFinite(value)) return "N/A";
+    const sign = value > 0 ? "+" : value < 0 ? "-" : "";
+    return `${sign}£${Math.round(Math.abs(value)).toLocaleString()}`;
+  };
+  const formatSignedPercent = (value: number) => {
+    if (!Number.isFinite(value)) return "N/A";
+    const sign = value > 0 ? "+" : value < 0 ? "-" : "";
+    return `${sign}${Math.abs(value).toFixed(1)}%`;
+  };
+
+  const formatMetricFilterValue = (metric: Metric, value: number) => {
+    if (metric === "median") return formatFilterValue(value);
+    if (metric === "median_ppsf") return formatPpsfValue(value);
+    return metric === "delta_gbp" ? formatSignedPounds(value) : formatSignedPercent(value);
+  };
+
   const legendContent = (
     <>
       <div className="legend-title" style={{ fontWeight: 600, marginBottom: 12, fontSize: 16, opacity: 0.9 }}>
@@ -390,24 +413,7 @@ export default function Home() {
     return `£${formatLegendCurrency(value)}`;
   };
 
-  const formatFilterValue = (value: number) => `£${formatLegendCurrency(value)}`;
-  const formatPpsfValue = (value: number) => {
-    if (!Number.isFinite(value)) return "N/A";
-    return `£${Math.round(value).toLocaleString()}/ft²`;
-  };
-
   const periodLabel = PERIOD_LABEL[state.endMonth ?? "2025-12-01"] ?? (state.endMonth ?? "LATEST");
-
-  const formatSignedPounds = (value: number) => {
-    if (!Number.isFinite(value)) return "N/A";
-    const sign = value > 0 ? "+" : value < 0 ? "-" : "";
-    return `${sign}£${Math.round(Math.abs(value)).toLocaleString()}`;
-  };
-  const formatSignedPercent = (value: number) => {
-    if (!Number.isFinite(value)) return "N/A";
-    const sign = value > 0 ? "+" : value < 0 ? "-" : "";
-    return `${sign}${Math.abs(value).toFixed(1)}%`;
-  };
 
   const handleLocateMeResult = (result: LocateMeResult) => {
     if (result.status !== "success") {
@@ -438,12 +444,6 @@ export default function Home() {
 
     setLocateMeStatus("Location found");
     setLocateMeSummary(chunks.join(" · "));
-  };
-
-  const formatMetricFilterValue = (metric: Metric, value: number) => {
-    if (metric === "median") return formatFilterValue(value);
-    if (metric === "median_ppsf") return formatPpsfValue(value);
-    return metric === "delta_gbp" ? formatSignedPounds(value) : formatSignedPercent(value);
   };
 
   const valueFilterLabel =
