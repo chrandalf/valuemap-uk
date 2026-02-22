@@ -22,6 +22,8 @@ type MapState = {
   valueThreshold: number;
   floodOverlayMode: FloodOverlayMode;
   voteOverlayMode: VoteOverlayMode;
+  voteOverlayInvert: boolean;
+  voteOverlayHideCells: boolean;
 };
 
 type OutcodeRank = {
@@ -77,6 +79,8 @@ export default function Home() {
     valueThreshold: 300000,
     floodOverlayMode: "off",
     voteOverlayMode: "off",
+    voteOverlayInvert: false,
+    voteOverlayHideCells: false,
   });
   const [legend, setLegend] = useState<LegendData | null>(null);
   const medianLegend =
@@ -131,6 +135,8 @@ export default function Home() {
     valueThreshold: 300000,
     floodOverlayMode: "off",
     voteOverlayMode: "off",
+    voteOverlayInvert: false,
+    voteOverlayHideCells: false,
   };
   const closeAllSubpanels = () => {
     setFiltersOpen(false);
@@ -303,6 +309,8 @@ export default function Home() {
     params.set("vth", String(Math.round(state.valueThreshold * 10) / 10));
     params.set("flood", state.floodOverlayMode);
     params.set("vote", state.voteOverlayMode);
+    params.set("voteInvert", state.voteOverlayInvert ? "1" : "0");
+    params.set("voteHideCells", state.voteOverlayHideCells ? "1" : "0");
 
     const nextUrl = `${window.location.pathname}?${params.toString()}`;
     window.history.replaceState(null, "", nextUrl);
@@ -496,11 +504,13 @@ export default function Home() {
         : state.voteOverlayMode === "conservative"
           ? "Conservative"
           : "Popular Right";
+  const voteOverlayStyleLabel = state.voteOverlayInvert ? "Inverted" : "Normal";
+  const voteOverlayCellsLabel = state.voteOverlayHideCells ? "Cells hidden" : "Cells shown";
 
   const currentFiltersSummary =
     `Grid: ${state.grid} · Metric: ${METRIC_LABEL[state.metric]} · ` +
     `Type: ${PROPERTY_LABEL[state.propertyType]} · New build: ${NEWBUILD_LABEL[state.newBuild]} · ` +
-    `Period: ${periodLabel} · Flood: ${floodOverlayLabel} · Vote overlay: ${voteOverlayLabel}`;
+    `Period: ${periodLabel} · Flood: ${floodOverlayLabel} · Vote overlay: ${voteOverlayLabel} (${voteOverlayStyleLabel}, ${voteOverlayCellsLabel})`;
   const headerFilterSummary =
     `${state.grid} · ${METRIC_LABEL[state.metric]} · ${PROPERTY_LABEL[state.propertyType]} · ${NEWBUILD_LABEL[state.newBuild]} · ${periodLabel}`;
 
@@ -1770,6 +1780,42 @@ export default function Home() {
                   return "Off";
                 }}
               />
+              <div style={{ fontSize: 12, opacity: 0.8 }}>Invert colours</div>
+              <button
+                type="button"
+                onClick={() => setState((s) => ({ ...s, voteOverlayInvert: !s.voteOverlayInvert }))}
+                style={{
+                  cursor: "pointer",
+                  border: "1px solid rgba(255,255,255,0.18)",
+                  background: state.voteOverlayInvert ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.08)",
+                  color: "white",
+                  padding: "6px 10px",
+                  borderRadius: 999,
+                  fontSize: 11,
+                  justifySelf: "start",
+                  fontWeight: state.voteOverlayInvert ? 700 : 500,
+                }}
+              >
+                {state.voteOverlayInvert ? "On" : "Off"}
+              </button>
+              <div style={{ fontSize: 12, opacity: 0.8 }}>Hide cells</div>
+              <button
+                type="button"
+                onClick={() => setState((s) => ({ ...s, voteOverlayHideCells: !s.voteOverlayHideCells }))}
+                style={{
+                  cursor: "pointer",
+                  border: "1px solid rgba(255,255,255,0.18)",
+                  background: state.voteOverlayHideCells ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.08)",
+                  color: "white",
+                  padding: "6px 10px",
+                  borderRadius: 999,
+                  fontSize: 11,
+                  justifySelf: "start",
+                  fontWeight: state.voteOverlayHideCells ? 700 : 500,
+                }}
+              >
+                {state.voteOverlayHideCells ? "On" : "Off"}
+              </button>
               <div style={{ fontSize: 12, opacity: 0.8 }}>Vote key</div>
               <button
                 type="button"
@@ -1782,7 +1828,7 @@ export default function Home() {
                   padding: "6px 10px",
                   borderRadius: 999,
                   fontSize: 11,
-                  justifySelf: "start",
+                  justifySelf: "end",
                 }}
               >
                 {voteKeyOpen ? "Hide key" : "Open key"}

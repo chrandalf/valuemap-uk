@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Vote Overlay Test</title>
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    #map { position: absolute; inset: 0; }
+    .panel {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      z-index: 10;
+      background: rgba(12, 16, 28, 0.9);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 12px;
+      padding: 10px;
+      max-width: 340px;
+      backdrop-filter: blur(8px);
+    }
+    .title { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+    .row { display: flex; gap: 6px; flex-wrap: wrap; }
+    button {
+      border: 1px solid rgba(255,255,255,0.24);
+      background: rgba(255,255,255,0.08);
+      color: white;
+      border-radius: 999px;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    button.active { background: rgba(147,197,253,0.95); color: #0a0c14; border-color: rgba(191,219,254,1); font-weight: 700; }
+    .status { margin-top: 8px; font-size: 12px; opacity: 0.9; line-height: 1.35; white-space: pre-line; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div class="panel">
+    <div class="title">Vote Overlay HTML Test</div>
+    <div class="row" id="modeButtons">
+      <button data-mode="off" class="active">Off</button>
+      <button data-mode="progressive">Progressive</button>
+      <button data-mode="conservative">Conservative</button>
+      <button data-mode="popular_right">Popular Right</button>
+    </div>
+    <div class="status" id="status">Initializing…</div>
+  </div>
+
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script>
+    const statusEl = document.getElementById('status');
+    const buttonsHost = document.getElementById('modeButtons');
+    const GEOJSON_URL = '/data/ge2024_vote_blocks_map.geojson';
+
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: {
+        version: 8,
+        sources: {
+          osm: {
+            type: 'raster',
+            tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+            tileSize: 256,
+            attribution: '(c) OpenStreetMap contributors'
+          }
+        },
+        layers: [{ id: 'osm', type: 'raster', source: 'osm' }]
+      },
+      center: [-2.5, 54.1],
+      zoom: 5,
+      minZoom: 4,
+      maxZoom: 12
+    });
+
+    const metricProperty = (mode) => {
+      if (mode === 'conservative') return 'pct_conservative';
+      if (mode === 'popular_right') return 'pct_popular_right';
+      return 'pct_progressive';
+    };
+
+    const colorExpression = (mode) => {
+      const prop = metricProperty(mode);
+      const colors =
+        mode === 'conservative'
+          ? ['#f8fafc', '#dbeafe', '#93c5fd', '#3b82f6', '#1d4ed8']
+          : mode === 'popular_right'
+            ? ['#f8fafc', '#fde68a', '#f59e0b', '#d97706', '#92400e']
+            : ['#f8fafc', '#dcfce7', '#86efac', '#22c55e', '#166534'];
+
+      return [
+        'interpolate', ['linear'], ['coalesce', ['to-number', ['get', prop]], 0],
+        0, colors[0],
+        0.25, colors[1],
+        0.5, colors[2],
+        0.75, colors[3],
+        1, colors[4]
+      ];
+    };
+
+    let currentMode = 'off';
+
+    function setMode(mode) {
+      currentMode = mode;
+      const visible = mode === 'off' ? 'none' : 'visible';
+
+      if (map.getLayer('vote-fill')) {
+        map.setLayoutProperty('vote-fill', 'visibility', visible);
+        map.setPaintProperty('vote-fill', 'fill-color', colorExpression(mode));
+      }
+      if (map.getLayer('vote-outline')) {
+        map.setLayoutProperty('vote-outline', 'visibility', visible);
+      }
+
+      [...buttonsHost.querySelectorAll('button')].forEach((b) => {
+        b.classList.toggle('active', b.dataset.mode === mode);
+      });
+
+      statusEl.textContent = `Mode: ${mode}\nGeoJSON URL: ${GEOJSON_URL}`;
+    }
+
+    map.on('load', async () => {
+      try {
+        const resp = await fetch(GEOJSON_URL);
+        if (!resp.ok) {
+          throw new Error(`HTTP ${resp.status}`);
+        }
+        const data = await resp.json();
+        const featureCount = Array.isArray(data.features) ? data.features.length : 0;
+
+        map.addSource('vote-overlay', { type: 'geojson', data });
+        map.addLayer({
+          id: 'vote-fill',
+          type: 'fill',
+          source: 'vote-overlay',
+          layout: { visibility: 'none' },
+          paint: {
+            'fill-color': colorExpression('progressive'),
+            'fill-opacity': 0.58
+          }
+        });
+        map.addLayer({
+          id: 'vote-outline',
+          type: 'line',
+          source: 'vote-overlay',
+          layout: { visibility: 'none' },
+          paint: {
+            'line-color': 'rgba(15,23,42,0.70)',
+            'line-width': ['interpolate', ['linear'], ['zoom'], 4, 0.25, 7, 0.45, 10, 0.9],
+            'line-opacity': 0.8
+          }
+        });
+
+        statusEl.textContent = `Loaded ${featureCount} constituencies.\nUse buttons above to toggle overlay mode.`;
+      } catch (err) {
+        statusEl.textContent = `Failed to load overlay data.\n${String(err)}`;
+      }
+    });
+
+    buttonsHost.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-mode]');
+      if (!btn) return;
+      setMode(btn.dataset.mode);
+    });
+
+    map.on('mousemove', 'vote-fill', (e) => {
+      if (currentMode === 'off') return;
+      const f = e.features && e.features[0];
+      if (!f || !f.properties) return;
+      const p = f.properties;
+      map.getCanvas().style.cursor = 'pointer';
+      statusEl.textContent = `Mode: ${currentMode}\n${p.constituency || 'Constituency'}\nP ${(Number(p.pct_progressive || 0) * 100).toFixed(1)}% | C ${(Number(p.pct_conservative || 0) * 100).toFixed(1)}% | PR ${(Number(p.pct_popular_right || 0) * 100).toFixed(1)}%`;
+    });
+
+    map.on('mouseleave', 'vote-fill', () => {
+      map.getCanvas().style.cursor = '';
+      statusEl.textContent = `Mode: ${currentMode}\nGeoJSON URL: ${GEOJSON_URL}`;
+    });
+  </script>
+</body>
+</html>

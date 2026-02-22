@@ -20,6 +20,8 @@ export type MapState = {
   valueThreshold?: number;
   floodOverlayMode?: FloodOverlayMode;
   voteOverlayMode?: VoteOverlayMode;
+  voteOverlayInvert?: boolean;
+  voteOverlayHideCells?: boolean;
 };
 
 export type LegendData =
@@ -548,7 +550,10 @@ export default function ValueMap({
       visibility: stateRef.current.voteOverlayMode && stateRef.current.voteOverlayMode !== "off" ? "visible" : "none",
     },
     paint: {
-      "fill-color": voteOverlayFillColorExpression(stateRef.current.voteOverlayMode ?? "off"),
+      "fill-color": voteOverlayFillColorExpression(
+        stateRef.current.voteOverlayMode ?? "off",
+        Boolean(stateRef.current.voteOverlayInvert)
+      ),
       "fill-opacity": 0.58,
     },
   });
@@ -1015,7 +1020,6 @@ export default function ValueMap({
 
     const mode = state.floodOverlayMode ?? "off";
     const floodVisibility = mode === "off" ? "none" : "visible";
-    const hideCellsMode = mode === "on_hide_cells";
     try {
       if (map.getLayer("flood-overlay-fill")) {
         map.setLayoutProperty("flood-overlay-fill", "visibility", floodVisibility);
@@ -1032,6 +1036,21 @@ export default function ValueMap({
       if (map.getLayer("flood-overlay-cluster-count")) {
         map.setLayoutProperty("flood-overlay-cluster-count", "visibility", floodVisibility);
       }
+    } catch (e) {
+      // ignore
+    }
+  }, [state.floodOverlayMode]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (!map.isStyleLoaded()) return;
+
+    const floodHideCells = (state.floodOverlayMode ?? "off") === "on_hide_cells";
+    const voteHideCells = Boolean(state.voteOverlayHideCells) && (state.voteOverlayMode ?? "off") !== "off";
+    const hideCellsMode = floodHideCells || voteHideCells;
+
+    try {
       if (map.getLayer("cells-fill")) {
         map.setLayoutProperty("cells-fill", "visibility", "visible");
         map.setPaintProperty("cells-fill", "fill-opacity", hideCellsMode ? 0.09 : 0.42);
@@ -1047,7 +1066,7 @@ export default function ValueMap({
     } catch (e) {
       // ignore
     }
-  }, [state.floodOverlayMode]);
+  }, [state.floodOverlayMode, state.voteOverlayMode, state.voteOverlayHideCells]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1056,11 +1075,12 @@ export default function ValueMap({
 
     const mode = state.voteOverlayMode ?? "off";
     const visibility = mode === "off" ? "none" : "visible";
+    const invert = Boolean(state.voteOverlayInvert);
 
     try {
       if (map.getLayer("vote-overlay-fill")) {
         map.setLayoutProperty("vote-overlay-fill", "visibility", visibility);
-        map.setPaintProperty("vote-overlay-fill", "fill-color", voteOverlayFillColorExpression(mode));
+        map.setPaintProperty("vote-overlay-fill", "fill-color", voteOverlayFillColorExpression(mode, invert));
       }
       if (map.getLayer("vote-overlay-outline")) {
         map.setLayoutProperty("vote-overlay-outline", "visibility", visibility);
@@ -1068,7 +1088,7 @@ export default function ValueMap({
     } catch (e) {
       // ignore
     }
-  }, [state.voteOverlayMode]);
+  }, [state.voteOverlayMode, state.voteOverlayInvert]);
 
   // Note: metric changes already trigger setRealData (via deps below).
   // Avoid a separate recolor effect to prevent stale data/legend during rapid filter changes.
@@ -1246,14 +1266,15 @@ function voteOverlayMetricProperty(mode: VoteOverlayMode): "pct_progressive" | "
   return "pct_progressive";
 }
 
-function voteOverlayFillColorExpression(mode: VoteOverlayMode) {
+function voteOverlayFillColorExpression(mode: VoteOverlayMode, invert = false) {
   const prop = voteOverlayMetricProperty(mode);
-  const colors =
+  const baseColors =
     mode === "conservative"
       ? ["#f8fafc", "#dbeafe", "#93c5fd", "#3b82f6", "#1d4ed8"]
       : mode === "popular_right"
         ? ["#f8fafc", "#fde68a", "#f59e0b", "#d97706", "#92400e"]
         : ["#f8fafc", "#dcfce7", "#86efac", "#22c55e", "#166534"];
+  const colors = invert ? [...baseColors].reverse() : baseColors;
 
   return [
     "interpolate",
