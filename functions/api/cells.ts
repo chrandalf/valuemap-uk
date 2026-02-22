@@ -136,7 +136,10 @@ function r2KeyForGrid(grid: GridKey, metric: CellsMetric) {
 async function getCachedGrid(env: Env, grid: GridKey, metric: CellsMetric): Promise<CacheEntry> {
   const cacheKey = `${grid}|${metric}` as const;
   const cached = CACHE_BY_GRID_AND_METRIC[cacheKey];
-  if (cached) return cached;
+  if (cached) {
+    await backfillVoteDataIfMissing(env, grid, cached.rows);
+    return cached;
+  }
 
   const key = r2KeyForGrid(grid, metric);
 
@@ -149,19 +152,7 @@ async function getCachedGrid(env: Env, grid: GridKey, metric: CellsMetric): Prom
   const jsonText = await gunzipToString(gz);
   const rows = JSON.parse(jsonText) as CellRow[];
 
-  const voteLookup = await getCachedVoteLookup(env, grid);
-  if (voteLookup) {
-    for (const row of rows) {
-      const vote = voteLookup.get(`${row.gx}_${row.gy}`);
-      if (!vote) continue;
-      row.pct_progressive = vote.pct_progressive;
-      row.pct_conservative = vote.pct_conservative;
-      row.pct_popular_right = vote.pct_popular_right;
-      if (vote.constituency) {
-        row.constituency = vote.constituency;
-      }
-    }
-  }
+  await backfillVoteDataIfMissing(env, grid, rows);
 
   let latest = "0000-00-00";
   for (const r of rows) {
@@ -187,7 +178,7 @@ async function getCachedVoteLookup(env: Env, grid: GridKey): Promise<Map<string,
   if (cached) return cached;
 
   const key = voteKeyForGrid(grid);
-  const obj = await env.R2.get(key);
+  const obj = await getBucket(env).get(key);
   if (!obj) {
     return null;
   }
@@ -208,6 +199,29 @@ async function getCachedVoteLookup(env: Env, grid: GridKey): Promise<Map<string,
 
   VOTE_CACHE_BY_GRID[grid] = lookup;
   return lookup;
+}
+
+async function backfillVoteDataIfMissing(env: Env, grid: GridKey, rows: CellRow[]) {
+  const sample = rows.find((row) => row.pct_progressive !== undefined || row.pct_conservative !== undefined || row.pct_popular_right !== undefined);
+  if (sample) return;
+
+  const voteLookup = await getCachedVoteLookup(env, grid);
+  if (!voteLookup) return;
+
+  for (const row of rows) {
+    const vote = voteLookup.get(`${row.gx}_${row.gy}`);
+    if (!vote) continue;
+    row.pct_progressive = vote.pct_progressive;
+    row.pct_conservative = vote.pct_conservative;
+    row.pct_popular_right = vote.pct_popular_right;
+    if (vote.constituency) {
+      row.constituency = vote.constituency;
+    }
+  }
+}
+
+function getBucket(env: Env): R2Bucket {
+  return ((env && ((env as any).R2 || (env as any).BRICKGRID_BUCKET)) as unknown) as R2Bucket;
 }
 
 /* ---------- gzip helper (Workers runtime supports this) ---------- */

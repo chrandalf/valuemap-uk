@@ -140,7 +140,6 @@ async function getCachedVoteLookup(env: Env, grid: GridKey): Promise<Map<string,
   const key = voteKeyForGrid(grid);
   const obj = await bucket.get(key);
   if (!obj) {
-    voteCache.set(grid, null);
     return null;
   }
 
