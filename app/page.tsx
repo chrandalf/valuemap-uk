@@ -59,6 +59,11 @@ const PERIOD_LABEL: Record<string, string> = {
   "2021-12-01": "Dec 2021",
 };
 
+const PERIOD_OPTIONS = ["2025-12-01", "2024-12-01", "2023-12-01", "2022-12-01", "2021-12-01"] as const;
+const MOBILE_QUICK_FILTER_ORDER = ["metric", "propertyType", "newBuild", "period"] as const;
+
+type MobileQuickFilterKey = (typeof MOBILE_QUICK_FILTER_ORDER)[number];
+
 export default function Home() {
   const [state, setState] = useState<MapState>({
     grid: "5km",
@@ -104,6 +109,7 @@ export default function Home() {
   const [mapZoom, setMapZoom] = useState<number | null>(null);
   const [cleanScreenMode, setCleanScreenMode] = useState(false);
   const [mobileOverlayRatio, setMobileOverlayRatio] = useState(0);
+  const [mobileQuickFilterStep, setMobileQuickFilterStep] = useState(0);
   const urlHydratedRef = useRef(false);
   const supportersScrollerRef = useRef<HTMLDivElement | null>(null);
   const topPanelRef = useRef<HTMLDivElement | null>(null);
@@ -136,6 +142,54 @@ export default function Home() {
     const el = supportersScrollerRef.current;
     if (!el) return;
     el.scrollBy({ left: 180, behavior: "smooth" });
+  };
+
+  const cycleOption = <T extends string>(options: readonly T[], current: T): T => {
+    const index = options.indexOf(current);
+    if (index < 0) return options[0];
+    return options[(index + 1) % options.length];
+  };
+
+  const currentMobileQuickFilterKey: MobileQuickFilterKey =
+    MOBILE_QUICK_FILTER_ORDER[mobileQuickFilterStep % MOBILE_QUICK_FILTER_ORDER.length];
+  const currentMobileQuickFilterLabel =
+    currentMobileQuickFilterKey === "metric"
+      ? "Metric"
+      : currentMobileQuickFilterKey === "propertyType"
+        ? "Type"
+        : currentMobileQuickFilterKey === "newBuild"
+          ? "New build"
+          : "Period";
+
+  const cycleMobileQuickFilter = () => {
+    const activeKey = currentMobileQuickFilterKey;
+    setState((prev) => {
+      if (activeKey === "metric") {
+        const nextMetric = cycleOption(["median", "median_ppsf", "delta_gbp", "delta_pct"] as const, prev.metric);
+        const nextGrid = nextMetric === "median" || nextMetric === "median_ppsf"
+          ? prev.grid
+          : prev.grid === "1km"
+            ? "5km"
+            : prev.grid;
+        return { ...prev, metric: nextMetric, grid: nextGrid };
+      }
+
+      if (activeKey === "propertyType") {
+        const nextType = cycleOption(["ALL", "D", "S", "T", "F"] as const, prev.propertyType);
+        return { ...prev, propertyType: nextType };
+      }
+
+      if (activeKey === "newBuild") {
+        const nextBuild = cycleOption(["ALL", "Y", "N"] as const, prev.newBuild);
+        return { ...prev, newBuild: nextBuild };
+      }
+
+      const currentPeriod = (prev.endMonth ?? "2025-12-01") as (typeof PERIOD_OPTIONS)[number];
+      const nextPeriod = cycleOption(PERIOD_OPTIONS, currentPeriod);
+      return { ...prev, endMonth: nextPeriod };
+    });
+
+    setMobileQuickFilterStep((step) => (step + 1) % MOBILE_QUICK_FILTER_ORDER.length);
   };
 
   const formatLegendCurrency = (value: number) => {
@@ -1014,85 +1068,87 @@ export default function Home() {
             )}
           </div>
         )}
-        <div
-          style={{
-            marginTop: 8,
-            display: "flex",
-            justifyContent: "flex-start",
-          }}
-        >
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <a
-              href="https://buymeacoffee.com/chrandalf"
-              target="_blank"
-              rel="noreferrer"
-              aria-label="Buy me a coffee"
-              title="Buy me a coffee"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "6px 10px",
-                borderRadius: 999,
-                background: "rgba(255,255,255,0.08)",
-                border: "1px solid rgba(255,255,255,0.22)",
-                color: "white",
-                textDecoration: "none",
-                fontSize: 11,
-                whiteSpace: "nowrap",
-                maxWidth: "100%",
-              }}
-            >
-              <span aria-hidden="true">☕</span>
-              <span>Buy me a coffee</span>
-            </a>
-            <div style={{ fontSize: 10, opacity: 0.72, lineHeight: 1.25 }}>
-              Free to use. Optional support only; no paid priority or guarantees.
-            </div>
-            {supporterNames.length > 0 && (
-              <div style={{ display: "flex", alignItems: "center", gap: 6, maxWidth: 380 }}>
-                <div
-                  ref={supportersScrollerRef}
-                  style={{
-                    fontSize: 10,
-                    opacity: 0.78,
-                    lineHeight: 1.35,
-                    whiteSpace: "nowrap",
-                    overflowX: "hidden",
-                    overflowY: "hidden",
-                    flex: 1,
-                  }}
-                >
-                  Thanks to supporters: {supporterNames.join(", ")}
-                </div>
-                <button
-                  type="button"
-                  onClick={scrollSupportersRight}
-                  aria-label="Scroll supporter names"
-                  title="Show more supporters"
-                  style={{
-                    border: "1px solid rgba(255,255,255,0.22)",
-                    background: "rgba(255,255,255,0.08)",
-                    color: "white",
-                    borderRadius: 999,
-                    width: 18,
-                    height: 18,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 11,
-                    lineHeight: 1,
-                    padding: 0,
-                    cursor: "pointer",
-                    flexShrink: 0,
-                  }}
-                >
-                  →
-                </button>
+        {!(isMobileViewport && filtersOpen) && (
+          <div
+            style={{
+              marginTop: 8,
+              display: "flex",
+              justifyContent: "flex-start",
+            }}
+          >
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <a
+                href="https://buymeacoffee.com/chrandalf"
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Buy me a coffee"
+                title="Buy me a coffee"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "6px 10px",
+                  borderRadius: 999,
+                  background: "rgba(255,255,255,0.08)",
+                  border: "1px solid rgba(255,255,255,0.22)",
+                  color: "white",
+                  textDecoration: "none",
+                  fontSize: 11,
+                  whiteSpace: "nowrap",
+                  maxWidth: "100%",
+                }}
+              >
+                <span aria-hidden="true">☕</span>
+                <span>Buy me a coffee</span>
+              </a>
+              <div style={{ fontSize: 10, opacity: 0.72, lineHeight: 1.25 }}>
+                Free to use. Optional support only; no paid priority or guarantees.
               </div>
-            )}
+              {supporterNames.length > 0 && (
+                <div style={{ display: "flex", alignItems: "center", gap: 6, maxWidth: 380 }}>
+                  <div
+                    ref={supportersScrollerRef}
+                    style={{
+                      fontSize: 10,
+                      opacity: 0.78,
+                      lineHeight: 1.35,
+                      whiteSpace: "nowrap",
+                      overflowX: "hidden",
+                      overflowY: "hidden",
+                      flex: 1,
+                    }}
+                  >
+                    Thanks to supporters: {supporterNames.join(", ")}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={scrollSupportersRight}
+                    aria-label="Scroll supporter names"
+                    title="Show more supporters"
+                    style={{
+                      border: "1px solid rgba(255,255,255,0.22)",
+                      background: "rgba(255,255,255,0.08)",
+                      color: "white",
+                      borderRadius: 999,
+                      width: 18,
+                      height: 18,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 11,
+                      lineHeight: 1,
+                      padding: 0,
+                      cursor: "pointer",
+                      flexShrink: 0,
+                    }}
+                  >
+                    →
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
         {state.floodOverlayMode !== "off" && (
           <div
             style={{
@@ -1144,7 +1200,7 @@ export default function Home() {
             {`Current filters: ${currentFiltersSummary} · Value filter: ${valueFilterLabel}`}
           </div>
         )}
-        {(menuOpen || anySubpanelOpen) && (
+        {(menuOpen || anySubpanelOpen) && !(isMobileViewport && filtersOpen) && (
           <div
             style={{
               marginTop: 8,
@@ -1396,7 +1452,7 @@ export default function Home() {
 
               <ControlRow label="Period">
                 <Segment
-                  options={["2025-12-01", "2024-12-01", "2023-12-01", "2022-12-01", "2021-12-01"]}
+                  options={[...PERIOD_OPTIONS]}
                   value={state.endMonth ?? "2025-12-01"}
                   onChange={(v) => setState((s) => ({ ...s, endMonth: v }))}
                   renderOption={(v) => {
@@ -1886,6 +1942,15 @@ export default function Home() {
         !dataSourcesOpen &&
         (
         <div className="mobile-grid-dock" aria-label="Map grid controls">
+          <button
+            type="button"
+            className="mobile-grid-btn"
+            onClick={cycleMobileQuickFilter}
+            aria-label={`Cycle quick filter (${currentMobileQuickFilterLabel})`}
+            title={`Cycle quick filter: ${currentMobileQuickFilterLabel}`}
+          >
+            →
+          </button>
           <button
             type="button"
             className={gridMode === "auto" ? "mobile-grid-btn active" : "mobile-grid-btn"}
