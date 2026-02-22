@@ -21,10 +21,30 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     return new Response(JSON.stringify({ error: "Failed loading delta files", message: msg }), { status: 500 });
   }
 
+  let voteLookup: Map<string, VoteCellValue> | null = null;
+  try {
+    voteLookup = await getCachedVoteLookup(env, grid);
+  } catch {
+    voteLookup = null;
+  }
+
   // ---- filter rows by segment ----
-  const rows = data.rows.filter(
-    (r) => r.property_type === propertyType && r.new_build === newBuild
-  );
+  const rows = data.rows
+    .filter((r) => r.property_type === propertyType && r.new_build === newBuild)
+    .map((r) => {
+      if (!voteLookup) return r;
+      const coords = getGridCoords(r, grid);
+      if (!coords) return r;
+      const vote = voteLookup.get(`${coords.gx}_${coords.gy}`);
+      if (!vote) return r;
+      return {
+        ...r,
+        pct_progressive: vote.pct_progressive,
+        pct_conservative: vote.pct_conservative,
+        pct_popular_right: vote.pct_popular_right,
+        constituency: vote.constituency,
+      };
+    });
 
   return Response.json(
     {
@@ -75,7 +95,22 @@ type DeltaRow = {
   end_month_earliest: string;
   end_month_latest: string;
   years_delta: number;
+  pct_progressive?: number;
+  pct_conservative?: number;
+  pct_popular_right?: number;
+  constituency?: string;
 };
+
+type VoteCellRow = {
+  gx: number;
+  gy: number;
+  pct_progressive: number;
+  pct_conservative: number;
+  pct_popular_right: number;
+  constituency?: string;
+};
+
+type VoteCellValue = Omit<VoteCellRow, "gx" | "gy">;
 
 type DeltaData = {
   rows: DeltaRow[];
@@ -84,6 +119,7 @@ type DeltaData = {
 /* ---------- loading + caching ---------- */
 
 const deltaCache = new Map<GridKey, DeltaData>();
+const voteCache = new Map<GridKey, Map<string, VoteCellValue> | null>();
 
 async function getCachedDeltas(env: Env, grid: GridKey): Promise<DeltaData> {
   if (deltaCache.has(grid)) {
@@ -95,12 +131,71 @@ async function getCachedDeltas(env: Env, grid: GridKey): Promise<DeltaData> {
   return data;
 }
 
-async function loadDeltasFromR2(env: Env, grid: GridKey): Promise<DeltaData> {
-  // Support either `BRICKGRID_BUCKET` or `R2` binding name (some projects use simply `R2`)
+async function getCachedVoteLookup(env: Env, grid: GridKey): Promise<Map<string, VoteCellValue> | null> {
+  if (voteCache.has(grid)) {
+    return voteCache.get(grid) ?? null;
+  }
+
+  const bucket = getBucket(env);
+  const key = voteKeyForGrid(grid);
+  const obj = await bucket.get(key);
+  if (!obj) {
+    voteCache.set(grid, null);
+    return null;
+  }
+
+  const decompressed = await decompressGzip(await obj.arrayBuffer());
+  const text = new TextDecoder().decode(decompressed);
+  const rows = JSON.parse(text) as VoteCellRow[];
+
+  const lookup = new Map<string, VoteCellValue>();
+  for (const row of rows) {
+    lookup.set(`${row.gx}_${row.gy}`, {
+      pct_progressive: Number(row.pct_progressive ?? 0),
+      pct_conservative: Number(row.pct_conservative ?? 0),
+      pct_popular_right: Number(row.pct_popular_right ?? 0),
+      constituency: row.constituency,
+    });
+  }
+
+  voteCache.set(grid, lookup);
+  return lookup;
+}
+
+function getGridCoords(row: DeltaRow, grid: GridKey): { gx: number; gy: number } | null {
+  if (grid === "5km") {
+    return Number.isFinite(Number(row.gx_5000)) && Number.isFinite(Number(row.gy_5000))
+      ? { gx: Number(row.gx_5000), gy: Number(row.gy_5000) }
+      : null;
+  }
+  if (grid === "10km") {
+    return Number.isFinite(Number(row.gx_10000)) && Number.isFinite(Number(row.gy_10000))
+      ? { gx: Number(row.gx_10000), gy: Number(row.gy_10000) }
+      : null;
+  }
+  return Number.isFinite(Number(row.gx_25000)) && Number.isFinite(Number(row.gy_25000))
+    ? { gx: Number(row.gx_25000), gy: Number(row.gy_25000) }
+    : null;
+}
+
+function voteKeyForGrid(grid: GridKey) {
+  switch (grid) {
+    case "5km": return "vote_cells_5km.json.gz";
+    case "10km": return "vote_cells_10km.json.gz";
+    case "25km": return "vote_cells_25km.json.gz";
+  }
+}
+
+function getBucket(env: Env): R2Bucket {
   const bucket = ((env && ((env as any).BRICKGRID_BUCKET || (env as any).R2)) as unknown) as R2Bucket | undefined;
   if (!bucket) {
     throw new Error("R2 binding not found. Expected environment binding `BRICKGRID_BUCKET` or `R2`.");
   }
+  return bucket;
+}
+
+async function loadDeltasFromR2(env: Env, grid: GridKey): Promise<DeltaData> {
+  const bucket = getBucket(env);
 
   const gridLabel = grid === "5km" ? "5km" : grid === "10km" ? "10km" : "25km";
   const objectKey = `deltas_overall_${gridLabel}.json.gz`;

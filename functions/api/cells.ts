@@ -83,7 +83,22 @@ type CellRow = {
   delta_gbp?: number;
   delta_pct?: number;
   years_stale?: number;
+  pct_progressive?: number;
+  pct_conservative?: number;
+  pct_popular_right?: number;
+  constituency?: string;
 };
+
+type VoteCellRow = {
+  gx: number;
+  gy: number;
+  pct_progressive: number;
+  pct_conservative: number;
+  pct_popular_right: number;
+  constituency?: string;
+};
+
+type VoteCellValue = Omit<VoteCellRow, "gx" | "gy">;
 
 interface Env {
   R2: R2Bucket;
@@ -97,6 +112,7 @@ type CacheEntry = {
 };
 
 const CACHE_BY_GRID_AND_METRIC: Partial<Record<`${GridKey}|${CellsMetric}`, CacheEntry>> = {};
+const VOTE_CACHE_BY_GRID: Partial<Record<GridKey, Map<string, VoteCellValue>>> = {};
 
 function r2KeyForGrid(grid: GridKey, metric: CellsMetric) {
   // Must match your bucket object names
@@ -133,6 +149,20 @@ async function getCachedGrid(env: Env, grid: GridKey, metric: CellsMetric): Prom
   const jsonText = await gunzipToString(gz);
   const rows = JSON.parse(jsonText) as CellRow[];
 
+  const voteLookup = await getCachedVoteLookup(env, grid);
+  if (voteLookup) {
+    for (const row of rows) {
+      const vote = voteLookup.get(`${row.gx}_${row.gy}`);
+      if (!vote) continue;
+      row.pct_progressive = vote.pct_progressive;
+      row.pct_conservative = vote.pct_conservative;
+      row.pct_popular_right = vote.pct_popular_right;
+      if (vote.constituency) {
+        row.constituency = vote.constituency;
+      }
+    }
+  }
+
   let latest = "0000-00-00";
   for (const r of rows) {
     if (r.end_month > latest) latest = r.end_month;
@@ -141,6 +171,43 @@ async function getCachedGrid(env: Env, grid: GridKey, metric: CellsMetric): Prom
   const entry = { rows, latestEndMonth: latest };
   CACHE_BY_GRID_AND_METRIC[cacheKey] = entry;
   return entry;
+}
+
+function voteKeyForGrid(grid: GridKey) {
+  switch (grid) {
+    case "1km": return "vote_cells_1km.json.gz";
+    case "5km": return "vote_cells_5km.json.gz";
+    case "10km": return "vote_cells_10km.json.gz";
+    case "25km": return "vote_cells_25km.json.gz";
+  }
+}
+
+async function getCachedVoteLookup(env: Env, grid: GridKey): Promise<Map<string, VoteCellValue> | null> {
+  const cached = VOTE_CACHE_BY_GRID[grid];
+  if (cached) return cached;
+
+  const key = voteKeyForGrid(grid);
+  const obj = await env.R2.get(key);
+  if (!obj) {
+    return null;
+  }
+
+  const gz = await obj.arrayBuffer();
+  const jsonText = await gunzipToString(gz);
+  const rows = JSON.parse(jsonText) as VoteCellRow[];
+
+  const lookup = new Map<string, VoteCellValue>();
+  for (const row of rows) {
+    lookup.set(`${row.gx}_${row.gy}`, {
+      pct_progressive: Number(row.pct_progressive ?? 0),
+      pct_conservative: Number(row.pct_conservative ?? 0),
+      pct_popular_right: Number(row.pct_popular_right ?? 0),
+      constituency: row.constituency,
+    });
+  }
+
+  VOTE_CACHE_BY_GRID[grid] = lookup;
+  return lookup;
 }
 
 /* ---------- gzip helper (Workers runtime supports this) ---------- */

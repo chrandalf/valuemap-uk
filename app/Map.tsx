@@ -52,6 +52,10 @@ type ApiRow = {
   delta_gbp?: number;
   delta_pct?: number;
   years_stale?: number;
+  pct_progressive?: number;
+  pct_conservative?: number;
+  pct_popular_right?: number;
+  constituency?: string;
 };
 
 function isDeltaMetric(metric: Metric) {
@@ -80,9 +84,6 @@ type FloodSearchEntry = {
   lon: number;
   lat: number;
 };
-
-const VOTE_OVERLAY_VERSION = process.env.NEXT_PUBLIC_VOTE_OVERLAY_VERSION ?? "20260222";
-const VOTE_OVERLAY_SOURCE_URL = `/data/ge2024_vote_blocks_map.geojson?v=${encodeURIComponent(VOTE_OVERLAY_VERSION)}`;
 
 export type LocateMeResult = {
   status: "success" | "denied" | "unavailable" | "timeout" | "error";
@@ -146,9 +147,6 @@ export default function ValueMap({
   const fetchPostcodesRef = useRef<(gx: number, gy: number, offset: number, append: boolean) => void>(() => {});
   const floodSearchEntriesRef = useRef<FloodSearchEntry[] | null>(null);
   const floodSearchEntriesPromiseRef = useRef<Promise<FloodSearchEntry[]> | null>(null);
-  const voteOverlayLoadRequestedRef = useRef(false);
-  const voteOverlayReadyRef = useRef(false);
-  const voteOverlayLoadStartedAtRef = useRef<number | null>(null);
 
 
   useEffect(() => {
@@ -429,23 +427,6 @@ export default function ValueMap({
     return `${path}?${params.toString()}`;
   };
 
-  const ensureVoteOverlayLoaded = (map: maplibregl.Map) => {
-    if (voteOverlayReadyRef.current || voteOverlayLoadRequestedRef.current) return;
-    const src = map.getSource("vote-overlay") as maplibregl.GeoJSONSource | undefined;
-    if (!src) return;
-
-    voteOverlayLoadRequestedRef.current = true;
-    voteOverlayLoadStartedAtRef.current = Date.now();
-    console.info(`[vote-overlay] requesting ${VOTE_OVERLAY_SOURCE_URL}`);
-
-    try {
-      src.setData(VOTE_OVERLAY_SOURCE_URL as any);
-    } catch (error) {
-      voteOverlayLoadRequestedRef.current = false;
-      console.error("[vote-overlay] setData failed", error);
-    }
-  };
-
   // Create map once
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -482,38 +463,6 @@ export default function ValueMap({
       map.addSource("cells", {
         type: "geojson",
         data: { type: "FeatureCollection", features: [] },
-  });
-
-  map.addSource("vote-overlay", {
-    type: "geojson",
-    data: { type: "FeatureCollection", features: [] },
-  });
-
-  map.on("error", (event: any) => {
-    const msg = String(event?.error?.message ?? "");
-    const relatesToVoteOverlay =
-      event?.sourceId === "vote-overlay" ||
-      msg.includes("vote-overlay") ||
-      msg.includes("ge2024_vote_blocks_map.geojson");
-    if (relatesToVoteOverlay) {
-      if (!voteOverlayReadyRef.current) {
-        voteOverlayLoadRequestedRef.current = false;
-      }
-      console.error("[vote-overlay] load error", event?.error ?? event);
-    }
-  });
-
-  map.on("sourcedata", (event: any) => {
-    if (event?.sourceId === "vote-overlay" && event?.isSourceLoaded) {
-      voteOverlayReadyRef.current = true;
-      const startedAt = voteOverlayLoadStartedAtRef.current;
-      if (startedAt) {
-        const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(1);
-        console.info(`[vote-overlay] source loaded in ${elapsedSec}s from ${VOTE_OVERLAY_SOURCE_URL}`);
-      } else {
-        console.info("[vote-overlay] source loaded");
-      }
-    }
   });
 
   map.addSource("flood-overlay", {
@@ -589,36 +538,6 @@ export default function ValueMap({
     paint: {
       "fill-color": getFillColorExpression(state.metric),
       "fill-opacity": 0.42,
-    },
-  });
-
-  map.addLayer({
-    id: "vote-overlay-fill",
-    type: "fill",
-    source: "vote-overlay",
-    layout: {
-      visibility: stateRef.current.voteOverlayMode && stateRef.current.voteOverlayMode !== "off" ? "visible" : "none",
-    },
-    paint: {
-      "fill-color": voteOverlayFillColorExpression(
-        stateRef.current.voteOverlayMode ?? "off",
-        Boolean(stateRef.current.voteOverlayInvert)
-      ),
-      "fill-opacity": 0.58,
-    },
-  });
-
-  map.addLayer({
-    id: "vote-overlay-outline",
-    type: "line",
-    source: "vote-overlay",
-    layout: {
-      visibility: stateRef.current.voteOverlayMode && stateRef.current.voteOverlayMode !== "off" ? "visible" : "none",
-    },
-    paint: {
-      "line-color": "rgba(15,23,42,0.70)",
-      "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.25, 7, 0.45, 10, 0.9] as any,
-      "line-opacity": 0.8,
     },
   });
 
@@ -859,42 +778,8 @@ export default function ValueMap({
     showFloodClusterPopup(e);
   });
 
-  map.on("mousemove", "vote-overlay-fill", (e) => {
-    if ((stateRef.current.voteOverlayMode ?? "off") === "off") {
-      popup.remove();
-      return;
-    }
-
-    map.getCanvas().style.cursor = "pointer";
-    const f = e.features?.[0] as any;
-    if (!f) return;
-    const p = f.properties || {};
-    const constituency = String(p.constituency ?? p.PCON24NM ?? "Constituency");
-    const prog = Number(p.pct_progressive ?? 0);
-    const cons = Number(p.pct_conservative ?? 0);
-    const right = Number(p.pct_popular_right ?? 0);
-
-    const html = `
-      <div style="font-family: system-ui; font-size: 12px; line-height: 1.3;">
-        <div style="font-weight: 700; margin-bottom: 4px;">${constituency}</div>
-        <div>Progressive: <b>${(prog * 100).toFixed(1)}%</b></div>
-        <div>Conservative: <b>${(cons * 100).toFixed(1)}%</b></div>
-        <div>Popular Right: <b>${(right * 100).toFixed(1)}%</b></div>
-      </div>
-    `;
-
-    popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
-  });
-
-  map.on("mouseleave", "vote-overlay-fill", () => {
-    map.getCanvas().style.cursor = "";
-    popup.remove();
-  });
-
   map.on("mousemove", "cells-fill", (e) => {
-    if ((stateRef.current.voteOverlayMode ?? "off") !== "off") {
-      return;
-    }
+    const voteMode = stateRef.current.voteOverlayMode ?? "off";
     if (useFloodPopupMode()) {
       popup.remove();
       return;
@@ -910,6 +795,33 @@ export default function ValueMap({
     const tx = Number(p.tx_count ?? 0);
     const dg = Number(p.delta_gbp ?? 0);
     const dp = Number(p.delta_pct ?? 0);
+    const prog = Number(p.pct_progressive ?? NaN);
+    const cons = Number(p.pct_conservative ?? NaN);
+    const right = Number(p.pct_popular_right ?? NaN);
+
+    if (voteMode !== "off") {
+      const constituency = String(p.constituency ?? "Cell vote estimate");
+      const hasVoteData = Number.isFinite(prog) || Number.isFinite(cons) || Number.isFinite(right);
+
+      const html = hasVoteData
+        ? `
+          <div style="font-family: system-ui; font-size: 12px; line-height: 1.3;">
+            <div style="font-weight: 700; margin-bottom: 4px;">${constituency}</div>
+            <div>Progressive: <b>${((Number.isFinite(prog) ? prog : 0) * 100).toFixed(1)}%</b></div>
+            <div>Conservative: <b>${((Number.isFinite(cons) ? cons : 0) * 100).toFixed(1)}%</b></div>
+            <div>Popular Right: <b>${((Number.isFinite(right) ? right : 0) * 100).toFixed(1)}%</b></div>
+          </div>
+        `
+        : `
+          <div style="font-family: system-ui; font-size: 12px; line-height: 1.3;">
+            <div style="font-weight: 700; margin-bottom: 4px;">No vote data for this cell</div>
+            <div>Try a coarser grid for broader coverage.</div>
+          </div>
+        `;
+
+      popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+      return;
+    }
 
     // Show delta popup only if we're actually looking at delta data (deltas are non-zero)
     let html = "";
@@ -1124,25 +1036,20 @@ export default function ValueMap({
     if (!map.isStyleLoaded()) return;
 
     const mode = state.voteOverlayMode ?? "off";
-    const visibility = mode === "off" ? "none" : "visible";
     const invert = Boolean(state.voteOverlayInvert);
 
-    if (mode !== "off") {
-      ensureVoteOverlayLoaded(map);
-    }
-
     try {
-      if (map.getLayer("vote-overlay-fill")) {
-        map.setLayoutProperty("vote-overlay-fill", "visibility", visibility);
-        map.setPaintProperty("vote-overlay-fill", "fill-color", voteOverlayFillColorExpression(mode, invert));
-      }
-      if (map.getLayer("vote-overlay-outline")) {
-        map.setLayoutProperty("vote-overlay-outline", "visibility", visibility);
+      if (map.getLayer("cells-fill")) {
+        if (mode === "off") {
+          void ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange);
+        } else {
+          map.setPaintProperty("cells-fill", "fill-color", voteOverlayFillColorExpression(mode, invert));
+        }
       }
     } catch (e) {
       // ignore
     }
-  }, [state.voteOverlayMode, state.voteOverlayInvert]);
+  }, [state.voteOverlayMode, state.voteOverlayInvert, onLegendChange]);
 
   // Note: metric changes already trigger setRealData (via deps below).
   // Avoid a separate recolor effect to prevent stale data/legend during rapid filter changes.
@@ -1500,6 +1407,7 @@ async function ensureAggregatesAndUpdate(
   onLegendChange?: (legend: LegendData | null) => void
 ) {
   try {
+    const voteModeActive = (state.voteOverlayMode ?? "off") !== "off";
     // For delta metrics, apply simple linear color mapping (quantiles can be complex with diverging data)
     const isDelta = isDeltaMetric(state.metric);
     if (isDelta) {
@@ -1513,7 +1421,7 @@ async function ensureAggregatesAndUpdate(
       const colors = DELTA_COLORS;
       const expr = buildDeltaColorExpression(state.metric, stops, colors);
 
-      if (map.getLayer("cells-fill")) {
+      if (!voteModeActive && map.getLayer("cells-fill")) {
         map.setPaintProperty("cells-fill", "fill-color", expr);
       }
       if (onLegendChange) {
@@ -1635,7 +1543,7 @@ async function ensureAggregatesAndUpdate(
         const colors = makeTailColors();
         const safeBreaks = ensureStrictlyIncreasingBreaks(breaks);
         const expr = buildTailColorExpression(metricPropName(state.metric), safeBreaks, colors, true);
-        if (map.getLayer("cells-fill")) {
+        if (!voteModeActive && map.getLayer("cells-fill")) {
           map.setPaintProperty("cells-fill", "fill-color", expr);
         }
         if (onLegendChange) {
@@ -1649,14 +1557,14 @@ async function ensureAggregatesAndUpdate(
             buildLinearBreaks(stats.min, stats.max, QUANTILE_PROBS.length)
           );
           const expr = buildTailColorExpression(metricPropName(state.metric), linearBreaks, colors, true);
-          if (map.getLayer("cells-fill")) {
+          if (!voteModeActive && map.getLayer("cells-fill")) {
             map.setPaintProperty("cells-fill", "fill-color", expr);
           }
           if (onLegendChange) {
             onLegendChange({ kind: "median", breaks: linearBreaks, colors, probs: QUANTILE_PROBS });
           }
         } else {
-          if (map.getLayer("cells-fill")) {
+          if (!voteModeActive && map.getLayer("cells-fill")) {
             map.setPaintProperty("cells-fill", "fill-color", getFillColorExpression(state.metric));
           }
           if (onLegendChange) {
