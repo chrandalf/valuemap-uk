@@ -110,6 +110,15 @@ export default function DescriptionPage() {
               predict prices or provide legal/financial advice.
             </Section>
 
+            <Section title="8) Political vote colour scale (relative vs absolute)">
+              The political vote overlay uses a left-to-right colour gradient: red tones indicate
+              relatively stronger left-leaning vote share, blue tones indicate relatively stronger
+              right-leaning vote share. In <b>Relative</b> mode, colours are normalised against the
+              currently loaded map cells, so local stand-out areas are emphasised even when raw
+              percentages are low nationally. In <b>Absolute</b> mode, colours are based on raw vote
+              shares in each cell, giving a direct percentage-based view.
+            </Section>
+
             <button
               type="button"
               onClick={() => setDescriptionPage(1)}

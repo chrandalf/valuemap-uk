@@ -377,8 +377,39 @@ export default function Home() {
     return metric === "delta_gbp" ? formatSignedPounds(value) : formatSignedPercent(value);
   };
 
+  const voteLegendContent = (
+    <>
+      <div className="legend-title" style={{ fontWeight: 600, marginBottom: 10, fontSize: 16, opacity: 0.9 }}>
+        Political votes (Left ↔ Right)
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "86px 1fr 86px", gap: 8, alignItems: "center" }}>
+        <div style={{ textAlign: "left", fontSize: 11, opacity: 0.85 }}>Left strong</div>
+        <div style={{ display: "flex", height: 16, borderRadius: 999, overflow: "hidden", border: "1px solid rgba(255,255,255,0.2)" }}>
+          {[
+            "#b91c1c",
+            "#fca5a5",
+            "#f3f4f6",
+            "#60a5fa",
+            "#1e3a8a",
+          ].map((c, i) => (
+            <div key={i} style={{ flex: 1, backgroundColor: c }} />
+          ))}
+        </div>
+        <div style={{ textAlign: "right", fontSize: 11, opacity: 0.85 }}>Right strong</div>
+      </div>
+      <div style={{ marginTop: 8, fontSize: 11, opacity: 0.8, lineHeight: 1.35 }}>
+        {state.voteColorScale === "relative"
+          ? "Relative: colours show each cell's left/right strength compared with other loaded cells."
+          : "Absolute: colours show left/right strength from raw vote shares in that cell."}
+      </div>
+    </>
+  );
+
   const legendContent = (
     <>
+      {state.voteOverlayMode === "on" && voteLegendContent}
+      {state.voteOverlayMode !== "on" && (
+      <>
       <div className="legend-title" style={{ fontWeight: 600, marginBottom: 12, fontSize: 16, opacity: 0.9 }}>
         {state.metric === "median"
           ? "Median house price"
@@ -441,6 +472,8 @@ export default function Home() {
             </>
           )}
         </>
+      )}
+      </>
       )}
     </>
   );

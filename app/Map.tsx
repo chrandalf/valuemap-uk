@@ -1240,23 +1240,23 @@ function voteOverlayFillColorExpression(scale: VoteColorScale = "relative") {
       ? (["coalesce", ["to-number", ["get", "vote_rank_popular_right"]], 0] as any)
       : buildVoteScoreExpression(rightInput, null);
 
-  const dominantScore = ["max", progScore, consScore, rightScore] as any;
-
-  const progColors = ["#fee2e2", "#fca5a5", "#fde68a", "#86efac", "#22c55e", "#14532d"];
-  const consColors = ["#e5e7eb", "#dbeafe", "#bfdbfe", "#60a5fa", "#2563eb", "#1e3a8a"];
-  const rightColors = ["#e5e7eb", "#dbeafe", "#bae6fd", "#7dd3fc", "#38bdf8", "#0c4a6e"];
-
-  const progRamp = buildVoteDominanceRamp(dominantScore, progColors);
-  const consRamp = buildVoteDominanceRamp(dominantScore, consColors);
-  const rightRamp = buildVoteDominanceRamp(dominantScore, rightColors);
+  const rightBlocScore = ["max", consScore, rightScore] as any;
+  const leftRightAxis = ["-", progScore, rightBlocScore] as any;
 
   return [
-    "case",
-    [">=", progScore, ["max", consScore, rightScore]],
-    progRamp,
-    [">=", consScore, rightScore],
-    consRamp,
-    rightRamp,
+    "interpolate",
+    ["linear"],
+    leftRightAxis,
+    -1,
+    "#1e3a8a",
+    -0.5,
+    "#60a5fa",
+    0,
+    "#f3f4f6",
+    0.5,
+    "#fca5a5",
+    1,
+    "#b91c1c",
   ] as any;
 }
 
@@ -1297,26 +1297,6 @@ function buildVoteScoreExpression(inputExpr: any, breaks: number[] | null) {
     0.8,
     breaks[5],
     1,
-  ] as any;
-}
-
-function buildVoteDominanceRamp(scoreExpr: any, colors: string[]) {
-  return [
-    "interpolate",
-    ["linear"],
-    scoreExpr,
-    0,
-    colors[0],
-    0.2,
-    colors[1],
-    0.4,
-    colors[2],
-    0.6,
-    colors[3],
-    0.8,
-    colors[4],
-    1,
-    colors[5],
   ] as any;
 }
 
