@@ -5,6 +5,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
 
   // ---- query params (match your UI state) ----
   const grid = (url.searchParams.get("grid") ?? "25km") as GridKey;
+  const metric = (url.searchParams.get("metric") ?? "median") as CellsMetric;
   const propertyType = (url.searchParams.get("propertyType") ?? "ALL").toUpperCase();
   const newBuild = (url.searchParams.get("newBuild") ?? "ALL").toUpperCase();
   const endMonthParam = (url.searchParams.get("endMonth") ?? "LATEST").toUpperCase();
@@ -13,22 +14,35 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     return Response.json("Invalid grid. Use 1km|5km|10km|25km", { status: 400 });
   }
 
+  if (!isCellsMetric(metric)) {
+    return Response.json("Invalid metric. Use median|median_ppsf", { status: 400 });
+  }
+
   // ---- load + cache data (PER GRID) ----
-  const data = await getCachedGrid(env, grid);
+  const data = await getCachedGrid(env, grid, metric);
 
   const endMonth = endMonthParam === "LATEST" ? data.latestEndMonth : endMonthParam;
 
   // ---- filter rows ----
-  const rows = data.rows.filter(
+  const filtered = data.rows.filter(
     (r) =>
       r.end_month === endMonth &&
       r.property_type === propertyType &&
       r.new_build === newBuild
   );
 
+  const rows = filtered.map((r) => ({
+    ...r,
+    median:
+      metric === "median_ppsf"
+        ? Number((r as any).median_ppsf ?? r.median ?? NaN)
+        : Number(r.median ?? NaN),
+  }));
+
   return Response.json(
     {
       grid,
+      metric,
       end_month: endMonth,
       propertyType,
       newBuild,
@@ -47,9 +61,14 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
 /* ---------- types ---------- */
 
 type GridKey = "1km" | "5km" | "10km" | "25km";
+type CellsMetric = "median" | "median_ppsf";
 
 function isGridKey(v: string): v is GridKey {
   return v === "1km" || v === "5km" || v === "10km" || v === "25km";
+}
+
+function isCellsMetric(v: string): v is CellsMetric {
+  return v === "median" || v === "median_ppsf";
 }
 
 type CellRow = {
@@ -59,6 +78,7 @@ type CellRow = {
   property_type: string;
   new_build: string;
   median: number;
+  median_ppsf?: number;
   tx_count: number;
   delta_gbp?: number;
   delta_pct?: number;
@@ -76,10 +96,19 @@ type CacheEntry = {
   latestEndMonth: string;
 };
 
-const CACHE_BY_GRID: Partial<Record<GridKey, CacheEntry>> = {};
+const CACHE_BY_GRID_AND_METRIC: Partial<Record<`${GridKey}|${CellsMetric}`, CacheEntry>> = {};
 
-function r2KeyForGrid(grid: GridKey) {
+function r2KeyForGrid(grid: GridKey, metric: CellsMetric) {
   // Must match your bucket object names
+  if (metric === "median_ppsf") {
+    switch (grid) {
+      case "1km": return "grid_1km_ppsf_full.json.gz";
+      case "5km": return "grid_5km_ppsf_full.json.gz";
+      case "10km": return "grid_10km_ppsf_full.json.gz";
+      case "25km": return "grid_25km_ppsf_full.json.gz";
+    }
+  }
+
   switch (grid) {
     case "1km": return "grid_1km_full.json.gz";
     case "5km": return "grid_5km_full.json.gz";
@@ -88,11 +117,12 @@ function r2KeyForGrid(grid: GridKey) {
   }
 }
 
-async function getCachedGrid(env: Env, grid: GridKey): Promise<CacheEntry> {
-  const cached = CACHE_BY_GRID[grid];
+async function getCachedGrid(env: Env, grid: GridKey, metric: CellsMetric): Promise<CacheEntry> {
+  const cacheKey = `${grid}|${metric}` as const;
+  const cached = CACHE_BY_GRID_AND_METRIC[cacheKey];
   if (cached) return cached;
 
-  const key = r2KeyForGrid(grid);
+  const key = r2KeyForGrid(grid, metric);
 
   const obj = await env.R2.get(key);
   if (!obj) {
@@ -109,7 +139,7 @@ async function getCachedGrid(env: Env, grid: GridKey): Promise<CacheEntry> {
   }
 
   const entry = { rows, latestEndMonth: latest };
-  CACHE_BY_GRID[grid] = entry;
+  CACHE_BY_GRID_AND_METRIC[cacheKey] = entry;
   return entry;
 }
 

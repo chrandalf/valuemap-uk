@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import ValueMap, { type LegendData, type LocateMeResult } from "./Map";
 
 type GridSize = "1km" | "5km" | "10km" | "25km";
-type Metric = "median" | "delta_gbp" | "delta_pct";
+type Metric = "median" | "median_ppsf" | "delta_gbp" | "delta_pct";
 type PropertyType = "ALL" | "D" | "S" | "T" | "F"; // Detached / Semi / Terraced / Flat
 type NewBuild = "ALL" | "Y" | "N";
 type ValueFilterMode = "off" | "lte" | "gte";
@@ -30,9 +30,12 @@ type OutcodeRank = {
 
 const METRIC_LABEL: Record<Metric, string> = {
   median: "Median",
+  median_ppsf: "Price / ft²",
   delta_gbp: "Change (GBP)",
   delta_pct: "Change (%)",
 };
+
+const isDeltaMetric = (metric: Metric) => metric === "delta_gbp" || metric === "delta_pct";
 
 const PROPERTY_LABEL: Record<PropertyType, string> = {
   ALL: "All",
@@ -69,9 +72,9 @@ export default function Home() {
   });
   const [legend, setLegend] = useState<LegendData | null>(null);
   const medianLegend =
-    state.metric === "median" && legend && legend.kind === "median" ? legend : null;
+    !isDeltaMetric(state.metric) && legend && legend.kind === "median" ? legend : null;
   const deltaLegend =
-    state.metric !== "median" && legend && legend.kind === "delta" && legend.metric === state.metric
+    isDeltaMetric(state.metric) && legend && legend.kind === "delta" && legend.metric === state.metric
       ? legend
       : null;
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -157,7 +160,7 @@ export default function Home() {
   }, []);
 
   const autoGridForZoom = (zoom: number, metric: Metric): GridSize => {
-    if (zoom >= 8.2) return metric === "median" ? "1km" : "5km";
+    if (zoom >= 8.2) return isDeltaMetric(metric) ? "5km" : "1km";
     if (zoom >= 7.0) return "5km";
     if (zoom >= 5.6) return "10km";
     return "25km";
@@ -176,7 +179,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!isMobileViewport || gridMode !== "auto") return;
-    if (state.metric !== "median" && state.grid === "1km") {
+    if (isDeltaMetric(state.metric) && state.grid === "1km") {
       setState((s) => ({ ...s, grid: "5km" }));
     }
   }, [isMobileViewport, gridMode, state.metric, state.grid]);
@@ -317,9 +320,13 @@ export default function Home() {
   const legendContent = (
     <>
       <div className="legend-title" style={{ fontWeight: 600, marginBottom: 12, fontSize: 16, opacity: 0.9 }}>
-        {state.metric === "median" ? "Median house price" : `${METRIC_LABEL[state.metric]} Scale`}
+        {state.metric === "median"
+          ? "Median house price"
+          : state.metric === "median_ppsf"
+            ? "Median price per sq ft"
+            : `${METRIC_LABEL[state.metric]} Scale`}
       </div>
-      {state.metric === "median" && (
+      {!isDeltaMetric(state.metric) && (
         <>
           {!medianLegend && (
             <div style={{ fontSize: 12, opacity: 0.75 }}>Loading scale...</div>
@@ -328,7 +335,7 @@ export default function Home() {
             <>
               <div className="legend-range" style={{ display: "grid", gridTemplateColumns: "80px 1fr 80px", gap: 8, alignItems: "center" }}>
                 <div style={{ textAlign: "left", fontSize: 12, opacity: 0.75 }}>
-                  {formatLegendCurrency(medianLegend.breaks[0])}
+                  {formatMetricFilterValue(state.metric, medianLegend.breaks[0])}
                 </div>
                 <div className="legend-bars" style={{ display: "flex", height: 50, gap: 3 }}>
                   {medianLegend.colors.map((c, i) => (
@@ -336,7 +343,7 @@ export default function Home() {
                   ))}
                 </div>
                 <div style={{ textAlign: "right", fontSize: 12, opacity: 0.75 }}>
-                  {formatLegendCurrency(medianLegend.breaks[medianLegend.breaks.length - 1])}
+                  {formatMetricFilterValue(state.metric, medianLegend.breaks[medianLegend.breaks.length - 1])}
                 </div>
               </div>
             </>
@@ -344,7 +351,7 @@ export default function Home() {
         </>
       )}
 
-      {state.metric !== "median" && (
+      {isDeltaMetric(state.metric) && (
         <>
           {!deltaLegend && (
             <div style={{ fontSize: 12, opacity: 0.75 }}>Loading scale...</div>
@@ -384,6 +391,10 @@ export default function Home() {
   };
 
   const formatFilterValue = (value: number) => `£${formatLegendCurrency(value)}`;
+  const formatPpsfValue = (value: number) => {
+    if (!Number.isFinite(value)) return "N/A";
+    return `£${Math.round(value).toLocaleString()}/ft²`;
+  };
 
   const periodLabel = PERIOD_LABEL[state.endMonth ?? "2025-12-01"] ?? (state.endMonth ?? "LATEST");
 
@@ -410,7 +421,11 @@ export default function Home() {
       chunks.push(`Accuracy ±${result.accuracyMeters}m`);
     }
     if (result.cell?.median != null && Number.isFinite(result.cell.median)) {
-      chunks.push(`Median £${Math.round(result.cell.median).toLocaleString()}`);
+      if (state.metric === "median_ppsf") {
+        chunks.push(`Median PPSF £${Math.round(result.cell.median).toLocaleString()}/ft²`);
+      } else {
+        chunks.push(`Median £${Math.round(result.cell.median).toLocaleString()}`);
+      }
     }
     if (result.cell?.txCount != null && Number.isFinite(result.cell.txCount)) {
       chunks.push(`Sales ${Math.round(result.cell.txCount)}`);
@@ -427,6 +442,7 @@ export default function Home() {
 
   const formatMetricFilterValue = (metric: Metric, value: number) => {
     if (metric === "median") return formatFilterValue(value);
+    if (metric === "median_ppsf") return formatPpsfValue(value);
     return metric === "delta_gbp" ? formatSignedPounds(value) : formatSignedPercent(value);
   };
 
@@ -451,18 +467,24 @@ export default function Home() {
   // Global value-filter scales (stable across other filters), per metric
   const MEDIAN_FILTER_MIN = 50_000;
   const MEDIAN_FILTER_MAX = 3_000_000;
+  const PPSF_FILTER_MIN = 50;
+  const PPSF_FILTER_MAX = 1500;
   const DELTA_GBP_FILTER_MAX_ABS = 200_000;
   const DELTA_PCT_FILTER_MAX_ABS = 30;
 
   const valueFilterMin =
     state.metric === "median"
       ? MEDIAN_FILTER_MIN
+      : state.metric === "median_ppsf"
+        ? PPSF_FILTER_MIN
       : state.metric === "delta_gbp"
         ? -DELTA_GBP_FILTER_MAX_ABS
         : -DELTA_PCT_FILTER_MAX_ABS;
   const valueFilterMax =
     state.metric === "median"
       ? MEDIAN_FILTER_MAX
+      : state.metric === "median_ppsf"
+        ? PPSF_FILTER_MAX
       : state.metric === "delta_gbp"
         ? DELTA_GBP_FILTER_MAX_ABS
         : DELTA_PCT_FILTER_MAX_ABS;
@@ -487,6 +509,17 @@ export default function Home() {
       return Math.round(raw / 1000) * 1000;
     }
 
+    if (state.metric === "median_ppsf") {
+      const safeMin = Math.max(1, PPSF_FILTER_MIN);
+      const safeMax = Math.max(safeMin + 1, PPSF_FILTER_MAX);
+      const logMin = Math.log(safeMin);
+      const logMax = Math.log(safeMax);
+      const logRange = Math.max(1e-9, logMax - logMin);
+      const t = p / SLIDER_POS_MAX;
+      const raw = Math.exp(logMin + logRange * t);
+      return Math.round(raw);
+    }
+
     const mid = SLIDER_POS_MAX / 2;
     const x = (p - mid) / mid; // [-1, 1]
     const k = 3;
@@ -501,6 +534,17 @@ export default function Home() {
     if (state.metric === "median") {
       const safeMin = Math.max(1, MEDIAN_FILTER_MIN);
       const safeMax = Math.max(safeMin + 1, MEDIAN_FILTER_MAX);
+      const logMin = Math.log(safeMin);
+      const logMax = Math.log(safeMax);
+      const logRange = Math.max(1e-9, logMax - logMin);
+      const vv = clamp(v, safeMin, safeMax);
+      const t = (Math.log(vv) - logMin) / logRange;
+      return Math.round(clamp(t, 0, 1) * SLIDER_POS_MAX);
+    }
+
+    if (state.metric === "median_ppsf") {
+      const safeMin = Math.max(1, PPSF_FILTER_MIN);
+      const safeMax = Math.max(safeMin + 1, PPSF_FILTER_MAX);
       const logMin = Math.log(safeMin);
       const logMax = Math.log(safeMax);
       const logRange = Math.max(1e-9, logMax - logMin);
@@ -524,6 +568,13 @@ export default function Home() {
       if (s.metric === "median") {
         const rounded = Math.round(raw / 1000) * 1000;
         const clamped = clamp(rounded, MEDIAN_FILTER_MIN, MEDIAN_FILTER_MAX);
+        if (clamped === s.valueThreshold) return s;
+        return { ...s, valueThreshold: clamped };
+      }
+
+      if (s.metric === "median_ppsf") {
+        const rounded = Math.round(raw);
+        const clamped = clamp(rounded, PPSF_FILTER_MIN, PPSF_FILTER_MAX);
         if (clamped === s.valueThreshold) return s;
         return { ...s, valueThreshold: clamped };
       }
@@ -1301,7 +1352,7 @@ export default function Home() {
                     </button>
                   </div>
                   <Segment
-                    options={state.metric === "median" ? ["1km", "5km", "10km", "25km"] : ["5km", "10km", "25km"]}
+                  options={isDeltaMetric(state.metric) ? ["5km", "10km", "25km"] : ["1km", "5km", "10km", "25km"]}
                     value={state.grid}
                     onChange={(v) => {
                       setGridMode("manual");
@@ -1310,7 +1361,7 @@ export default function Home() {
                   />
                 </div>
               </ControlRow>
-              {state.metric !== "median" && state.grid === "1km" && (
+              {isDeltaMetric(state.metric) && state.grid === "1km" && (
                 <div style={{ fontSize: 11, color: "#ff9999", fontStyle: "italic", marginTop: -8 }}>
                   1km deltas unavailable
                 </div>
@@ -1318,7 +1369,7 @@ export default function Home() {
 
               <ControlRow label="Metric">
                 <Segment
-                  options={["median", "delta_gbp", "delta_pct"]}
+                  options={["median", "median_ppsf", "delta_gbp", "delta_pct"]}
                   value={state.metric}
                   onChange={(v) => setState((s) => ({ ...s, metric: v as Metric }))}
                   renderOption={(v) => METRIC_LABEL[v as Metric]}
@@ -1364,7 +1415,7 @@ export default function Home() {
             </div>
 
             {/* Deltas explanation */}
-            {state.metric !== "median" && (
+            {isDeltaMetric(state.metric) && (
               <div className="panel-delta" style={{ marginTop: 12, padding: 10, borderRadius: 8, background: "rgba(255,255,255,0.08)", borderLeft: "3px solid #fdae61", fontSize: 11, lineHeight: 1.4, opacity: 0.9 }}>
                 <div style={{ fontWeight: 600, marginBottom: 6 }}>Price change</div>
                 <div style={{ marginBottom: 6 }}>

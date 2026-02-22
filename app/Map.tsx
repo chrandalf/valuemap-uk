@@ -5,7 +5,7 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 type GridSize = "1km" | "5km" | "10km" | "25km";
-type Metric = "median" | "delta_gbp" | "delta_pct";
+type Metric = "median" | "median_ppsf" | "delta_gbp" | "delta_pct";
 type ValueFilterMode = "off" | "lte" | "gte";
 type FloodOverlayMode = "off" | "on" | "on_hide_cells";
 
@@ -49,6 +49,15 @@ type ApiRow = {
   delta_pct?: number;
   years_stale?: number;
 };
+
+function isDeltaMetric(metric: Metric) {
+  return metric === "delta_gbp" || metric === "delta_pct";
+}
+
+function metricPropName(metric: Metric): "median" | "delta_gbp" | "delta_pct" {
+  if (metric === "delta_gbp" || metric === "delta_pct") return metric;
+  return "median";
+}
 
 type FloodSearchStatus = "found" | "broad-has-risk" | "no-risk-nearest" | "not-found" | "error";
 
@@ -292,7 +301,7 @@ export default function ValueMap({
           const gy = Number(cellProps?.gy);
           const median = Number(cellProps?.median);
           if (Number.isFinite(gx) && Number.isFinite(gy)) {
-            setPostcodeMaxPrice(Number.isFinite(median) ? median * 1.25 : null);
+            setPostcodeMaxPrice(stateRef.current.metric === "median" && Number.isFinite(median) ? median * 1.25 : null);
             setScotlandNote(gy >= 568300 ? "Scotland data coverage is partial and may be 1–2 years out of date." : null);
             void fetchPostcodesRef.current(gx, gy, 0, false);
           }
@@ -780,7 +789,7 @@ export default function ValueMap({
 
     // Show delta popup only if we're actually looking at delta data (deltas are non-zero)
     let html = "";
-    if ((dg !== 0 || dp !== 0) && median === 0) {
+    if (isDeltaMetric(stateRef.current.metric)) {
       const sign = dg > 0 ? "+" : dg < 0 ? "-" : "";
       html = `
         <div style="font-family: system-ui; font-size: 12px; line-height: 1.25;">
@@ -790,9 +799,12 @@ export default function ValueMap({
         </div>
       `;
     } else {
+      const metricTitle = stateRef.current.metric === "median_ppsf"
+        ? `GBP ${Math.round(median).toLocaleString()} / ft²`
+        : `GBP ${median.toLocaleString()}`;
       html = `
         <div style="font-family: system-ui; font-size: 12px; line-height: 1.25;">
-          <div style="font-weight: 700; margin-bottom: 4px;">GBP ${median.toLocaleString()}</div>
+          <div style="font-weight: 700; margin-bottom: 4px;">${metricTitle}</div>
           <div>Sales sample: <b>${tx}</b></div>
         </div>
       `;
@@ -854,7 +866,7 @@ export default function ValueMap({
     const gy = Number(f.properties?.gy);
     if (!Number.isFinite(gx) || !Number.isFinite(gy)) return;
     const median = Number(f.properties?.median);
-    if (Number.isFinite(median)) {
+    if (Number.isFinite(median) && stateRef.current.metric === "median") {
       setPostcodeMaxPrice(median * 1.25);
     } else {
       setPostcodeMaxPrice(null);
@@ -1201,7 +1213,7 @@ async function setRealData(
   onLegendChange?: (legend: LegendData | null) => void
 ) {
   // Determine if we're fetching delta or regular data
-  const isDelta = state.metric === "delta_gbp" || state.metric === "delta_pct";
+  const isDelta = isDeltaMetric(state.metric);
   const endpoint = isDelta ? "/api/deltas" : "/api/cells";
 
   const endMonth = isDelta ? undefined : state.endMonth ?? "LATEST";
@@ -1231,6 +1243,7 @@ async function setRealData(
   
   // Only add endMonth for non-delta requests
   if (!isDelta) {
+    qs.set("metric", state.metric);
     qs.set("endMonth", endMonth!);
   }
 
@@ -1291,7 +1304,7 @@ async function ensureAggregatesAndUpdate(
 ) {
   try {
     // For delta metrics, apply simple linear color mapping (quantiles can be complex with diverging data)
-    const isDelta = state.metric === "delta_gbp" || state.metric === "delta_pct";
+    const isDelta = isDeltaMetric(state.metric);
     if (isDelta) {
       const src = map.getSource("cells") as maplibregl.GeoJSONSource | undefined;
       const srcData: any = src ? (src as any)._data ?? null : null;
@@ -1324,7 +1337,7 @@ async function ensureAggregatesAndUpdate(
 
     // 1) ensure 25km aggregate for the overlay (unchanged behaviour)
     const endMonth = state.endMonth ?? "LATEST";
-    const key25 = `25km|${state.propertyType}|${state.newBuild}|median|${endMonth}`;
+    const key25 = `25km|${state.propertyType}|${state.newBuild}|${state.metric}|${endMonth}`;
     let fc25 = cache.get(key25);
 
     if (!fc25) {
@@ -1332,6 +1345,7 @@ async function ensureAggregatesAndUpdate(
         grid: "25km",
         propertyType: state.propertyType ?? "ALL",
         newBuild: state.newBuild ?? "ALL",
+        metric: state.metric,
         endMonth: endMonth,
       });
 
@@ -1391,6 +1405,7 @@ async function ensureAggregatesAndUpdate(
         grid: state.grid,
         propertyType: state.propertyType ?? "ALL",
         newBuild: state.newBuild ?? "ALL",
+        metric: state.metric,
         endMonth: endMonth,
       });
 
@@ -1421,7 +1436,7 @@ async function ensureAggregatesAndUpdate(
 
       if (breaks && breaks.length > 0 && breaks.every((v) => Number.isFinite(v)) && hasVariance(breaks)) {
         const colors = makeTailColors();
-        const expr = buildTailColorExpression(state.metric, breaks, colors, true);
+        const expr = buildTailColorExpression(metricPropName(state.metric), breaks, colors, true);
         if (map.getLayer("cells-fill")) {
           map.setPaintProperty("cells-fill", "fill-color", expr);
         }
@@ -1430,10 +1445,10 @@ async function ensureAggregatesAndUpdate(
         }
       } else {
         const colors = makeTailColors();
-        const stats = computeMinMax(sourceFc, "median");
+        const stats = computeMinMax(sourceFc, state.metric);
         if (stats) {
           const linearBreaks = buildLinearBreaks(stats.min, stats.max, QUANTILE_PROBS.length);
-          const expr = buildTailColorExpression("median", linearBreaks, colors, true);
+          const expr = buildTailColorExpression(metricPropName(state.metric), linearBreaks, colors, true);
           if (map.getLayer("cells-fill")) {
             map.setPaintProperty("cells-fill", "fill-color", expr);
           }
@@ -1455,13 +1470,14 @@ async function ensureAggregatesAndUpdate(
   }
 }
 
-function computeWeightedQuantiles(fc: any, metric: "median" | "delta_gbp" | "delta_pct", probs: number[]) {
+function computeWeightedQuantiles(fc: any, metric: Metric, probs: number[]) {
   const features = (fc?.features ?? []) as any[];
   const values: Array<{v: number; w: number}> = [];
+  const metricProp = metricPropName(metric);
 
   for (const f of features) {
     const p = f.properties || {};
-    const raw = Number(p[metric] ?? NaN);
+    const raw = Number(p[metricProp] ?? NaN);
     if (!isFinite(raw)) continue;
     const weight = Number(p.tx_count ?? 0) > 0 ? Number(p.tx_count) : 1;
     values.push({ v: raw, w: weight });
@@ -1490,14 +1506,15 @@ function computeWeightedQuantiles(fc: any, metric: "median" | "delta_gbp" | "del
   return breaks;
 }
 
-function computeMinMax(fc: any, metric: "median" | "delta_gbp" | "delta_pct") {
+function computeMinMax(fc: any, metric: Metric | "median" | "delta_gbp" | "delta_pct") {
   const features = (fc?.features ?? []) as any[];
   let min = Infinity;
   let max = -Infinity;
+  const metricProp = metricPropName(metric as Metric);
 
   for (const f of features) {
     const p = f.properties || {};
-    const raw = Number(p[metric] ?? NaN);
+    const raw = Number(p[metricProp] ?? NaN);
     if (!isFinite(raw)) continue;
     if (raw < min) min = raw;
     if (raw > max) max = raw;
@@ -1574,10 +1591,18 @@ function updateOverlayFromFeatureCollection(map: maplibregl.Map, fc: any) {
     }
 
     const el = map.getContainer().querySelector("#median-overlay") as HTMLElement | null;
-    let html = `<div style="font-weight:700">Weighted median: N/A</div>`;
+    const metricLabel = isDeltaMetric(stateRef.current.metric)
+      ? "Weighted value"
+      : stateRef.current.metric === "median_ppsf"
+        ? "Weighted median PPSF"
+        : "Weighted median";
+    let html = `<div style="font-weight:700">${metricLabel}: N/A</div>`;
     if (sumW > 0) {
       const avg = Math.round(sumWX / sumW);
-      html = `<div style="font-weight:700">Weighted median: GBP ${avg.toLocaleString()}</div>`;
+      const val = stateRef.current.metric === "median_ppsf"
+        ? `GBP ${avg.toLocaleString()} / ft²`
+        : `GBP ${avg.toLocaleString()}`;
+      html = `<div style="font-weight:700">${metricLabel}: ${val}</div>`;
       html += `<div style="margin-top:4px">Transactions: <b>${sumW.toLocaleString()}</b></div>`;
     } else {
       html += `<div style="margin-top:4px">Transactions: <b>0</b></div>`;
@@ -1606,12 +1631,7 @@ function buildValueFilter(state: MapState) {
   if (mode === "off" || !Number.isFinite(threshold)) return null;
   const op = mode === "lte" ? "<=" : ">=";
 
-  const prop =
-    state.metric === "median"
-      ? "median"
-      : state.metric === "delta_gbp"
-        ? "delta_gbp"
-        : "delta_pct";
+  const prop = metricPropName(state.metric);
 
   // Coalesce missing values to 0 so the filter behaves deterministically.
   return [op, ["coalesce", ["get", prop], 0], threshold] as any;
@@ -1685,7 +1705,7 @@ function rowsToGeoJsonSquares(rows: ApiRow[], g: number) {
 
 /** ---------------- Styling helpers (unchanged) ---------------- */
 
-function getFillColorExpression(metric: "median" | "delta_gbp" | "delta_pct") {
+function getFillColorExpression(metric: Metric) {
   if (metric === "median") {
     return [
     "interpolate", ["linear"], ["get", "median"],
@@ -1699,6 +1719,20 @@ function getFillColorExpression(metric: "median" | "delta_gbp" | "delta_pct") {
     1000000, "#d73027", // deep red (expensive)
   ] as any;
 }
+
+  if (metric === "median_ppsf") {
+    return [
+      "interpolate", ["linear"], ["get", "median"],
+      100,  "#2c7bb6",
+      150,  "#00a6ca",
+      200,  "#00ccbc",
+      250,  "#90eb9d",
+      325,  "#ffffbf",
+      400,  "#fdae61",
+      500,  "#f46d43",
+      650,  "#d73027",
+    ] as any;
+  }
 
   if (metric === "delta_gbp") {
     return [
