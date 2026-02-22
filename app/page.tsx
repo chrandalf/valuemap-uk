@@ -109,7 +109,7 @@ export default function Home() {
   const [mapZoom, setMapZoom] = useState<number | null>(null);
   const [cleanScreenMode, setCleanScreenMode] = useState(false);
   const [mobileOverlayRatio, setMobileOverlayRatio] = useState(0);
-  const [mobileQuickFilterKey, setMobileQuickFilterKey] = useState<MobileQuickFilterKey>("metric");
+  const [mobileQuickFilterKey, setMobileQuickFilterKey] = useState<MobileQuickFilterKey>("grid");
   const urlHydratedRef = useRef(false);
   const supportersScrollerRef = useRef<HTMLDivElement | null>(null);
   const topPanelRef = useRef<HTMLDivElement | null>(null);
@@ -1913,9 +1913,6 @@ export default function Home() {
         !dataSourcesOpen &&
         (
         <div className="mobile-grid-dock" aria-label="Map grid controls">
-          <div className="mobile-grid-label" aria-live="polite">
-            {currentMobileQuickFilterLabel}
-          </div>
           <button
             type="button"
             className="mobile-grid-btn"
@@ -1925,6 +1922,9 @@ export default function Home() {
           >
             →
           </button>
+          <div className="mobile-grid-label" aria-live="polite">
+            {currentMobileQuickFilterLabel}
+          </div>
           {mobileQuickFilterKey === "metric" && (
             <>
               <button
@@ -2221,7 +2221,7 @@ export function Styles() {
           padding: 6px 8px;
           border-radius: 8px;
           font-size: 10px;
-          font-weight: 700;
+          font-weight: 800;
           min-width: 48px;
           text-align: center;
           line-height: 1.1;
