@@ -804,14 +804,24 @@ export default function ValueMap({
     if (voteMode !== "off") {
       const constituency = String(p.constituency ?? "Cell vote estimate");
       const hasVoteData = Number.isFinite(prog) || Number.isFinite(cons) || Number.isFinite(right);
+      const progSafe = Number.isFinite(prog) ? prog : 0;
+      const consSafe = Number.isFinite(cons) ? cons : 0;
+      const rightSafe = Number.isFinite(right) ? right : 0;
+      const otherRaw = Number(p.pct_other ?? NaN);
+      const otherSafe = Number.isFinite(otherRaw)
+        ? Math.max(0, otherRaw)
+        : Math.max(0, 1 - (progSafe + consSafe + rightSafe));
+      const totalSafe = progSafe + consSafe + rightSafe + otherSafe;
 
       const html = hasVoteData
         ? `
           <div style="font-family: system-ui; font-size: 12px; line-height: 1.3;">
             <div style="font-weight: 700; margin-bottom: 4px;">${constituency}</div>
-            <div>Progressive: <b>${((Number.isFinite(prog) ? prog : 0) * 100).toFixed(1)}%</b></div>
-            <div>Conservative: <b>${((Number.isFinite(cons) ? cons : 0) * 100).toFixed(1)}%</b></div>
-            <div>Popular Right: <b>${((Number.isFinite(right) ? right : 0) * 100).toFixed(1)}%</b></div>
+            <div>Progressive: <b>${(progSafe * 100).toFixed(1)}%</b></div>
+            <div>Conservative: <b>${(consSafe * 100).toFixed(1)}%</b></div>
+            <div>Popular Right: <b>${(rightSafe * 100).toFixed(1)}%</b></div>
+            <div>Other: <b>${(otherSafe * 100).toFixed(1)}%</b></div>
+            <div style="margin-top:4px; opacity:0.8;">Total: <b>${(totalSafe * 100).toFixed(1)}%</b></div>
           </div>
         `
         : `
