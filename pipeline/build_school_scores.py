@@ -15,6 +15,12 @@ from bisect import bisect_right
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
+from paths import (
+    INTERMEDIATE_SCHOOL_SCORES,
+    RAW_SCHOOL_PERF,
+    ensure_pipeline_dirs,
+)
+
 MISSING_MARKERS = {"", "z", "c", "x", "na", "null", "supp"}
 
 CORE_METRICS = {
@@ -193,8 +199,8 @@ def write_csv(path: Path, rows: List[dict]) -> None:
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Build per-school KS4 quality scores from DfE performance tables")
-    p.add_argument("--input", required=True, help="Path to 202425_performance_tables_schools_revised.csv")
-    p.add_argument("--output", required=True, help="Output CSV path (e.g. public/data/school_scores_202425.csv)")
+    p.add_argument("--input", default=str(RAW_SCHOOL_PERF), help="Path to 202425_performance_tables_schools_revised.csv")
+    p.add_argument("--output", default=str(INTERMEDIATE_SCHOOL_SCORES), help="Output CSV path")
     p.add_argument(
         "--mainstream-only",
         action="store_true",
@@ -204,6 +210,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    ensure_pipeline_dirs()
     args = parse_args()
     input_path = Path(args.input).resolve()
     output_path = Path(args.output).resolve()

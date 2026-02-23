@@ -7,8 +7,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Optional
 
+from paths import MODEL_VOTE_DIR, RAW_ELECTION_CANDIDATE_CSV, ensure_pipeline_dirs
+
 
 DEFAULT_INPUT_CANDIDATES = [
+    RAW_ELECTION_CANDIDATE_CSV,
     Path.cwd() / "HoC-GE2024-results-by-candidate.csv",
     Path.cwd().parent / "HoC-GE2024-results-by-candidate.csv",
     Path.home() / "Downloads" / "HoC-GE2024-results-by-candidate.csv",
@@ -341,13 +344,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--out-dir",
         type=str,
-        default=str(Path.cwd() / "public" / "data"),
+        default=str(MODEL_VOTE_DIR),
         help="Output directory for build-ready CSV/JSON files.",
     )
     return parser.parse_args()
 
 
 def main() -> None:
+    ensure_pipeline_dirs()
     args = parse_args()
     input_path = resolve_input_path(args.input)
     out_dir = Path(args.out_dir).expanduser().resolve()

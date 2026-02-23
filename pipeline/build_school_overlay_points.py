@@ -21,6 +21,13 @@ import urllib.request
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+from paths import (
+    INTERMEDIATE_SCHOOL_POSTCODE_CACHE,
+    INTERMEDIATE_SCHOOL_POSTCODE_SCORES_MAINSTREAM,
+    MODEL_SCHOOL_OVERLAY_POINTS,
+    ensure_pipeline_dirs,
+)
+
 MISSING = {"", "na", "np", "ne", "supp", "null", "x", "z", "c"}
 
 
@@ -175,9 +182,9 @@ def write_geojson_gz(path: Path, payload: dict) -> None:
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Build school overlay GeoJSON points from postcode score CSV")
-    p.add_argument("--input", required=True, help="Input school postcode score CSV")
-    p.add_argument("--output", default="public/data/school_overlay_points.geojson.gz", help="Output GeoJSON .gz path")
-    p.add_argument("--cache", default="public/data/school_postcode_coords_cache.json", help="Postcode coordinate cache JSON path")
+    p.add_argument("--input", default=str(INTERMEDIATE_SCHOOL_POSTCODE_SCORES_MAINSTREAM), help="Input school postcode score CSV")
+    p.add_argument("--output", default=str(MODEL_SCHOOL_OVERLAY_POINTS), help="Output GeoJSON .gz path")
+    p.add_argument("--cache", default=str(INTERMEDIATE_SCHOOL_POSTCODE_CACHE), help="Postcode coordinate cache JSON path")
     p.add_argument("--batch-size", type=int, default=100, help="Postcodes.io batch size (max 100)")
     p.add_argument("--pause-ms", type=int, default=40, help="Pause between API batches")
     p.add_argument("--good-threshold", type=float, default=0.60, help="Quality score threshold for good schools")
@@ -186,6 +193,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    ensure_pipeline_dirs()
     args = parse_args()
     input_path = Path(args.input).resolve()
     output_path = Path(args.output).resolve()

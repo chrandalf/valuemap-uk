@@ -3,6 +3,8 @@ import argparse
 import os
 from pathlib import Path
 
+from paths import PUBLISH_VOTE_DIR
+
 
 def env_value(*keys: str) -> str:
     for k in keys:
@@ -29,7 +31,7 @@ def build_client(account_id: str, access_key: str, secret_key: str):
 
 def main():
     parser = argparse.ArgumentParser(description="Upload vote_cells_<grid>.json.gz artifacts to Cloudflare R2")
-    parser.add_argument("--data-dir", default="public/data", help="Directory containing vote_cells_*.json.gz")
+    parser.add_argument("--data-dir", default=str(PUBLISH_VOTE_DIR), help="Directory containing vote_cells_*.json.gz")
     parser.add_argument("--prefix", default=None, help="Optional R2 object prefix (overrides R2_PREFIX)")
     args = parser.parse_args()
 

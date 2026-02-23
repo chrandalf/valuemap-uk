@@ -12,12 +12,14 @@ from pathlib import Path
 import pandas as pd
 import gc
 
-ROOT = Path.cwd()
-DATA = ROOT / "data"
-DATA.mkdir(exist_ok=True)
+from paths import INTERMEDIATE_PROPERTY_DIR, RAW_PROPERTY_DIR, ensure_pipeline_dirs
 
-PP_PATH = DATA / "pp-2025.txt"
-ONSPD_PATH = DATA / "ONSPD_Online_latest_Postcode_Centroids_.csv"
+ensure_pipeline_dirs()
+DATA = INTERMEDIATE_PROPERTY_DIR
+DATA.mkdir(parents=True, exist_ok=True)
+
+PP_PATH = RAW_PROPERTY_DIR / "pp-2025.txt"
+ONSPD_PATH = RAW_PROPERTY_DIR / "ONSPD_Online_latest_Postcode_Centroids_.csv"
 
 # PPD schema (we only read a subset)
 ALL_COLS = [

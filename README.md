@@ -34,3 +34,37 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Data Pipeline
+
+Pipeline data is now organized under `pipeline/data`:
+
+- `pipeline/data/raw` → source files you download/import
+- `pipeline/data/intermediate` → wrangled/scored working outputs
+- `pipeline/data/model` → final model-ready artifacts for overlays/upload
+- `pipeline/data/publish` → staged artifacts copied from model, used as the R2 upload source
+
+Run the full pipeline in the correct order:
+
+```bash
+python pipeline/run_pipeline.py
+```
+
+Useful options:
+
+- `--mainstream-only` (schools)
+- `--skip-schools`, `--skip-flood`, `--skip-vote`
+- `--publish-public` (copies model artifacts to `public/data` for local inspection)
+- `--no-publish-r2-staging` (skip copying model artifacts to `pipeline/data/publish`)
+
+Upload staged artifacts to R2:
+
+```bash
+python pipeline/upload_model_assets_to_r2.py
+```
+
+If flood assets are managed manually for now, upload only schools + vote:
+
+```bash
+python pipeline/upload_model_assets_to_r2.py --skip-flood
+```

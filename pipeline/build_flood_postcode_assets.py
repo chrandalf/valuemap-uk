@@ -7,10 +7,11 @@ import re
 from pathlib import Path
 
 import pandas as pd
+from paths import MODEL_FLOOD_DIR, RAW_FLOOD_POSTCODE_CSV, ensure_pipeline_dirs
 
 
-DEFAULT_INPUT = "/kaggle/input/datasets/mexwell/open-flood-risk-by-postcode/open_flood_risk_by_postcode.csv"
-DEFAULT_OUT = "/kaggle/working/flood_outputs"
+DEFAULT_INPUT = RAW_FLOOD_POSTCODE_CSV
+DEFAULT_OUT = MODEL_FLOOD_DIR
 
 RISK_SCORE = {
     "none": 0,
@@ -288,6 +289,7 @@ def build_assets(
 
 
 if __name__ == "__main__":
+    ensure_pipeline_dirs()
     parser = argparse.ArgumentParser(description="Build postcode-level flood assets for ValueMap.")
     parser.add_argument("--input-csv", type=Path, default=Path(DEFAULT_INPUT), help="Source flood CSV path")
     parser.add_argument("--out-dir", type=Path, default=Path(DEFAULT_OUT), help="Output folder")

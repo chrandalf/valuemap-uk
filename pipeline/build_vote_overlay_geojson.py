@@ -5,6 +5,13 @@ import csv
 import json
 from pathlib import Path
 
+from paths import (
+    MODEL_VOTE_BLOCKS_BY_CONSTITUENCY_CSV,
+    MODEL_VOTE_BLOCKS_MAP_GEOJSON,
+    RAW_WESTMINSTER_BOUNDARY_GEOJSON,
+    ensure_pipeline_dirs,
+)
+
 
 def load_votes(path: Path) -> dict[str, dict[str, float | str]]:
     with open(path, "r", encoding="utf-8", newline="") as f:
@@ -58,21 +65,22 @@ def thin_geometry(geom: dict, step: int) -> dict:
 
 
 def main() -> None:
+    ensure_pipeline_dirs()
     parser = argparse.ArgumentParser(description="Build constituency overlay GeoJSON with vote block percentages")
     parser.add_argument(
         "--boundary",
         type=str,
-        default="c:/Users/chris/Westminster_Parliamentary_Constituencies_July_2024_Boundaries_UK_BFE_2463071003872310654.geojson",
+        default=str(RAW_WESTMINSTER_BOUNDARY_GEOJSON),
     )
     parser.add_argument(
         "--votes",
         type=str,
-        default="public/data/ge2024_vote_blocks_by_constituency.csv",
+        default=str(MODEL_VOTE_BLOCKS_BY_CONSTITUENCY_CSV),
     )
     parser.add_argument(
         "--out",
         type=str,
-        default="public/data/ge2024_vote_blocks_map.geojson",
+        default=str(MODEL_VOTE_BLOCKS_MAP_GEOJSON),
     )
     parser.add_argument(
         "--thin-step",

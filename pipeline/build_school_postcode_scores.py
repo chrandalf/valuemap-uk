@@ -15,6 +15,12 @@ from bisect import bisect_right
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
+from paths import (
+    INTERMEDIATE_SCHOOL_POSTCODE_SCORES,
+    RAW_SCHOOL_KS4,
+    ensure_pipeline_dirs,
+)
+
 MISSING_MARKERS = {"", "na", "np", "ne", "supp", "null", "x", "z", "c"}
 
 # KS4 revised columns in england_ks4revised.csv
@@ -227,8 +233,8 @@ def quantile(values: List[float], p: float) -> float:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build postcode-ready KS4 school quality scores")
-    parser.add_argument("--input", required=True, help="Path to england_ks4revised.csv")
-    parser.add_argument("--output", required=True, help="Output CSV path")
+    parser.add_argument("--input", default=str(RAW_SCHOOL_KS4), help="Path to england_ks4revised.csv")
+    parser.add_argument("--output", default=str(INTERMEDIATE_SCHOOL_POSTCODE_SCORES), help="Output CSV path")
     parser.add_argument(
         "--mainstream-only",
         action="store_true",
@@ -238,6 +244,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    ensure_pipeline_dirs()
     args = parse_args()
     input_path = Path(args.input).resolve()
     output_path = Path(args.output).resolve()
