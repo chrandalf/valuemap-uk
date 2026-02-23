@@ -822,14 +822,17 @@ export default function ValueMap({
 
   map.addLayer({
     id: "flood-overlay-points",
-    type: "circle",
+    type: "symbol",
     source: "flood-overlay",
     filter: ["!", ["has", "point_count"]] as any,
     layout: {
       visibility: stateRef.current.floodOverlayMode && stateRef.current.floodOverlayMode !== "off" ? "visible" : "none",
+      "text-field": "■",
+      "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
+      "text-size": ["interpolate", ["linear"], ["zoom"], 4, 8, 6, 11, 8, 15, 10, 20] as any,
     },
     paint: {
-      "circle-color": [
+      "text-color": [
         "match",
         ["round", floodSeverityExpression()],
         0,
@@ -844,11 +847,10 @@ export default function ValueMap({
         "#dc2626",
         "#22c55e",
       ] as any,
-      "circle-opacity": ["interpolate", ["linear"], floodSeverityExpression(), 0, 0.55, 4, 0.95] as any,
-      "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 3.4, 6, 5.5, 8, 8.5, 10, 12.5] as any,
-      "circle-stroke-color": "rgba(255,255,255,0.95)",
-      "circle-stroke-width": 1,
-      "circle-blur": 0.03,
+      "text-opacity": ["interpolate", ["linear"], floodSeverityExpression(), 0, 0.6, 4, 0.98] as any,
+      "text-halo-color": "rgba(255,255,255,0.95)",
+      "text-halo-width": 1,
+      "text-halo-blur": 0.1,
     },
   });
 
