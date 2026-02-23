@@ -31,6 +31,11 @@ def build_client(account_id: str, access_key: str, secret_key: str):
     import importlib
 
     boto3 = importlib.import_module("boto3")
+    config_mod = importlib.import_module("botocore.config")
+    config = config_mod.Config(
+        response_checksum_validation="when_required",
+        request_checksum_calculation="when_required",
+    )
     endpoint = f"https://{account_id}.r2.cloudflarestorage.com"
     return boto3.client(
         "s3",
@@ -38,6 +43,7 @@ def build_client(account_id: str, access_key: str, secret_key: str):
         aws_access_key_id=access_key,
         aws_secret_access_key=secret_key,
         region_name="auto",
+        config=config,
     )
 
 
@@ -140,7 +146,17 @@ def backup_remote_objects(
                 if last_modified is not None:
                     info["last_modified"] = last_modified.isoformat()
                 tmp_file = tmp_root / Path(object_key).name
-                s3.download_file(bucket_name, object_key, str(tmp_file))
+                obj = s3.get_object(Bucket=bucket_name, Key=object_key)
+                if info["size"] is None and obj.get("ContentLength") is not None:
+                    info["size"] = int(obj.get("ContentLength", 0))
+                body = obj["Body"]
+                with open(tmp_file, "wb") as fh:
+                    while True:
+                        chunk = body.read(1024 * 1024)
+                        if not chunk:
+                            break
+                        fh.write(chunk)
+                body.close()
                 zf.write(tmp_file, arcname=f"objects/{object_key}")
                 downloaded += 1
             except Exception as exc:

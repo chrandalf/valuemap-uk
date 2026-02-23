@@ -455,6 +455,7 @@ def upload_to_r2_if_configured(paths):
 
     try:
         import boto3
+        from botocore.config import Config
     except ImportError:
         print("R2 upload skipped (`boto3` not installed). Run: pip install boto3")
         return
@@ -466,6 +467,10 @@ def upload_to_r2_if_configured(paths):
         aws_access_key_id=access_key,
         aws_secret_access_key=secret_key,
         region_name="auto",
+        config=Config(
+            response_checksum_validation="when_required",
+            request_checksum_calculation="when_required",
+        ),
     )
 
     object_keys = []
@@ -511,7 +516,17 @@ def upload_to_r2_if_configured(paths):
                     if last_modified is not None:
                         item["last_modified"] = last_modified.isoformat()
                     tmp_file = tmp_root / Path(object_key).name
-                    client.download_file(bucket_name, object_key, str(tmp_file))
+                    obj = client.get_object(Bucket=bucket_name, Key=object_key)
+                    if item["size"] is None and obj.get("ContentLength") is not None:
+                        item["size"] = int(obj.get("ContentLength", 0))
+                    body = obj["Body"]
+                    with open(tmp_file, "wb") as fh:
+                        while True:
+                            chunk = body.read(1024 * 1024)
+                            if not chunk:
+                                break
+                            fh.write(chunk)
+                    body.close()
                     zf.write(tmp_file, arcname=f"objects/{object_key}")
                     downloaded += 1
                 except Exception as exc:
