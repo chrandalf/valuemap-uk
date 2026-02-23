@@ -73,6 +73,7 @@ type FloodSearchStatus = "found" | "broad-has-risk" | "no-risk-nearest" | "not-f
 
 type FloodSearchResult = {
   status: FloodSearchStatus;
+  lookupMode?: "flood" | "schools" | "both";
   normalizedQuery: string;
   matchedPostcode?: string;
   nearestPostcode?: string;
@@ -236,24 +237,35 @@ export default function ValueMap({
 
     const runSearch = async () => {
       try {
-        const entries = await getFloodSearchEntries(floodSearchEntriesRef, floodSearchEntriesPromiseRef);
-        const schoolEntries = await getSchoolSearchEntries(schoolSearchEntriesRef, schoolSearchEntriesPromiseRef);
-        const requestedCoords = await lookupPostcodeCoords(normalized);
-        const nearestSchool = requestedCoords
-          ? findNearestSchoolEntryByDistance(requestedCoords.lon, requestedCoords.lat, schoolEntries)
-          : findNearestSchoolPostcodeMatch(normalized, schoolEntries);
-        const nearestGoodSchool = requestedCoords
-          ? findNearestSchoolEntryByDistance(
-              requestedCoords.lon,
-              requestedCoords.lat,
-              schoolEntries.filter((entry) => entry.isGood)
-            )
-          : findNearestSchoolPostcodeMatch(
-              normalized,
-              schoolEntries.filter((entry) => entry.isGood)
-            );
+        const floodEnabled = (stateRef.current.floodOverlayMode ?? "off") !== "off";
+        const schoolsEnabled = (stateRef.current.schoolOverlayMode ?? "off") !== "off";
+        const lookupMode: FloodSearchResult["lookupMode"] = floodEnabled
+          ? (schoolsEnabled ? "both" : "flood")
+          : "schools";
 
-        setSchoolSearchFocus(map, nearestSchool, nearestGoodSchool);
+        const requestedCoords = await lookupPostcodeCoords(normalized);
+        const schoolEntries = schoolsEnabled
+          ? await getSchoolSearchEntries(schoolSearchEntriesRef, schoolSearchEntriesPromiseRef)
+          : [];
+        const nearestSchool = schoolsEnabled
+          ? (requestedCoords
+              ? findNearestSchoolEntryByDistance(requestedCoords.lon, requestedCoords.lat, schoolEntries)
+              : findNearestSchoolPostcodeMatch(normalized, schoolEntries))
+          : null;
+        const nearestGoodSchool = schoolsEnabled
+          ? (requestedCoords
+              ? findNearestSchoolEntryByDistance(
+                  requestedCoords.lon,
+                  requestedCoords.lat,
+                  schoolEntries.filter((entry) => entry.isGood)
+                )
+              : findNearestSchoolPostcodeMatch(
+                  normalized,
+                  schoolEntries.filter((entry) => entry.isGood)
+                ))
+          : null;
+
+        setSchoolSearchFocus(map, nearestSchool, nearestGoodSchool, requestedCoords);
 
         const schoolNearestPayload = nearestSchool
           ? {
@@ -281,9 +293,39 @@ export default function ValueMap({
             }
           : undefined;
 
+        if (!floodEnabled) {
+          setFloodSearchFocus(map, null);
+          setFloodSearchContext(map, null);
+
+          const schoolAnchor = nearestSchool ?? nearestGoodSchool;
+          if (schoolAnchor) {
+            animateToPostcodeTarget(map, [schoolAnchor.lon, schoolAnchor.lat], Math.max(map.getZoom(), 12));
+            onPostcodeSearchResultRef.current?.({
+              status: "found",
+              lookupMode,
+              normalizedQuery: normalized,
+              matchedPostcode: schoolAnchor.postcode,
+              schoolNearest: schoolNearestPayload,
+              schoolNearestGood: schoolNearestGoodPayload,
+            });
+            return;
+          }
+
+          onPostcodeSearchResultRef.current?.({
+            status: "not-found",
+            lookupMode,
+            normalizedQuery: normalized,
+            schoolNearest: schoolNearestPayload,
+            schoolNearestGood: schoolNearestGoodPayload,
+          });
+          return;
+        }
+
+        const entries = await getFloodSearchEntries(floodSearchEntriesRef, floodSearchEntriesPromiseRef);
         if (!entries.length) {
           onPostcodeSearchResultRef.current?.({
             status: "error",
+            lookupMode,
             normalizedQuery: normalized,
             schoolNearest: schoolNearestPayload,
             schoolNearestGood: schoolNearestGoodPayload,
@@ -298,6 +340,7 @@ export default function ValueMap({
           setFloodSearchContext(map, null);
           onPostcodeSearchResultRef.current?.({
             status: "found",
+            lookupMode,
             normalizedQuery: normalized,
             matchedPostcode: exact.postcode,
             schoolNearest: schoolNearestPayload,
@@ -314,6 +357,7 @@ export default function ValueMap({
           setFloodSearchContext(map, null);
           onPostcodeSearchResultRef.current?.({
             status: "broad-has-risk",
+            lookupMode,
             normalizedQuery: normalized,
             nearestPostcode: representative.postcode,
             hierarchyMatchCount: hierarchyMatches.length,
@@ -341,6 +385,7 @@ export default function ValueMap({
           );
           onPostcodeSearchResultRef.current?.({
             status: "no-risk-nearest",
+            lookupMode,
             normalizedQuery: normalized,
             nearestPostcode: nearest.postcode,
             schoolNearest: schoolNearestPayload,
@@ -353,6 +398,7 @@ export default function ValueMap({
         setFloodSearchContext(map, null);
         onPostcodeSearchResultRef.current?.({
           status: "not-found",
+          lookupMode,
           normalizedQuery: normalized,
           schoolNearest: schoolNearestPayload,
           schoolNearestGood: schoolNearestGoodPayload,
@@ -360,7 +406,7 @@ export default function ValueMap({
       } catch {
         setFloodSearchFocus(map, null);
         setFloodSearchContext(map, null);
-        setSchoolSearchFocus(map, null, null);
+        setSchoolSearchFocus(map, null, null, null);
         onPostcodeSearchResultRef.current?.({ status: "error", normalizedQuery: normalized });
       }
     };
@@ -426,47 +472,57 @@ export default function ValueMap({
           let floodNearest: LocateMeResult["floodNearest"];
           let schoolNearest: LocateMeResult["schoolNearest"];
           let schoolNearestGood: LocateMeResult["schoolNearestGood"];
+          let nearestSchoolEntry: (SchoolSearchEntry & { distanceMeters: number }) | null = null;
+          let nearestGoodEntry: (SchoolSearchEntry & { distanceMeters: number }) | null = null;
+          const floodEnabled = (stateRef.current.floodOverlayMode ?? "off") !== "off";
+          const schoolsEnabled = (stateRef.current.schoolOverlayMode ?? "off") !== "off";
           try {
-            const entries = await getFloodSearchEntries(floodSearchEntriesRef, floodSearchEntriesPromiseRef);
-            const nearest = findNearestFloodEntryByDistance(lng, lat, entries);
-            if (nearest) {
-              floodNearest = {
-                postcode: nearest.postcode,
-                riskScore: nearest.riskScore,
-                riskBand: riskBandFromScore(nearest.riskScore),
-                distanceMeters: Math.round(nearest.distanceMeters),
-              };
+            if (floodEnabled) {
+              const entries = await getFloodSearchEntries(floodSearchEntriesRef, floodSearchEntriesPromiseRef);
+              const nearest = findNearestFloodEntryByDistance(lng, lat, entries);
+              if (nearest) {
+                floodNearest = {
+                  postcode: nearest.postcode,
+                  riskScore: nearest.riskScore,
+                  riskBand: riskBandFromScore(nearest.riskScore),
+                  distanceMeters: Math.round(nearest.distanceMeters),
+                };
+              }
             }
 
-            const schoolEntries = await getSchoolSearchEntries(schoolSearchEntriesRef, schoolSearchEntriesPromiseRef);
-            const nearestSchool = findNearestSchoolEntryByDistance(lng, lat, schoolEntries);
-            if (nearestSchool) {
-              schoolNearest = {
-                schoolName: nearestSchool.schoolName,
-                postcode: nearestSchool.postcode,
-                qualityScore: nearestSchool.qualityScore,
-                qualityBand: nearestSchool.qualityBand,
-                distanceMeters: Math.round(nearestSchool.distanceMeters),
-              };
-            }
+            if (schoolsEnabled) {
+              const schoolEntries = await getSchoolSearchEntries(schoolSearchEntriesRef, schoolSearchEntriesPromiseRef);
+              nearestSchoolEntry = findNearestSchoolEntryByDistance(lng, lat, schoolEntries);
+              if (nearestSchoolEntry) {
+                schoolNearest = {
+                  schoolName: nearestSchoolEntry.schoolName,
+                  postcode: nearestSchoolEntry.postcode,
+                  qualityScore: nearestSchoolEntry.qualityScore,
+                  qualityBand: nearestSchoolEntry.qualityBand,
+                  distanceMeters: Math.round(nearestSchoolEntry.distanceMeters),
+                };
+              }
 
-            const nearestGood = findNearestSchoolEntryByDistance(
-              lng,
-              lat,
-              schoolEntries.filter((entry) => entry.isGood)
-            );
-            if (nearestGood) {
-              schoolNearestGood = {
-                schoolName: nearestGood.schoolName,
-                postcode: nearestGood.postcode,
-                qualityScore: nearestGood.qualityScore,
-                qualityBand: nearestGood.qualityBand,
-                distanceMeters: Math.round(nearestGood.distanceMeters),
-              };
+              nearestGoodEntry = findNearestSchoolEntryByDistance(
+                lng,
+                lat,
+                schoolEntries.filter((entry) => entry.isGood)
+              );
+              if (nearestGoodEntry) {
+                schoolNearestGood = {
+                  schoolName: nearestGoodEntry.schoolName,
+                  postcode: nearestGoodEntry.postcode,
+                  qualityScore: nearestGoodEntry.qualityScore,
+                  qualityBand: nearestGoodEntry.qualityBand,
+                  distanceMeters: Math.round(nearestGoodEntry.distanceMeters),
+                };
+              }
             }
           } catch {
             // ignore flood nearest errors
           }
+
+          setSchoolSearchFocus(map, nearestSchoolEntry, nearestGoodEntry, { lon: lng, lat });
 
           onLocateMeResultRef.current?.({
             status: "success",
@@ -876,6 +932,32 @@ export default function ValueMap({
       "circle-color": "#93c5fd",
       "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 2, 8, 2.8, 12, 3.5] as any,
       "circle-opacity": 0.92,
+    },
+  });
+
+  map.addLayer({
+    id: "school-search-focus-nearest-line",
+    type: "line",
+    source: "school-search-focus",
+    filter: ["all", ["==", ["geometry-type"], "LineString"], ["==", ["get", "role"], "nearest_link"]] as any,
+    paint: {
+      "line-color": "#f59e0b",
+      "line-width": 2,
+      "line-dasharray": [2, 2],
+      "line-opacity": 0.9,
+    },
+  });
+
+  map.addLayer({
+    id: "school-search-focus-good-line",
+    type: "line",
+    source: "school-search-focus",
+    filter: ["all", ["==", ["geometry-type"], "LineString"], ["==", ["get", "role"], "nearest_good_link"]] as any,
+    paint: {
+      "line-color": "#22c55e",
+      "line-width": 2,
+      "line-dasharray": [2, 2],
+      "line-opacity": 0.92,
     },
   });
 
@@ -1324,6 +1406,9 @@ export default function ValueMap({
       }
       if (map.getLayer("school-overlay-cluster-count")) {
         map.setLayoutProperty("school-overlay-cluster-count", "visibility", schoolVisibility);
+      }
+      if (mode === "off") {
+        setSchoolSearchFocus(map, null, null, null);
       }
     } catch (e) {
       // ignore
@@ -2521,7 +2606,8 @@ function setFloodSearchFocus(map: maplibregl.Map, entry: FloodSearchEntry | null
 function setSchoolSearchFocus(
   map: maplibregl.Map,
   nearest: (SchoolSearchEntry & { distanceMeters?: number }) | null,
-  nearestGood: (SchoolSearchEntry & { distanceMeters?: number }) | null
+  nearestGood: (SchoolSearchEntry & { distanceMeters?: number }) | null,
+  requested: { lon: number; lat: number } | null
 ) {
   const source = map.getSource("school-search-focus") as maplibregl.GeoJSONSource | undefined;
   if (!source) return;
@@ -2540,6 +2626,22 @@ function setSchoolSearchFocus(
         coordinates: [nearest.lon, nearest.lat],
       },
     });
+
+    if (requested) {
+      features.push({
+        type: "Feature",
+        properties: {
+          role: "nearest_link",
+        },
+        geometry: {
+          type: "LineString",
+          coordinates: [
+            [requested.lon, requested.lat],
+            [nearest.lon, nearest.lat],
+          ],
+        },
+      });
+    }
   }
 
   if (nearestGood) {
@@ -2555,6 +2657,22 @@ function setSchoolSearchFocus(
         coordinates: [nearestGood.lon, nearestGood.lat],
       },
     });
+
+    if (requested) {
+      features.push({
+        type: "Feature",
+        properties: {
+          role: "nearest_good_link",
+        },
+        geometry: {
+          type: "LineString",
+          coordinates: [
+            [requested.lon, requested.lat],
+            [nearestGood.lon, nearestGood.lat],
+          ],
+        },
+      });
+    }
   }
 
   source.setData({ type: "FeatureCollection", features } as any);

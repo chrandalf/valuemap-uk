@@ -109,6 +109,7 @@ export default function Home() {
   const [overlayPanelCollapsed, setOverlayPanelCollapsed] = useState(false);
   const [valuePanelCollapsed, setValuePanelCollapsed] = useState(false);
   const [postcodeSearch, setPostcodeSearch] = useState("");
+  const [activePostcodeSearch, setActivePostcodeSearch] = useState("");
   const [postcodeSearchToken, setPostcodeSearchToken] = useState(0);
   const [postcodeSearchStatus, setPostcodeSearchStatus] = useState<string | null>(null);
   const [locateMeToken, setLocateMeToken] = useState(0);
@@ -151,7 +152,14 @@ export default function Home() {
     setLegendOpen(true);
     closeAllSubpanels();
     setMenuOpen(true);
+    setActivePostcodeSearch("");
+    setPostcodeSearchStatus(null);
   };
+
+  useEffect(() => {
+    if (!activePostcodeSearch.trim()) return;
+    setPostcodeSearchToken((v) => v + 1);
+  }, [state.floodOverlayMode, state.schoolOverlayMode, activePostcodeSearch]);
 
   const scrollSupportersRight = () => {
     const el = supportersScrollerRef.current;
@@ -548,17 +556,17 @@ export default function Home() {
     if (result.cell?.txCount != null && Number.isFinite(result.cell.txCount)) {
       chunks.push(`Sales ${Math.round(result.cell.txCount)}`);
     }
-    if (result.floodNearest) {
+    if (state.floodOverlayMode !== "off" && result.floodNearest) {
       chunks.push(
         `Nearest flood postcode ${result.floodNearest.postcode} (${result.floodNearest.riskBand}, ${result.floodNearest.distanceMeters}m)`
       );
     }
-    if (result.schoolNearest) {
+    if (state.schoolOverlayMode !== "off" && result.schoolNearest) {
       chunks.push(
         `Nearest school ${result.schoolNearest.schoolName} (${result.schoolNearest.distanceMeters}m, ${result.schoolNearest.qualityBand})`
       );
     }
-    if (result.schoolNearestGood) {
+    if (state.schoolOverlayMode !== "off" && result.schoolNearestGood) {
       chunks.push(
         `Nearest good school ${result.schoolNearestGood.schoolName} (${result.schoolNearestGood.distanceMeters}m)`
       );
@@ -740,17 +748,30 @@ export default function Home() {
         onLegendChange={setLegend}
         onPostcodePanelChange={setPostcodeOpen}
         onZoomChange={handleMapZoomChange}
-        postcodeSearchQuery={postcodeSearch}
+        postcodeSearchQuery={activePostcodeSearch}
         postcodeSearchToken={postcodeSearchToken}
         locateMeToken={locateMeToken}
         onLocateMeResult={handleLocateMeResult}
         onPostcodeSearchResult={(result) => {
-          const schoolSuffix = result.schoolNearest
+          const floodLookupActive = result.lookupMode !== "schools" && state.floodOverlayMode !== "off";
+          const schoolLookupActive = result.lookupMode !== "flood" && state.schoolOverlayMode !== "off";
+
+          const schoolSuffix = schoolLookupActive && result.schoolNearest
             ? ` · nearest school: ${result.schoolNearest.schoolName} (${result.schoolNearest.distanceMeters}m, ${result.schoolNearest.qualityBand})`
             : "";
-          const schoolGoodSuffix = result.schoolNearestGood
+          const schoolGoodSuffix = schoolLookupActive && result.schoolNearestGood
             ? ` · nearest good school: ${result.schoolNearestGood.schoolName} (${result.schoolNearestGood.distanceMeters}m)`
             : "";
+
+          if (!floodLookupActive && schoolLookupActive) {
+            if (result.schoolNearest || result.schoolNearestGood) {
+              setPostcodeSearchStatus(`School lookup for ${result.normalizedQuery}${schoolSuffix}${schoolGoodSuffix}`);
+              return;
+            }
+            setPostcodeSearchStatus(`No mapped school found for ${result.normalizedQuery}`);
+            return;
+          }
+
           if (result.status === "found") {
             setPostcodeSearchStatus(`Found ${result.matchedPostcode ?? result.normalizedQuery}${schoolSuffix}${schoolGoodSuffix}`);
             return;
@@ -1117,10 +1138,12 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => {
-                  if (!postcodeSearch.trim()) {
+                  const query = postcodeSearch.trim();
+                  if (!query) {
                     setPostcodeSearchStatus("Enter a postcode");
                     return;
                   }
+                  setActivePostcodeSearch(query);
                   setPostcodeSearchToken((v) => v + 1);
                 }}
                 style={{
