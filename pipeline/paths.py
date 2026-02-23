@@ -5,6 +5,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PIPELINE_DIR = ROOT / "pipeline"
 PIPELINE_DATA_DIR = PIPELINE_DIR / "data"
+ARCHIVE_DIR = PIPELINE_DATA_DIR / "archive"
+R2_ARCHIVE_DIR = ARCHIVE_DIR / "r2"
 
 RAW_DIR = PIPELINE_DATA_DIR / "raw"
 INTERMEDIATE_DIR = PIPELINE_DATA_DIR / "intermediate"
@@ -26,11 +28,13 @@ MODEL_SCHOOLS_DIR = MODEL_DIR / "schools"
 MODEL_FLOOD_DIR = MODEL_DIR / "flood"
 MODEL_VOTE_DIR = MODEL_DIR / "vote"
 MODEL_EPC_DIR = MODEL_DIR / "epc"
+MODEL_PROPERTY_DIR = MODEL_DIR / "property"
 
 PUBLISH_SCHOOLS_DIR = PUBLISH_DIR / "schools"
 PUBLISH_FLOOD_DIR = PUBLISH_DIR / "flood"
 PUBLISH_VOTE_DIR = PUBLISH_DIR / "vote"
 PUBLISH_EPC_DIR = PUBLISH_DIR / "epc"
+PUBLISH_PROPERTY_DIR = PUBLISH_DIR / "property"
 
 PUBLIC_DATA_DIR = ROOT / "public" / "data"
 
@@ -54,6 +58,24 @@ MODEL_FLOOD_POSTCODE_POINTS = MODEL_FLOOD_DIR / "flood_postcode_points.geojson.g
 MODEL_VOTE_BLOCKS_BY_CONSTITUENCY_CSV = MODEL_VOTE_DIR / "ge2024_vote_blocks_by_constituency.csv"
 MODEL_VOTE_BLOCKS_MAP_GEOJSON = MODEL_VOTE_DIR / "ge2024_vote_blocks_map.geojson"
 
+REQUIRED_PROPERTY_ASSET_NAMES = [
+    "grid_1km_full.json.gz",
+    "grid_5km_full.json.gz",
+    "grid_10km_full.json.gz",
+    "grid_25km_full.json.gz",
+    "grid_1km_ppsf_full.json.gz",
+    "grid_5km_ppsf_full.json.gz",
+    "grid_10km_ppsf_full.json.gz",
+    "grid_25km_ppsf_full.json.gz",
+    "deltas_overall_5km.json.gz",
+    "deltas_overall_10km.json.gz",
+    "deltas_overall_25km.json.gz",
+    "postcode_outcode_index_1km.json.gz",
+    "postcode_outcode_index_5km.json.gz",
+    "postcode_outcode_index_10km.json.gz",
+    "postcode_outcode_index_25km.json.gz",
+]
+
 
 def ensure_pipeline_dirs() -> None:
     for p in [
@@ -70,9 +92,12 @@ def ensure_pipeline_dirs() -> None:
         MODEL_FLOOD_DIR,
         MODEL_VOTE_DIR,
         MODEL_EPC_DIR,
+        MODEL_PROPERTY_DIR,
         PUBLISH_SCHOOLS_DIR,
         PUBLISH_FLOOD_DIR,
         PUBLISH_VOTE_DIR,
         PUBLISH_EPC_DIR,
+        PUBLISH_PROPERTY_DIR,
+        R2_ARCHIVE_DIR,
     ]:
         p.mkdir(parents=True, exist_ok=True)

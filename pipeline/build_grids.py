@@ -435,11 +435,19 @@ def audit_output_files(paths, manifest_path: str):
     print(f"Wrote output audit manifest: {manifest_path} ({len(rows)} files)")
 
 def upload_to_r2_if_configured(paths):
+    import json
+    from datetime import datetime, timezone
+    from pathlib import Path
+    from tempfile import TemporaryDirectory
+    from zipfile import ZIP_DEFLATED, ZipFile
+
     account_id = os.getenv("R2_ACCOUNT_ID")
     bucket_name = os.getenv("R2_BUCKET")
     access_key = os.getenv("R2_ACCESS_KEY_ID")
     secret_key = os.getenv("R2_SECRET_ACCESS_KEY")
     prefix = os.getenv("R2_PREFIX", "").strip("/")
+    backup_before_upload = os.getenv("R2_BACKUP_BEFORE_UPLOAD", "1").strip().lower() not in {"0", "false", "no"}
+    backup_dir = os.getenv("R2_BACKUP_DIR", "pipeline/data/archive/r2")
 
     if not all([account_id, bucket_name, access_key, secret_key]):
         print("R2 upload skipped (set R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY to enable).")
@@ -460,13 +468,72 @@ def upload_to_r2_if_configured(paths):
         region_name="auto",
     )
 
-    upload_count = 0
+    object_keys = []
+    local_paths = []
     for path in sorted({str(p) for p in paths}):
         if not os.path.exists(path):
             continue
-
         filename = os.path.basename(path)
         object_key = f"{prefix}/{filename}" if prefix else filename
+        local_paths.append(path)
+        object_keys.append(object_key)
+
+    if backup_before_upload and object_keys:
+        Path(backup_dir).mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        prefix_label = (prefix.replace("/", "_") if prefix else "root")
+        archive_path = Path(backup_dir) / f"r2_backup_{timestamp}_{prefix_label}_build_grids.zip"
+        manifest = {
+            "created_at_utc": timestamp,
+            "bucket": bucket_name,
+            "prefix": prefix,
+            "object_count_requested": len(object_keys),
+            "objects": [],
+        }
+
+        downloaded = 0
+        missing = 0
+        with TemporaryDirectory() as tmp_dir, ZipFile(archive_path, "w", compression=ZIP_DEFLATED) as zf:
+            tmp_root = Path(tmp_dir)
+            for object_key in object_keys:
+                item = {
+                    "key": object_key,
+                    "status": "downloaded",
+                    "size": None,
+                    "etag": None,
+                    "last_modified": None,
+                }
+                try:
+                    head = client.head_object(Bucket=bucket_name, Key=object_key)
+                    item["size"] = int(head.get("ContentLength", 0))
+                    item["etag"] = str(head.get("ETag", "")).strip('"')
+                    last_modified = head.get("LastModified")
+                    if last_modified is not None:
+                        item["last_modified"] = last_modified.isoformat()
+                    tmp_file = tmp_root / Path(object_key).name
+                    client.download_file(bucket_name, object_key, str(tmp_file))
+                    zf.write(tmp_file, arcname=f"objects/{object_key}")
+                    downloaded += 1
+                except Exception as exc:
+                    response = getattr(exc, "response", None)
+                    code = str(response.get("Error", {}).get("Code", "")).strip() if isinstance(response, dict) else ""
+                    if code in {"404", "NoSuchKey", "NotFound"}:
+                        item["status"] = "missing"
+                        missing += 1
+                    else:
+                        raise
+                manifest["objects"].append(item)
+
+            manifest["object_count_downloaded"] = downloaded
+            manifest["object_count_missing"] = missing
+            zf.writestr("manifest.json", json.dumps(manifest, indent=2))
+
+        print(f"R2 backup archive created: {archive_path}")
+        print(f"R2 backup summary: requested={len(object_keys)} downloaded={downloaded} missing={missing}")
+
+    upload_count = 0
+    for path, object_key in zip(local_paths, object_keys):
+        filename = os.path.basename(path)
 
         extra = {}
         if filename.endswith(".json.gz"):

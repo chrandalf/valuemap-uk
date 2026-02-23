@@ -50,8 +50,16 @@ Run the full pipeline in the correct order:
 python pipeline/run_pipeline.py
 ```
 
+Property is now included in `run_pipeline` and is built from raw inputs in `pipeline/data/raw/property`:
+
+- `pp-2025.txt`
+- `ONSPD_Online_latest_Postcode_Centroids_.csv`
+
+`run_pipeline` generates property artifacts (`grid_*_full.json.gz`, `grid_*_ppsf_full.json.gz`, `deltas_overall_*.json.gz`, `postcode_outcode_index_*.json.gz`) before staging/upload.
+
 Useful options:
 
+- `--skip-property`
 - `--mainstream-only` (schools)
 - `--skip-schools`, `--skip-flood`, `--skip-vote`
 - `--publish-public` (copies model artifacts to `public/data` for local inspection)
@@ -63,8 +71,27 @@ Upload staged artifacts to R2:
 python pipeline/upload_model_assets_to_r2.py
 ```
 
+By default this now creates a timestamped backup archive of the current remote objects (same keys you are about to upload) in `pipeline/data/archive/r2/` before uploading.
+
+If you need to skip this backup step:
+
+```bash
+python pipeline/upload_model_assets_to_r2.py --no-backup-before-upload
+```
+
+The same pre-upload backup behavior is enabled in:
+
+- `python pipeline/upload_vote_cells_to_r2.py`
+- legacy `pipeline/build_grids.py` uploads (disable there with env `R2_BACKUP_BEFORE_UPLOAD=0`, optional archive path via `R2_BACKUP_DIR`)
+
 If flood assets are managed manually for now, upload only schools + vote:
 
 ```bash
 python pipeline/upload_model_assets_to_r2.py --skip-flood
+```
+
+If property is also managed outside this flow, skip that group too:
+
+```bash
+python pipeline/upload_model_assets_to_r2.py --skip-flood --skip-property
 ```

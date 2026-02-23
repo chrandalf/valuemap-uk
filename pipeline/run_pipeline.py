@@ -99,6 +99,22 @@ def run_schools(include_non_mainstream: bool) -> None:
     )
 
 
+def run_property() -> None:
+    run_step(
+        "property-build",
+        [
+            str(SCRIPT_DIR / "build_property_artifacts.py"),
+        ],
+    )
+
+    run_step(
+        "property-assets",
+        [
+            str(SCRIPT_DIR / "prepare_property_assets.py"),
+        ],
+    )
+
+
 def run_flood() -> None:
     run_step(
         "flood-assets",
@@ -145,6 +161,7 @@ def run_vote() -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run ValueMap pipeline in the correct order")
+    parser.add_argument("--skip-property", action="store_true", help="Skip property asset staging")
     parser.add_argument("--skip-schools", action="store_true", help="Skip school scoring and overlay generation")
     parser.add_argument("--skip-flood", action="store_true", help="Skip flood asset generation")
     parser.add_argument("--skip-vote", action="store_true", help="Skip vote artifact generation")
@@ -169,6 +186,9 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     ensure_pipeline_dirs()
     args = parse_args()
+
+    if not args.skip_property:
+        run_property()
 
     if not args.skip_schools:
         run_schools(include_non_mainstream=not args.mainstream_only)

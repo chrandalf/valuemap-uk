@@ -2,10 +2,21 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
+from datetime import datetime, timezone
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from zipfile import ZIP_DEFLATED, ZipFile
 
-from paths import PUBLISH_FLOOD_DIR, PUBLISH_SCHOOLS_DIR, PUBLISH_VOTE_DIR
+from paths import (
+    PUBLISH_FLOOD_DIR,
+    PUBLISH_PROPERTY_DIR,
+    PUBLISH_SCHOOLS_DIR,
+    PUBLISH_VOTE_DIR,
+    R2_ARCHIVE_DIR,
+    REQUIRED_PROPERTY_ASSET_NAMES,
+)
 
 
 def env_value(*keys: str) -> str:
@@ -34,9 +45,11 @@ def collect_assets(
     vote_dir: Path,
     schools_dir: Path,
     flood_dir: Path,
+    property_dir: Path,
     include_vote: bool,
     include_schools: bool,
     include_flood: bool,
+    include_property: bool,
 ) -> list[Path]:
     files: list[Path] = []
     if include_vote:
@@ -58,6 +71,8 @@ def collect_assets(
                 flood_dir / "flood_postcode_points.geojson.gz",
             ]
         )
+    if include_property:
+        files.extend(property_dir / name for name in REQUIRED_PROPERTY_ASSET_NAMES)
     return files
 
 
@@ -69,15 +84,103 @@ def content_type_for(path: Path) -> str:
     return "application/gzip"
 
 
+def object_keys_for_files(files: list[Path], prefix: str) -> list[str]:
+    keys: list[str] = []
+    for path in files:
+        object_key = f"{prefix}/{path.name}" if prefix else path.name
+        keys.append(object_key)
+    return keys
+
+
+def _is_not_found_error(exc: Exception) -> bool:
+    response = getattr(exc, "response", None)
+    if not isinstance(response, dict):
+        return False
+    code = str(response.get("Error", {}).get("Code", "")).strip()
+    return code in {"404", "NoSuchKey", "NotFound"}
+
+
+def backup_remote_objects(
+    s3,
+    bucket_name: str,
+    object_keys: list[str],
+    backup_dir: Path,
+    prefix: str,
+) -> Path:
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    prefix_label = (prefix.replace("/", "_") if prefix else "root")
+    archive_path = backup_dir / f"r2_backup_{timestamp}_{prefix_label}.zip"
+
+    manifest = {
+        "created_at_utc": timestamp,
+        "bucket": bucket_name,
+        "prefix": prefix,
+        "object_count_requested": len(object_keys),
+        "objects": [],
+    }
+
+    downloaded = 0
+    missing = 0
+    with TemporaryDirectory() as tmp_dir, ZipFile(archive_path, "w", compression=ZIP_DEFLATED) as zf:
+        tmp_root = Path(tmp_dir)
+        for object_key in object_keys:
+            info = {
+                "key": object_key,
+                "status": "downloaded",
+                "size": None,
+                "etag": None,
+                "last_modified": None,
+            }
+            try:
+                head = s3.head_object(Bucket=bucket_name, Key=object_key)
+                info["size"] = int(head.get("ContentLength", 0))
+                info["etag"] = str(head.get("ETag", "")).strip('"')
+                last_modified = head.get("LastModified")
+                if last_modified is not None:
+                    info["last_modified"] = last_modified.isoformat()
+                tmp_file = tmp_root / Path(object_key).name
+                s3.download_file(bucket_name, object_key, str(tmp_file))
+                zf.write(tmp_file, arcname=f"objects/{object_key}")
+                downloaded += 1
+            except Exception as exc:
+                if _is_not_found_error(exc):
+                    info["status"] = "missing"
+                    missing += 1
+                else:
+                    raise
+            manifest["objects"].append(info)
+
+        manifest["object_count_downloaded"] = downloaded
+        manifest["object_count_missing"] = missing
+        zf.writestr("manifest.json", json.dumps(manifest, indent=2))
+
+    print(f"R2 backup archive created: {archive_path}")
+    print(f"R2 backup summary: requested={len(object_keys)} downloaded={downloaded} missing={missing}")
+    return archive_path
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Upload staged model assets to Cloudflare R2")
     parser.add_argument("--vote-dir", default=str(PUBLISH_VOTE_DIR), help="Staged vote assets directory")
     parser.add_argument("--schools-dir", default=str(PUBLISH_SCHOOLS_DIR), help="Staged schools assets directory")
     parser.add_argument("--flood-dir", default=str(PUBLISH_FLOOD_DIR), help="Staged flood assets directory")
+    parser.add_argument("--property-dir", default=str(PUBLISH_PROPERTY_DIR), help="Staged property assets directory")
     parser.add_argument("--prefix", default=None, help="Optional R2 object prefix (overrides R2_PREFIX)")
+    parser.add_argument("--skip-property", action="store_true", help="Skip property asset uploads")
     parser.add_argument("--skip-vote", action="store_true", help="Skip vote asset uploads")
     parser.add_argument("--skip-schools", action="store_true", help="Skip schools asset uploads")
     parser.add_argument("--skip-flood", action="store_true", help="Skip flood asset uploads")
+    parser.add_argument(
+        "--no-backup-before-upload",
+        action="store_true",
+        help="Skip pre-upload backup archive of current remote R2 objects",
+    )
+    parser.add_argument(
+        "--backup-dir",
+        default=str(R2_ARCHIVE_DIR),
+        help="Directory for pre-upload R2 backup archives",
+    )
     return parser.parse_args()
 
 
@@ -87,15 +190,28 @@ def main() -> None:
     vote_dir = Path(args.vote_dir)
     schools_dir = Path(args.schools_dir)
     flood_dir = Path(args.flood_dir)
+    property_dir = Path(args.property_dir)
 
     include_vote = not args.skip_vote
     include_schools = not args.skip_schools
     include_flood = not args.skip_flood
+    include_property = not args.skip_property
+    backup_before_upload = not args.no_backup_before_upload
+    backup_dir = Path(args.backup_dir)
 
-    if not (include_vote or include_schools or include_flood):
+    if not (include_vote or include_schools or include_flood or include_property):
         raise SystemExit("Nothing to upload. Enable at least one asset group.")
 
-    files = collect_assets(vote_dir, schools_dir, flood_dir, include_vote, include_schools, include_flood)
+    files = collect_assets(
+        vote_dir,
+        schools_dir,
+        flood_dir,
+        property_dir,
+        include_vote,
+        include_schools,
+        include_flood,
+        include_property,
+    )
     missing = [str(path) for path in files if not path.exists()]
     if missing:
         raise SystemExit("Missing staged files:\n- " + "\n- ".join(missing))
@@ -126,8 +242,17 @@ def main() -> None:
     s3.head_bucket(Bucket=bucket_name)
     print("Bucket access check: OK")
 
-    for path in files:
-        object_key = f"{prefix}/{path.name}" if prefix else path.name
+    object_keys = object_keys_for_files(files, prefix)
+    if backup_before_upload:
+        backup_remote_objects(
+            s3=s3,
+            bucket_name=bucket_name,
+            object_keys=object_keys,
+            backup_dir=backup_dir,
+            prefix=prefix,
+        )
+
+    for path, object_key in zip(files, object_keys):
         s3.upload_file(
             str(path),
             bucket_name,
