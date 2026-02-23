@@ -9,6 +9,7 @@ type PropertyType = "ALL" | "D" | "S" | "T" | "F"; // Detached / Semi / Terraced
 type NewBuild = "ALL" | "Y" | "N";
 type ValueFilterMode = "off" | "lte" | "gte";
 type FloodOverlayMode = "off" | "on" | "on_hide_cells";
+type SchoolOverlayMode = "off" | "on" | "on_hide_cells";
 type VoteOverlayMode = "off" | "on";
 type VoteColorScale = "relative" | "absolute";
 type GridMode = "auto" | "manual";
@@ -22,6 +23,7 @@ type MapState = {
   valueFilterMode: ValueFilterMode;
   valueThreshold: number;
   floodOverlayMode: FloodOverlayMode;
+  schoolOverlayMode: SchoolOverlayMode;
   voteOverlayMode: VoteOverlayMode;
   voteColorScale: VoteColorScale;
 };
@@ -78,6 +80,7 @@ export default function Home() {
     valueFilterMode: "off",
     valueThreshold: 300000,
     floodOverlayMode: "off",
+    schoolOverlayMode: "off",
     voteOverlayMode: "off",
     voteColorScale: "relative",
   });
@@ -133,6 +136,7 @@ export default function Home() {
     valueFilterMode: "off",
     valueThreshold: 300000,
     floodOverlayMode: "off",
+    schoolOverlayMode: "off",
     voteOverlayMode: "off",
     voteColorScale: "relative",
   };
@@ -267,6 +271,7 @@ export default function Home() {
     state.metric,
     state.valueFilterMode,
     state.floodOverlayMode,
+    state.schoolOverlayMode,
   ]);
 
   useEffect(() => {
@@ -306,6 +311,7 @@ export default function Home() {
     params.set("vfm", state.valueFilterMode);
     params.set("vth", String(Math.round(state.valueThreshold * 10) / 10));
     params.set("flood", state.floodOverlayMode);
+    params.set("schools", state.schoolOverlayMode);
     params.set("vote", state.voteOverlayMode);
     params.set("voteScale", state.voteColorScale);
 
@@ -412,9 +418,38 @@ export default function Home() {
     </>
   );
 
+  const schoolLegendContent = (
+    <>
+      <div className="legend-title" style={{ fontWeight: 600, marginBottom: 10, fontSize: 16, opacity: 0.9 }}>
+        School quality overlay
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "86px 1fr 86px", gap: 8, alignItems: "center" }}>
+        <div style={{ textAlign: "left", fontSize: 11, opacity: 0.85 }}>Weaker</div>
+        <div style={{ display: "flex", height: 16, borderRadius: 999, overflow: "hidden", border: "1px solid rgba(255,255,255,0.2)" }}>
+          {[
+            "#7f1d1d",
+            "#dc2626",
+            "#f59e0b",
+            "#f3f4f6",
+            "#86efac",
+            "#16a34a",
+            "#14532d",
+          ].map((c, i) => (
+            <div key={i} style={{ flex: 1, backgroundColor: c }} />
+          ))}
+        </div>
+        <div style={{ textAlign: "right", fontSize: 11, opacity: 0.85 }}>Stronger</div>
+      </div>
+      <div style={{ marginTop: 8, fontSize: 11, opacity: 0.8, lineHeight: 1.35 }}>
+        Points are schools. Search/Locate highlights nearest school and nearest good school.
+      </div>
+    </>
+  );
+
   const legendContent = (
     <>
       {state.voteOverlayMode === "on" && voteLegendContent}
+      {state.schoolOverlayMode !== "off" && schoolLegendContent}
       {state.voteOverlayMode !== "on" && (
       <>
       <div className="legend-title" style={{ fontWeight: 600, marginBottom: 12, fontSize: 16, opacity: 0.9 }}>
@@ -518,6 +553,16 @@ export default function Home() {
         `Nearest flood postcode ${result.floodNearest.postcode} (${result.floodNearest.riskBand}, ${result.floodNearest.distanceMeters}m)`
       );
     }
+    if (result.schoolNearest) {
+      chunks.push(
+        `Nearest school ${result.schoolNearest.schoolName} (${result.schoolNearest.distanceMeters}m, ${result.schoolNearest.qualityBand})`
+      );
+    }
+    if (result.schoolNearestGood) {
+      chunks.push(
+        `Nearest good school ${result.schoolNearestGood.schoolName} (${result.schoolNearestGood.distanceMeters}m)`
+      );
+    }
 
     setLocateMeStatus("Location found");
     setLocateMeSummary(chunks.join(" · "));
@@ -533,6 +578,12 @@ export default function Home() {
       : state.floodOverlayMode === "on"
         ? "On"
         : "On (hide cells)";
+  const schoolOverlayLabel =
+    state.schoolOverlayMode === "off"
+      ? "Off"
+      : state.schoolOverlayMode === "on"
+        ? "On"
+        : "On (hide cells)";
   const voteOverlayLabel =
     state.voteOverlayMode === "off"
       ? "Off"
@@ -542,7 +593,7 @@ export default function Home() {
   const currentFiltersSummary =
     `Grid: ${state.grid} · Metric: ${METRIC_LABEL[state.metric]} · ` +
     `Type: ${PROPERTY_LABEL[state.propertyType]} · New build: ${NEWBUILD_LABEL[state.newBuild]} · ` +
-    `Period: ${periodLabel} · Flood: ${floodOverlayLabel} · Vote overlay: ${voteOverlayLabel} (${voteScaleLabel})`;
+    `Period: ${periodLabel} · Flood: ${floodOverlayLabel} · Schools: ${schoolOverlayLabel} · Vote overlay: ${voteOverlayLabel} (${voteScaleLabel})`;
   const headerFilterSummary =
     `${state.grid} · ${METRIC_LABEL[state.metric]} · ${PROPERTY_LABEL[state.propertyType]} · ${NEWBUILD_LABEL[state.newBuild]} · ${periodLabel}`;
 
@@ -694,8 +745,14 @@ export default function Home() {
         locateMeToken={locateMeToken}
         onLocateMeResult={handleLocateMeResult}
         onPostcodeSearchResult={(result) => {
+          const schoolSuffix = result.schoolNearest
+            ? ` · nearest school: ${result.schoolNearest.schoolName} (${result.schoolNearest.distanceMeters}m, ${result.schoolNearest.qualityBand})`
+            : "";
+          const schoolGoodSuffix = result.schoolNearestGood
+            ? ` · nearest good school: ${result.schoolNearestGood.schoolName} (${result.schoolNearestGood.distanceMeters}m)`
+            : "";
           if (result.status === "found") {
-            setPostcodeSearchStatus(`Found ${result.matchedPostcode ?? result.normalizedQuery}`);
+            setPostcodeSearchStatus(`Found ${result.matchedPostcode ?? result.normalizedQuery}${schoolSuffix}${schoolGoodSuffix}`);
             return;
           }
           if (result.status === "broad-has-risk") {
@@ -703,21 +760,21 @@ export default function Home() {
             setPostcodeSearchStatus(
               `${result.normalizedQuery} is a broader postcode area. ${count.toLocaleString()} flood-risk postcodes found under it${
                 result.nearestPostcode ? ` (showing ${result.nearestPostcode})` : ""
-              }.`
+              }.${schoolSuffix}${schoolGoodSuffix}`
             );
             return;
           }
           if (result.status === "no-risk-nearest") {
             setPostcodeSearchStatus(
-              `No mapped flood-risk postcode found for ${result.normalizedQuery}. Nearest mapped postcode: ${result.nearestPostcode ?? "available"}`
+              `No mapped flood-risk postcode found for ${result.normalizedQuery}. Nearest mapped postcode: ${result.nearestPostcode ?? "available"}${schoolSuffix}${schoolGoodSuffix}`
             );
             return;
           }
           if (result.status === "not-found") {
-            setPostcodeSearchStatus(`No postcode match found for ${result.normalizedQuery}`);
+            setPostcodeSearchStatus(`No postcode match found for ${result.normalizedQuery}${schoolSuffix}${schoolGoodSuffix}`);
             return;
           }
-          setPostcodeSearchStatus("Postcode search unavailable right now");
+          setPostcodeSearchStatus(`Postcode search unavailable right now${schoolSuffix}${schoolGoodSuffix}`);
         }}
       />
 
@@ -1764,7 +1821,7 @@ export default function Home() {
                 <span className="title-full">Overlay filters</span>
                 <span className="title-mini">Overlay</span>
               </div>
-              <div className="mobile-header-extra" style={{ fontSize: 10, opacity: 0.7 }}>Flood risk overlay</div>
+              <div className="mobile-header-extra" style={{ fontSize: 10, opacity: 0.7 }}>Flood, schools, votes</div>
               <button
                 type="button"
                 className="mobile-collapse-toggle"
@@ -1794,6 +1851,17 @@ export default function Home() {
                 options={["off", "on", "on_hide_cells"]}
                 value={state.floodOverlayMode}
                 onChange={(v) => setState((s) => ({ ...s, floodOverlayMode: v as FloodOverlayMode }))}
+                renderOption={(v) => {
+                  if (v === "on") return "On";
+                  if (v === "on_hide_cells") return "On (hide cells)";
+                  return "Off";
+                }}
+              />
+              <div style={{ fontSize: 12, opacity: 0.8 }}>Schools</div>
+              <Segment
+                options={["off", "on", "on_hide_cells"]}
+                value={state.schoolOverlayMode}
+                onChange={(v) => setState((s) => ({ ...s, schoolOverlayMode: v as SchoolOverlayMode }))}
                 renderOption={(v) => {
                   if (v === "on") return "On";
                   if (v === "on_hide_cells") return "On (hide cells)";

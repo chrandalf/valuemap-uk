@@ -8,6 +8,7 @@ type GridSize = "1km" | "5km" | "10km" | "25km";
 type Metric = "median" | "median_ppsf" | "delta_gbp" | "delta_pct";
 type ValueFilterMode = "off" | "lte" | "gte";
 type FloodOverlayMode = "off" | "on" | "on_hide_cells";
+type SchoolOverlayMode = "off" | "on" | "on_hide_cells";
 type VoteOverlayMode = "off" | "on";
 type VoteColorScale = "relative" | "absolute";
 
@@ -20,6 +21,7 @@ export type MapState = {
   valueFilterMode?: ValueFilterMode;
   valueThreshold?: number;
   floodOverlayMode?: FloodOverlayMode;
+  schoolOverlayMode?: SchoolOverlayMode;
   voteOverlayMode?: VoteOverlayMode;
   voteColorScale?: VoteColorScale;
 };
@@ -75,12 +77,37 @@ type FloodSearchResult = {
   matchedPostcode?: string;
   nearestPostcode?: string;
   hierarchyMatchCount?: number;
+  schoolNearest?: {
+    schoolName: string;
+    postcode: string;
+    distanceMeters: number;
+    qualityScore: number;
+    qualityBand: string;
+  };
+  schoolNearestGood?: {
+    schoolName: string;
+    postcode: string;
+    distanceMeters: number;
+    qualityScore: number;
+    qualityBand: string;
+  };
 };
 
 type FloodSearchEntry = {
   postcode: string;
   postcodeKey: string;
   riskScore: number;
+  lon: number;
+  lat: number;
+};
+
+type SchoolSearchEntry = {
+  schoolName: string;
+  postcode: string;
+  postcodeKey: string;
+  qualityScore: number;
+  qualityBand: string;
+  isGood: boolean;
   lon: number;
   lat: number;
 };
@@ -103,6 +130,20 @@ export type LocateMeResult = {
     postcode: string;
     riskScore: number;
     riskBand: string;
+    distanceMeters: number;
+  };
+  schoolNearest?: {
+    schoolName: string;
+    postcode: string;
+    qualityScore: number;
+    qualityBand: string;
+    distanceMeters: number;
+  };
+  schoolNearestGood?: {
+    schoolName: string;
+    postcode: string;
+    qualityScore: number;
+    qualityBand: string;
     distanceMeters: number;
   };
 };
@@ -149,6 +190,8 @@ export default function ValueMap({
   const fetchPostcodesRef = useRef<(gx: number, gy: number, offset: number, append: boolean) => void>(() => {});
   const floodSearchEntriesRef = useRef<FloodSearchEntry[] | null>(null);
   const floodSearchEntriesPromiseRef = useRef<Promise<FloodSearchEntry[]> | null>(null);
+  const schoolSearchEntriesRef = useRef<SchoolSearchEntry[] | null>(null);
+  const schoolSearchEntriesPromiseRef = useRef<Promise<SchoolSearchEntry[]> | null>(null);
 
 
   useEffect(() => {
@@ -194,8 +237,57 @@ export default function ValueMap({
     const runSearch = async () => {
       try {
         const entries = await getFloodSearchEntries(floodSearchEntriesRef, floodSearchEntriesPromiseRef);
+        const schoolEntries = await getSchoolSearchEntries(schoolSearchEntriesRef, schoolSearchEntriesPromiseRef);
+        const requestedCoords = await lookupPostcodeCoords(normalized);
+        const nearestSchool = requestedCoords
+          ? findNearestSchoolEntryByDistance(requestedCoords.lon, requestedCoords.lat, schoolEntries)
+          : findNearestSchoolPostcodeMatch(normalized, schoolEntries);
+        const nearestGoodSchool = requestedCoords
+          ? findNearestSchoolEntryByDistance(
+              requestedCoords.lon,
+              requestedCoords.lat,
+              schoolEntries.filter((entry) => entry.isGood)
+            )
+          : findNearestSchoolPostcodeMatch(
+              normalized,
+              schoolEntries.filter((entry) => entry.isGood)
+            );
+
+        setSchoolSearchFocus(map, nearestSchool, nearestGoodSchool);
+
+        const schoolNearestPayload = nearestSchool
+          ? {
+              schoolName: nearestSchool.schoolName,
+              postcode: nearestSchool.postcode,
+              distanceMeters:
+                "distanceMeters" in nearestSchool && Number.isFinite((nearestSchool as any).distanceMeters)
+                  ? Math.round((nearestSchool as any).distanceMeters)
+                  : 0,
+              qualityScore: nearestSchool.qualityScore,
+              qualityBand: nearestSchool.qualityBand,
+            }
+          : undefined;
+
+        const schoolNearestGoodPayload = nearestGoodSchool
+          ? {
+              schoolName: nearestGoodSchool.schoolName,
+              postcode: nearestGoodSchool.postcode,
+              distanceMeters:
+                "distanceMeters" in nearestGoodSchool && Number.isFinite((nearestGoodSchool as any).distanceMeters)
+                  ? Math.round((nearestGoodSchool as any).distanceMeters)
+                  : 0,
+              qualityScore: nearestGoodSchool.qualityScore,
+              qualityBand: nearestGoodSchool.qualityBand,
+            }
+          : undefined;
+
         if (!entries.length) {
-          onPostcodeSearchResultRef.current?.({ status: "error", normalizedQuery: normalized });
+          onPostcodeSearchResultRef.current?.({
+            status: "error",
+            normalizedQuery: normalized,
+            schoolNearest: schoolNearestPayload,
+            schoolNearestGood: schoolNearestGoodPayload,
+          });
           return;
         }
 
@@ -204,7 +296,13 @@ export default function ValueMap({
           animateToPostcodeTarget(map, [exact.lon, exact.lat], Math.max(map.getZoom(), 13));
           setFloodSearchFocus(map, exact);
           setFloodSearchContext(map, null);
-          onPostcodeSearchResultRef.current?.({ status: "found", normalizedQuery: normalized, matchedPostcode: exact.postcode });
+          onPostcodeSearchResultRef.current?.({
+            status: "found",
+            normalizedQuery: normalized,
+            matchedPostcode: exact.postcode,
+            schoolNearest: schoolNearestPayload,
+            schoolNearestGood: schoolNearestGoodPayload,
+          });
           return;
         }
 
@@ -219,11 +317,12 @@ export default function ValueMap({
             normalizedQuery: normalized,
             nearestPostcode: representative.postcode,
             hierarchyMatchCount: hierarchyMatches.length,
+            schoolNearest: schoolNearestPayload,
+            schoolNearestGood: schoolNearestGoodPayload,
           });
           return;
         }
 
-        const requestedCoords = await lookupPostcodeCoords(normalized);
         const nearestByDistance = requestedCoords
           ? findNearestFloodEntryByDistance(requestedCoords.lon, requestedCoords.lat, entries)
           : null;
@@ -244,16 +343,24 @@ export default function ValueMap({
             status: "no-risk-nearest",
             normalizedQuery: normalized,
             nearestPostcode: nearest.postcode,
+            schoolNearest: schoolNearestPayload,
+            schoolNearestGood: schoolNearestGoodPayload,
           });
           return;
         }
 
         setFloodSearchFocus(map, null);
         setFloodSearchContext(map, null);
-        onPostcodeSearchResultRef.current?.({ status: "not-found", normalizedQuery: normalized });
+        onPostcodeSearchResultRef.current?.({
+          status: "not-found",
+          normalizedQuery: normalized,
+          schoolNearest: schoolNearestPayload,
+          schoolNearestGood: schoolNearestGoodPayload,
+        });
       } catch {
         setFloodSearchFocus(map, null);
         setFloodSearchContext(map, null);
+        setSchoolSearchFocus(map, null, null);
         onPostcodeSearchResultRef.current?.({ status: "error", normalizedQuery: normalized });
       }
     };
@@ -317,6 +424,8 @@ export default function ValueMap({
           }
 
           let floodNearest: LocateMeResult["floodNearest"];
+          let schoolNearest: LocateMeResult["schoolNearest"];
+          let schoolNearestGood: LocateMeResult["schoolNearestGood"];
           try {
             const entries = await getFloodSearchEntries(floodSearchEntriesRef, floodSearchEntriesPromiseRef);
             const nearest = findNearestFloodEntryByDistance(lng, lat, entries);
@@ -326,6 +435,33 @@ export default function ValueMap({
                 riskScore: nearest.riskScore,
                 riskBand: riskBandFromScore(nearest.riskScore),
                 distanceMeters: Math.round(nearest.distanceMeters),
+              };
+            }
+
+            const schoolEntries = await getSchoolSearchEntries(schoolSearchEntriesRef, schoolSearchEntriesPromiseRef);
+            const nearestSchool = findNearestSchoolEntryByDistance(lng, lat, schoolEntries);
+            if (nearestSchool) {
+              schoolNearest = {
+                schoolName: nearestSchool.schoolName,
+                postcode: nearestSchool.postcode,
+                qualityScore: nearestSchool.qualityScore,
+                qualityBand: nearestSchool.qualityBand,
+                distanceMeters: Math.round(nearestSchool.distanceMeters),
+              };
+            }
+
+            const nearestGood = findNearestSchoolEntryByDistance(
+              lng,
+              lat,
+              schoolEntries.filter((entry) => entry.isGood)
+            );
+            if (nearestGood) {
+              schoolNearestGood = {
+                schoolName: nearestGood.schoolName,
+                postcode: nearestGood.postcode,
+                qualityScore: nearestGood.qualityScore,
+                qualityBand: nearestGood.qualityBand,
+                distanceMeters: Math.round(nearestGood.distanceMeters),
               };
             }
           } catch {
@@ -345,6 +481,8 @@ export default function ValueMap({
               deltaPct: Number.isFinite(Number(cellProps?.delta_pct)) ? Number(cellProps.delta_pct) : undefined,
             },
             floodNearest,
+            schoolNearest,
+            schoolNearestGood,
           });
         };
 
@@ -485,6 +623,19 @@ export default function ValueMap({
     data: { type: "FeatureCollection", features: [] },
   });
 
+  map.addSource("school-overlay", {
+    type: "geojson",
+    data: "/api/schools?plain=1",
+    cluster: true,
+    clusterMaxZoom: 10,
+    clusterRadius: 46,
+  });
+
+  map.addSource("school-search-focus", {
+    type: "geojson",
+    data: { type: "FeatureCollection", features: [] },
+  });
+
   map.addLayer({
     id: "flood-overlay-clusters",
     type: "circle",
@@ -524,6 +675,46 @@ export default function ValueMap({
     filter: ["has", "point_count"] as any,
     layout: {
       visibility: stateRef.current.floodOverlayMode && stateRef.current.floodOverlayMode !== "off" ? "visible" : "none",
+      "text-field": ["get", "point_count_abbreviated"] as any,
+      "text-size": 11,
+      "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
+    },
+    paint: {
+      "text-color": "rgba(255,255,255,0.95)",
+    },
+  });
+
+  map.addLayer({
+    id: "school-overlay-clusters",
+    type: "circle",
+    source: "school-overlay",
+    filter: ["has", "point_count"] as any,
+    layout: {
+      visibility: stateRef.current.schoolOverlayMode && stateRef.current.schoolOverlayMode !== "off" ? "visible" : "none",
+    },
+    paint: {
+      "circle-color": [
+        "step",
+        ["get", "point_count"],
+        "rgba(74,222,128,0.55)",
+        25,
+        "rgba(34,197,94,0.72)",
+        100,
+        "rgba(21,128,61,0.86)",
+      ] as any,
+      "circle-radius": ["step", ["get", "point_count"], 14, 25, 19, 100, 26] as any,
+      "circle-stroke-color": "rgba(255,255,255,0.92)",
+      "circle-stroke-width": 1,
+    },
+  });
+
+  map.addLayer({
+    id: "school-overlay-cluster-count",
+    type: "symbol",
+    source: "school-overlay",
+    filter: ["has", "point_count"] as any,
+    layout: {
+      visibility: stateRef.current.schoolOverlayMode && stateRef.current.schoolOverlayMode !== "off" ? "visible" : "none",
       "text-field": ["get", "point_count_abbreviated"] as any,
       "text-size": 11,
       "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
@@ -606,6 +797,24 @@ export default function ValueMap({
   });
 
   map.addLayer({
+    id: "school-overlay-points",
+    type: "circle",
+    source: "school-overlay",
+    filter: ["!", ["has", "point_count"]] as any,
+    layout: {
+      visibility: stateRef.current.schoolOverlayMode && stateRef.current.schoolOverlayMode !== "off" ? "visible" : "none",
+    },
+    paint: {
+      "circle-color": schoolQualityColorExpression(),
+      "circle-opacity": 0.92,
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 3.2, 6, 5, 8, 7.5, 10, 11] as any,
+      "circle-stroke-color": "rgba(255,255,255,0.94)",
+      "circle-stroke-width": 1,
+      "circle-blur": 0.02,
+    },
+  });
+
+  map.addLayer({
     id: "flood-search-focus-ring",
     type: "circle",
     source: "flood-search-focus",
@@ -667,6 +876,34 @@ export default function ValueMap({
       "circle-color": "#93c5fd",
       "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 2, 8, 2.8, 12, 3.5] as any,
       "circle-opacity": 0.92,
+    },
+  });
+
+  map.addLayer({
+    id: "school-search-focus-ring",
+    type: "circle",
+    source: "school-search-focus",
+    filter: ["==", ["get", "role"], "nearest"] as any,
+    paint: {
+      "circle-color": "rgba(0,0,0,0)",
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 9, 8, 13, 12, 17] as any,
+      "circle-stroke-color": "#f59e0b",
+      "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 4, 2.2, 8, 3, 12, 3.8] as any,
+      "circle-stroke-opacity": 0.98,
+    },
+  });
+
+  map.addLayer({
+    id: "school-search-focus-good-ring",
+    type: "circle",
+    source: "school-search-focus",
+    filter: ["==", ["get", "role"], "nearest_good"] as any,
+    paint: {
+      "circle-color": "rgba(0,0,0,0)",
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 10, 8, 14, 12, 18] as any,
+      "circle-stroke-color": "#22c55e",
+      "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 4, 2.3, 8, 3.2, 12, 4] as any,
+      "circle-stroke-opacity": 0.98,
     },
   });
 
@@ -765,6 +1002,47 @@ export default function ValueMap({
     popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
   };
 
+  const useSchoolPopupMode = () => {
+    const current = stateRef.current;
+    return current.schoolOverlayMode === "on_hide_cells" && map.getZoom() >= 10;
+  };
+
+  const showSchoolPointPopup = (e: any) => {
+    const f = e.features?.[0] as any;
+    if (!f) return;
+
+    const p = f.properties || {};
+    const schoolName = String(p.school_name ?? "School");
+    const postcode = String(p.postcode ?? p.postcode_key ?? "Unknown postcode");
+    const qualityScore = Number(p.quality_score ?? NaN);
+    const qualityBand = String(p.quality_band ?? "Unknown");
+
+    const html = `
+      <div style="font-family: system-ui; font-size: 12px; line-height: 1.25;">
+        <div style="font-weight: 700; margin-bottom: 4px;">${schoolName}</div>
+        <div>Postcode: <b>${postcode}</b></div>
+        <div>School quality: <b>${qualityBand}</b></div>
+        <div>Score: <b>${Number.isFinite(qualityScore) ? qualityScore.toFixed(3) : "N/A"}</b></div>
+      </div>
+    `;
+
+    popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+  };
+
+  const showSchoolClusterPopup = (e: any) => {
+    const f = e.features?.[0] as any;
+    if (!f) return;
+    const count = Number(f.properties?.point_count ?? 0);
+    const html = `
+      <div style="font-family: system-ui; font-size: 12px; line-height: 1.25;">
+        <div style="font-weight: 700; margin-bottom: 4px;">School cluster</div>
+        <div>Schools in cluster: <b>${count.toLocaleString()}</b></div>
+        <div style="opacity: 0.8; margin-top: 2px;">Zoom in for school-level points.</div>
+      </div>
+    `;
+    popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+  };
+
   map.on("click", "flood-overlay-points", (e) => {
     if (!useFloodPopupMode()) return;
     showFloodPointPopup(e);
@@ -780,9 +1058,24 @@ export default function ValueMap({
     showFloodClusterPopup(e);
   });
 
+  map.on("click", "school-overlay-points", (e) => {
+    if (!useSchoolPopupMode()) return;
+    showSchoolPointPopup(e);
+  });
+
+  map.on("click", "school-overlay-clusters", (e) => {
+    if (!useSchoolPopupMode()) return;
+    showSchoolClusterPopup(e);
+  });
+
+  map.on("click", "school-overlay-cluster-count", (e) => {
+    if (!useSchoolPopupMode()) return;
+    showSchoolClusterPopup(e);
+  });
+
   map.on("mousemove", "cells-fill", (e) => {
     const voteMode = stateRef.current.voteOverlayMode ?? "off";
-    if (useFloodPopupMode()) {
+    if (useFloodPopupMode() || useSchoolPopupMode()) {
       popup.remove();
       return;
     }
@@ -904,7 +1197,7 @@ export default function ValueMap({
   fetchPostcodesRef.current = fetchPostcodes;
 
   map.on("click", "cells-fill", (e) => {
-    if (useFloodPopupMode()) {
+    if (useFloodPopupMode() || useSchoolPopupMode()) {
       return;
     }
 
@@ -1020,8 +1313,31 @@ export default function ValueMap({
     if (!map) return;
     if (!map.isStyleLoaded()) return;
 
+    const mode = state.schoolOverlayMode ?? "off";
+    const schoolVisibility = mode === "off" ? "none" : "visible";
+    try {
+      if (map.getLayer("school-overlay-points")) {
+        map.setLayoutProperty("school-overlay-points", "visibility", schoolVisibility);
+      }
+      if (map.getLayer("school-overlay-clusters")) {
+        map.setLayoutProperty("school-overlay-clusters", "visibility", schoolVisibility);
+      }
+      if (map.getLayer("school-overlay-cluster-count")) {
+        map.setLayoutProperty("school-overlay-cluster-count", "visibility", schoolVisibility);
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [state.schoolOverlayMode]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (!map.isStyleLoaded()) return;
+
     const floodHideCells = (state.floodOverlayMode ?? "off") === "on_hide_cells";
-    const hideCellsMode = floodHideCells;
+    const schoolHideCells = (state.schoolOverlayMode ?? "off") === "on_hide_cells";
+    const hideCellsMode = floodHideCells || schoolHideCells;
 
     try {
       if (map.getLayer("cells-fill")) {
@@ -1039,7 +1355,7 @@ export default function ValueMap({
     } catch (e) {
       // ignore
     }
-  }, [state.floodOverlayMode]);
+  }, [state.floodOverlayMode, state.schoolOverlayMode]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1421,6 +1737,28 @@ function floodBandColorExpression() {
     4,
     "#dc2626",
     "#22c55e",
+  ] as any;
+}
+
+function schoolQualityColorExpression() {
+  return [
+    "interpolate",
+    ["linear"],
+    ["coalesce", ["to-number", ["get", "quality_score"]], 0.5],
+    0,
+    "#7f1d1d",
+    0.2,
+    "#dc2626",
+    0.4,
+    "#f59e0b",
+    0.5,
+    "#f3f4f6",
+    0.6,
+    "#86efac",
+    0.8,
+    "#16a34a",
+    1,
+    "#14532d",
   ] as any;
 }
 
@@ -2180,6 +2518,48 @@ function setFloodSearchFocus(map: maplibregl.Map, entry: FloodSearchEntry | null
   );
 }
 
+function setSchoolSearchFocus(
+  map: maplibregl.Map,
+  nearest: (SchoolSearchEntry & { distanceMeters?: number }) | null,
+  nearestGood: (SchoolSearchEntry & { distanceMeters?: number }) | null
+) {
+  const source = map.getSource("school-search-focus") as maplibregl.GeoJSONSource | undefined;
+  if (!source) return;
+
+  const features: any[] = [];
+  if (nearest) {
+    features.push({
+      type: "Feature",
+      properties: {
+        role: "nearest",
+        school_name: nearest.schoolName,
+        postcode: nearest.postcode,
+      },
+      geometry: {
+        type: "Point",
+        coordinates: [nearest.lon, nearest.lat],
+      },
+    });
+  }
+
+  if (nearestGood) {
+    features.push({
+      type: "Feature",
+      properties: {
+        role: "nearest_good",
+        school_name: nearestGood.schoolName,
+        postcode: nearestGood.postcode,
+      },
+      geometry: {
+        type: "Point",
+        coordinates: [nearestGood.lon, nearestGood.lat],
+      },
+    });
+  }
+
+  source.setData({ type: "FeatureCollection", features } as any);
+}
+
 async function lookupPostcodeCoords(postcodeKey: string): Promise<{ lon: number; lat: number } | null> {
   const encoded = encodeURIComponent(postcodeKey);
   try {
@@ -2239,6 +2619,23 @@ function findNearestFloodEntryByDistance(lng: number, lat: number, entries: Floo
   if (!entries.length) return null;
 
   let best: (FloodSearchEntry & { distanceMeters: number }) | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  for (const entry of entries) {
+    const distanceMeters = haversineDistanceMeters(lat, lng, entry.lat, entry.lon);
+    if (distanceMeters < bestDistance) {
+      bestDistance = distanceMeters;
+      best = { ...entry, distanceMeters };
+    }
+  }
+
+  return best;
+}
+
+function findNearestSchoolEntryByDistance(lng: number, lat: number, entries: SchoolSearchEntry[]) {
+  if (!entries.length) return null;
+
+  let best: (SchoolSearchEntry & { distanceMeters: number }) | null = null;
   let bestDistance = Number.POSITIVE_INFINITY;
 
   for (const entry of entries) {
@@ -2344,11 +2741,95 @@ async function getFloodSearchEntries(
   }
 }
 
+async function getSchoolSearchEntries(
+  cacheRef: { current: SchoolSearchEntry[] | null },
+  promiseRef: { current: Promise<SchoolSearchEntry[]> | null }
+): Promise<SchoolSearchEntry[]> {
+  if (cacheRef.current) return cacheRef.current;
+  if (promiseRef.current) return promiseRef.current;
+
+  promiseRef.current = (async () => {
+    const res = await fetch("/api/schools?plain=1", { cache: "no-store" });
+    if (!res.ok) {
+      throw new Error(`School search load failed (${res.status})`);
+    }
+
+    const payload = (await res.json()) as { features?: any[] };
+    const features = Array.isArray(payload?.features) ? payload.features : [];
+    const next: SchoolSearchEntry[] = [];
+
+    for (const feature of features) {
+      const coordinates = feature?.geometry?.coordinates;
+      if (!Array.isArray(coordinates) || coordinates.length < 2) continue;
+      const lon = Number(coordinates[0]);
+      const lat = Number(coordinates[1]);
+      if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+
+      const properties = feature?.properties ?? {};
+      const schoolName = String(properties.school_name ?? "").trim();
+      const postcode = String(properties.postcode ?? "").trim().toUpperCase();
+      if (!schoolName || !postcode) continue;
+
+      const postcodeKey = normalizePostcodeSearch(String(properties.postcode_key ?? postcode));
+      if (!postcodeKey) continue;
+
+      const qualityScore = Number(properties.quality_score ?? NaN);
+      if (!Number.isFinite(qualityScore)) continue;
+
+      next.push({
+        schoolName,
+        postcode,
+        postcodeKey,
+        qualityScore,
+        qualityBand: String(properties.quality_band ?? "").trim() || "Unknown",
+        isGood: Boolean(properties.is_good),
+        lon,
+        lat,
+      });
+    }
+
+    cacheRef.current = next;
+    return next;
+  })();
+
+  try {
+    return await promiseRef.current;
+  } finally {
+    promiseRef.current = null;
+  }
+}
+
 function findNearestPostcodeMatch(query: string, entries: FloodSearchEntry[]): FloodSearchEntry | null {
   if (!entries.length) return null;
 
   const queryOutcode = deriveSearchOutcode(query);
   let best: FloodSearchEntry | null = null;
+  let bestScore = Number.POSITIVE_INFINITY;
+
+  for (const entry of entries) {
+    const entryKey = entry.postcodeKey;
+    if (!entryKey) continue;
+
+    const entryOutcode = deriveSearchOutcode(entryKey);
+    const sameOutcodePenalty = queryOutcode && entryOutcode && queryOutcode === entryOutcode ? 0 : 3;
+    const distance = levenshteinDistance(query, entryKey);
+    const score = distance + sameOutcodePenalty;
+
+    if (score < bestScore) {
+      bestScore = score;
+      best = entry;
+      if (score === 0) break;
+    }
+  }
+
+  return best;
+}
+
+function findNearestSchoolPostcodeMatch(query: string, entries: SchoolSearchEntry[]): SchoolSearchEntry | null {
+  if (!entries.length) return null;
+
+  const queryOutcode = deriveSearchOutcode(query);
+  let best: SchoolSearchEntry | null = null;
   let bestScore = Number.POSITIVE_INFINITY;
 
   for (const entry of entries) {
