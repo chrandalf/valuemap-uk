@@ -386,11 +386,15 @@ export default function Home() {
         <div style={{ textAlign: "left", fontSize: 11, opacity: 0.85 }}>Left strong</div>
         <div style={{ display: "flex", height: 16, borderRadius: 999, overflow: "hidden", border: "1px solid rgba(255,255,255,0.2)" }}>
           {[
+            "#450a0a",
             "#b91c1c",
-            "#fca5a5",
+            "#ef4444",
+            "#fecaca",
             "#f3f4f6",
+            "#bfdbfe",
             "#60a5fa",
             "#1e3a8a",
+            "#0b1b5a",
           ].map((c, i) => (
             <div key={i} style={{ flex: 1, backgroundColor: c }} />
           ))}
@@ -398,6 +402,9 @@ export default function Home() {
         <div style={{ textAlign: "right", fontSize: 11, opacity: 0.85 }}>Right strong</div>
       </div>
       <div style={{ marginTop: 8, fontSize: 11, opacity: 0.8, lineHeight: 1.35 }}>
+        Weighted axis: Left = (Progressive × 2) + (Other × 1), Right = (Popular Right × 2) + (Conservative × 1).
+      </div>
+      <div style={{ marginTop: 6, fontSize: 11, opacity: 0.8, lineHeight: 1.35 }}>
         {state.voteColorScale === "relative"
           ? "Relative: colours show each cell's left/right strength compared with other loaded cells."
           : "Absolute: colours show left/right strength from raw vote shares in that cell."}

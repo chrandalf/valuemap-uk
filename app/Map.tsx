@@ -1233,40 +1233,47 @@ export default function ValueMap({
 /** ---------------- Real data wiring ---------------- */
 
 function voteOverlayFillColorExpression(scale: VoteColorScale = "relative") {
-  const progInput = ["*", ["coalesce", ["to-number", ["get", "pct_progressive"]], 0], 100] as any;
-  const consInput = ["*", ["coalesce", ["to-number", ["get", "pct_conservative"]], 0], 100] as any;
-  const rightInput = ["*", ["coalesce", ["to-number", ["get", "pct_popular_right"]], 0], 100] as any;
+  const p = ["coalesce", ["to-number", ["get", "pct_progressive"]], 0] as any;
+  const c = ["coalesce", ["to-number", ["get", "pct_conservative"]], 0] as any;
+  const r = ["coalesce", ["to-number", ["get", "pct_popular_right"]], 0] as any;
+  const o = ["max", 0, ["-", 1, ["+", p, c, r]]] as any;
 
-  const progScore =
-    scale === "relative"
-      ? (["coalesce", ["to-number", ["get", "vote_rank_progressive"]], 0] as any)
-      : buildVoteScoreExpression(progInput, null);
-  const consScore =
-    scale === "relative"
-      ? (["coalesce", ["to-number", ["get", "vote_rank_conservative"]], 0] as any)
-      : buildVoteScoreExpression(consInput, null);
-  const rightScore =
-    scale === "relative"
-      ? (["coalesce", ["to-number", ["get", "vote_rank_popular_right"]], 0] as any)
-      : buildVoteScoreExpression(rightInput, null);
+  // Weighted axis per spec:
+  // right = (2 * popular_right) + (1 * conservative)
+  // left  = (2 * progressive) + (1 * other)
+  // normalize to [-1, 1] by dividing by 2 (raw range is roughly [-2, 2])
+  const weightedRaw = ["-", ["+", ["*", 2, p], o], ["+", ["*", 2, r], c]] as any;
+  const weightedAbsoluteAxis = ["max", -1, ["min", 1, ["/", weightedRaw, 2]]] as any;
+  const weightedRelativeAxis = [
+    "max",
+    -1,
+    ["min", 1, ["-", ["*", 2, ["coalesce", ["to-number", ["get", "vote_rank_lr"]], 0.5]], 1]],
+  ] as any;
 
-  const rightBlocScore = ["max", consScore, rightScore] as any;
-  const leftRightAxis = ["-", progScore, rightBlocScore] as any;
+  const leftRightAxis = scale === "relative" ? weightedRelativeAxis : weightedAbsoluteAxis;
 
   return [
     "interpolate",
     ["linear"],
     leftRightAxis,
     -1,
+    "#0b1b5a",
+    -0.75,
     "#1e3a8a",
     -0.5,
     "#60a5fa",
+    -0.25,
+    "#bfdbfe",
     0,
     "#f3f4f6",
+    0.25,
+    "#fecaca",
     0.5,
-    "#fca5a5",
-    1,
+    "#ef4444",
+    0.75,
     "#b91c1c",
+    1,
+    "#450a0a",
   ] as any;
 }
 
@@ -1333,21 +1340,21 @@ function ensureVoteRelativeRanks(fc: any) {
   const features = (fc?.features ?? []) as any[];
   if (!features.length) return false;
 
-  const changedProg = assignVoteRank(features, "pct_progressive", "vote_rank_progressive");
-  const changedCons = assignVoteRank(features, "pct_conservative", "vote_rank_conservative");
-  const changedRight = assignVoteRank(features, "pct_popular_right", "vote_rank_popular_right");
-
-  return changedProg || changedCons || changedRight;
-}
-
-function assignVoteRank(features: any[], valueKey: "pct_progressive" | "pct_conservative" | "pct_popular_right", rankKey: string) {
-  const hasAll = features.every((f) => Number.isFinite(Number(f?.properties?.[rankKey])));
+  const hasAll = features.every((f) => Number.isFinite(Number(f?.properties?.vote_rank_lr)));
   if (hasAll) return false;
 
   const ranked: Array<{ index: number; value: number }> = [];
   for (let i = 0; i < features.length; i++) {
-    const value = Number(features[i]?.properties?.[valueKey]);
-    ranked.push({ index: i, value: Number.isFinite(value) ? value : 0 });
+    const props = features[i]?.properties ?? {};
+    const p = Number(props.pct_progressive ?? 0);
+    const c = Number(props.pct_conservative ?? 0);
+    const r = Number(props.pct_popular_right ?? 0);
+    const pSafe = Number.isFinite(p) ? p : 0;
+    const cSafe = Number.isFinite(c) ? c : 0;
+    const rSafe = Number.isFinite(r) ? r : 0;
+    const other = Math.max(0, 1 - (pSafe + cSafe + rSafe));
+    const weightedRaw = (2 * pSafe + other) - (2 * rSafe + cSafe);
+    ranked.push({ index: i, value: weightedRaw });
   }
 
   ranked.sort((a, b) => a.value - b.value);
@@ -1356,7 +1363,7 @@ function assignVoteRank(features: any[], valueKey: "pct_progressive" | "pct_cons
     const rank = pos / denom;
     const feature = features[ranked[pos].index];
     if (!feature.properties) feature.properties = {};
-    feature.properties[rankKey] = rank;
+    feature.properties.vote_rank_lr = rank;
   }
 
   return true;
