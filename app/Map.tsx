@@ -208,6 +208,7 @@ export default function ValueMap({
   const schoolSearchEntriesPromiseRef = useRef<Promise<SchoolSearchEntry[]> | null>(null);
   const indexPrefsRef = useRef<IndexPrefs | null>(indexPrefs ?? null);
   const prevIndexActiveRef = useRef(false);
+  const cellFcRef = useRef<any>(null);
 
 
   useEffect(() => {
@@ -1352,11 +1353,12 @@ export default function ValueMap({
   });
 
   // Initial real data load
-  await setRealData(map, state, geoCacheRef.current, undefined, onLegendChange);
+  const initFc = await setRealData(map, state, geoCacheRef.current, undefined, onLegendChange);
+  if (initFc) cellFcRef.current = initFc;
   if (indexPrefsRef.current) {
-    applyIndexScoring(map, indexPrefsRef.current, stateRef.current);
-    prevIndexActiveRef.current = true;
-    onIndexScoringAppliedRef.current?.();
+    void applyIndexScoring(map, indexPrefsRef.current, stateRef.current, cellFcRef.current ?? undefined).then((ok) => {
+      if (ok) { prevIndexActiveRef.current = true; onIndexScoringAppliedRef.current?.(); }
+    });
   }
 });
 
@@ -1385,11 +1387,12 @@ export default function ValueMap({
     const debounceMs = 200;
     const timeoutId = setTimeout(() => {
       setRealData(map, state, geoCacheRef.current, abortController.signal, onLegendChange)
-        .then(() => {
+        .then((fc) => {
+          if (fc) cellFcRef.current = fc;
           if (indexPrefsRef.current) {
-            applyIndexScoring(map, indexPrefsRef.current, stateRef.current);
-            prevIndexActiveRef.current = true;
-            onIndexScoringAppliedRef.current?.();
+            void applyIndexScoring(map, indexPrefsRef.current, stateRef.current, cellFcRef.current ?? undefined).then((ok) => {
+              if (ok) { prevIndexActiveRef.current = true; onIndexScoringAppliedRef.current?.(); }
+            });
           }
           if (requestSeqRef.current === seq) setIsLoading(false);
         })
@@ -1429,13 +1432,19 @@ export default function ValueMap({
 
     const active = indexPrefs != null;
     if (active) {
-      applyIndexScoring(map, indexPrefs, stateRef.current);
-      onIndexScoringAppliedRef.current?.();
+      void (async () => {
+        const ok = await applyIndexScoring(map, indexPrefs, stateRef.current, cellFcRef.current ?? undefined);
+        if (ok) onIndexScoringAppliedRef.current?.();
+      })();
     } else if (prevIndexActiveRef.current) {
-      clearIndexScoring(map, stateRef.current);
+      // Restore opacity then re-apply quantile colour mapping (NOT static getFillColorExpression)
+      if (map.getLayer("cells-fill")) {
+        map.setPaintProperty("cells-fill", "fill-opacity", 0.72);
+      }
+      void ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange);
     }
     prevIndexActiveRef.current = active;
-  }, [indexPrefs]);
+  }, [indexPrefs, onLegendChange]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1928,7 +1937,7 @@ async function setRealData(
   cache: Map<string, any>,
   signal?: AbortSignal,
   onLegendChange?: (legend: LegendData | null) => void
-) {
+): Promise<any> {
   // Determine if we're fetching delta or regular data
   const isDelta = isDeltaMetric(state.metric);
   const endpoint = isDelta ? "/api/deltas" : "/api/cells";
@@ -1943,7 +1952,7 @@ async function setRealData(
       applyVoteOverlayColorFromSource(map, state.voteColorScale ?? "relative", cached);
     }
     await ensureAggregatesAndUpdate(map, state, cache, onLegendChange);
-    return;
+    return cached;
   }
 
   // Clear stale data while fetching to avoid showing wrong colors/legend
@@ -1994,6 +2003,7 @@ async function setRealData(
     applyVoteOverlayColorFromSource(map, state.voteColorScale ?? "relative", fc);
   }
   await ensureAggregatesAndUpdate(map, state, cache, onLegendChange);
+  return fc;
 }
 
 // Normalize delta rows: rename gx_5000/gy_5000 to gx/gy based on grid
@@ -2410,47 +2420,69 @@ function applyValueFilter(map: maplibregl.Map, state: MapState) {
 
 /* ─── Index "Find My Area" scoring ─── */
 
-function applyIndexScoring(map: maplibregl.Map, prefs: IndexPrefs, state: MapState) {
+// Module-level cache for index scoring overlay data (loaded once per browser session)
+let _indexFloodCache: Array<{ lon: number; lat: number; riskScore: number }> | null = null;
+let _indexSchoolCache: Array<{ lon: number; lat: number; qualityScore: number; isGood: boolean }> | null = null;
+
+async function applyIndexScoring(
+  map: maplibregl.Map,
+  prefs: IndexPrefs,
+  state: MapState,
+  cellFc?: any
+): Promise<boolean> {
   const src = map.getSource("cells") as maplibregl.GeoJSONSource | undefined;
-  if (!src) return;
+  if (!src) return false;
 
-  const fc: any = (src as any)._data ?? null;
-  if (!fc || !Array.isArray(fc.features) || fc.features.length === 0) return;
+  // Use caller-provided cellFc (most reliable); fall back to MapLibre internal _data as last resort
+  const fc: any = cellFc ?? (src as any)._data ?? null;
+  if (!fc || !Array.isArray(fc.features) || fc.features.length === 0) return false;
 
-  // Helper: extract GeoJSON from a source, handling URL-loaded sources
-  const extractFeatures = (sourceName: string): any[] => {
-    const s = map.getSource(sourceName) as maplibregl.GeoJSONSource | undefined;
-    if (!s) return [];
-    const data: any = (s as any)._data ?? null;
-    if (!data) return [];
-    // If data is a FeatureCollection, use it directly
-    if (typeof data === "object" && Array.isArray(data.features)) return data.features;
-    return [];
-  };
-
-  // Collect flood overlay points for spatial lookup
-  const floodPoints: Array<{ lon: number; lat: number; riskScore: number }> = [];
-  for (const f of extractFeatures("flood-overlay")) {
-    if (f?.geometry?.type === "Point") {
-      const [lon, lat] = f.geometry.coordinates;
-      floodPoints.push({ lon, lat, riskScore: Number(f.properties?.risk_score ?? 0) || 0 });
+  // — Load flood data (cached after first call) —
+  if (_indexFloodCache === null) {
+    try {
+      const res = await fetch("/api/flood?plain=1");
+      if (res.ok) {
+        const payload = (await res.json()) as any;
+        _indexFloodCache = (Array.isArray(payload?.features) ? payload.features : [])
+          .filter((f: any) => f?.geometry?.type === "Point")
+          .map((f: any) => ({
+            lon: Number(f.geometry.coordinates[0]),
+            lat: Number(f.geometry.coordinates[1]),
+            riskScore: Number(f.properties?.risk_score ?? 0) || 0,
+          }));
+      } else {
+        _indexFloodCache = [];
+      }
+    } catch {
+      _indexFloodCache = [];
     }
   }
 
-  // Collect school overlay points for spatial lookup
-  const schoolPoints: Array<{ lon: number; lat: number; qualityScore: number; isGood: boolean }> = [];
-  for (const f of extractFeatures("school-overlay")) {
-    if (f?.geometry?.type === "Point") {
-      const [lon, lat] = f.geometry.coordinates;
-      schoolPoints.push({
-        lon, lat,
-        qualityScore: Number(f.properties?.quality_score ?? 50) || 50,
-        isGood: Boolean(f.properties?.is_good),
-      });
+  // — Load school data (cached after first call) —
+  if (_indexSchoolCache === null) {
+    try {
+      const res = await fetch("/api/schools?plain=1");
+      if (res.ok) {
+        const payload = (await res.json()) as any;
+        _indexSchoolCache = (Array.isArray(payload?.features) ? payload.features : [])
+          .filter((f: any) => f?.geometry?.type === "Point")
+          .map((f: any) => ({
+            lon: Number(f.geometry.coordinates[0]),
+            lat: Number(f.geometry.coordinates[1]),
+            qualityScore: Number(f.properties?.quality_score ?? 50) || 50,
+            isGood: Boolean(f.properties?.is_good),
+          }));
+      } else {
+        _indexSchoolCache = [];
+      }
+    } catch {
+      _indexSchoolCache = [];
     }
   }
 
-  // Compute cell centre coords (average of polygon corners)
+  const floodPoints: Array<{ lon: number; lat: number; riskScore: number }> = _indexFloodCache ?? [];
+  const schoolPoints: Array<{ lon: number; lat: number; qualityScore: number; isGood: boolean }> = _indexSchoolCache ?? [];
+
   const metricProp = metricPropName(state.metric);
 
   for (const feature of fc.features) {
@@ -2552,23 +2584,7 @@ function applyIndexScoring(map: maplibregl.Map, prefs: IndexPrefs, state: MapSta
       1, 0.85,
     ] as any);
   }
-}
-
-function clearIndexScoring(map: maplibregl.Map, state: MapState) {
-  // Restore normal fill-color based on metric
-  const voteModeActive = (state.voteOverlayMode ?? "off") !== "off";
-  if (voteModeActive) {
-    applyVoteOverlayColorFromSource(map, state.voteColorScale ?? "relative");
-  } else {
-    const expr = getFillColorExpression(state.metric);
-    if (map.getLayer("cells-fill")) {
-      map.setPaintProperty("cells-fill", "fill-color", expr);
-    }
-  }
-  // Restore normal opacity
-  if (map.getLayer("cells-fill")) {
-    map.setPaintProperty("cells-fill", "fill-opacity", 0.72);
-  }
+  return true;
 }
 
 function rowsToGeoJsonSquares(rows: ApiRow[], g: number) {
