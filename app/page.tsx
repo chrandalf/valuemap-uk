@@ -124,6 +124,7 @@ export default function Home() {
   const [mobileQuickFilterKey, setMobileQuickFilterKey] = useState<MobileQuickFilterKey>("grid");
   const [indexOpen, setIndexOpen] = useState(false);
   const [indexActive, setIndexActive] = useState(false);
+  const [indexScoringPending, setIndexScoringPending] = useState(false);
   const [indexToken, setIndexToken] = useState(0);
   const [indexBudget, setIndexBudget] = useState(300000);
   const [indexAffordWeight, setIndexAffordWeight] = useState(5);
@@ -172,12 +173,19 @@ export default function Home() {
     setPostcodeSearchStatus(null);
     setIndexOpen(false);
     setIndexActive(false);
+    setIndexScoringPending(false);
   };
 
   useEffect(() => {
     if (!activePostcodeSearch.trim()) return;
     setPostcodeSearchToken((v) => v + 1);
   }, [state.floodOverlayMode, state.schoolOverlayMode, activePostcodeSearch]);
+
+  useEffect(() => {
+    if (!indexActive) {
+      setIndexScoringPending(false);
+    }
+  }, [indexActive]);
 
   const scrollSupportersRight = () => {
     const el = supportersScrollerRef.current;
@@ -792,6 +800,7 @@ export default function Home() {
         locateMeToken={locateMeToken}
         onLocateMeResult={handleLocateMeResult}
         indexPrefs={computedIndexPrefs}
+        onIndexScoringApplied={() => setIndexScoringPending(false)}
         onPostcodeSearchResult={(result) => {
           const floodLookupActive = result.lookupMode !== "schools" && state.floodOverlayMode !== "off";
           const schoolLookupActive = result.lookupMode !== "flood" && state.schoolOverlayMode !== "off";
@@ -1921,7 +1930,7 @@ export default function Home() {
             <div style={{ display: "flex", gap: 8 }}>
               <button
                 type="button"
-                onClick={() => { setIndexActive(true); setIndexToken((t) => t + 1); setIndexOpen(false); }}
+                onClick={() => { setIndexScoringPending(true); setIndexActive(true); setIndexToken((t) => t + 1); setIndexOpen(false); }}
                 style={{
                   flex: 1,
                   cursor: "pointer",
@@ -1934,12 +1943,12 @@ export default function Home() {
                   fontWeight: 700,
                 }}
               >
-                🗺️ Score areas
+                {indexScoringPending ? "⏳ Scoring..." : "🗺️ Score areas"}
               </button>
               {indexActive && (
                 <button
                   type="button"
-                  onClick={() => { setIndexActive(false); setIndexOpen(false); }}
+                  onClick={() => { setIndexScoringPending(false); setIndexActive(false); setIndexOpen(false); }}
                   style={{
                     flex: 1,
                     cursor: "pointer",
@@ -2374,8 +2383,12 @@ export default function Home() {
                 gap: 10,
               }}
             >
-              <span style={{ fontWeight: 700, fontSize: 12 }}>🔍 Areas scored</span>
-              <span style={{ flex: 1, fontSize: 10, opacity: 0.6 }}>Green = great match</span>
+              <span style={{ fontWeight: 700, fontSize: 12 }}>
+                {indexScoringPending ? "⏳ Scoring areas..." : "🔍 Areas scored"}
+              </span>
+              <span style={{ flex: 1, fontSize: 10, opacity: 0.6 }}>
+                {indexScoringPending ? "Applying colours to cells" : "Green = great match"}
+              </span>
               <button
                 type="button"
                 onClick={() => setIndexOpen(true)}
@@ -2394,7 +2407,7 @@ export default function Home() {
               </button>
               <button
                 type="button"
-                onClick={() => { setIndexActive(false); setIndexOpen(false); }}
+                onClick={() => { setIndexScoringPending(false); setIndexActive(false); setIndexOpen(false); }}
                 style={{
                   cursor: "pointer",
                   border: "1px solid rgba(239,68,68,0.3)",

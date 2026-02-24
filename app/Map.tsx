@@ -168,6 +168,7 @@ export default function ValueMap({
   locateMeToken,
   onLocateMeResult,
   indexPrefs,
+  onIndexScoringApplied,
 }: {
   state: MapState;
   onLegendChange?: (legend: LegendData | null) => void;
@@ -179,6 +180,7 @@ export default function ValueMap({
   locateMeToken?: number;
   onLocateMeResult?: (result: LocateMeResult) => void;
   indexPrefs?: IndexPrefs | null;
+  onIndexScoringApplied?: () => void;
 }) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -188,6 +190,7 @@ export default function ValueMap({
   const onZoomChangeRef = useRef<typeof onZoomChange>(onZoomChange);
   const onPostcodeSearchResultRef = useRef<typeof onPostcodeSearchResult>(onPostcodeSearchResult);
   const onLocateMeResultRef = useRef<typeof onLocateMeResult>(onLocateMeResult);
+  const onIndexScoringAppliedRef = useRef<typeof onIndexScoringApplied>(onIndexScoringApplied);
   const locateMarkerRef = useRef<maplibregl.Marker | null>(null);
 
   const [postcodeCell, setPostcodeCell] = useState<string | null>(null);
@@ -222,6 +225,10 @@ export default function ValueMap({
   useEffect(() => {
     onLocateMeResultRef.current = onLocateMeResult;
   }, [onLocateMeResult]);
+
+  useEffect(() => {
+    onIndexScoringAppliedRef.current = onIndexScoringApplied;
+  }, [onIndexScoringApplied]);
 
   useEffect(() => {
     setPostcodeCell(null);
@@ -1346,6 +1353,11 @@ export default function ValueMap({
 
   // Initial real data load
   await setRealData(map, state, geoCacheRef.current, undefined, onLegendChange);
+  if (indexPrefsRef.current) {
+    applyIndexScoring(map, indexPrefsRef.current, stateRef.current);
+    prevIndexActiveRef.current = true;
+    onIndexScoringAppliedRef.current?.();
+  }
 });
 
     mapRef.current = map;
@@ -1374,6 +1386,11 @@ export default function ValueMap({
     const timeoutId = setTimeout(() => {
       setRealData(map, state, geoCacheRef.current, abortController.signal, onLegendChange)
         .then(() => {
+          if (indexPrefsRef.current) {
+            applyIndexScoring(map, indexPrefsRef.current, stateRef.current);
+            prevIndexActiveRef.current = true;
+            onIndexScoringAppliedRef.current?.();
+          }
           if (requestSeqRef.current === seq) setIsLoading(false);
         })
         .catch((e) => {
@@ -1413,6 +1430,7 @@ export default function ValueMap({
     const active = indexPrefs != null;
     if (active) {
       applyIndexScoring(map, indexPrefs, stateRef.current);
+      onIndexScoringAppliedRef.current?.();
     } else if (prevIndexActiveRef.current) {
       clearIndexScoring(map, stateRef.current);
     }
