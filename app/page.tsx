@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import ValueMap, { type LegendData, type LocateMeResult } from "./Map";
+import { useEffect, useMemo, useRef, useState } from "react";
+import ValueMap, { type LegendData, type LocateMeResult, type IndexPrefs } from "./Map";
 
 type GridSize = "1km" | "5km" | "10km" | "25km";
 type Metric = "median" | "median_ppsf" | "delta_gbp" | "delta_pct";
@@ -122,12 +122,28 @@ export default function Home() {
   const [cleanScreenMode, setCleanScreenMode] = useState(false);
   const [mobileOverlayRatio, setMobileOverlayRatio] = useState(0);
   const [mobileQuickFilterKey, setMobileQuickFilterKey] = useState<MobileQuickFilterKey>("grid");
+  const [indexOpen, setIndexOpen] = useState(false);
+  const [indexActive, setIndexActive] = useState(false);
+  const [indexToken, setIndexToken] = useState(0);
+  const [indexBudget, setIndexBudget] = useState(300000);
+  const [indexAffordWeight, setIndexAffordWeight] = useState(5);
+  const [indexFloodWeight, setIndexFloodWeight] = useState(5);
+  const [indexSchoolWeight, setIndexSchoolWeight] = useState(5);
+  const [indexCoastWeight, setIndexCoastWeight] = useState(0);
   const urlHydratedRef = useRef(false);
   const supportersScrollerRef = useRef<HTMLDivElement | null>(null);
   const topPanelRef = useRef<HTMLDivElement | null>(null);
   const rightPanelsRef = useRef<HTMLDivElement | null>(null);
 
   const anySubpanelOpen = filtersOpen || instructionsOpen || dataSourcesOpen || electionInfoOpen;
+
+  // Memoize indexPrefs to only change when the user presses "Score areas" (incrementing indexToken)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const computedIndexPrefs: IndexPrefs | null = useMemo(() => {
+    if (!indexActive) return null;
+    return { budget: indexBudget, affordWeight: indexAffordWeight, floodWeight: indexFloodWeight, schoolWeight: indexSchoolWeight, coastWeight: indexCoastWeight };
+  }, [indexActive, indexToken]);
+
   const DEFAULT_STATE: MapState = {
     grid: "5km",
     metric: "median",
@@ -154,6 +170,8 @@ export default function Home() {
     setMenuOpen(true);
     setActivePostcodeSearch("");
     setPostcodeSearchStatus(null);
+    setIndexOpen(false);
+    setIndexActive(false);
   };
 
   useEffect(() => {
@@ -752,6 +770,7 @@ export default function Home() {
         postcodeSearchToken={postcodeSearchToken}
         locateMeToken={locateMeToken}
         onLocateMeResult={handleLocateMeResult}
+        indexPrefs={computedIndexPrefs}
         onPostcodeSearchResult={(result) => {
           const floodLookupActive = result.lookupMode !== "schools" && state.floodOverlayMode !== "off";
           const schoolLookupActive = result.lookupMode !== "flood" && state.schoolOverlayMode !== "off";
@@ -924,6 +943,35 @@ export default function Home() {
               }}
             >
               {filtersOpen ? "Hide filters" : "Filters"}
+            </button>
+          )}
+
+          {menuOpen && !anySubpanelOpen && (
+            <button
+              type="button"
+              onClick={() => {
+                setIndexOpen((v) => !v);
+                setMenuOpen(false);
+              }}
+              className="index-toggle menu-btn"
+              style={{
+                padding: "6px 10px",
+                borderRadius: 999,
+                border: indexActive
+                  ? "2px solid rgba(26,152,80,0.9)"
+                  : "2px solid rgba(250,204,21,0.7)",
+                background: indexActive
+                  ? "rgba(26,152,80,0.22)"
+                  : "rgba(250,204,21,0.14)",
+                color: "white",
+                fontSize: 11,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              🔍 Find my area
             </button>
           )}
 
@@ -1954,6 +2002,172 @@ export default function Home() {
               </div>
             )}
           </div>
+
+          {indexOpen && (
+            <div
+              className="index-panel"
+              style={{
+                width: "100%",
+                padding: "12px 14px",
+                borderRadius: 14,
+                background: "rgba(10, 12, 20, 0.9)",
+                border: indexActive
+                  ? "2px solid rgba(26,152,80,0.6)"
+                  : "1px solid rgba(250,204,21,0.25)",
+                backdropFilter: "blur(10px)",
+                color: "white",
+                fontSize: 12,
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>🔍 Find my area</div>
+                <button
+                  type="button"
+                  onClick={() => { setIndexOpen(false); setIndexActive(false); }}
+                  style={{
+                    cursor: "pointer",
+                    border: "1px solid rgba(255,255,255,0.18)",
+                    background: "rgba(255,255,255,0.08)",
+                    color: "white",
+                    width: 24, height: 24,
+                    borderRadius: 999,
+                    fontSize: 14, lineHeight: 1,
+                    display: "inline-flex", alignItems: "center", justifyContent: "center",
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 12, lineHeight: 1.4 }}>
+                Tell us what matters to you and we'll score every area on the map.
+              </div>
+
+              {/* Budget */}
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                  <span style={{ fontWeight: 600, fontSize: 11 }}>
+                    💰 Budget ({state.metric === "median_ppsf" ? "per ft²" : "price"})
+                  </span>
+                  <span style={{ fontSize: 11, opacity: 0.8, fontVariantNumeric: "tabular-nums" }}>
+                    £{indexBudget.toLocaleString()}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={state.metric === "median_ppsf" ? 50 : 50000}
+                  max={state.metric === "median_ppsf" ? 1000 : 2000000}
+                  step={state.metric === "median_ppsf" ? 10 : 10000}
+                  value={indexBudget}
+                  onChange={(e) => setIndexBudget(Number(e.target.value))}
+                  style={{ width: "100%", accentColor: "#facc15" }}
+                />
+              </div>
+
+              {/* Affordability weight */}
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                  <span style={{ fontWeight: 600, fontSize: 11 }}>💰 Affordability importance</span>
+                  <span style={{ fontSize: 11, opacity: 0.8 }}>{indexAffordWeight}/10</span>
+                </div>
+                <input
+                  type="range" min={0} max={10} step={1}
+                  value={indexAffordWeight}
+                  onChange={(e) => setIndexAffordWeight(Number(e.target.value))}
+                  style={{ width: "100%", accentColor: "#facc15" }}
+                />
+              </div>
+
+              {/* Flood weight */}
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                  <span style={{ fontWeight: 600, fontSize: 11 }}>🌊 Flood safety importance</span>
+                  <span style={{ fontSize: 11, opacity: 0.8 }}>{indexFloodWeight}/10</span>
+                </div>
+                <input
+                  type="range" min={0} max={10} step={1}
+                  value={indexFloodWeight}
+                  onChange={(e) => setIndexFloodWeight(Number(e.target.value))}
+                  style={{ width: "100%", accentColor: "#60a5fa" }}
+                />
+              </div>
+
+              {/* School weight */}
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                  <span style={{ fontWeight: 600, fontSize: 11 }}>🏫 School quality importance</span>
+                  <span style={{ fontSize: 11, opacity: 0.8 }}>{indexSchoolWeight}/10</span>
+                </div>
+                <input
+                  type="range" min={0} max={10} step={1}
+                  value={indexSchoolWeight}
+                  onChange={(e) => setIndexSchoolWeight(Number(e.target.value))}
+                  style={{ width: "100%", accentColor: "#22c55e" }}
+                />
+              </div>
+
+              {/* Coast weight – placeholder */}
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                  <span style={{ fontWeight: 600, fontSize: 11, opacity: 0.5 }}>🏖️ Coast proximity (coming soon)</span>
+                  <span style={{ fontSize: 11, opacity: 0.4 }}>{indexCoastWeight}/10</span>
+                </div>
+                <input
+                  type="range" min={0} max={10} step={1}
+                  value={indexCoastWeight}
+                  onChange={(e) => setIndexCoastWeight(Number(e.target.value))}
+                  style={{ width: "100%", accentColor: "#94a3b8", opacity: 0.4 }}
+                  disabled
+                />
+              </div>
+
+              {/* Score / Clear buttons */}
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => { setIndexActive(true); setIndexToken((t) => t + 1); }}
+                  style={{
+                    flex: 1,
+                    cursor: "pointer",
+                    border: "2px solid rgba(26,152,80,0.7)",
+                    background: "rgba(26,152,80,0.22)",
+                    color: "white",
+                    padding: "8px 12px",
+                    borderRadius: 999,
+                    fontSize: 12,
+                    fontWeight: 700,
+                  }}
+                >
+                  Score areas
+                </button>
+                {indexActive && (
+                  <button
+                    type="button"
+                    onClick={() => setIndexActive(false)}
+                    style={{
+                      flex: 1,
+                      cursor: "pointer",
+                      border: "1px solid rgba(255,255,255,0.18)",
+                      background: "rgba(255,255,255,0.08)",
+                      color: "white",
+                      padding: "8px 12px",
+                      borderRadius: 999,
+                      fontSize: 12,
+                      fontWeight: 600,
+                    }}
+                  >
+                    Clear scores
+                  </button>
+                )}
+              </div>
+
+              {indexActive && (
+                <div style={{ marginTop: 8, fontSize: 10, opacity: 0.6, lineHeight: 1.35 }}>
+                  🟢 Great match → 🟡 Average → 🔴 Poor match. Adjust sliders and press &quot;Score areas&quot; again to re-score.
+                </div>
+              )}
+            </div>
+          )}
 
           {(
             state.metric === "median" ||

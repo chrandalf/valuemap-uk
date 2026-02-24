@@ -26,6 +26,14 @@ export type MapState = {
   voteColorScale?: VoteColorScale;
 };
 
+export type IndexPrefs = {
+  budget: number;           // target price (median GBP or PPSF depending on metric)
+  affordWeight: number;     // 0-10 importance
+  floodWeight: number;      // 0-10 importance
+  schoolWeight: number;     // 0-10 importance
+  coastWeight: number;      // 0-10 importance (placeholder for now)
+};
+
 export type LegendData =
   | {
       kind: "median";
@@ -159,6 +167,7 @@ export default function ValueMap({
   onPostcodeSearchResult,
   locateMeToken,
   onLocateMeResult,
+  indexPrefs,
 }: {
   state: MapState;
   onLegendChange?: (legend: LegendData | null) => void;
@@ -169,6 +178,7 @@ export default function ValueMap({
   onPostcodeSearchResult?: (result: FloodSearchResult) => void;
   locateMeToken?: number;
   onLocateMeResult?: (result: LocateMeResult) => void;
+  indexPrefs?: IndexPrefs | null;
 }) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -193,6 +203,8 @@ export default function ValueMap({
   const floodSearchEntriesPromiseRef = useRef<Promise<FloodSearchEntry[]> | null>(null);
   const schoolSearchEntriesRef = useRef<SchoolSearchEntry[] | null>(null);
   const schoolSearchEntriesPromiseRef = useRef<Promise<SchoolSearchEntry[]> | null>(null);
+  const indexPrefsRef = useRef<IndexPrefs | null>(indexPrefs ?? null);
+  const prevIndexActiveRef = useRef(false);
 
 
   useEffect(() => {
@@ -244,6 +256,7 @@ export default function ValueMap({
           : "schools";
 
         const requestedCoords = await lookupPostcodeCoords(normalized);
+        setPostcodeSearchMarker(map, requestedCoords);
         const schoolEntries = schoolsEnabled
           ? await getSchoolSearchEntries(schoolSearchEntriesRef, schoolSearchEntriesPromiseRef)
           : [];
@@ -407,6 +420,7 @@ export default function ValueMap({
         setFloodSearchFocus(map, null);
         setFloodSearchContext(map, null);
         setSchoolSearchFocus(map, null, null, null);
+        setPostcodeSearchMarker(map, null);
         onPostcodeSearchResultRef.current?.({ status: "error", normalizedQuery: normalized });
       }
     };
@@ -692,6 +706,11 @@ export default function ValueMap({
     data: { type: "FeatureCollection", features: [] },
   });
 
+  map.addSource("postcode-search-marker", {
+    type: "geojson",
+    data: { type: "FeatureCollection", features: [] },
+  });
+
   map.addLayer({
     id: "flood-overlay-clusters",
     type: "circle",
@@ -829,7 +848,8 @@ export default function ValueMap({
       visibility: stateRef.current.floodOverlayMode && stateRef.current.floodOverlayMode !== "off" ? "visible" : "none",
       "text-field": "■",
       "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
-      "text-size": ["interpolate", ["linear"], ["zoom"], 4, 8, 6, 11, 8, 15, 10, 20] as any,
+      "text-size": ["interpolate", ["linear"], ["zoom"], 4, 12, 6, 16, 8, 22, 10, 30] as any,
+      "text-allow-overlap": true,
     },
     paint: {
       "text-color": [
@@ -847,10 +867,10 @@ export default function ValueMap({
         "#dc2626",
         "#22c55e",
       ] as any,
-      "text-opacity": ["interpolate", ["linear"], floodSeverityExpression(), 0, 0.6, 4, 0.98] as any,
-      "text-halo-color": "rgba(255,255,255,0.95)",
-      "text-halo-width": 1,
-      "text-halo-blur": 0.1,
+      "text-opacity": ["interpolate", ["linear"], floodSeverityExpression(), 0, 0.7, 4, 1] as any,
+      "text-halo-color": "rgba(0,0,0,0.7)",
+      "text-halo-width": 1.8,
+      "text-halo-blur": 0.3,
     },
   });
 
@@ -904,10 +924,10 @@ export default function ValueMap({
     source: "flood-search-context",
     filter: ["==", ["geometry-type"], "LineString"] as any,
     paint: {
-      "line-color": "#93c5fd",
-      "line-width": 2,
-      "line-dasharray": [2, 2],
-      "line-opacity": 0.92,
+      "line-color": "#60a5fa",
+      "line-width": 3.5,
+      "line-dasharray": [3, 1.5],
+      "line-opacity": 0.95,
     },
   });
 
@@ -943,10 +963,10 @@ export default function ValueMap({
     source: "school-search-focus",
     filter: ["all", ["==", ["geometry-type"], "LineString"], ["==", ["get", "role"], "nearest_link"]] as any,
     paint: {
-      "line-color": "#f59e0b",
-      "line-width": 2,
-      "line-dasharray": [2, 2],
-      "line-opacity": 0.9,
+      "line-color": "#ef4444",
+      "line-width": 3.5,
+      "line-dasharray": [3, 1.5],
+      "line-opacity": 0.95,
     },
   });
 
@@ -957,9 +977,9 @@ export default function ValueMap({
     filter: ["all", ["==", ["geometry-type"], "LineString"], ["==", ["get", "role"], "nearest_good_link"]] as any,
     paint: {
       "line-color": "#22c55e",
-      "line-width": 2,
-      "line-dasharray": [2, 2],
-      "line-opacity": 0.92,
+      "line-width": 3.5,
+      "line-dasharray": [3, 1.5],
+      "line-opacity": 0.95,
     },
   });
 
@@ -988,6 +1008,25 @@ export default function ValueMap({
       "circle-stroke-color": "#22c55e",
       "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 4, 2.3, 8, 3.2, 12, 4] as any,
       "circle-stroke-opacity": 0.98,
+    },
+  });
+
+  map.addLayer({
+    id: "postcode-search-star",
+    type: "symbol",
+    source: "postcode-search-marker",
+    layout: {
+      "text-field": "★",
+      "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
+      "text-size": ["interpolate", ["linear"], ["zoom"], 4, 18, 8, 26, 12, 34] as any,
+      "text-allow-overlap": true,
+      "text-ignore-placement": true,
+    },
+    paint: {
+      "text-color": "#facc15",
+      "text-halo-color": "rgba(0,0,0,0.85)",
+      "text-halo-width": 2.2,
+      "text-halo-blur": 0.4,
     },
   });
 
@@ -1363,6 +1402,22 @@ export default function ValueMap({
 
     applyValueFilter(map, state);
   }, [state.metric, state.valueFilterMode, state.valueThreshold]);
+
+  // Index scoring effect
+  useEffect(() => {
+    indexPrefsRef.current = indexPrefs ?? null;
+    const map = mapRef.current;
+    if (!map) return;
+    if (!map.isStyleLoaded()) return;
+
+    const active = indexPrefs != null;
+    if (active) {
+      applyIndexScoring(map, indexPrefs, stateRef.current);
+    } else if (prevIndexActiveRef.current) {
+      clearIndexScoring(map, stateRef.current);
+    }
+    prevIndexActiveRef.current = active;
+  }, [indexPrefs]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -2335,6 +2390,169 @@ function applyValueFilter(map: maplibregl.Map, state: MapState) {
   }
 }
 
+/* ─── Index "Find My Area" scoring ─── */
+
+function applyIndexScoring(map: maplibregl.Map, prefs: IndexPrefs, state: MapState) {
+  const src = map.getSource("cells") as maplibregl.GeoJSONSource | undefined;
+  if (!src) return;
+
+  const fc: any = (src as any)._data ?? null;
+  if (!fc || !Array.isArray(fc.features) || fc.features.length === 0) return;
+
+  // Helper: extract GeoJSON from a source, handling URL-loaded sources
+  const extractFeatures = (sourceName: string): any[] => {
+    const s = map.getSource(sourceName) as maplibregl.GeoJSONSource | undefined;
+    if (!s) return [];
+    const data: any = (s as any)._data ?? null;
+    if (!data) return [];
+    // If data is a FeatureCollection, use it directly
+    if (typeof data === "object" && Array.isArray(data.features)) return data.features;
+    return [];
+  };
+
+  // Collect flood overlay points for spatial lookup
+  const floodPoints: Array<{ lon: number; lat: number; riskScore: number }> = [];
+  for (const f of extractFeatures("flood-overlay")) {
+    if (f?.geometry?.type === "Point") {
+      const [lon, lat] = f.geometry.coordinates;
+      floodPoints.push({ lon, lat, riskScore: Number(f.properties?.risk_score ?? 0) || 0 });
+    }
+  }
+
+  // Collect school overlay points for spatial lookup
+  const schoolPoints: Array<{ lon: number; lat: number; qualityScore: number; isGood: boolean }> = [];
+  for (const f of extractFeatures("school-overlay")) {
+    if (f?.geometry?.type === "Point") {
+      const [lon, lat] = f.geometry.coordinates;
+      schoolPoints.push({
+        lon, lat,
+        qualityScore: Number(f.properties?.quality_score ?? 50) || 50,
+        isGood: Boolean(f.properties?.is_good),
+      });
+    }
+  }
+
+  // Compute cell centre coords (average of polygon corners)
+  const metricProp = metricPropName(state.metric);
+
+  for (const feature of fc.features) {
+    const props = feature.properties ?? {};
+    const coords = feature.geometry?.coordinates?.[0]; // polygon outer ring
+    if (!coords || coords.length < 4) { props.index_score = 0; continue; }
+
+    const cLon = (coords[0][0] + coords[2][0]) / 2;
+    const cLat = (coords[0][1] + coords[2][1]) / 2;
+
+    let totalWeight = 0;
+    let totalScore = 0;
+
+    // 1) Affordability score
+    if (prefs.affordWeight > 0) {
+      const cellValue = Number(props[metricProp] ?? 0) || 0;
+      if (cellValue > 0 && prefs.budget > 0) {
+        const ratio = cellValue / prefs.budget;
+        // score 1 when ratio <= 0.7, drops to 0 when ratio >= 1.6
+        const affordScore = Math.max(0, Math.min(1, (1.6 - ratio) / 0.9));
+        totalScore += prefs.affordWeight * affordScore;
+      } else {
+        totalScore += prefs.affordWeight * 0.5; // neutral if no data
+      }
+      totalWeight += prefs.affordWeight;
+    }
+
+    // 2) Flood risk score (lower risk → higher score)
+    if (prefs.floodWeight > 0) {
+      let nearestFloodDist = Number.POSITIVE_INFINITY;
+      let nearestRisk = 0;
+      const searchRadiusDeg = 0.15; // ~15km rough
+      for (const fp of floodPoints) {
+        if (Math.abs(fp.lon - cLon) > searchRadiusDeg || Math.abs(fp.lat - cLat) > searchRadiusDeg) continue;
+        const d = haversineDistanceMeters(cLat, cLon, fp.lat, fp.lon);
+        if (d < nearestFloodDist) {
+          nearestFloodDist = d;
+          nearestRisk = fp.riskScore;
+        }
+      }
+      let floodScore: number;
+      if (nearestFloodDist === Number.POSITIVE_INFINITY || nearestFloodDist > 8000) {
+        floodScore = 1; // no flood risk nearby → perfect
+      } else {
+        // Within 8km: penalise based on proximity and severity
+        const proximityPenalty = 1 - (nearestFloodDist / 8000);
+        const severityFactor = Math.min(nearestRisk / 4, 1); // risk 0-4 → 0-1
+        floodScore = Math.max(0, 1 - proximityPenalty * severityFactor);
+      }
+      totalScore += prefs.floodWeight * floodScore;
+      totalWeight += prefs.floodWeight;
+    }
+
+    // 3) School quality score (higher quality → higher score)
+    if (prefs.schoolWeight > 0) {
+      let bestSchoolScore = -1;
+      const schoolRadius = 0.08; // ~8km
+      for (const sp of schoolPoints) {
+        if (Math.abs(sp.lon - cLon) > schoolRadius || Math.abs(sp.lat - cLat) > schoolRadius) continue;
+        const d = haversineDistanceMeters(cLat, cLon, sp.lat, sp.lon);
+        if (d < 8000) {
+          const qScore = sp.qualityScore / 100; // normalise to 0-1
+          if (qScore > bestSchoolScore) bestSchoolScore = qScore;
+        }
+      }
+      const schoolScore = bestSchoolScore >= 0 ? bestSchoolScore : 0.5; // neutral if no school nearby
+      totalScore += prefs.schoolWeight * schoolScore;
+      totalWeight += prefs.schoolWeight;
+    }
+
+    // 4) Coast proximity (placeholder — score 0.5 neutral for now)
+    if (prefs.coastWeight > 0) {
+      totalScore += prefs.coastWeight * 0.5;
+      totalWeight += prefs.coastWeight;
+    }
+
+    props.index_score = totalWeight > 0 ? totalScore / totalWeight : 0;
+  }
+
+  src.setData(fc as any);
+
+  // Apply index colour expression
+  const indexColorExpr = [
+    "interpolate", ["linear"], ["get", "index_score"],
+    0,    "#d73027",  // red (bad match)
+    0.25, "#f46d43",
+    0.5,  "#ffffbf",  // neutral yellow
+    0.75, "#66bd63",
+    1,    "#1a9850",  // green (great match)
+  ] as any;
+
+  if (map.getLayer("cells-fill")) {
+    map.setPaintProperty("cells-fill", "fill-color", indexColorExpr);
+    map.setPaintProperty("cells-fill", "fill-opacity", [
+      "interpolate", ["linear"], ["get", "index_score"],
+      0, 0.25,
+      0.3, 0.4,
+      0.7, 0.65,
+      1, 0.85,
+    ] as any);
+  }
+}
+
+function clearIndexScoring(map: maplibregl.Map, state: MapState) {
+  // Restore normal fill-color based on metric
+  const voteModeActive = (state.voteOverlayMode ?? "off") !== "off";
+  if (voteModeActive) {
+    applyVoteOverlayColorFromSource(map, state.voteColorScale ?? "relative");
+  } else {
+    const expr = getFillColorExpression(state.metric);
+    if (map.getLayer("cells-fill")) {
+      map.setPaintProperty("cells-fill", "fill-color", expr);
+    }
+  }
+  // Restore normal opacity
+  if (map.getLayer("cells-fill")) {
+    map.setPaintProperty("cells-fill", "fill-opacity", 0.72);
+  }
+}
+
 function rowsToGeoJsonSquares(rows: ApiRow[], g: number) {
   const features: any[] = [];
 
@@ -2693,6 +2911,30 @@ async function lookupPostcodeCoords(postcodeKey: string): Promise<{ lon: number;
   } catch {
     return null;
   }
+}
+
+function setPostcodeSearchMarker(
+  map: maplibregl.Map,
+  coords: { lon: number; lat: number } | null
+) {
+  const source = map.getSource("postcode-search-marker") as maplibregl.GeoJSONSource | undefined;
+  if (!source) return;
+
+  if (!coords) {
+    source.setData({ type: "FeatureCollection", features: [] } as any);
+    return;
+  }
+
+  source.setData({
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        properties: {},
+        geometry: { type: "Point", coordinates: [coords.lon, coords.lat] },
+      },
+    ],
+  } as any);
 }
 
 function setFloodSearchContext(
