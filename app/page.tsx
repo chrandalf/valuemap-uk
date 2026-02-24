@@ -2009,7 +2009,7 @@ export default function Home() {
               }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                <div style={{ fontWeight: 700, fontSize: 14 }}>Median value filter</div>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>Area match filter</div>
                 <div style={{ fontSize: 10, opacity: 0.78 }}>0%–100%</div>
               </div>
 
@@ -2053,25 +2053,69 @@ export default function Home() {
                 </div>
               </div>
 
-              <div
-                style={{
-                  marginTop: 2,
-                  padding: "6px 8px",
-                  borderRadius: 10,
-                  background: "rgba(255,255,255,0.06)",
-                  border: "1px solid rgba(255,255,255,0.12)",
-                }}
-              >
-                <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.9, marginBottom: 5 }}>
-                  Current filters
+              {!isMobileViewport && (
+                <div
+                  style={{
+                    marginTop: 2,
+                    padding: "6px 8px",
+                    borderRadius: 10,
+                    background: "rgba(255,255,255,0.06)",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                  }}
+                >
+                  <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.9, marginBottom: 5 }}>
+                    Current filters
+                  </div>
+                  <div style={{ fontSize: 10, opacity: 0.8, lineHeight: 1.35 }}>
+                    {currentFiltersSummary}
+                  </div>
+                  <div style={{ fontSize: 10, opacity: 0.8, marginTop: 4 }}>
+                    {`Area match filter: ${indexSuitabilityLabel}`}
+                  </div>
                 </div>
-                <div style={{ fontSize: 10, opacity: 0.8, lineHeight: 1.35 }}>
-                  {currentFiltersSummary}
+              )}
+
+              {isMobileViewport && (
+                <div style={{ marginTop: 2 }}>
+                  <button
+                    type="button"
+                    onClick={() => setMobileFiltersActiveOpen((v) => !v)}
+                    style={{
+                      cursor: "pointer",
+                      border: "1px solid rgba(255,255,255,0.2)",
+                      background: "rgba(255,255,255,0.08)",
+                      color: "white",
+                      padding: "5px 9px",
+                      borderRadius: 999,
+                      fontSize: 10,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {mobileFiltersActiveOpen ? "Hide filters" : "Filters Active"}
+                  </button>
+                  {mobileFiltersActiveOpen && (
+                    <div
+                      style={{
+                        marginTop: 6,
+                        padding: "7px 9px",
+                        borderRadius: 10,
+                        background: "rgba(255,255,255,0.06)",
+                        border: "1px solid rgba(255,255,255,0.12)",
+                      }}
+                    >
+                      <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.9, marginBottom: 5 }}>
+                        Current filters
+                      </div>
+                      <div style={{ fontSize: 10, opacity: 0.8, lineHeight: 1.35 }}>
+                        {currentFiltersSummary}
+                      </div>
+                      <div style={{ fontSize: 10, opacity: 0.8, marginTop: 4 }}>
+                        {`Area match filter: ${indexSuitabilityLabel}`}
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div style={{ fontSize: 10, opacity: 0.8, marginTop: 4 }}>
-                  {`Suitability filter: ${indexSuitabilityLabel}`}
-                </div>
-              </div>
+              )}
 
               <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
                 <button
