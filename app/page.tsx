@@ -117,6 +117,7 @@ export default function Home() {
   const [outcodeLimit, setOutcodeLimit] = useState(3);
   const [overlayPanelCollapsed, setOverlayPanelCollapsed] = useState(false);
   const [valuePanelCollapsed, setValuePanelCollapsed] = useState(false);
+  const [mobileFiltersActiveOpen, setMobileFiltersActiveOpen] = useState(false);
   const [postcodeSearch, setPostcodeSearch] = useState("");
   const [activePostcodeSearch, setActivePostcodeSearch] = useState("");
   const [postcodeSearchToken, setPostcodeSearchToken] = useState(0);
@@ -722,6 +723,7 @@ export default function Home() {
     indexSuitabilityMode === "off"
       ? "Off"
       : `${indexSuitabilityMode === "lte" ? "Below" : "Above"} ${indexSuitabilityThreshold}%`;
+  const compactIndexUi = isMobileViewport;
   const floodOverlayLabel =
     state.floodOverlayMode === "off"
       ? "Off"
@@ -754,7 +756,7 @@ export default function Home() {
   const topBarHeight = isMobileViewport ? 88 : 48;
   const topStripTop = topBarHeight + 4;
   const floatingPanelTop = topBarHeight + 8;
-  const clearButtonTop = isMobileViewport ? topBarHeight + 86 : 162;
+  const clearButtonTop = isMobileViewport ? topBarHeight + 126 : 162;
 
   // Global value-filter scales (stable across other filters), per metric
   const MEDIAN_FILTER_MIN = 50_000;
@@ -1323,25 +1325,27 @@ export default function Home() {
           <div
             className="index-modal"
             style={{
-              width: 380,
-              maxWidth: "calc(100vw - 32px)",
-              maxHeight: "calc(100vh - 48px)",
+              width: compactIndexUi ? 352 : 380,
+              maxWidth: compactIndexUi ? "calc(100vw - 20px)" : "calc(100vw - 32px)",
+              maxHeight: compactIndexUi ? "calc(100vh - 20px)" : "calc(100vh - 48px)",
               overflow: "auto",
-              padding: "16px 18px",
-              borderRadius: 16,
+              padding: compactIndexUi ? "11px 12px" : "16px 18px",
+              borderRadius: compactIndexUi ? 12 : 16,
               background: "rgba(10, 12, 20, 0.96)",
               border: indexActive
                 ? "2px solid rgba(26,152,80,0.6)"
                 : "1px solid rgba(250,204,21,0.3)",
               backdropFilter: "blur(12px)",
               color: "white",
-              fontSize: 12,
+              fontSize: compactIndexUi ? 11 : 12,
+              fontFamily: "var(--font-sans), Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif",
+              lineHeight: compactIndexUi ? 1.3 : 1.4,
               boxShadow: "0 8px 40px rgba(0,0,0,0.5)",
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <div style={{ fontWeight: 700, fontSize: 15 }}>🔍 Find my area</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: compactIndexUi ? 7 : 10 }}>
+              <div style={{ fontWeight: 700, fontSize: compactIndexUi ? 14 : 15 }}>🔍 Find my area</div>
               <button
                 type="button"
                 onClick={() => setIndexOpen(false)}
@@ -1350,9 +1354,9 @@ export default function Home() {
                   border: "1px solid rgba(255,255,255,0.18)",
                   background: "rgba(255,255,255,0.08)",
                   color: "white",
-                  width: 26, height: 26,
+                  width: compactIndexUi ? 24 : 26, height: compactIndexUi ? 24 : 26,
                   borderRadius: 999,
-                  fontSize: 15, lineHeight: 1,
+                  fontSize: compactIndexUi ? 13 : 15, lineHeight: 1,
                   display: "inline-flex", alignItems: "center", justifyContent: "center",
                 }}
               >
@@ -1360,17 +1364,17 @@ export default function Home() {
               </button>
             </div>
 
-            <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 14, lineHeight: 1.5 }}>
+            <div style={{ fontSize: compactIndexUi ? 11 : 12, opacity: 0.7, marginBottom: compactIndexUi ? 9 : 14, lineHeight: compactIndexUi ? 1.35 : 1.5 }}>
               Tell us what matters to you — we&apos;ll score every cell on the map and colour it green (great match) to red (poor match).
             </div>
 
             {/* Budget */}
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                <span style={{ fontWeight: 600, fontSize: 12 }}>
+            <div style={{ marginBottom: compactIndexUi ? 8 : 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: compactIndexUi ? 3 : 4 }}>
+                <span style={{ fontWeight: 600, fontSize: compactIndexUi ? 11 : 12 }}>
                   💰 Budget ({state.metric === "median_ppsf" ? "per ft²" : "price"})
                 </span>
-                <span style={{ fontSize: 12, opacity: 0.8, fontVariantNumeric: "tabular-nums" }}>
+                <span style={{ fontSize: compactIndexUi ? 11 : 12, opacity: 0.8, fontVariantNumeric: "tabular-nums" }}>
                   £{indexBudget.toLocaleString()}
                 </span>
               </div>
@@ -1386,9 +1390,9 @@ export default function Home() {
             </div>
 
             {/* Property type */}
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 6 }}>🏠 Property type</div>
-              <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+            <div style={{ marginBottom: compactIndexUi ? 8 : 12 }}>
+              <div style={{ fontWeight: 600, fontSize: compactIndexUi ? 11 : 12, marginBottom: compactIndexUi ? 5 : 6 }}>🏠 Property type</div>
+              <div style={{ display: "flex", gap: compactIndexUi ? 3 : 4, flexWrap: "wrap" }}>
                 {(["ALL", "D", "S", "T", "F"] as const).map((pt) => (
                   <button
                     key={pt}
@@ -1399,9 +1403,9 @@ export default function Home() {
                       border: indexPropertyType === pt ? "2px solid rgba(250,204,21,0.8)" : "1px solid rgba(255,255,255,0.18)",
                       background: indexPropertyType === pt ? "rgba(250,204,21,0.2)" : "rgba(255,255,255,0.06)",
                       color: "white",
-                      padding: "4px 10px",
+                      padding: compactIndexUi ? "3px 8px" : "4px 10px",
                       borderRadius: 999,
-                      fontSize: 11,
+                      fontSize: compactIndexUi ? 10 : 11,
                       fontWeight: indexPropertyType === pt ? 700 : 400,
                     }}
                   >
@@ -1412,10 +1416,10 @@ export default function Home() {
             </div>
 
             {/* Affordability weight */}
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                <span style={{ fontWeight: 600, fontSize: 12 }}>💰 Affordability importance</span>
-                <span style={{ fontSize: 12, opacity: 0.8 }}>{indexAffordWeight}/10</span>
+            <div style={{ marginBottom: compactIndexUi ? 8 : 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: compactIndexUi ? 3 : 4 }}>
+                <span style={{ fontWeight: 600, fontSize: compactIndexUi ? 11 : 12 }}>💰 Affordability importance</span>
+                <span style={{ fontSize: compactIndexUi ? 11 : 12, opacity: 0.8 }}>{indexAffordWeight}/10</span>
               </div>
               <input
                 type="range" min={0} max={10} step={1}
@@ -1426,10 +1430,10 @@ export default function Home() {
             </div>
 
             {/* Flood weight */}
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                <span style={{ fontWeight: 600, fontSize: 12 }}>🌊 Flood safety importance</span>
-                <span style={{ fontSize: 12, opacity: 0.8 }}>{indexFloodWeight}/10</span>
+            <div style={{ marginBottom: compactIndexUi ? 8 : 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: compactIndexUi ? 3 : 4 }}>
+                <span style={{ fontWeight: 600, fontSize: compactIndexUi ? 11 : 12 }}>🌊 Flood safety importance</span>
+                <span style={{ fontSize: compactIndexUi ? 11 : 12, opacity: 0.8 }}>{indexFloodWeight}/10</span>
               </div>
               <input
                 type="range" min={0} max={10} step={1}
@@ -1440,10 +1444,10 @@ export default function Home() {
             </div>
 
             {/* School weight */}
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                <span style={{ fontWeight: 600, fontSize: 12 }}>🏫 School quality importance</span>
-                <span style={{ fontSize: 12, opacity: 0.8 }}>{indexSchoolWeight}/10</span>
+            <div style={{ marginBottom: compactIndexUi ? 8 : 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: compactIndexUi ? 3 : 4 }}>
+                <span style={{ fontWeight: 600, fontSize: compactIndexUi ? 11 : 12 }}>🏫 School quality importance</span>
+                <span style={{ fontSize: compactIndexUi ? 11 : 12, opacity: 0.8 }}>{indexSchoolWeight}/10</span>
               </div>
               <input
                 type="range" min={0} max={10} step={1}
@@ -1454,10 +1458,10 @@ export default function Home() {
             </div>
 
             {/* Coast weight – placeholder */}
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                <span style={{ fontWeight: 600, fontSize: 12, opacity: 0.5 }}>🏖️ Coast proximity (coming soon)</span>
-                <span style={{ fontSize: 12, opacity: 0.4 }}>{indexCoastWeight}/10</span>
+            <div style={{ marginBottom: compactIndexUi ? 10 : 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: compactIndexUi ? 3 : 4 }}>
+                <span style={{ fontWeight: 600, fontSize: compactIndexUi ? 11 : 12, opacity: 0.5 }}>🏖️ Coast proximity (coming soon)</span>
+                <span style={{ fontSize: compactIndexUi ? 11 : 12, opacity: 0.4 }}>{indexCoastWeight}/10</span>
               </div>
               <input
                 type="range" min={0} max={10} step={1}
@@ -1468,7 +1472,7 @@ export default function Home() {
               />
             </div>
 
-            <div style={{ marginBottom: 14, fontSize: 11, opacity: 0.72, lineHeight: 1.35 }}>
+            <div style={{ marginBottom: compactIndexUi ? 9 : 14, fontSize: compactIndexUi ? 10 : 11, opacity: 0.72, lineHeight: 1.35 }}>
               Suitability filter is available in the right-side panel after scoring.
             </div>
 
@@ -1498,9 +1502,9 @@ export default function Home() {
                   border: "2px solid rgba(26,152,80,0.7)",
                   background: "rgba(26,152,80,0.28)",
                   color: "white",
-                  padding: "10px 14px",
+                  padding: compactIndexUi ? "8px 10px" : "10px 14px",
                   borderRadius: 999,
-                  fontSize: 13,
+                  fontSize: compactIndexUi ? 12 : 13,
                   fontWeight: 700,
                 }}
               >
@@ -1516,9 +1520,9 @@ export default function Home() {
                     border: "1px solid rgba(255,255,255,0.18)",
                     background: "rgba(255,255,255,0.08)",
                     color: "white",
-                    padding: "10px 14px",
+                    padding: compactIndexUi ? "8px 10px" : "10px 14px",
                     borderRadius: 999,
-                    fontSize: 13,
+                    fontSize: compactIndexUi ? 12 : 13,
                     fontWeight: 600,
                   }}
                 >
@@ -1528,7 +1532,7 @@ export default function Home() {
             </div>
 
             {indexActive && (
-              <div style={{ marginTop: 10, fontSize: 11, opacity: 0.6, lineHeight: 1.4, textAlign: "center" }}>
+              <div style={{ marginTop: compactIndexUi ? 8 : 10, fontSize: compactIndexUi ? 10 : 11, opacity: 0.6, lineHeight: 1.35, textAlign: "center" }}>
                 🟢 Great match → 🟡 Average → 🔴 Poor match
               </div>
             )}
@@ -1538,14 +1542,14 @@ export default function Home() {
                 type="button"
                 onClick={() => setIndexOpen(false)}
                 style={{
-                  marginTop: 10,
+                  marginTop: compactIndexUi ? 8 : 10,
                   width: "100%",
                   cursor: "pointer",
                   border: "none",
                   background: "transparent",
                   color: "rgba(255,255,255,0.45)",
-                  fontSize: 12,
-                  padding: "6px 0 2px",
+                  fontSize: compactIndexUi ? 11 : 12,
+                  padding: compactIndexUi ? "5px 0 1px" : "6px 0 2px",
                   textDecoration: "underline",
                   textUnderlineOffset: 3,
                 }}
@@ -1571,8 +1575,8 @@ export default function Home() {
             bottom: 18,
             display: "flex",
             flexDirection: "column",
-            gap: 6,
-            width: 520,
+            gap: 5,
+            width: 468,
             maxWidth: "calc(100vw - 36px)",
             zIndex: frontZ("rightpanels", 45),
           }}
@@ -1676,16 +1680,16 @@ export default function Home() {
             data-collapsed={overlayPanelCollapsed ? "true" : "false"}
             style={{
               width: "100%",
-              padding: "10px 12px",
-              borderRadius: 14,
+              padding: "8px 10px",
+              borderRadius: 12,
               background: "rgba(10, 12, 20, 0.85)",
               border: "1px solid rgba(255,255,255,0.12)",
               backdropFilter: "blur(10px)",
               color: "white",
-              fontSize: 12,
+              fontSize: 11,
             }}
           >
-            <div className="mobile-collapsible-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, gap: 8 }}>
+            <div className="mobile-collapsible-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, gap: 8 }}>
               <div style={{ fontWeight: 600 }}>
                 <span className="title-full">Overlay filters</span>
                 <span className="title-mini">Overlay</span>
@@ -1714,8 +1718,8 @@ export default function Home() {
                 {overlayPanelCollapsed ? "›" : "‹"}
               </button>
             </div>
-            <div className="mobile-collapsible-body" style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, alignItems: "center" }}>
-              <div style={{ fontSize: 12, opacity: 0.8 }}>Flood</div>
+            <div className="mobile-collapsible-body" style={{ display: "grid", gridTemplateColumns: "84px 1fr", gap: 8, alignItems: "center" }}>
+              <div style={{ fontSize: 11, opacity: 0.8 }}>Flood</div>
               <Segment
                 options={["off", "on", "on_hide_cells"]}
                 value={state.floodOverlayMode}
@@ -1726,7 +1730,7 @@ export default function Home() {
                   return "Off";
                 }}
               />
-              <div style={{ fontSize: 12, opacity: 0.8 }}>Schools</div>
+              <div style={{ fontSize: 11, opacity: 0.8 }}>Schools</div>
               <Segment
                 options={["off", "on", "on_hide_cells"]}
                 value={state.schoolOverlayMode}
@@ -1737,7 +1741,7 @@ export default function Home() {
                   return "Off";
                 }}
               />
-              <div style={{ fontSize: 12, opacity: 0.8 }}>Political votes</div>
+              <div style={{ fontSize: 11, opacity: 0.8 }}>Political votes</div>
               <div
                 style={{
                   display: "flex",
@@ -1811,16 +1815,16 @@ export default function Home() {
               data-collapsed={valuePanelCollapsed ? "true" : "false"}
               style={{
                 width: "100%",
-                padding: "10px 12px",
-                borderRadius: 14,
+                padding: "8px 10px",
+                borderRadius: 12,
                 background: "rgba(10, 12, 20, 0.85)",
                 border: "1px solid rgba(255,255,255,0.12)",
                 backdropFilter: "blur(10px)",
                 color: "white",
-                fontSize: 12,
+                fontSize: 11,
               }}
             >
-              <div className="mobile-collapsible-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, gap: 8 }}>
+              <div className="mobile-collapsible-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, gap: 8 }}>
                 <div style={{ fontWeight: 600 }}>
                   <span className="title-full">
                     {state.metric === "median"
@@ -1863,8 +1867,8 @@ export default function Home() {
               </div>
 
               <div className="mobile-collapsible-body" style={{ display: "grid", gap: 10 }}>
-                <div style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, alignItems: "center" }}>
-                  <div style={{ fontSize: 12, opacity: 0.8 }}>Mode</div>
+                <div style={{ display: "grid", gridTemplateColumns: "84px 1fr", gap: 8, alignItems: "center" }}>
+                  <div style={{ fontSize: 11, opacity: 0.8 }}>Mode</div>
                   <Segment
                     options={["off", "lte", "gte"]}
                     value={state.valueFilterMode}
@@ -1881,8 +1885,8 @@ export default function Home() {
                 </div>
 
                 {state.valueFilterMode !== "off" && (
-                  <div style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, alignItems: "center" }}>
-                    <div style={{ fontSize: 12, opacity: 0.8 }}>Threshold</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "84px 1fr", gap: 8, alignItems: "center" }}>
+                    <div style={{ fontSize: 11, opacity: 0.8 }}>Threshold</div>
                     <div style={{ display: "grid", gap: 6 }}>
                       <input
                         type="range"
@@ -1897,7 +1901,7 @@ export default function Home() {
                         }}
                         style={{ width: "100%" }}
                       />
-                      <div style={{ fontSize: 11, opacity: 0.75 }}>
+                      <div style={{ fontSize: 10, opacity: 0.75 }}>
                         {valueFilterLabel}
                       </div>
                     </div>
@@ -1908,22 +1912,64 @@ export default function Home() {
                   className="current-filters-box"
                   style={{
                     marginTop: 2,
-                      padding: "7px 9px",
-                    borderRadius: 12,
+                    padding: "6px 8px",
+                    borderRadius: 10,
                     background: "rgba(255,255,255,0.06)",
                     border: "1px solid rgba(255,255,255,0.12)",
                   }}
                 >
-                  <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.9, marginBottom: 6 }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.9, marginBottom: 5 }}>
                     Current filters
                   </div>
-                  <div style={{ fontSize: 11, opacity: 0.8, lineHeight: 1.35 }}>
+                  <div style={{ fontSize: 10, opacity: 0.8, lineHeight: 1.35 }}>
                     {currentFiltersSummary}
                   </div>
-                  <div style={{ fontSize: 11, opacity: 0.8, marginTop: 4 }}>
+                  <div style={{ fontSize: 10, opacity: 0.8, marginTop: 4 }}>
                     {`Value filter: ${valueFilterLabel}`}
                   </div>
                 </div>
+
+                {isMobileViewport && (
+                  <div style={{ marginTop: 4 }}>
+                    <button
+                      type="button"
+                      onClick={() => setMobileFiltersActiveOpen((v) => !v)}
+                      style={{
+                        cursor: "pointer",
+                        border: "1px solid rgba(255,255,255,0.2)",
+                        background: "rgba(255,255,255,0.08)",
+                        color: "white",
+                        padding: "5px 9px",
+                        borderRadius: 999,
+                        fontSize: 10,
+                        fontWeight: 700,
+                      }}
+                    >
+                      {mobileFiltersActiveOpen ? "Hide filters" : "Filters Active"}
+                    </button>
+                    {mobileFiltersActiveOpen && (
+                      <div
+                        style={{
+                          marginTop: 6,
+                          padding: "7px 9px",
+                          borderRadius: 10,
+                          background: "rgba(255,255,255,0.06)",
+                          border: "1px solid rgba(255,255,255,0.12)",
+                        }}
+                      >
+                        <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.9, marginBottom: 5 }}>
+                          Current filters
+                        </div>
+                        <div style={{ fontSize: 10, opacity: 0.8, lineHeight: 1.35 }}>
+                          {currentFiltersSummary}
+                        </div>
+                        <div style={{ fontSize: 10, opacity: 0.8, marginTop: 4 }}>
+                          {`Value filter: ${valueFilterLabel}`}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1933,13 +1979,13 @@ export default function Home() {
               className="legend"
               style={{
                 width: "100%",
-                padding: "14px 16px",
-                borderRadius: 14,
+                padding: "11px 12px",
+                borderRadius: 12,
                 background: "rgba(10, 12, 20, 0.85)",
                 border: indexActive ? "1px solid rgba(26,152,80,0.4)" : "1px solid rgba(255,255,255,0.12)",
                 backdropFilter: "blur(10px)",
                 color: "white",
-                fontSize: 13,
+                fontSize: 12,
               }}
             >
               {legendContent}
@@ -1951,24 +1997,24 @@ export default function Home() {
             <div
               style={{
                 width: "100%",
-                padding: "10px 12px",
-                borderRadius: 14,
+                padding: "8px 10px",
+                borderRadius: 12,
                 background: "rgba(10, 12, 20, 0.9)",
                 border: "2px solid rgba(26,152,80,0.5)",
                 backdropFilter: "blur(10px)",
                 color: "white",
-                fontSize: 12,
+                fontSize: 11,
                 display: "grid",
-                gap: 10,
+                gap: 8,
               }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                <div style={{ fontWeight: 700, fontSize: 16 }}>Median value filter</div>
-                <div style={{ fontSize: 11, opacity: 0.78 }}>0%–100%</div>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>Median value filter</div>
+                <div style={{ fontSize: 10, opacity: 0.78 }}>0%–100%</div>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, alignItems: "center" }}>
-                <div style={{ fontSize: 12, opacity: 0.8 }}>Mode</div>
+              <div style={{ display: "grid", gridTemplateColumns: "84px 1fr", gap: 8, alignItems: "center" }}>
+                <div style={{ fontSize: 11, opacity: 0.8 }}>Mode</div>
                 <Segment
                   options={["off", "lte", "gte"]}
                   value={indexSuitabilityMode}
@@ -1984,8 +2030,8 @@ export default function Home() {
                 />
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, alignItems: "center" }}>
-                <div style={{ fontSize: 12, opacity: indexSuitabilityMode === "off" ? 0.5 : 0.8 }}>Threshold</div>
+              <div style={{ display: "grid", gridTemplateColumns: "84px 1fr", gap: 8, alignItems: "center" }}>
+                <div style={{ fontSize: 11, opacity: indexSuitabilityMode === "off" ? 0.5 : 0.8 }}>Threshold</div>
                 <div style={{ display: "grid", gap: 6 }}>
                   <input
                     type="range"
@@ -1997,7 +2043,7 @@ export default function Home() {
                     style={{ width: "100%", accentColor: "#22c55e", opacity: indexSuitabilityMode === "off" ? 0.55 : 1 }}
                     disabled={indexSuitabilityMode === "off"}
                   />
-                  <div style={{ fontSize: 11, opacity: 0.8 }}>
+                  <div style={{ fontSize: 10, opacity: 0.8 }}>
                     {indexSuitabilityMode === "off"
                       ? "Showing all suitability levels"
                       : indexSuitabilityMode === "gte"
@@ -2010,19 +2056,19 @@ export default function Home() {
               <div
                 style={{
                   marginTop: 2,
-                  padding: "8px 10px",
-                  borderRadius: 12,
+                  padding: "6px 8px",
+                  borderRadius: 10,
                   background: "rgba(255,255,255,0.06)",
                   border: "1px solid rgba(255,255,255,0.12)",
                 }}
               >
-                <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.9, marginBottom: 6 }}>
+                <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.9, marginBottom: 5 }}>
                   Current filters
                 </div>
-                <div style={{ fontSize: 11, opacity: 0.8, lineHeight: 1.35 }}>
+                <div style={{ fontSize: 10, opacity: 0.8, lineHeight: 1.35 }}>
                   {currentFiltersSummary}
                 </div>
-                <div style={{ fontSize: 11, opacity: 0.8, marginTop: 4 }}>
+                <div style={{ fontSize: 10, opacity: 0.8, marginTop: 4 }}>
                   {`Suitability filter: ${indexSuitabilityLabel}`}
                 </div>
               </div>
@@ -2096,9 +2142,31 @@ export default function Home() {
               lineHeight: 1.35,
             }}
           >
-            <div style={{ fontWeight: 600, marginBottom: 4 }}>Current filters</div>
-            <div style={{ opacity: 0.82 }}>{currentFiltersSummary}</div>
-            <div style={{ opacity: 0.82, marginTop: 3 }}>{`Value filter: ${valueFilterLabel}`}</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              <div style={{ fontWeight: 600 }}>Filters Active</div>
+              <button
+                type="button"
+                onClick={() => setMobileFiltersActiveOpen((v) => !v)}
+                style={{
+                  cursor: "pointer",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  background: "rgba(255,255,255,0.08)",
+                  color: "white",
+                  padding: "4px 8px",
+                  borderRadius: 999,
+                  fontSize: 10,
+                  fontWeight: 700,
+                }}
+              >
+                {mobileFiltersActiveOpen ? "Hide" : "Open"}
+              </button>
+            </div>
+            {mobileFiltersActiveOpen && (
+              <>
+                <div style={{ opacity: 0.82, marginTop: 6 }}>{currentFiltersSummary}</div>
+                <div style={{ opacity: 0.82, marginTop: 3 }}>{`Value filter: ${valueFilterLabel}`}</div>
+              </>
+            )}
           </div>
           <div
             className="legend"
@@ -2300,8 +2368,8 @@ export default function Home() {
 
 function ControlRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="control-row" style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, alignItems: "center" }}>
-      <div className="control-label" style={{ fontSize: 12, opacity: 0.8 }}>{label}</div>
+    <div className="control-row" style={{ display: "grid", gridTemplateColumns: "84px 1fr", gap: 8, alignItems: "center" }}>
+      <div className="control-label" style={{ fontSize: 11, opacity: 0.8 }}>{label}</div>
       {children}
     </div>
   );
@@ -2344,8 +2412,8 @@ function Segment({
             style={{
               cursor: "pointer",
               border: "none",
-              padding: "6px 10px",
-              fontSize: 12,
+              padding: "5px 9px",
+              fontSize: 11,
               color: "white",
               background: active ? "rgba(255,255,255,0.16)" : "transparent",
             }}
@@ -2673,7 +2741,7 @@ export function Styles() {
         }
         .right-panels {
           right: 12px !important;
-          left: 12px !important;
+          left: 74px !important;
           width: auto !important;
           max-width: none !important;
           bottom: 12px !important;
