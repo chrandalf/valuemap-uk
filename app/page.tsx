@@ -14,6 +14,15 @@ type VoteOverlayMode = "off" | "on";
 type VoteColorScale = "relative" | "absolute";
 type GridMode = "auto" | "manual";
 
+type IndexScoringPrefs = {
+  budget: number;
+  propertyType: "ALL" | "D" | "S" | "T" | "F";
+  affordWeight: number;
+  floodWeight: number;
+  schoolWeight: number;
+  coastWeight: number;
+};
+
 type MapState = {
   grid: GridSize;
   metric: Metric;
@@ -138,6 +147,14 @@ export default function Home() {
   const [indexFloodWeight, setIndexFloodWeight] = useState(5);
   const [indexSchoolWeight, setIndexSchoolWeight] = useState(5);
   const [indexCoastWeight, setIndexCoastWeight] = useState(0);
+  const [indexApplied, setIndexApplied] = useState<IndexScoringPrefs>({
+    budget: 300000,
+    propertyType: "ALL",
+    affordWeight: 5,
+    floodWeight: 5,
+    schoolWeight: 5,
+    coastWeight: 0,
+  });
   const [indexSuitabilityMode, setIndexSuitabilityMode] = useState<ValueFilterMode>("off");
   const [indexSuitabilityThreshold, setIndexSuitabilityThreshold] = useState(65);
   const introInitRef = useRef(false);
@@ -148,29 +165,24 @@ export default function Home() {
 
   const anySubpanelOpen = filtersOpen || instructionsOpen || dataSourcesOpen || electionInfoOpen;
 
-  // Memoize indexPrefs to only change when the user presses "Score areas" (incrementing indexToken)
+  // Keep map scoring prefs stable while user edits sliders; apply only on "Score areas"
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const computedIndexPrefs: IndexPrefs | null = useMemo(() => {
     if (!indexActive) return null;
     return {
-      budget: indexBudget,
-      propertyType: indexPropertyType,
-      affordWeight: indexAffordWeight,
-      floodWeight: indexFloodWeight,
-      schoolWeight: indexSchoolWeight,
-      coastWeight: indexCoastWeight,
+      budget: indexApplied.budget,
+      propertyType: indexApplied.propertyType,
+      affordWeight: indexApplied.affordWeight,
+      floodWeight: indexApplied.floodWeight,
+      schoolWeight: indexApplied.schoolWeight,
+      coastWeight: indexApplied.coastWeight,
       indexFilterMode: indexSuitabilityMode,
       indexFilterThreshold: indexSuitabilityThreshold / 100,
     };
   }, [
     indexActive,
     indexToken,
-    indexBudget,
-    indexPropertyType,
-    indexAffordWeight,
-    indexFloodWeight,
-    indexSchoolWeight,
-    indexCoastWeight,
+    indexApplied,
     indexSuitabilityMode,
     indexSuitabilityThreshold,
   ]);
@@ -211,6 +223,20 @@ export default function Home() {
     setIndexOpen(false);
     setIndexActive(false);
     setIndexScoringPending(false);
+    setIndexBudget(300000);
+    setIndexPropertyType("ALL");
+    setIndexAffordWeight(5);
+    setIndexFloodWeight(5);
+    setIndexSchoolWeight(5);
+    setIndexCoastWeight(0);
+    setIndexApplied({
+      budget: 300000,
+      propertyType: "ALL",
+      affordWeight: 5,
+      floodWeight: 5,
+      schoolWeight: 5,
+      coastWeight: 0,
+    });
   };
 
   // Close dropdowns when clicking outside
@@ -1446,6 +1472,14 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => {
+                  setIndexApplied({
+                    budget: indexBudget,
+                    propertyType: indexPropertyType,
+                    affordWeight: indexAffordWeight,
+                    floodWeight: indexFloodWeight,
+                    schoolWeight: indexSchoolWeight,
+                    coastWeight: indexCoastWeight,
+                  });
                   setGridMode("manual");
                   setState((s) => ({ ...s, grid: "1km" }));
                   setIndexScoringPending(true);
