@@ -1225,6 +1225,41 @@ export default function ValueMap({
     const cons = Number(p.pct_conservative ?? NaN);
     const right = Number(p.pct_popular_right ?? NaN);
 
+    // ── Index scoring breakdown popup ──
+    if (indexPrefsRef.current) {
+      const prefs = indexPrefsRef.current;
+      const totalScore = Number(p.index_score ?? NaN);
+      if (Number.isFinite(totalScore)) {
+        const bar = (v: number, noData?: boolean) => {
+          if (noData) return `<span style="font-size:10px;opacity:0.5">no data for region</span>`;
+          const pct = Math.round(v * 100);
+          const col = v < 0.35 ? "#ef4444" : v < 0.55 ? "#fb923c" : v < 0.72 ? "#facc15" : "#4ade80";
+          return `<div style="display:flex;align-items:center;gap:5px;">
+            <div style="width:72px;height:5px;background:rgba(255,255,255,0.15);border-radius:3px;overflow:hidden;flex-shrink:0;">
+              <div style="width:${pct}%;height:100%;background:${col};border-radius:3px;"></div>
+            </div>
+            <span style="font-size:11px;opacity:0.85">${pct}%</span>
+          </div>`;
+        };
+        const wRow = (label: string, w: number, scoreHtml: string) =>
+          `<div style="margin-bottom:5px;">
+            <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px;">
+              <span>${label}</span><span style="opacity:0.5">×${w}</span>
+            </div>${scoreHtml}</div>`;
+
+        let html = `<div style="font-family:system-ui;font-size:12px;line-height:1.4;min-width:180px;max-width:210px;">`;
+        const totalCol = totalScore < 0.35 ? "#ef4444" : totalScore < 0.55 ? "#fb923c" : totalScore < 0.72 ? "#facc15" : "#4ade80";
+        html += `<div style="font-weight:700;margin-bottom:7px;font-size:13px;">🗺️ Match score: <span style="color:${totalCol}">${Math.round(totalScore * 100)}%</span></div>`;
+        if (prefs.affordWeight > 0) html += wRow("💰 Affordability", prefs.affordWeight, bar(Number(p.ix_a ?? 0.5)));
+        if (prefs.floodWeight > 0)  html += wRow("🌊 Flood safety",   prefs.floodWeight,  bar(Number(p.ix_f ?? 0.5), p.ix_fn === 1));
+        if (prefs.schoolWeight > 0) html += wRow("🏫 Schools",        prefs.schoolWeight, bar(Number(p.ix_s ?? 0.5), p.ix_sn === 1));
+        if (prefs.coastWeight > 0)  html += wRow("🏖️ Coast",          prefs.coastWeight,  bar(0.5, true));
+        html += `</div>`;
+        popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+        return;
+      }
+    }
+
     if (voteMode !== "off") {
       const constituency = String(p.constituency ?? "Cell vote estimate");
       const hasVoteData = Number.isFinite(prog) || Number.isFinite(cons) || Number.isFinite(right);
@@ -2420,9 +2455,44 @@ function applyValueFilter(map: maplibregl.Map, state: MapState) {
 
 /* ─── Index "Find My Area" scoring ─── */
 
-// Module-level cache for index scoring overlay data (loaded once per browser session)
+// Module-level cache for overlay data + spatial grid indexes (built once per session)
 let _indexFloodCache: Array<{ lon: number; lat: number; riskScore: number }> | null = null;
 let _indexSchoolCache: Array<{ lon: number; lat: number; qualityScore: number; isGood: boolean }> | null = null;
+
+type SpatialGrid<T> = { buckets: Map<number, T[]>; cellSize: number };
+let _indexFloodGrid: SpatialGrid<{ lon: number; lat: number; riskScore: number }> | null = null;
+let _indexSchoolGrid: SpatialGrid<{ lon: number; lat: number; qualityScore: number; isGood: boolean }> | null = null;
+
+function buildSpatialGrid<T extends { lon: number; lat: number }>(points: T[], cellSize: number): SpatialGrid<T> {
+  const buckets = new Map<number, T[]>();
+  for (const p of points) {
+    const bx = Math.floor(p.lon / cellSize) + 100; // +100 offset handles negative UK longitudes
+    const by = Math.floor(p.lat / cellSize);
+    const key = bx * 1000 + by;
+    let b = buckets.get(key);
+    if (!b) { b = []; buckets.set(key, b); }
+    b.push(p);
+  }
+  return { buckets, cellSize };
+}
+
+function querySpatialGrid<T extends { lon: number; lat: number }>(
+  { buckets, cellSize }: SpatialGrid<T>,
+  cLon: number, cLat: number, radiusDeg: number
+): T[] {
+  const results: T[] = [];
+  const bx0 = Math.floor((cLon - radiusDeg) / cellSize) + 100;
+  const bx1 = Math.floor((cLon + radiusDeg) / cellSize) + 100;
+  const by0 = Math.floor((cLat - radiusDeg) / cellSize);
+  const by1 = Math.floor((cLat + radiusDeg) / cellSize);
+  for (let bx = bx0; bx <= bx1; bx++) {
+    for (let by = by0; by <= by1; by++) {
+      const b = buckets.get(bx * 1000 + by);
+      if (b) for (const p of b) results.push(p);
+    }
+  }
+  return results;
+}
 
 async function applyIndexScoring(
   map: maplibregl.Map,
@@ -2433,11 +2503,10 @@ async function applyIndexScoring(
   const src = map.getSource("cells") as maplibregl.GeoJSONSource | undefined;
   if (!src) return false;
 
-  // Use caller-provided cellFc (most reliable); fall back to MapLibre internal _data as last resort
   const fc: any = cellFc ?? (src as any)._data ?? null;
   if (!fc || !Array.isArray(fc.features) || fc.features.length === 0) return false;
 
-  // — Load flood data (cached after first call) —
+  // — Fetch flood data once, build grid index —
   if (_indexFloodCache === null) {
     try {
       const res = await fetch("/api/flood?plain=1");
@@ -2456,9 +2525,10 @@ async function applyIndexScoring(
     } catch {
       _indexFloodCache = [];
     }
+    _indexFloodGrid = null;
   }
 
-  // — Load school data (cached after first call) —
+  // — Fetch school data once, build grid index —
   if (_indexSchoolCache === null) {
     try {
       const res = await fetch("/api/schools?plain=1");
@@ -2478,16 +2548,31 @@ async function applyIndexScoring(
     } catch {
       _indexSchoolCache = [];
     }
+    _indexSchoolGrid = null;
   }
 
-  const floodPoints: Array<{ lon: number; lat: number; riskScore: number }> = _indexFloodCache ?? [];
-  const schoolPoints: Array<{ lon: number; lat: number; qualityScore: number; isGood: boolean }> = _indexSchoolCache ?? [];
+  // Build spatial grid indexes (skipped if already built)
+  const GRID_CELL = 0.12; // ~13km buckets
+  if (_indexFloodGrid === null) _indexFloodGrid = buildSpatialGrid(_indexFloodCache!, GRID_CELL);
+  if (_indexSchoolGrid === null) _indexSchoolGrid = buildSpatialGrid(_indexSchoolCache!, GRID_CELL);
 
+  const floodGrid = _indexFloodGrid;
+  const schoolGrid = _indexSchoolGrid;
   const metricProp = metricPropName(state.metric);
 
-  for (const feature of fc.features) {
+  // Tight search radius for scoring (~8km), wide radius for data-coverage check (~50km)
+  const NEAR_DEG = 0.08;
+  const DATA_DEG = 0.45;
+  const CHUNK = 300; // yield to browser every N cells
+
+  const features = fc.features;
+  for (let i = 0; i < features.length; i++) {
+    // Yield to browser between chunks so UI stays responsive
+    if (i > 0 && i % CHUNK === 0) await new Promise<void>((r) => setTimeout(r, 0));
+
+    const feature = features[i];
     const props = feature.properties ?? {};
-    const coords = feature.geometry?.coordinates?.[0]; // polygon outer ring
+    const coords = feature.geometry?.coordinates?.[0];
     if (!coords || coords.length < 4) { props.index_score = 0; continue; }
 
     const cLon = (coords[0][0] + coords[2][0]) / 2;
@@ -2496,64 +2581,79 @@ async function applyIndexScoring(
     let totalWeight = 0;
     let totalScore = 0;
 
-    // 1) Affordability score
+    // 1) Affordability
+    let affordScore = 0.5;
     if (prefs.affordWeight > 0) {
       const cellValue = Number(props[metricProp] ?? 0) || 0;
       if (cellValue > 0 && prefs.budget > 0) {
         const ratio = cellValue / prefs.budget;
-        // score 1 when ratio <= 0.7, drops to 0 when ratio >= 1.6
-        const affordScore = Math.max(0, Math.min(1, (1.6 - ratio) / 0.9));
-        totalScore += prefs.affordWeight * affordScore;
-      } else {
-        totalScore += prefs.affordWeight * 0.5; // neutral if no data
+        affordScore = Math.max(0, Math.min(1, (1.6 - ratio) / 0.9));
       }
+      totalScore += prefs.affordWeight * affordScore;
       totalWeight += prefs.affordWeight;
     }
+    props.ix_a = affordScore;
 
-    // 2) Flood risk score (lower risk → higher score)
+    // 2) Flood risk — distinguish "safe area" from "no data area"
+    let floodScore = 0.5;
+    let floodNoData = false;
     if (prefs.floodWeight > 0) {
-      let nearestFloodDist = Number.POSITIVE_INFINITY;
-      let nearestRisk = 0;
-      const searchRadiusDeg = 0.15; // ~15km rough
-      for (const fp of floodPoints) {
-        if (Math.abs(fp.lon - cLon) > searchRadiusDeg || Math.abs(fp.lat - cLat) > searchRadiusDeg) continue;
-        const d = haversineDistanceMeters(cLat, cLon, fp.lat, fp.lon);
-        if (d < nearestFloodDist) {
-          nearestFloodDist = d;
-          nearestRisk = fp.riskScore;
-        }
-      }
-      let floodScore: number;
-      if (nearestFloodDist === Number.POSITIVE_INFINITY || nearestFloodDist > 8000) {
-        floodScore = 1; // no flood risk nearby → perfect
+      // Wide check: any flood data coverage within ~50km?
+      const wideFlood = querySpatialGrid(floodGrid, cLon, cLat, DATA_DEG);
+      if (wideFlood.length === 0) {
+        // No dataset coverage (Wales, Scotland) — neutral, not treated as safe
+        floodNoData = true;
+        floodScore = 0.5;
       } else {
-        // Within 8km: penalise based on proximity and severity
-        const proximityPenalty = 1 - (nearestFloodDist / 8000);
-        const severityFactor = Math.min(nearestRisk / 4, 1); // risk 0-4 → 0-1
-        floodScore = Math.max(0, 1 - proximityPenalty * severityFactor);
+        // We have data — find nearest flood zone within 8km
+        let nearestDist = Number.POSITIVE_INFINITY;
+        let nearestRisk = 0;
+        for (const fp of querySpatialGrid(floodGrid, cLon, cLat, NEAR_DEG)) {
+          const d = haversineDistanceMeters(cLat, cLon, fp.lat, fp.lon);
+          if (d < nearestDist) { nearestDist = d; nearestRisk = fp.riskScore; }
+        }
+        if (nearestDist > 8000) {
+          floodScore = 1.0; // data coverage exists but this area has no flood zones nearby → genuinely safe
+        } else {
+          const proximity = 1 - nearestDist / 8000;
+          const severity = Math.min(nearestRisk / 4, 1);
+          floodScore = Math.max(0, 1 - proximity * severity);
+        }
       }
       totalScore += prefs.floodWeight * floodScore;
       totalWeight += prefs.floodWeight;
     }
+    props.ix_f = floodScore;
+    props.ix_fn = floodNoData ? 1 : 0;
 
-    // 3) School quality score (higher quality → higher score)
+    // 3) School quality — distinguish "no nearby school" from "no data area"
+    let schoolScore = 0.5;
+    let schoolNoData = false;
     if (prefs.schoolWeight > 0) {
-      let bestSchoolScore = -1;
-      const schoolRadius = 0.08; // ~8km
-      for (const sp of schoolPoints) {
-        if (Math.abs(sp.lon - cLon) > schoolRadius || Math.abs(sp.lat - cLat) > schoolRadius) continue;
-        const d = haversineDistanceMeters(cLat, cLon, sp.lat, sp.lon);
-        if (d < 8000) {
-          const qScore = sp.qualityScore / 100; // normalise to 0-1
-          if (qScore > bestSchoolScore) bestSchoolScore = qScore;
+      // Wide check: any school data within ~50km?
+      const wideSchool = querySpatialGrid(schoolGrid, cLon, cLat, DATA_DEG);
+      if (wideSchool.length === 0) {
+        // No dataset coverage (Wales/Scotland use different inspectorates) → neutral
+        schoolNoData = true;
+        schoolScore = 0.5;
+      } else {
+        let bestScore = -1;
+        for (const sp of querySpatialGrid(schoolGrid, cLon, cLat, NEAR_DEG)) {
+          const d = haversineDistanceMeters(cLat, cLon, sp.lat, sp.lon);
+          if (d < 8000) {
+            const q = sp.qualityScore / 100;
+            if (q > bestScore) bestScore = q;
+          }
         }
+        schoolScore = bestScore >= 0 ? bestScore : 0.5; // 0.5 neutral if no school within 8km
       }
-      const schoolScore = bestSchoolScore >= 0 ? bestSchoolScore : 0.5; // neutral if no school nearby
       totalScore += prefs.schoolWeight * schoolScore;
       totalWeight += prefs.schoolWeight;
     }
+    props.ix_s = schoolScore;
+    props.ix_sn = schoolNoData ? 1 : 0;
 
-    // 4) Coast proximity (placeholder — score 0.5 neutral for now)
+    // 4) Coast proximity (placeholder)
     if (prefs.coastWeight > 0) {
       totalScore += prefs.coastWeight * 0.5;
       totalWeight += prefs.coastWeight;
@@ -2564,24 +2664,18 @@ async function applyIndexScoring(
 
   src.setData(fc as any);
 
-  // Apply index colour expression
-  const indexColorExpr = [
-    "interpolate", ["linear"], ["get", "index_score"],
-    0,    "#d73027",  // red (bad match)
-    0.25, "#f46d43",
-    0.5,  "#ffffbf",  // neutral yellow
-    0.75, "#66bd63",
-    1,    "#1a9850",  // green (great match)
-  ] as any;
-
   if (map.getLayer("cells-fill")) {
-    map.setPaintProperty("cells-fill", "fill-color", indexColorExpr);
+    map.setPaintProperty("cells-fill", "fill-color", [
+      "interpolate", ["linear"], ["get", "index_score"],
+      0,    "#d73027",
+      0.25, "#f46d43",
+      0.5,  "#ffffbf",
+      0.75, "#66bd63",
+      1,    "#1a9850",
+    ] as any);
     map.setPaintProperty("cells-fill", "fill-opacity", [
       "interpolate", ["linear"], ["get", "index_score"],
-      0, 0.25,
-      0.3, 0.4,
-      0.7, 0.65,
-      1, 0.85,
+      0, 0.25, 0.3, 0.4, 0.7, 0.65, 1, 0.85,
     ] as any);
   }
   return true;
