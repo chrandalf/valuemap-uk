@@ -48,3 +48,10 @@ body {
 .maplibregl-ctrl-top-right {
   top: 52px !important;
 }
+
+@media (max-width: 640px) {
+  .maplibregl-ctrl-top-left,
+  .maplibregl-ctrl-top-right {
+    top: 92px !important;
+  }
+}

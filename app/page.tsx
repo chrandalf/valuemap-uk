@@ -138,6 +138,7 @@ export default function Home() {
   const [indexFloodWeight, setIndexFloodWeight] = useState(5);
   const [indexSchoolWeight, setIndexSchoolWeight] = useState(5);
   const [indexCoastWeight, setIndexCoastWeight] = useState(0);
+  const introInitRef = useRef(false);
   const urlHydratedRef = useRef(false);
   const supportersScrollerRef = useRef<HTMLDivElement | null>(null);
   const topPanelRef = useRef<HTMLDivElement | null>(null);
@@ -215,6 +216,20 @@ export default function Home() {
       setIndexScoringPending(false);
     }
   }, [indexActive]);
+
+  useEffect(() => {
+    if (introInitRef.current) return;
+    introInitRef.current = true;
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    const fromDocs = url.searchParams.get("from") === "docs";
+    setIndexOpen(!fromDocs);
+    if (fromDocs) {
+      url.searchParams.delete("from");
+      const next = `${url.pathname}${url.search}${url.hash}`;
+      window.history.replaceState({}, "", next);
+    }
+  }, []);
 
   const scrollSupportersRight = () => {
     const el = supportersScrollerRef.current;
@@ -679,6 +694,14 @@ export default function Home() {
     `Period: ${periodLabel} · Flood: ${floodOverlayLabel} · Schools: ${schoolOverlayLabel} · Vote overlay: ${voteOverlayLabel} (${voteScaleLabel})`;
   const headerFilterSummary =
     `${state.grid} · ${METRIC_LABEL[state.metric]} · ${PROPERTY_LABEL[state.propertyType]} · ${NEWBUILD_LABEL[state.newBuild]} · ${periodLabel}`;
+  const headerMedianSummary =
+    !isDeltaMetric(state.metric) && medianLegend
+      ? `${formatMetricFilterValue(state.metric, medianLegend.breaks[0])}–${formatMetricFilterValue(state.metric, medianLegend.breaks[medianLegend.breaks.length - 1])}`
+      : null;
+  const topBarHeight = isMobileViewport ? 88 : 48;
+  const topStripTop = topBarHeight + 4;
+  const floatingPanelTop = topBarHeight + 8;
+  const clearButtonTop = isMobileViewport ? topBarHeight + 86 : 162;
 
   // Global value-filter scales (stable across other filters), per metric
   const MEDIAN_FILTER_MIN = 50_000;
@@ -882,125 +905,177 @@ export default function Home() {
         <div
           ref={topPanelRef}
           style={{
-            position: "fixed", top: 0, left: 0, right: 0, height: 48,
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: topBarHeight,
             zIndex: frontZ("topbar", 50),
-            background: "rgba(8,10,20,0.94)", backdropFilter: "blur(10px)",
+            background: "rgba(8,10,20,0.94)",
+            backdropFilter: "blur(10px)",
             borderBottom: "1px solid rgba(255,255,255,0.1)",
-            display: "flex", alignItems: "center", gap: 6, padding: "0 12px", color: "white",
+            color: "white",
+            padding: isMobileViewport ? "6px 10px" : "0 12px",
+            display: "grid",
+            gridTemplateRows: isMobileViewport ? "1fr 1fr" : "1fr",
+            gap: isMobileViewport ? 6 : 0,
           }}
           onMouseDown={() => bringToFront("topbar")}
         >
-          {/* Logo */}
-          <div style={{ fontWeight: 700, fontSize: 13, lineHeight: 1.1, whiteSpace: "nowrap", flexShrink: 0, marginRight: 2 }}>
-            UK House Price Grid{" "}
-            <span style={{ fontSize: 9, fontWeight: 400, opacity: 0.45 }}>v0.1</span>
-          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: 13, lineHeight: 1.1, whiteSpace: "nowrap", flexShrink: 0, marginRight: 2 }}>
+              UK House Price Grid{" "}
+              <span style={{ fontSize: 9, fontWeight: 400, opacity: 0.45 }}>v0.1</span>
+            </div>
 
-          {/* ── Controls dropdown ── */}
-          <div ref={controlsDropRef} style={{ position: "relative", flexShrink: 0 }}>
-            <button type="button"
-              onClick={(e) => { e.stopPropagation(); setControlsDropOpen(v => !v); setInfoDropOpen(false); }}
-              style={{ cursor: "pointer", border: controlsDropOpen ? "1px solid rgba(250,204,21,0.7)" : "1px solid rgba(255,255,255,0.2)", background: controlsDropOpen ? "rgba(250,204,21,0.14)" : "rgba(255,255,255,0.08)", color: "white", padding: "5px 10px", borderRadius: 999, fontSize: 11, display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
-              ⚙ Controls ▾
-            </button>
-            {controlsDropOpen && (
-              <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, width: 210, background: "rgba(8,10,22,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,0.16)", borderRadius: 10, padding: "6px 0", boxShadow: "0 10px 40px rgba(0,0,0,0.65)", zIndex: 200 }}>
-                {([
-                  { label: filtersOpen ? "🗂 Filters (open)" : "🗂 Filters", action: () => { setFiltersOpen(v => !v); setControlsDropOpen(false); bringToFront("filters"); } },
-                  { label: "🔍 Find my area", action: () => { setIndexOpen(v => !v); setControlsDropOpen(false); bringToFront("index"); } },
-                  { label: "↺  Reset all", action: () => { resetAll(); } },
-                ] as Array<{ label: string; action: () => void }>).map(({ label, action }) => (
-                  <button key={label} type="button" onClick={action}
-                    style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", color: "white", cursor: "pointer", padding: "8px 14px", fontSize: 11 }}
+            <div ref={controlsDropRef} style={{ position: "relative", flexShrink: 0 }}>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setControlsDropOpen(v => !v); setInfoDropOpen(false); }}
+                style={{ cursor: "pointer", border: controlsDropOpen ? "1px solid rgba(250,204,21,0.7)" : "1px solid rgba(255,255,255,0.2)", background: controlsDropOpen ? "rgba(250,204,21,0.14)" : "rgba(255,255,255,0.08)", color: "white", padding: "5px 10px", borderRadius: 999, fontSize: 11, display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}
+              >
+                ⚙ Controls ▾
+              </button>
+              {controlsDropOpen && (
+                <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, width: 210, background: "rgba(8,10,22,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,0.16)", borderRadius: 10, padding: "6px 0", boxShadow: "0 10px 40px rgba(0,0,0,0.65)", zIndex: 200 }}>
+                  {([
+                    { label: filtersOpen ? "🗂 Filters (open)" : "🗂 Filters", action: () => { setFiltersOpen(v => !v); setControlsDropOpen(false); bringToFront("filters"); } },
+                    { label: "🔍 Find my area", action: () => { setIndexOpen(v => !v); setControlsDropOpen(false); bringToFront("index"); } },
+                    { label: "↺  Reset all", action: () => { resetAll(); } },
+                  ] as Array<{ label: string; action: () => void }>).map(({ label, action }) => (
+                    <button key={label} type="button" onClick={action}
+                      style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", color: "white", cursor: "pointer", padding: "8px 14px", fontSize: 11 }}
+                      onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
+                      onMouseLeave={e => (e.currentTarget.style.background = "none")}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                  <div style={{ height: 1, background: "rgba(255,255,255,0.1)", margin: "4px 0" }} />
+                  <a href="https://buymeacoffee.com/chrandalf" target="_blank" rel="noreferrer"
+                    style={{ display: "block", padding: "8px 14px", fontSize: 11, color: "white", textDecoration: "none" }}
                     onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
-                    onMouseLeave={e => (e.currentTarget.style.background = "none")}>
-                    {label}
-                  </button>
-                ))}
-                <div style={{ height: 1, background: "rgba(255,255,255,0.1)", margin: "4px 0" }} />
-                <a href="https://buymeacoffee.com/chrandalf" target="_blank" rel="noreferrer"
-                  style={{ display: "block", padding: "8px 14px", fontSize: 11, color: "white", textDecoration: "none" }}
-                  onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
-                  onMouseLeave={e => (e.currentTarget.style.background = "")}>
-                  ☕ Buy me a coffee
-                </a>
-                {supporterNames.length > 0 && (
-                  <div style={{ padding: "2px 14px 7px", fontSize: 9, opacity: 0.55, lineHeight: 1.3 }}>
-                    Thanks: {supporterNames.slice(0, 6).join(", ")}
+                    onMouseLeave={e => (e.currentTarget.style.background = "")}
+                  >
+                    ☕ Buy me a coffee
+                  </a>
+                  {supporterNames.length > 0 && (
+                    <div style={{ padding: "2px 14px 7px", fontSize: 9, opacity: 0.55, lineHeight: 1.3 }}>
+                      Thanks: {supporterNames.slice(0, 6).join(", ")}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div ref={infoDropRef} style={{ position: "relative", flexShrink: 0 }}>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setInfoDropOpen(v => !v); setControlsDropOpen(false); }}
+                style={{ cursor: "pointer", border: infoDropOpen ? "1px solid rgba(147,197,253,0.7)" : "1px solid rgba(255,255,255,0.2)", background: infoDropOpen ? "rgba(59,130,246,0.18)" : "rgba(255,255,255,0.08)", color: "white", padding: "5px 10px", borderRadius: 999, fontSize: 11, display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}
+              >
+                ℹ Info ▾
+              </button>
+              {infoDropOpen && (
+                <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, width: 210, background: "rgba(8,10,22,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,0.16)", borderRadius: 10, padding: "6px 0", boxShadow: "0 10px 40px rgba(0,0,0,0.65)", zIndex: 200 }}>
+                  {([
+                    { label: "📖 Instructions", href: "/instructions" },
+                    { label: "📊 Data sources", href: "/data-sources" },
+                    { label: "🗳 Election info", href: "/election-info" },
+                    { label: "📝 Description", href: "/description" },
+                    { label: "🗺 Next steps", href: "/next-steps" },
+                    { label: "✉ Contact", href: "/contact" },
+                    { label: "⚖ Legal", href: "/legal" },
+                    { label: "🔒 Privacy", href: "/privacy" },
+                  ] as Array<{ label: string; href: string }>).map(({ label, href }) => (
+                    <a key={href} href={href} style={{ display: "block", padding: "8px 14px", fontSize: 11, color: "white", textDecoration: "none" }}
+                      onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
+                      onMouseLeave={e => (e.currentTarget.style.background = "")}
+                    >
+                      {label}
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {!isMobileViewport && (
+              <div style={{ display: "grid", gap: 1, maxWidth: 330, flexShrink: 1, overflow: "hidden" }}>
+                <div style={{ fontSize: 10, opacity: 0.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {headerFilterSummary}
+                </div>
+                {headerMedianSummary && (
+                  <div style={{ fontSize: 10, opacity: 0.72, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {`Median range: ${headerMedianSummary}`}
                   </div>
                 )}
               </div>
             )}
-          </div>
+            <div style={{ flex: 1 }} />
 
-          {/* ── Info dropdown ── */}
-          <div ref={infoDropRef} style={{ position: "relative", flexShrink: 0 }}>
-            <button type="button"
-              onClick={(e) => { e.stopPropagation(); setInfoDropOpen(v => !v); setControlsDropOpen(false); }}
-              style={{ cursor: "pointer", border: infoDropOpen ? "1px solid rgba(147,197,253,0.7)" : "1px solid rgba(255,255,255,0.2)", background: infoDropOpen ? "rgba(59,130,246,0.18)" : "rgba(255,255,255,0.08)", color: "white", padding: "5px 10px", borderRadius: 999, fontSize: 11, display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
-              ℹ Info ▾
-            </button>
-            {infoDropOpen && (
-              <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, width: 210, background: "rgba(8,10,22,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,0.16)", borderRadius: 10, padding: "6px 0", boxShadow: "0 10px 40px rgba(0,0,0,0.65)", zIndex: 200 }}>
-                {([
-                  { label: "📖 Instructions", href: "/instructions" },
-                  { label: "📊 Data sources", href: "/data-sources" },
-                  { label: "🗳 Election info", href: "/election-info" },
-                  { label: "📝 Description", href: "/description" },
-                  { label: "🗺 Next steps", href: "/next-steps" },
-                  { label: "✉ Contact", href: "/contact" },
-                  { label: "⚖ Legal", href: "/legal" },
-                  { label: "🔒 Privacy", href: "/privacy" },
-                ] as Array<{ label: string; href: string }>).map(({ label, href }) => (
-                  <a key={href} href={href} style={{ display: "block", padding: "8px 14px", fontSize: 11, color: "white", textDecoration: "none" }}
-                    onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
-                    onMouseLeave={e => (e.currentTarget.style.background = "") }>
-                    {label}
-                  </a>
-                ))}
+            {!isMobileViewport && (
+              <div style={{ display: "flex", gap: 4, alignItems: "center", flexShrink: 0 }}>
+                <input type="text"
+                  value={postcodeSearch}
+                  onChange={(e) => { setPostcodeSearch(e.target.value); if (postcodeSearchStatus) setPostcodeSearchStatus(null); }}
+                  onKeyDown={(e) => { if (e.key === "Enter") { const q = postcodeSearch.trim(); if (q) { setActivePostcodeSearch(q); setPostcodeSearchToken(v => v + 1); } } }}
+                  placeholder="Search postcode…"
+                  aria-label="Search postcode"
+                  style={{ width: 155, borderRadius: 7, border: "1px solid rgba(255,255,255,0.22)", background: "rgba(255,255,255,0.1)", color: "white", padding: "5px 8px", fontSize: 11 }}
+                />
+                <button type="button"
+                  onClick={() => { const q = postcodeSearch.trim(); if (!q) { setPostcodeSearchStatus("Enter a postcode"); return; } setActivePostcodeSearch(q); setPostcodeSearchToken(v => v + 1); }}
+                  style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.22)", background: "rgba(255,255,255,0.1)", color: "white", padding: "5px 9px", borderRadius: 7, fontSize: 11 }}
+                >
+                  Go
+                </button>
+                <button type="button"
+                  onClick={() => { setLocateMeStatus("Requesting location permission..."); setLocateMeSummary(null); setLocateMeToken(v => v + 1); }}
+                  title="Use my location (one-shot)" aria-label="Use my location once"
+                  style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.22)", background: "rgba(59,130,246,0.2)", color: "white", padding: "5px 9px", borderRadius: 7, fontSize: 11, whiteSpace: "nowrap" }}
+                >
+                  📍 Locate
+                </button>
               </div>
             )}
           </div>
 
-          {/* Filter summary */}
-          {!isMobileViewport && (
-            <div style={{ fontSize: 10, opacity: 0.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 220, flexShrink: 1 }}>
-              {headerFilterSummary}
-            </div>
-          )}
-          <div style={{ flex: 1 }} />
-
-          {/* Postcode search */}
-          <div style={{ display: "flex", gap: 4, alignItems: "center", flexShrink: 0 }}>
-            <input type="text"
-              value={postcodeSearch}
-              onChange={(e) => { setPostcodeSearch(e.target.value); if (postcodeSearchStatus) setPostcodeSearchStatus(null); }}
-              onKeyDown={(e) => { if (e.key === "Enter") { const q = postcodeSearch.trim(); if (q) { setActivePostcodeSearch(q); setPostcodeSearchToken(v => v + 1); } } }}
-              placeholder={isMobileViewport ? "Postcode…" : "Search postcode…"}
-              aria-label="Search postcode"
-              style={{ width: isMobileViewport ? 100 : 155, borderRadius: 7, border: "1px solid rgba(255,255,255,0.22)", background: "rgba(255,255,255,0.1)", color: "white", padding: "5px 8px", fontSize: 11 }}
-            />
-            <button type="button"
-              onClick={() => { const q = postcodeSearch.trim(); if (!q) { setPostcodeSearchStatus("Enter a postcode"); return; } setActivePostcodeSearch(q); setPostcodeSearchToken(v => v + 1); }}
-              style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.22)", background: "rgba(255,255,255,0.1)", color: "white", padding: "5px 9px", borderRadius: 7, fontSize: 11 }}>
-              Go
-            </button>
-            {!isMobileViewport && (
-              <button type="button"
+          {isMobileViewport && (
+            <div style={{ display: "flex", alignItems: "center", gap: 4, minHeight: 0 }}>
+              <input
+                type="text"
+                value={postcodeSearch}
+                onChange={(e) => { setPostcodeSearch(e.target.value); if (postcodeSearchStatus) setPostcodeSearchStatus(null); }}
+                onKeyDown={(e) => { if (e.key === "Enter") { const q = postcodeSearch.trim(); if (q) { setActivePostcodeSearch(q); setPostcodeSearchToken(v => v + 1); } } }}
+                placeholder="Postcode…"
+                aria-label="Search postcode"
+                style={{ flex: 1, minWidth: 0, borderRadius: 7, border: "1px solid rgba(255,255,255,0.22)", background: "rgba(255,255,255,0.1)", color: "white", padding: "5px 8px", fontSize: 11 }}
+              />
+              <button
+                type="button"
                 onClick={() => { setLocateMeStatus("Requesting location permission..."); setLocateMeSummary(null); setLocateMeToken(v => v + 1); }}
-                title="Use my location (one-shot)" aria-label="Use my location once"
-                style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.22)", background: "rgba(59,130,246,0.2)", color: "white", padding: "5px 9px", borderRadius: 7, fontSize: 11, whiteSpace: "nowrap" }}>
+                title="Use my location (one-shot)"
+                aria-label="Use my location once"
+                style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.22)", background: "rgba(59,130,246,0.2)", color: "white", padding: "5px 8px", borderRadius: 7, fontSize: 11, whiteSpace: "nowrap" }}
+              >
                 📍 Locate
               </button>
-            )}
-          </div>
+              <button
+                type="button"
+                onClick={() => { const q = postcodeSearch.trim(); if (!q) { setPostcodeSearchStatus("Enter a postcode"); return; } setActivePostcodeSearch(q); setPostcodeSearchToken(v => v + 1); }}
+                style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.22)", background: "rgba(255,255,255,0.1)", color: "white", padding: "5px 9px", borderRadius: 7, fontSize: 11 }}
+              >
+                Go
+              </button>
+            </div>
+          )}
         </div>
       )}
 
       {/* Status strip (below top bar) */}
       {(postcodeSearchStatus || locateMeStatus || locateMeSummary) && !cleanScreenMode && (
         <div
-          style={{ position: "fixed", top: 52, left: 18, zIndex: frontZ("status", 48), maxWidth: "calc(100vw - 36px)", background: "rgba(8,10,20,0.92)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, padding: "6px 10px", color: "white", fontSize: 11, lineHeight: 1.4 }}
+          style={{ position: "fixed", top: topStripTop, left: 18, zIndex: frontZ("status", 48), maxWidth: "calc(100vw - 36px)", background: "rgba(8,10,20,0.92)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, padding: "6px 10px", color: "white", fontSize: 11, lineHeight: 1.4 }}
           onMouseDown={() => bringToFront("status")}
         >
           {postcodeSearchStatus && <div>{postcodeSearchStatus}</div>}
@@ -1012,7 +1087,7 @@ export default function Home() {
       {/* Flood overlay warning banner */}
       {state.floodOverlayMode !== "off" && !cleanScreenMode && (
         <div
-          style={{ position: "fixed", top: 52, left: (postcodeSearchStatus || locateMeStatus || locateMeSummary) ? "auto" : 18, right: (postcodeSearchStatus || locateMeStatus || locateMeSummary) ? 18 : "auto", zIndex: 46, maxWidth: 380, borderRadius: 8, border: "1px solid rgba(248,113,113,0.55)", background: "rgba(239,68,68,0.12)", padding: "6px 10px", color: "white", backdropFilter: "blur(8px)", display: "flex", alignItems: "flex-start", gap: 6 }}>
+          style={{ position: "fixed", top: topStripTop, left: (postcodeSearchStatus || locateMeStatus || locateMeSummary) ? "auto" : 18, right: (postcodeSearchStatus || locateMeStatus || locateMeSummary) ? 18 : "auto", zIndex: 46, maxWidth: 380, borderRadius: 8, border: "1px solid rgba(248,113,113,0.55)", background: "rgba(239,68,68,0.12)", padding: "6px 10px", color: "white", backdropFilter: "blur(8px)", display: "flex", alignItems: "flex-start", gap: 6 }}>
           <div style={{ width: 16, height: 16, borderRadius: 999, background: "rgba(239,68,68,0.9)", color: "white", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0, marginTop: 1 }}>!</div>
           <div style={{ fontSize: 10, lineHeight: 1.35, opacity: 0.95 }}>
             <b>Important:</b> Flood overlay uses open flood data. Always verify with official UK government sources before making decisions.
@@ -1023,7 +1098,7 @@ export default function Home() {
       {/* ── Floating Filters panel ── */}
       {filtersOpen && !cleanScreenMode && (
         <div
-          style={{ position: "fixed", top: 56, left: 18, zIndex: frontZ("filters", 45), width: 480, maxWidth: "calc(100vw - 36px)", maxHeight: "calc(100vh - 72px)", overflow: "auto", padding: 14, borderRadius: 14, background: "rgba(10,12,20,0.96)", border: "1px solid rgba(255,255,255,0.15)", backdropFilter: "blur(12px)", color: "white", boxShadow: "0 8px 40px rgba(0,0,0,0.55)" }}
+          style={{ position: "fixed", top: floatingPanelTop, left: 18, zIndex: frontZ("filters", 45), width: 480, maxWidth: "calc(100vw - 36px)", maxHeight: "calc(100vh - 72px)", overflow: "auto", padding: 14, borderRadius: 14, background: "rgba(10,12,20,0.96)", border: "1px solid rgba(255,255,255,0.15)", backdropFilter: "blur(12px)", color: "white", boxShadow: "0 8px 40px rgba(0,0,0,0.55)" }}
           onMouseDown={() => bringToFront("filters")}
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
@@ -1072,7 +1147,7 @@ export default function Home() {
       {/* ── Floating Instructions panel ── */}
       {instructionsOpen && !cleanScreenMode && (
         <div
-          style={{ position: "fixed", top: 56, left: 18, zIndex: frontZ("instructions", 45), width: 460, maxWidth: "calc(100vw - 36px)", maxHeight: "calc(100vh - 72px)", overflow: "auto", padding: 14, borderRadius: 14, background: "rgba(10,12,20,0.96)", border: "1px solid rgba(255,255,255,0.15)", backdropFilter: "blur(12px)", color: "white", boxShadow: "0 8px 40px rgba(0,0,0,0.55)", fontSize: 11, lineHeight: 1.4 }}
+          style={{ position: "fixed", top: floatingPanelTop, left: 18, zIndex: frontZ("instructions", 45), width: 460, maxWidth: "calc(100vw - 36px)", maxHeight: "calc(100vh - 72px)", overflow: "auto", padding: 14, borderRadius: 14, background: "rgba(10,12,20,0.96)", border: "1px solid rgba(255,255,255,0.15)", backdropFilter: "blur(12px)", color: "white", boxShadow: "0 8px 40px rgba(0,0,0,0.55)", fontSize: 11, lineHeight: 1.4 }}
           onMouseDown={() => bringToFront("instructions")}
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
@@ -1133,7 +1208,7 @@ export default function Home() {
       {/* ── Floating Data Sources panel ── */}
       {dataSourcesOpen && !cleanScreenMode && (
         <div
-          style={{ position: "fixed", top: 56, left: 18, zIndex: frontZ("datasources", 45), width: 420, maxWidth: "calc(100vw - 36px)", maxHeight: "calc(100vh - 72px)", overflow: "auto", padding: 14, borderRadius: 14, background: "rgba(10,12,20,0.96)", border: "1px solid rgba(255,255,255,0.15)", backdropFilter: "blur(12px)", color: "white", boxShadow: "0 8px 40px rgba(0,0,0,0.55)", fontSize: 11, lineHeight: 1.45 }}
+          style={{ position: "fixed", top: floatingPanelTop, left: 18, zIndex: frontZ("datasources", 45), width: 420, maxWidth: "calc(100vw - 36px)", maxHeight: "calc(100vh - 72px)", overflow: "auto", padding: 14, borderRadius: 14, background: "rgba(10,12,20,0.96)", border: "1px solid rgba(255,255,255,0.15)", backdropFilter: "blur(12px)", color: "white", boxShadow: "0 8px 40px rgba(0,0,0,0.55)", fontSize: 11, lineHeight: 1.45 }}
           onMouseDown={() => bringToFront("datasources")}
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
@@ -1152,7 +1227,7 @@ export default function Home() {
       {/* ── Floating Election Info panel ── */}
       {electionInfoOpen && !cleanScreenMode && (
         <div
-          style={{ position: "fixed", top: 56, left: 18, zIndex: frontZ("electioninfo", 45), width: 430, maxWidth: "calc(100vw - 36px)", maxHeight: "calc(100vh - 72px)", overflow: "auto", padding: 14, borderRadius: 14, background: "rgba(10,12,20,0.96)", border: "1px solid rgba(255,255,255,0.15)", backdropFilter: "blur(12px)", color: "white", boxShadow: "0 8px 40px rgba(0,0,0,0.55)", fontSize: 11, lineHeight: 1.45 }}
+          style={{ position: "fixed", top: floatingPanelTop, left: 18, zIndex: frontZ("electioninfo", 45), width: 430, maxWidth: "calc(100vw - 36px)", maxHeight: "calc(100vh - 72px)", overflow: "auto", padding: 14, borderRadius: 14, background: "rgba(10,12,20,0.96)", border: "1px solid rgba(255,255,255,0.15)", backdropFilter: "blur(12px)", color: "white", boxShadow: "0 8px 40px rgba(0,0,0,0.55)", fontSize: 11, lineHeight: 1.45 }}
           onMouseDown={() => bringToFront("electioninfo")}
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
@@ -1915,7 +1990,7 @@ export default function Home() {
           style={{
             position: "fixed",
             right: 8,
-            top: 162,
+            top: clearButtonTop,
             zIndex: 6,
             border: "1px solid rgba(255,255,255,0.24)",
             background: cleanScreenMode ? "rgba(147,197,253,0.9)" : "rgba(10, 12, 20, 0.88)",

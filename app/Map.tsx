@@ -2606,19 +2606,29 @@ async function applyIndexScoring(
   const features = fc.features;
 
   // ─── Flood pre-pass: compute raw impact for every cell, collect for percentile ranking ───
-  type FloodMeta = { rawImpact: number; hasData: boolean };
+  type FloodMeta = { rawImpact: number; hasData: boolean; hasInCellRisk: boolean };
   const floodMeta: FloodMeta[] = new Array(features.length);
   const floodRawPositive: number[] = []; // only cells with actual flood impact > 0
   for (let i = 0; i < features.length; i++) {
     const coords = features[i].geometry?.coordinates?.[0];
-    if (!coords || coords.length < 4) { floodMeta[i] = { rawImpact: 0, hasData: false }; continue; }
+    if (!coords || coords.length < 4) { floodMeta[i] = { rawImpact: 0, hasData: false, hasInCellRisk: false }; continue; }
     const cLon = (coords[0][0] + coords[2][0]) / 2;
     const cLat = (coords[0][1] + coords[2][1]) / 2;
     if (querySpatialGrid(floodGrid, cLon, cLat, DATA_DEG).length === 0) {
-      floodMeta[i] = { rawImpact: 0, hasData: false }; continue;
+      floodMeta[i] = { rawImpact: 0, hasData: false, hasInCellRisk: false }; continue;
+    }
+    const minLon = Math.min(coords[0][0], coords[2][0]);
+    const maxLon = Math.max(coords[0][0], coords[2][0]);
+    const minLat = Math.min(coords[0][1], coords[2][1]);
+    const maxLat = Math.max(coords[0][1], coords[2][1]);
+    const nearFloodPoints = querySpatialGrid(floodGrid, cLon, cLat, NEAR_DEG);
+    const hasInCellRisk = nearFloodPoints.some((fp) => fp.lon >= minLon && fp.lon <= maxLon && fp.lat >= minLat && fp.lat <= maxLat);
+    if (!hasInCellRisk) {
+      floodMeta[i] = { rawImpact: 0, hasData: true, hasInCellRisk: false };
+      continue;
     }
     let raw = 0;
-    for (const fp of querySpatialGrid(floodGrid, cLon, cLat, NEAR_DEG)) {
+    for (const fp of nearFloodPoints) {
       const d = haversineDistanceMeters(cLat, cLon, fp.lat, fp.lon);
       if (d < 8000) {
         const proximity = 1 - d / 8000;
@@ -2626,7 +2636,7 @@ async function applyIndexScoring(
         raw += severity * proximity * proximity;
       }
     }
-    floodMeta[i] = { rawImpact: raw, hasData: true };
+    floodMeta[i] = { rawImpact: raw, hasData: true, hasInCellRisk: true };
     if (raw > 0) floodRawPositive.push(raw);
   }
   floodRawPositive.sort((a, b) => a - b);
@@ -2679,7 +2689,7 @@ async function applyIndexScoring(
         // No dataset coverage (Wales, Scotland) — neutral
         floodNoData = true;
         floodScore = 0.5;
-      } else if (fm.rawImpact === 0) {
+      } else if (!fm.hasInCellRisk || fm.rawImpact === 0) {
         // Has coverage but no flood zones within 8km → genuinely safe (top score)
         floodScore = 1.0;
       } else {
