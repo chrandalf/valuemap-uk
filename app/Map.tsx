@@ -33,6 +33,8 @@ export type IndexPrefs = {
   floodWeight: number;      // 0-10 importance
   schoolWeight: number;     // 0-10 importance
   coastWeight: number;      // 0-10 importance (placeholder for now)
+  indexFilterMode?: "off" | "lte" | "gte";
+  indexFilterThreshold?: number; // 0..1
 };
 
 export type LegendData =
@@ -1251,6 +1253,12 @@ export default function ValueMap({
         let html = `<div style="font-family:system-ui;font-size:12px;line-height:1.4;min-width:180px;max-width:210px;">`;
         const totalCol = totalScore < 0.35 ? "#ef4444" : totalScore < 0.55 ? "#fb923c" : totalScore < 0.72 ? "#facc15" : "#4ade80";
         html += `<div style="font-weight:700;margin-bottom:7px;font-size:13px;">🗺️ Match score: <span style="color:${totalCol}">${Math.round(totalScore * 100)}%</span></div>`;
+        if (Number.isFinite(median) && median > 0) {
+          html += `<div style="font-size:11px;opacity:0.9;margin-bottom:6px;">🏠 Median value: <b>£${Math.round(median).toLocaleString()}</b></div>`;
+        }
+        if (Number.isFinite(tx) && tx > 0) {
+          html += `<div style="font-size:11px;opacity:0.7;margin-bottom:6px;">Sales sample: <b>${tx}</b></div>`;
+        }
         const ptLabels: Record<string, string> = { ALL: "All types", D: "Detached", S: "Semi", T: "Terraced", F: "Flat" };
         const ptLabel = ptLabels[prefs.propertyType ?? "ALL"] ?? "";
         const affordLabel = ptLabel && ptLabel !== "All types" ? `💰 ${ptLabel}` : "💰 Affordability";
@@ -2715,28 +2723,20 @@ async function applyIndexScoring(
         schoolNoData = true;
         schoolScore = 0.5;
       } else {
-        // Distance-weighted average of nearby schools (closer = heavier weight)
+        // Use ALL nearby schools (within 8km), weighted by distance.
+        // This avoids over-rewarding a single good school in an area with many weaker schools.
         let weightedSum = 0;
         let weightSum = 0;
-        let bestScore = -1;
         for (const sp of querySpatialGrid(schoolGrid, cLon, cLat, NEAR_DEG)) {
           const d = haversineDistanceMeters(cLat, cLon, sp.lat, sp.lon);
           if (d < 8000) {
             const q = sp.qualityScore; // already 0-1 from pipeline rank_percentiles
-            if (q > bestScore) bestScore = q;
-            // Inverse-distance weight: closer schools matter more
-            const w = 1 / Math.max(d, 500); // floor at 500m to avoid division issues
+            const w = 1 / Math.max(d, 500); // closer schools matter more
             weightedSum += q * w;
             weightSum += w;
           }
         }
-        if (bestScore >= 0) {
-          // Blend: 60% distance-weighted average + 40% best nearby school
-          const avg = weightedSum / weightSum;
-          schoolScore = 0.6 * avg + 0.4 * bestScore;
-        } else {
-          schoolScore = 0.5; // neutral if no school within 8km
-        }
+        schoolScore = weightSum > 0 ? (weightedSum / weightSum) : 0.5;
       }
       totalScore += prefs.schoolWeight * schoolScore;
       totalWeight += prefs.schoolWeight;
@@ -2756,6 +2756,10 @@ async function applyIndexScoring(
   src.setData(fc as any);
 
   if (map.getLayer("cells-fill")) {
+    const baseOpacityExpr = [
+      "interpolate", ["linear"], ["get", "index_score"],
+      0, 0.25, 0.3, 0.4, 0.7, 0.65, 1, 0.85,
+    ] as any;
     map.setPaintProperty("cells-fill", "fill-color", [
       "interpolate", ["linear"], ["get", "index_score"],
       0,    "#d73027",
@@ -2764,10 +2768,25 @@ async function applyIndexScoring(
       0.75, "#66bd63",
       1,    "#1a9850",
     ] as any);
-    map.setPaintProperty("cells-fill", "fill-opacity", [
-      "interpolate", ["linear"], ["get", "index_score"],
-      0, 0.25, 0.3, 0.4, 0.7, 0.65, 1, 0.85,
-    ] as any);
+    const mode = prefs.indexFilterMode ?? "off";
+    const threshold = Math.max(0, Math.min(1, Number(prefs.indexFilterThreshold ?? 0.6)));
+    if (mode === "gte") {
+      map.setPaintProperty("cells-fill", "fill-opacity", [
+        "case",
+        [">=", ["get", "index_score"], threshold],
+        baseOpacityExpr,
+        0.08,
+      ] as any);
+    } else if (mode === "lte") {
+      map.setPaintProperty("cells-fill", "fill-opacity", [
+        "case",
+        ["<=", ["get", "index_score"], threshold],
+        baseOpacityExpr,
+        0.08,
+      ] as any);
+    } else {
+      map.setPaintProperty("cells-fill", "fill-opacity", baseOpacityExpr);
+    }
   }
   return true;
 }

@@ -138,6 +138,8 @@ export default function Home() {
   const [indexFloodWeight, setIndexFloodWeight] = useState(5);
   const [indexSchoolWeight, setIndexSchoolWeight] = useState(5);
   const [indexCoastWeight, setIndexCoastWeight] = useState(0);
+  const [indexSuitabilityMode, setIndexSuitabilityMode] = useState<ValueFilterMode>("off");
+  const [indexSuitabilityThreshold, setIndexSuitabilityThreshold] = useState(65);
   const introInitRef = useRef(false);
   const urlHydratedRef = useRef(false);
   const supportersScrollerRef = useRef<HTMLDivElement | null>(null);
@@ -150,8 +152,28 @@ export default function Home() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const computedIndexPrefs: IndexPrefs | null = useMemo(() => {
     if (!indexActive) return null;
-    return { budget: indexBudget, propertyType: indexPropertyType, affordWeight: indexAffordWeight, floodWeight: indexFloodWeight, schoolWeight: indexSchoolWeight, coastWeight: indexCoastWeight };
-  }, [indexActive, indexToken]);
+    return {
+      budget: indexBudget,
+      propertyType: indexPropertyType,
+      affordWeight: indexAffordWeight,
+      floodWeight: indexFloodWeight,
+      schoolWeight: indexSchoolWeight,
+      coastWeight: indexCoastWeight,
+      indexFilterMode: indexSuitabilityMode,
+      indexFilterThreshold: indexSuitabilityThreshold / 100,
+    };
+  }, [
+    indexActive,
+    indexToken,
+    indexBudget,
+    indexPropertyType,
+    indexAffordWeight,
+    indexFloodWeight,
+    indexSchoolWeight,
+    indexCoastWeight,
+    indexSuitabilityMode,
+    indexSuitabilityThreshold,
+  ]);
 
   const DEFAULT_STATE: MapState = {
     grid: "5km",
@@ -1411,11 +1433,51 @@ export default function Home() {
               />
             </div>
 
+            {/* Suitability filter */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 6 }}>🎯 Suitability filter (green↔red)</div>
+              <Segment
+                options={["off", "gte", "lte"]}
+                value={indexSuitabilityMode}
+                onChange={(v) => setIndexSuitabilityMode(v as ValueFilterMode)}
+                renderOption={(v) => {
+                  if (v === "off") return "Off";
+                  if (v === "gte") return "Show best";
+                  return "Show worst";
+                }}
+              />
+              {indexSuitabilityMode !== "off" && (
+                <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={indexSuitabilityThreshold}
+                    onChange={(e) => setIndexSuitabilityThreshold(Number(e.target.value))}
+                    style={{ width: "100%", accentColor: "#22c55e" }}
+                  />
+                  <div style={{ fontSize: 11, opacity: 0.8 }}>
+                    {indexSuitabilityMode === "gte"
+                      ? `Visible when score is ${indexSuitabilityThreshold}% or higher`
+                      : `Visible when score is ${indexSuitabilityThreshold}% or lower`}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Score / Clear buttons */}
             <div style={{ display: "flex", gap: 8 }}>
               <button
                 type="button"
-                onClick={() => { setIndexScoringPending(true); setIndexActive(true); setIndexToken((t) => t + 1); setIndexOpen(false); }}
+                onClick={() => {
+                  setGridMode("manual");
+                  setState((s) => ({ ...s, grid: "1km" }));
+                  setIndexScoringPending(true);
+                  setIndexActive(true);
+                  setIndexToken((t) => t + 1);
+                  setIndexOpen(false);
+                }}
                 style={{
                   flex: 1,
                   cursor: "pointer",
