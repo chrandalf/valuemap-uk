@@ -42,3 +42,9 @@ body {
   border-top-color: #ffffff;
   border-bottom-color: #ffffff;
 }
+
+/* Push MapLibre nav controls below the fixed 48px top bar */
+.maplibregl-ctrl-top-left,
+.maplibregl-ctrl-top-right {
+  top: 52px !important;
+}

@@ -2604,6 +2604,40 @@ async function applyIndexScoring(
   const CHUNK = 300; // yield to browser every N cells
 
   const features = fc.features;
+
+  // ─── Flood pre-pass: compute raw impact for every cell, collect for percentile ranking ───
+  type FloodMeta = { rawImpact: number; hasData: boolean };
+  const floodMeta: FloodMeta[] = new Array(features.length);
+  const floodRawPositive: number[] = []; // only cells with actual flood impact > 0
+  for (let i = 0; i < features.length; i++) {
+    const coords = features[i].geometry?.coordinates?.[0];
+    if (!coords || coords.length < 4) { floodMeta[i] = { rawImpact: 0, hasData: false }; continue; }
+    const cLon = (coords[0][0] + coords[2][0]) / 2;
+    const cLat = (coords[0][1] + coords[2][1]) / 2;
+    if (querySpatialGrid(floodGrid, cLon, cLat, DATA_DEG).length === 0) {
+      floodMeta[i] = { rawImpact: 0, hasData: false }; continue;
+    }
+    let raw = 0;
+    for (const fp of querySpatialGrid(floodGrid, cLon, cLat, NEAR_DEG)) {
+      const d = haversineDistanceMeters(cLat, cLon, fp.lat, fp.lon);
+      if (d < 8000) {
+        const proximity = 1 - d / 8000;
+        const severity = Math.min(fp.riskScore / 4, 1);
+        raw += severity * proximity * proximity;
+      }
+    }
+    floodMeta[i] = { rawImpact: raw, hasData: true };
+    if (raw > 0) floodRawPositive.push(raw);
+  }
+  floodRawPositive.sort((a, b) => a - b);
+  const nFloodPos = floodRawPositive.length;
+  // Binary upper-bound search → percentile rank (0 = safest, 1 = worst)
+  const floodPercentileRank = (v: number): number => {
+    let lo = 0, hi = nFloodPos;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (floodRawPositive[mid] <= v) lo = mid + 1; else hi = mid; }
+    return nFloodPos > 0 ? lo / nFloodPos : 0;
+  };
+
   for (let i = 0; i < features.length; i++) {
     // Yield to browser between chunks so UI stays responsive
     if (i > 0 && i % CHUNK === 0) await new Promise<void>((r) => setTimeout(r, 0));
@@ -2636,37 +2670,23 @@ async function applyIndexScoring(
     }
     props.ix_a = affordScore;
 
-    // 2) Flood risk — density-aware: aggregate impact from ALL nearby flood zones
+    // 2) Flood risk — relative/percentile: score vs all other cells in England (pre-computed)
     let floodScore = 0.5;
     let floodNoData = false;
     if (prefs.floodWeight > 0) {
-      // Wide check: any flood data coverage within ~50km?
-      const wideFlood = querySpatialGrid(floodGrid, cLon, cLat, DATA_DEG);
-      if (wideFlood.length === 0) {
-        // No dataset coverage (Wales, Scotland) — neutral, not treated as safe
+      const fm = floodMeta[i];
+      if (!fm || !fm.hasData) {
+        // No dataset coverage (Wales, Scotland) — neutral
         floodNoData = true;
         floodScore = 0.5;
+      } else if (fm.rawImpact === 0) {
+        // Has coverage but no flood zones within 8km → genuinely safe (top score)
+        floodScore = 1.0;
       } else {
-        // Aggregate flood impact from all zones within 8km
-        // Multiple nearby flood zones = worse than a single one
-        let aggregateImpact = 0;
-        let anyWithin8k = false;
-        for (const fp of querySpatialGrid(floodGrid, cLon, cLat, NEAR_DEG)) {
-          const d = haversineDistanceMeters(cLat, cLon, fp.lat, fp.lon);
-          if (d < 8000) {
-            anyWithin8k = true;
-            const proximity = 1 - d / 8000; // 1 = on top, 0 = 8km away
-            const severity = Math.min(fp.riskScore / 4, 1); // 0-1 severity
-            // Quadratic falloff: nearby flood zones matter much more
-            aggregateImpact += severity * proximity * proximity;
-          }
-        }
-        if (!anyWithin8k) {
-          floodScore = 1.0; // data coverage exists but no flood zones nearby → safe
-        } else {
-          // Cap aggregate at 1.0 so the worst possible score is 0
-          floodScore = Math.max(0, 1 - Math.min(aggregateImpact, 1));
-        }
+        // Percentile rank relative to all flood-impacted cells in the UK
+        // rank 0 = least impacted → score 1.0; rank 1 = most impacted → score 0.0
+        const rank = floodPercentileRank(fm.rawImpact);
+        floodScore = Math.max(0, 1 - rank);
       }
       totalScore += prefs.floodWeight * floodScore;
       totalWeight += prefs.floodWeight;

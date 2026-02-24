@@ -120,6 +120,12 @@ export default function Home() {
   const [gridMode, setGridMode] = useState<GridMode>("manual");
   const [mapZoom, setMapZoom] = useState<number | null>(null);
   const [cleanScreenMode, setCleanScreenMode] = useState(false);
+  const [controlsDropOpen, setControlsDropOpen] = useState(false);
+  const [infoDropOpen, setInfoDropOpen] = useState(false);
+  const [panelFront, setPanelFront] = useState<Record<string, number>>({});
+  const zSeqRef = useRef(0);
+  const controlsDropRef = useRef<HTMLDivElement | null>(null);
+  const infoDropRef = useRef<HTMLDivElement | null>(null);
   const [mobileOverlayRatio, setMobileOverlayRatio] = useState(0);
   const [mobileQuickFilterKey, setMobileQuickFilterKey] = useState<MobileQuickFilterKey>("grid");
   const [indexOpen, setIndexOpen] = useState(true);
@@ -165,17 +171,39 @@ export default function Home() {
     setDataSourcesOpen(false);
     setElectionInfoOpen(false);
   };
+
+  const bringToFront = (id: string) => {
+    const n = ++zSeqRef.current;
+    setPanelFront(prev => ({ ...prev, [id]: n }));
+  };
+  const frontZ = (id: string, base: number) => base + (panelFront[id] ?? 0);
   const resetAll = () => {
     setState(DEFAULT_STATE);
     setLegendOpen(true);
     closeAllSubpanels();
-    setMenuOpen(true);
+    setControlsDropOpen(false);
+    setInfoDropOpen(false);
     setActivePostcodeSearch("");
     setPostcodeSearchStatus(null);
     setIndexOpen(false);
     setIndexActive(false);
     setIndexScoringPending(false);
   };
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    if (!controlsDropOpen && !infoDropOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (controlsDropOpen && controlsDropRef.current && !controlsDropRef.current.contains(e.target as Node)) {
+        setControlsDropOpen(false);
+      }
+      if (infoDropOpen && infoDropRef.current && !infoDropRef.current.contains(e.target as Node)) {
+        setInfoDropOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [controlsDropOpen, infoDropOpen]);
 
   useEffect(() => {
     if (!activePostcodeSearch.trim()) return;
@@ -295,7 +323,6 @@ export default function Home() {
   }, [
     isMobileViewport,
     cleanScreenMode,
-    menuOpen,
     filtersOpen,
     instructionsOpen,
     dataSourcesOpen,
@@ -849,946 +876,311 @@ export default function Home() {
         }}
       />
 
-      {/* Top-left product panel */}
-      <div
-        ref={topPanelRef}
-        className="panel"
-        data-open={filtersOpen ? "true" : "false"}
-        style={{
-          position: "absolute",
-          top: 18,
-          left: 18,
-          width: 500,
-          maxWidth: "calc(100vw - 36px)",
-          padding: 14,
-          borderRadius: 14,
-          background: "rgba(10, 12, 20, 0.72)",
-          border: "1px solid rgba(255,255,255,0.12)",
-          backdropFilter: "blur(10px)",
-          color: "white",
-          display: isMobileViewport && cleanScreenMode ? "none" : "block",
-        }}
-      >
-        <div className="panel-header" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-          <div>
-            <div className="panel-title" style={{ fontSize: 24, fontWeight: 700, marginTop: 2, lineHeight: 1.2 }}>
-              UK HOUSE PRICE GRID{" "}
-              <span style={{ fontSize: 12, fontWeight: 600, opacity: 0.75, verticalAlign: "middle" }}>
-                v0.1
-              </span>
-            </div>
-            <div className="panel-byline" style={{ marginTop: 4, fontSize: 12, opacity: 0.8 }}>
-              by Chris Randall
-            </div>
-          </div>
-        </div>
+
+      {/* ═══ Fixed top bar ═══ */}
+      {!(isMobileViewport && cleanScreenMode) && (
         <div
-          className="panel-actions"
-          data-menu-open={menuOpen && !anySubpanelOpen ? "true" : "false"}
-          style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}
+          ref={topPanelRef}
+          style={{
+            position: "fixed", top: 0, left: 0, right: 0, height: 48,
+            zIndex: frontZ("topbar", 50),
+            background: "rgba(8,10,20,0.94)", backdropFilter: "blur(10px)",
+            borderBottom: "1px solid rgba(255,255,255,0.1)",
+            display: "flex", alignItems: "center", gap: 6, padding: "0 12px", color: "white",
+          }}
+          onMouseDown={() => bringToFront("topbar")}
         >
-          <button
-            type="button"
-            className="menu-toggle"
-            onClick={() => {
-              if (anySubpanelOpen) {
-                closeAllSubpanels();
-                setMenuOpen(true);
-                return;
-              }
-              setMenuOpen((v) => !v);
-            }}
-            aria-expanded={menuOpen}
-            aria-controls="master-menu"
-            style={{
-              padding: "6px 10px",
-              borderRadius: 999,
-              border: "1px solid rgba(255,255,255,0.18)",
-              background: "rgba(255,255,255,0.08)",
-              color: "white",
-              fontSize: 11,
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-            }}
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-              focusable="false"
-              style={{ display: "block" }}
-            >
-              <path
-                fill="currentColor"
-                d="M12 8.5a3.5 3.5 0 1 0 0 7a3.5 3.5 0 0 0 0-7Zm8.94 2.39-1.63-.94c.1-.46.15-.94.15-1.45c0-.5-.05-.99-.15-1.45l1.63-.94a.5.5 0 0 0 .2-.65l-1.54-2.66a.5.5 0 0 0-.62-.22l-1.62.66a7.8 7.8 0 0 0-2.5-1.45l-.25-1.72A.5.5 0 0 0 13.1 0h-3.2a.5.5 0 0 0-.49.42l-.25 1.72a7.8 7.8 0 0 0-2.5 1.45l-1.62-.66a.5.5 0 0 0-.62.22L1.88 5.8a.5.5 0 0 0 .2.65l1.63.94c-.1.46-.15.94-.15 1.45c0 .5.05.99.15 1.45l-1.63.94a.5.5 0 0 0-.2.65l1.54 2.66a.5.5 0 0 0 .62.22l1.62-.66c.74.6 1.6 1.08 2.5 1.45l.25 1.72c.03.24.25.42.49.42h3.2c.24 0 .45-.18.49-.42l.25-1.72c.9-.37 1.76-.85 2.5-1.45l1.62.66a.5.5 0 0 0 .62-.22l1.54-2.66a.5.5 0 0 0-.2-.65ZM12 17a5 5 0 1 1 0-10a5 5 0 0 1 0 10Z"
-              />
-            </svg>
-            {anySubpanelOpen ? "Back" : menuOpen ? "Close menu" : "Menu"}
-          </button>
-
-          <div
-            className="menu-filter-summary"
-            aria-live="polite"
-            style={{
-              padding: "6px 9px",
-              borderRadius: 10,
-              border: "1px solid rgba(255,255,255,0.12)",
-              background: "rgba(255,255,255,0.04)",
-              color: "rgba(255,255,255,0.9)",
-              fontSize: 10,
-              lineHeight: 1.25,
-              maxWidth: 310,
-              flex: "1 1 220px",
-              minWidth: 0,
-              whiteSpace: "normal",
-              overflowWrap: "anywhere",
-            }}
-          >
-            {`Current: ${headerFilterSummary}`}
+          {/* Logo */}
+          <div style={{ fontWeight: 700, fontSize: 13, lineHeight: 1.1, whiteSpace: "nowrap", flexShrink: 0, marginRight: 2 }}>
+            UK House Price Grid{" "}
+            <span style={{ fontSize: 9, fontWeight: 400, opacity: 0.45 }}>v0.1</span>
           </div>
 
-          {menuOpen && !anySubpanelOpen && (
-            <button
-              type="button"
-              className="panel-toggle menu-btn"
-              onClick={() => {
-                closeAllSubpanels();
-                setFiltersOpen(true);
-              }}
-              aria-expanded={filtersOpen}
-              aria-controls="filters-panel"
-              style={{
-                padding: "6px 10px",
-                borderRadius: 999,
-                border: "2px solid rgba(147,197,253,0.9)",
-                background: "rgba(59,130,246,0.22)",
-                color: "white",
-                fontSize: 11,
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-              }}
-            >
-              {filtersOpen ? "Hide filters" : "Filters"}
+          {/* ── Controls dropdown ── */}
+          <div ref={controlsDropRef} style={{ position: "relative", flexShrink: 0 }}>
+            <button type="button"
+              onClick={(e) => { e.stopPropagation(); setControlsDropOpen(v => !v); setInfoDropOpen(false); }}
+              style={{ cursor: "pointer", border: controlsDropOpen ? "1px solid rgba(250,204,21,0.7)" : "1px solid rgba(255,255,255,0.2)", background: controlsDropOpen ? "rgba(250,204,21,0.14)" : "rgba(255,255,255,0.08)", color: "white", padding: "5px 10px", borderRadius: 999, fontSize: 11, display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
+              ⚙ Controls ▾
             </button>
-          )}
+            {controlsDropOpen && (
+              <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, width: 210, background: "rgba(8,10,22,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,0.16)", borderRadius: 10, padding: "6px 0", boxShadow: "0 10px 40px rgba(0,0,0,0.65)", zIndex: 200 }}>
+                {([
+                  { label: filtersOpen ? "🗂 Filters (open)" : "🗂 Filters", action: () => { setFiltersOpen(v => !v); setControlsDropOpen(false); bringToFront("filters"); } },
+                  { label: "🔍 Find my area", action: () => { setIndexOpen(v => !v); setControlsDropOpen(false); bringToFront("index"); } },
+                  { label: "↺  Reset all", action: () => { resetAll(); } },
+                ] as Array<{ label: string; action: () => void }>).map(({ label, action }) => (
+                  <button key={label} type="button" onClick={action}
+                    style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", color: "white", cursor: "pointer", padding: "8px 14px", fontSize: 11 }}
+                    onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
+                    onMouseLeave={e => (e.currentTarget.style.background = "none")}>
+                    {label}
+                  </button>
+                ))}
+                <div style={{ height: 1, background: "rgba(255,255,255,0.1)", margin: "4px 0" }} />
+                <a href="https://buymeacoffee.com/chrandalf" target="_blank" rel="noreferrer"
+                  style={{ display: "block", padding: "8px 14px", fontSize: 11, color: "white", textDecoration: "none" }}
+                  onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
+                  onMouseLeave={e => (e.currentTarget.style.background = "")}>
+                  ☕ Buy me a coffee
+                </a>
+                {supporterNames.length > 0 && (
+                  <div style={{ padding: "2px 14px 7px", fontSize: 9, opacity: 0.55, lineHeight: 1.3 }}>
+                    Thanks: {supporterNames.slice(0, 6).join(", ")}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
-          {menuOpen && !anySubpanelOpen && (
-            <button
-              type="button"
-              onClick={() => {
-                setIndexOpen((v) => !v);
-                setMenuOpen(false);
-              }}
-              className="index-toggle menu-btn"
-              style={{
-                padding: "6px 10px",
-                borderRadius: 999,
-                border: indexActive
-                  ? "2px solid rgba(26,152,80,0.9)"
-                  : "2px solid rgba(250,204,21,0.7)",
-                background: indexActive
-                  ? "rgba(26,152,80,0.22)"
-                  : "rgba(250,204,21,0.14)",
-                color: "white",
-                fontSize: 11,
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-              }}
-            >
-              🔍 Find my area
+          {/* ── Info dropdown ── */}
+          <div ref={infoDropRef} style={{ position: "relative", flexShrink: 0 }}>
+            <button type="button"
+              onClick={(e) => { e.stopPropagation(); setInfoDropOpen(v => !v); setControlsDropOpen(false); }}
+              style={{ cursor: "pointer", border: infoDropOpen ? "1px solid rgba(147,197,253,0.7)" : "1px solid rgba(255,255,255,0.2)", background: infoDropOpen ? "rgba(59,130,246,0.18)" : "rgba(255,255,255,0.08)", color: "white", padding: "5px 10px", borderRadius: 999, fontSize: 11, display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
+              ℹ Info ▾
             </button>
-          )}
+            {infoDropOpen && (
+              <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, width: 210, background: "rgba(8,10,22,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,0.16)", borderRadius: 10, padding: "6px 0", boxShadow: "0 10px 40px rgba(0,0,0,0.65)", zIndex: 200 }}>
+                {([
+                  { label: "📖 Instructions", action: () => { setInstructionsOpen(true); setInstructionsPage(1); setInfoDropOpen(false); bringToFront("instructions"); } },
+                  { label: "📊 Data sources", action: () => { setDataSourcesOpen(true); setInfoDropOpen(false); bringToFront("datasources"); } },
+                  { label: "🗳 Election info", action: () => { setElectionInfoOpen(true); setInfoDropOpen(false); bringToFront("electioninfo"); } },
+                ] as Array<{ label: string; action: () => void }>).map(({ label, action }) => (
+                  <button key={label} type="button" onClick={action}
+                    style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", color: "white", cursor: "pointer", padding: "8px 14px", fontSize: 11 }}
+                    onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
+                    onMouseLeave={e => (e.currentTarget.style.background = "none")}>
+                    {label}
+                  </button>
+                ))}
+                <div style={{ height: 1, background: "rgba(255,255,255,0.1)", margin: "4px 0" }} />
+                {([
+                  { label: "📝 Description", href: "/description" },
+                  { label: "🗺 Next steps", href: "/next-steps" },
+                  { label: "✉ Contact", href: "/contact" },
+                  { label: "⚖ Legal", href: "/legal" },
+                  { label: "🔒 Privacy", href: "/privacy" },
+                ] as Array<{ label: string; href: string }>).map(({ label, href }) => (
+                  <a key={href} href={href} style={{ display: "block", padding: "8px 14px", fontSize: 11, color: "white", textDecoration: "none" }}
+                    onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
+                    onMouseLeave={e => (e.currentTarget.style.background = "")}>
+                    {label}
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
 
-          {menuOpen && !anySubpanelOpen && (
-            <button
-              type="button"
-              onClick={resetAll}
-              className="reset-toggle menu-btn"
-              style={{
-                cursor: "pointer",
-                border: "1px solid rgba(255,255,255,0.18)",
-                background: "rgba(255,255,255,0.08)",
-                color: "white",
-                padding: "6px 10px",
-                borderRadius: 999,
-                fontSize: 11,
-              }}
-            >
-              Reset
+          {/* Filter summary */}
+          {!isMobileViewport && (
+            <div style={{ fontSize: 10, opacity: 0.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 220, flexShrink: 1 }}>
+              {headerFilterSummary}
+            </div>
+          )}
+          <div style={{ flex: 1 }} />
+
+          {/* Postcode search */}
+          <div style={{ display: "flex", gap: 4, alignItems: "center", flexShrink: 0 }}>
+            <input type="text"
+              value={postcodeSearch}
+              onChange={(e) => { setPostcodeSearch(e.target.value); if (postcodeSearchStatus) setPostcodeSearchStatus(null); }}
+              onKeyDown={(e) => { if (e.key === "Enter") { const q = postcodeSearch.trim(); if (q) { setActivePostcodeSearch(q); setPostcodeSearchToken(v => v + 1); } } }}
+              placeholder={isMobileViewport ? "Postcode…" : "Search postcode…"}
+              aria-label="Search postcode"
+              style={{ width: isMobileViewport ? 100 : 155, borderRadius: 7, border: "1px solid rgba(255,255,255,0.22)", background: "rgba(255,255,255,0.1)", color: "white", padding: "5px 8px", fontSize: 11 }}
+            />
+            <button type="button"
+              onClick={() => { const q = postcodeSearch.trim(); if (!q) { setPostcodeSearchStatus("Enter a postcode"); return; } setActivePostcodeSearch(q); setPostcodeSearchToken(v => v + 1); }}
+              style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.22)", background: "rgba(255,255,255,0.1)", color: "white", padding: "5px 9px", borderRadius: 7, fontSize: 11 }}>
+              Go
             </button>
+            {!isMobileViewport && (
+              <button type="button"
+                onClick={() => { setLocateMeStatus("Requesting location permission..."); setLocateMeSummary(null); setLocateMeToken(v => v + 1); }}
+                title="Use my location (one-shot)" aria-label="Use my location once"
+                style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.22)", background: "rgba(59,130,246,0.2)", color: "white", padding: "5px 9px", borderRadius: 7, fontSize: 11, whiteSpace: "nowrap" }}>
+                📍 Locate
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Status strip (below top bar) */}
+      {(postcodeSearchStatus || locateMeStatus || locateMeSummary) && !cleanScreenMode && (
+        <div
+          style={{ position: "fixed", top: 52, left: 18, zIndex: frontZ("status", 48), maxWidth: "calc(100vw - 36px)", background: "rgba(8,10,20,0.92)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, padding: "6px 10px", color: "white", fontSize: 11, lineHeight: 1.4 }}
+          onMouseDown={() => bringToFront("status")}
+        >
+          {postcodeSearchStatus && <div>{postcodeSearchStatus}</div>}
+          {locateMeStatus && <div style={{ opacity: 0.85 }}>{locateMeStatus}</div>}
+          {locateMeSummary && <div style={{ opacity: 0.8, marginTop: 2 }}>{locateMeSummary}</div>}
+        </div>
+      )}
+
+      {/* Flood overlay warning banner */}
+      {state.floodOverlayMode !== "off" && !cleanScreenMode && (
+        <div
+          style={{ position: "fixed", top: 52, left: (postcodeSearchStatus || locateMeStatus || locateMeSummary) ? "auto" : 18, right: (postcodeSearchStatus || locateMeStatus || locateMeSummary) ? 18 : "auto", zIndex: 46, maxWidth: 380, borderRadius: 8, border: "1px solid rgba(248,113,113,0.55)", background: "rgba(239,68,68,0.12)", padding: "6px 10px", color: "white", backdropFilter: "blur(8px)", display: "flex", alignItems: "flex-start", gap: 6 }}>
+          <div style={{ width: 16, height: 16, borderRadius: 999, background: "rgba(239,68,68,0.9)", color: "white", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0, marginTop: 1 }}>!</div>
+          <div style={{ fontSize: 10, lineHeight: 1.35, opacity: 0.95 }}>
+            <b>Important:</b> Flood overlay uses open flood data. Always verify with official UK government sources before making decisions.
+          </div>
+        </div>
+      )}
+
+      {/* ── Floating Filters panel ── */}
+      {filtersOpen && !cleanScreenMode && (
+        <div
+          style={{ position: "fixed", top: 56, left: 18, zIndex: frontZ("filters", 45), width: 480, maxWidth: "calc(100vw - 36px)", maxHeight: "calc(100vh - 72px)", overflow: "auto", padding: 14, borderRadius: 14, background: "rgba(10,12,20,0.96)", border: "1px solid rgba(255,255,255,0.15)", backdropFilter: "blur(12px)", color: "white", boxShadow: "0 8px 40px rgba(0,0,0,0.55)" }}
+          onMouseDown={() => bringToFront("filters")}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <div style={{ fontWeight: 700, fontSize: 14 }}>🗂 Filters</div>
+            <button type="button" onClick={() => setFiltersOpen(false)} style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "white", width: 26, height: 26, borderRadius: 999, fontSize: 15, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+          </div>
+          <div id="filters-panel" className="controls" data-open="true" style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
+            <ControlRow label="Grid">
+              <Segment
+                options={isDeltaMetric(state.metric) ? ["5km", "10km", "25km"] : ["1km", "5km", "10km", "25km"]}
+                value={state.grid}
+                onChange={(v) => { setGridMode("manual"); setState((s) => ({ ...s, grid: v as GridSize })); }}
+              />
+            </ControlRow>
+            {isDeltaMetric(state.metric) && state.grid === "1km" && (
+              <div style={{ fontSize: 11, color: "#ff9999", fontStyle: "italic", marginTop: -4 }}>1km deltas unavailable</div>
+            )}
+            <ControlRow label="Metric">
+              <Segment options={["median", "median_ppsf", "delta_gbp", "delta_pct"]} value={state.metric} onChange={(v) => setState((s) => ({ ...s, metric: v as Metric }))} renderOption={(v) => METRIC_LABEL[v as Metric]} />
+            </ControlRow>
+            <ControlRow label="Type">
+              <Segment options={["ALL", "D", "S", "T", "F"]} value={state.propertyType} onChange={(v) => setState((s) => ({ ...s, propertyType: v as PropertyType }))} renderOption={(v) => PROPERTY_LABEL[v as PropertyType]} />
+            </ControlRow>
+            <ControlRow label="New build">
+              <Segment options={["ALL", "Y", "N"]} value={state.newBuild} onChange={(v) => setState((s) => ({ ...s, newBuild: v as NewBuild }))} renderOption={(v) => NEWBUILD_LABEL[v as NewBuild]} />
+            </ControlRow>
+            <ControlRow label="Period">
+              <Segment options={[...PERIOD_OPTIONS]} value={state.endMonth ?? "2025-12-01"} onChange={(v) => setState((s) => ({ ...s, endMonth: v }))}
+                renderOption={(v) => { const L: Record<string, string> = { "2025-12-01": "Dec 2025", "2024-12-01": "Dec 2024", "2023-12-01": "Dec 2023", "2022-12-01": "Dec 2022", "2021-12-01": "Dec 2021" }; return L[v] ?? v; }} />
+            </ControlRow>
+          </div>
+          {isDeltaMetric(state.metric) && (
+            <div style={{ marginTop: 12, padding: 10, borderRadius: 8, background: "rgba(255,255,255,0.08)", borderLeft: "3px solid #fdae61", fontSize: 11, lineHeight: 1.4 }}>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>Price change</div>
+              <div style={{ marginBottom: 6 }}>Comparing <b>Dec 2021</b> to <b>Dec 2025</b>.</div>
+              <div><b>Note:</b> Small deltas may reflect differences in property types sold in each period, not solely price changes.</div>
+            </div>
           )}
-          {menuOpen && !anySubpanelOpen && (
-            <button
-              type="button"
-              onClick={() => {
-                closeAllSubpanels();
-                setInstructionsOpen(true);
-                setInstructionsPage(1);
-                setMenuOpen(true);
-              }}
-              className="instructions-toggle menu-btn"
-              style={{
-                cursor: "pointer",
-                border: "1px solid rgba(255,255,255,0.18)",
-                background: "rgba(255,255,255,0.08)",
-                color: "white",
-                padding: "6px 10px",
-                borderRadius: 999,
-                fontSize: 11,
-              }}
-            >
-              Instructions
-            </button>
+          <div style={{ marginTop: 10, fontSize: 10, opacity: 0.6, lineHeight: 1.3 }}>Scotland coverage is partial and may be 1–2 years out of date.</div>
+          <div style={{ marginTop: 6, padding: "8px 10px", borderRadius: 8, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.15)", fontSize: 10, lineHeight: 1.35, opacity: 0.88 }}>
+            <b>Information only.</b> Map outputs may be incomplete or out of date. Always verify important details with official UK government sources.
+          </div>
+        </div>
+      )}
+
+      {/* ── Floating Instructions panel ── */}
+      {instructionsOpen && !cleanScreenMode && (
+        <div
+          style={{ position: "fixed", top: 56, left: 18, zIndex: frontZ("instructions", 45), width: 460, maxWidth: "calc(100vw - 36px)", maxHeight: "calc(100vh - 72px)", overflow: "auto", padding: 14, borderRadius: 14, background: "rgba(10,12,20,0.96)", border: "1px solid rgba(255,255,255,0.15)", backdropFilter: "blur(12px)", color: "white", boxShadow: "0 8px 40px rgba(0,0,0,0.55)", fontSize: 11, lineHeight: 1.4 }}
+          onMouseDown={() => bringToFront("instructions")}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <div style={{ fontWeight: 700, fontSize: 13 }}>📖 How to use this map</div>
+            <button type="button" onClick={() => { setInstructionsOpen(false); setInstructionsPage(1); }} style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "white", width: 26, height: 26, borderRadius: 999, fontSize: 15, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+          </div>
+          {instructionsPage === 1 && (
+            <>
+              <div style={{ fontSize: 10, opacity: 0.7, marginBottom: 8 }}>Page 1 of 3 · Start here</div>
+              <div style={{ marginBottom: 8 }}>This map answers: <b>where are prices higher, lower, or changing faster</b>, and how that varies when you compare like-for-like homes.</div>
+              <ol start={1} style={{ margin: "0 0 10px 16px", padding: 0 }}>
+                <li><b>Grid</b> controls the level of detail. Smaller cells show street-level variation; larger cells are better for regional patterns.</li>
+                <li><b>Metric</b> changes what the colours mean: median price, change in pounds, or change in percent.</li>
+                <li><b>Type</b> and <b>New build</b> keep comparisons fair by avoiding mixed property stock.</li>
+                <li><b>Period</b> lets you compare different years so you can check whether patterns are recent or persistent.</li>
+              </ol>
+              <button type="button" onClick={() => setInstructionsPage(2)} style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "white", padding: "4px 10px", borderRadius: 999, fontSize: 10 }}>Next page →</button>
+            </>
           )}
-          {menuOpen && !anySubpanelOpen && (
-            <a
-              href="/description"
-              className="description-toggle menu-btn"
-              style={{
-                cursor: "pointer",
-                border: "1px solid rgba(255,255,255,0.18)",
-                background: "rgba(255,255,255,0.08)",
-                color: "white",
-                padding: "6px 10px",
-                borderRadius: 999,
-                fontSize: 11,
-                textDecoration: "none",
-                display: "inline-flex",
-                alignItems: "center",
-              }}
-            >
-              Description
-            </a>
+          {instructionsPage === 2 && (
+            <>
+              <div style={{ fontSize: 10, opacity: 0.7, marginBottom: 8 }}>Page 2 of 3 · Filters and overlays</div>
+              <div style={{ marginBottom: 8 }}>The right-side panels are for focused filtering — separate from the main menu so you can adjust thresholds quickly while keeping the map visible.</div>
+              <ol start={1} style={{ margin: "0 0 10px 16px", padding: 0 }}>
+                <li>On mobile, use the bottom zoom dock to change map detail quickly.</li>
+                <li><b>Value filter</b> shows only areas above or below a threshold.</li>
+                <li>The threshold scale is <b>metric-specific</b>: £ range for median, % range for change-%.</li>
+                <li><b>Overlay filters</b> includes Flood so you can compare value patterns against flood-risk hotspots.</li>
+              </ol>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button type="button" onClick={() => setInstructionsPage(1)} style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "white", padding: "4px 10px", borderRadius: 999, fontSize: 10 }}>← Previous</button>
+                <button type="button" onClick={() => setInstructionsPage(3)} style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "white", padding: "4px 10px", borderRadius: 999, fontSize: 10 }}>Next →</button>
+              </div>
+            </>
           )}
-          {menuOpen && !anySubpanelOpen && (
-            <button
-              type="button"
-              onClick={() => {
-                closeAllSubpanels();
-                setDataSourcesOpen(true);
-                setMenuOpen(true);
-              }}
-              className="datasources-toggle menu-btn"
-              style={{
-                cursor: "pointer",
-                border: "1px solid rgba(255,255,255,0.18)",
-                background: "rgba(255,255,255,0.08)",
-                color: "white",
-                padding: "6px 10px",
-                borderRadius: 999,
-                fontSize: 11,
-              }}
-            >
-              Data sources
-            </button>
-          )}
-          {menuOpen && !anySubpanelOpen && (
-            <button
-              type="button"
-              onClick={() => {
-                closeAllSubpanels();
-                setElectionInfoOpen(true);
-                setMenuOpen(true);
-              }}
-              className="electioninfo-toggle menu-btn"
-              style={{
-                cursor: "pointer",
-                border: "1px solid rgba(255,255,255,0.18)",
-                background: "rgba(255,255,255,0.08)",
-                color: "white",
-                padding: "6px 10px",
-                borderRadius: 999,
-                fontSize: 11,
-              }}
-            >
-              Election info
-            </button>
-          )}
-          {menuOpen && !anySubpanelOpen && (
-            <a
-              href="/next-steps"
-              className="nextsteps-toggle menu-btn"
-              style={{
-                cursor: "pointer",
-                border: "1px solid rgba(255,255,255,0.18)",
-                background: "rgba(255,255,255,0.08)",
-                color: "white",
-                padding: "6px 10px",
-                borderRadius: 999,
-                fontSize: 11,
-                textDecoration: "none",
-                display: "inline-flex",
-                alignItems: "center",
-              }}
-            >
-              Next steps
-            </a>
-          )}
-          {menuOpen && !anySubpanelOpen && (
-            <a
-              href="/contact"
-              className="contact-toggle menu-btn"
-              style={{
-                cursor: "pointer",
-                border: "1px solid rgba(255,255,255,0.18)",
-                background: "rgba(255,255,255,0.08)",
-                color: "white",
-                padding: "6px 10px",
-                borderRadius: 999,
-                fontSize: 11,
-                textDecoration: "none",
-                display: "inline-flex",
-                alignItems: "center",
-              }}
-            >
-              Contact
-            </a>
-          )}
-          {menuOpen && !anySubpanelOpen && (
-            <a
-              href="/legal"
-              className="legal-toggle menu-btn"
-              style={{
-                cursor: "pointer",
-                border: "1px solid rgba(255,255,255,0.18)",
-                background: "rgba(255,255,255,0.08)",
-                color: "white",
-                padding: "6px 10px",
-                borderRadius: 999,
-                fontSize: 11,
-                textDecoration: "none",
-                display: "inline-flex",
-                alignItems: "center",
-              }}
-            >
-              Legal
-            </a>
-          )}
-          {menuOpen && !anySubpanelOpen && (
-            <a
-              href="/privacy"
-              className="privacy-toggle menu-btn"
-              style={{
-                cursor: "pointer",
-                border: "1px solid rgba(255,255,255,0.18)",
-                background: "rgba(255,255,255,0.08)",
-                color: "white",
-                padding: "6px 10px",
-                borderRadius: 999,
-                fontSize: 11,
-                textDecoration: "none",
-                display: "inline-flex",
-                alignItems: "center",
-              }}
-            >
-              Privacy
-            </a>
+          {instructionsPage === 3 && (
+            <>
+              <div style={{ fontSize: 10, opacity: 0.7, marginBottom: 8 }}>Page 3 of 3 · Reading results carefully</div>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>How to interpret what you see</div>
+              <ol start={1} style={{ margin: "0 0 10px 16px", padding: 0 }}>
+                <li>Clicking a cell opens postcode context; this helps move from pattern-finding to practical checking.</li>
+                <li>Use medians as a robust baseline, then switch to change metrics to test momentum.</li>
+                <li>If a pattern appears, change one filter at a time to check whether the signal still holds.</li>
+                <li>Treat flood overlay as exploratory context until production-grade historic datasets are integrated.</li>
+              </ol>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>Data notes</div>
+              <ol start={1} style={{ margin: "0 0 10px 16px", padding: 0 }}>
+                <li>Prices are sold prices, not asking prices.</li>
+                <li>Medians reduce outlier distortion but can still move if the mix of sold homes changes.</li>
+                <li>Scotland coverage is partial and may lag by 1–2 years in places.</li>
+              </ol>
+              <button type="button" onClick={() => setInstructionsPage(2)} style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "white", padding: "4px 10px", borderRadius: 999, fontSize: 10 }}>← Previous</button>
+            </>
           )}
         </div>
-        {!menuOpen && !anySubpanelOpen && (
-          <div style={{ marginTop: 8 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 8, width: "100%" }}>
-              <input
-                type="text"
-                value={postcodeSearch}
-                onChange={(e) => {
-                  setPostcodeSearch(e.target.value);
-                  if (postcodeSearchStatus) setPostcodeSearchStatus(null);
-                }}
-                placeholder="Search postcode (e.g. AL10 0AA)"
-                aria-label="Search postcode"
-                style={{
-                  width: "100%",
-                  borderRadius: 8,
-                  border: "1px solid rgba(255,255,255,0.2)",
-                  background: "rgba(255,255,255,0.08)",
-                  color: "white",
-                  padding: "6px 8px",
-                  fontSize: 12,
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  const query = postcodeSearch.trim();
-                  if (!query) {
-                    setPostcodeSearchStatus("Enter a postcode");
-                    return;
-                  }
-                  setActivePostcodeSearch(query);
-                  setPostcodeSearchToken((v) => v + 1);
-                }}
-                style={{
-                  cursor: "pointer",
-                  border: "1px solid rgba(255,255,255,0.2)",
-                  background: "rgba(255,255,255,0.08)",
-                  color: "white",
-                  padding: "6px 10px",
-                  borderRadius: 8,
-                  fontSize: 12,
-                }}
-              >
-                Go
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setLocateMeStatus("Requesting location permission...");
-                  setLocateMeSummary(null);
-                  setLocateMeToken((v) => v + 1);
-                }}
-                title="Use my location (one-shot)"
-                aria-label="Use my location once"
-                style={{
-                  cursor: "pointer",
-                  border: "1px solid rgba(255,255,255,0.2)",
-                  background: "rgba(59,130,246,0.2)",
-                  color: "white",
-                  padding: "6px 8px",
-                  borderRadius: 8,
-                  fontSize: 11,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                Locate me
-              </button>
-            </div>
-            {postcodeSearchStatus && (
-              <div style={{ fontSize: 11, opacity: 0.82, marginTop: 6 }}>
-                {postcodeSearchStatus}
-              </div>
-            )}
-            {locateMeStatus && (
-              <div style={{ fontSize: 11, opacity: 0.85, marginTop: 6 }}>
-                {locateMeStatus}
-              </div>
-            )}
-            {locateMeSummary && (
-              <div style={{ fontSize: 11, opacity: 0.8, marginTop: 4, lineHeight: 1.35 }}>
-                {locateMeSummary}
-              </div>
-            )}
-          </div>
-        )}
-        {!(isMobileViewport && filtersOpen) && (
-          <div
-            style={{
-              marginTop: 8,
-              display: "flex",
-              justifyContent: "flex-start",
-            }}
-          >
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <a
-                href="https://buymeacoffee.com/chrandalf"
-                target="_blank"
-                rel="noreferrer"
-                aria-label="Buy me a coffee"
-                title="Buy me a coffee"
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "6px 10px",
-                  borderRadius: 999,
-                  background: "rgba(255,255,255,0.08)",
-                  border: "1px solid rgba(255,255,255,0.22)",
-                  color: "white",
-                  textDecoration: "none",
-                  fontSize: 11,
-                  whiteSpace: "nowrap",
-                  maxWidth: "100%",
-                }}
-              >
-                <span aria-hidden="true">☕</span>
-                <span>Buy me a coffee</span>
-              </a>
-              <div style={{ fontSize: 10, opacity: 0.72, lineHeight: 1.25 }}>
-                Free to use. Optional support only; no paid priority or guarantees.
-              </div>
-              {supporterNames.length > 0 && (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, maxWidth: 380 }}>
-                  <div
-                    ref={supportersScrollerRef}
-                    style={{
-                      fontSize: 10,
-                      opacity: 0.78,
-                      lineHeight: 1.35,
-                      whiteSpace: "nowrap",
-                      overflowX: "hidden",
-                      overflowY: "hidden",
-                      flex: 1,
-                    }}
-                  >
-                    Thanks to supporters: {supporterNames.join(", ")}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={scrollSupportersRight}
-                    aria-label="Scroll supporter names"
-                    title="Show more supporters"
-                    style={{
-                      border: "1px solid rgba(255,255,255,0.22)",
-                      background: "rgba(255,255,255,0.08)",
-                      color: "white",
-                      borderRadius: 999,
-                      width: 18,
-                      height: 18,
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 11,
-                      lineHeight: 1,
-                      padding: 0,
-                      cursor: "pointer",
-                      flexShrink: 0,
-                    }}
-                  >
-                    →
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-        {state.floodOverlayMode !== "off" && (
-          <div
-            style={{
-              marginTop: 8,
-              borderRadius: 10,
-              border: "1px solid rgba(248,113,113,0.55)",
-              background: "rgba(239,68,68,0.12)",
-              padding: "8px 10px",
-              display: "flex",
-              alignItems: "flex-start",
-              gap: 8,
-            }}
-          >
-            <div
-              aria-hidden="true"
-              style={{
-                width: 18,
-                height: 18,
-                borderRadius: 999,
-                background: "rgba(239,68,68,0.9)",
-                color: "white",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 12,
-                fontWeight: 700,
-                lineHeight: 1,
-                flexShrink: 0,
-                marginTop: 1,
-              }}
-            >
-              !
-            </div>
-            <div style={{ fontSize: 10, lineHeight: 1.35, opacity: 0.95 }}>
-              <b>Important:</b> Flood overlay uses open flood data and representative mapped points.
-              Data may be out of date for some postcodes. Other points within the same postcode can
-              fall into different flood areas and have different risk levels. Always verify with
-              official UK government sources before making decisions.
-            </div>
-          </div>
-        )}
-        {(menuOpen || anySubpanelOpen) && (
-          <div style={{ marginTop: 6, fontSize: 11, opacity: 0.7 }}>
-            Scotland coverage is partial and may be 1–2 years out of date.
-          </div>
-        )}
-        {(menuOpen || anySubpanelOpen) && (
-          <div className="current-filters-mobile" style={{ marginTop: 6, fontSize: 10, opacity: 0.65, lineHeight: 1.25 }}>
-            {`Current filters: ${currentFiltersSummary} · Value filter: ${valueFilterLabel}`}
-          </div>
-        )}
-        {(menuOpen || anySubpanelOpen) && !(isMobileViewport && filtersOpen) && (
-          <div
-            style={{
-              marginTop: 8,
-              padding: "8px 10px",
-              borderRadius: 10,
-              background: "rgba(255,255,255,0.08)",
-              border: "1px solid rgba(255,255,255,0.18)",
-              fontSize: 10,
-              lineHeight: 1.35,
-              opacity: 0.9,
-            }}
-          >
-            <div style={{ fontWeight: 600, marginBottom: 4 }}>Information only</div>
-            <div>
-              {state.floodOverlayMode !== "off"
-                ? "Map outputs are for information only and may be incomplete or out of date. Always verify important details with official UK government sources before making decisions."
-                : "Flood data shown here is open flood data for information only. Data may be incomplete or out of date in some postcodes at the time of use. Always verify with official UK government sources before making decisions."}
-            </div>
-          </div>
-        )}
-        {instructionsOpen && (
-          <div
-            className="instructions-panel"
-            style={{
-              marginTop: 8,
-              padding: 10,
-              borderRadius: 10,
-              background: "rgba(0,0,0,0.35)",
-              border: "1px solid rgba(255,255,255,0.12)",
-              fontSize: 11,
-              lineHeight: 1.4,
-              opacity: 0.92,
-            }}
-          >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                <div style={{ fontWeight: 600 }}>How to use this map</div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setInstructionsOpen(false);
-                    setInstructionsPage(1);
-                    setMenuOpen(true);
-                  }}
-                  style={{
-                    cursor: "pointer",
-                    border: "1px solid rgba(255,255,255,0.18)",
-                    background: "rgba(255,255,255,0.08)",
-                    color: "white",
-                    padding: "4px 8px",
-                    borderRadius: 999,
-                    fontSize: 10,
-                  }}
-                >
-                  Back
-                </button>
-              </div>
-              {instructionsPage === 1 && (
-                <>
-                  <div style={{ fontSize: 10, opacity: 0.7, marginBottom: 8 }}>Page 1 of 3 · Start here</div>
-                  <div style={{ marginBottom: 8 }}>
-                    This map answers a simple question: <b>where are prices higher, lower, or changing faster</b>, and how that varies when you compare like-for-like homes.
-                    The quickest way to use it is to set the area size first, then choose what kind of change you want to see.
-                  </div>
-                  <ol start={1} style={{ margin: "0 0 10px 16px", padding: 0 }}>
-                    <li><b>Grid</b> controls the level of detail. Smaller cells show street-level variation; larger cells are better for regional patterns.</li>
-                    <li><b>Metric</b> changes what the colours mean: median price, change in pounds, or change in percent.</li>
-                    <li><b>Type</b> and <b>New build</b> keep comparisons fair by avoiding mixed property stock.</li>
-                    <li><b>Period</b> lets you compare different years so you can check whether patterns are recent or persistent.</li>
-                  </ol>
-                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                    <button
-                      type="button"
-                      onClick={() => setInstructionsPage(2)}
-                      style={{
-                        cursor: "pointer",
-                        border: "1px solid rgba(255,255,255,0.18)",
-                        background: "rgba(255,255,255,0.08)",
-                        color: "white",
-                        padding: "4px 8px",
-                        borderRadius: 999,
-                        fontSize: 10,
-                      }}
-                    >
-                      Next page
-                    </button>
-                  </div>
-                </>
-              )}
+      )}
 
-              {instructionsPage === 2 && (
-                <>
-                  <div style={{ fontSize: 10, opacity: 0.7, marginBottom: 8 }}>Page 2 of 3 · Filters and overlays</div>
-                  <div style={{ marginBottom: 8 }}>
-                    The right-side panels are for focused filtering. They are separate from the main menu so you can adjust thresholds quickly while keeping the map visible.
-                  </div>
-                  <ol start={1} style={{ margin: "0 0 10px 16px", padding: 0 }}>
-                    <li>On mobile, filters stay in the menu. Use the left-side zoom stack (<b>Auto</b>, 25km, 10km, 5km, 1km) to change map detail quickly.</li>
-                    <li><b>Value filter</b> shows only areas above or below a threshold. Use this to isolate cheap/expensive areas or strong movers.</li>
-                    <li>The threshold scale is <b>metric-specific</b>: £ range for median/change-£ and % range for change-%.</li>
-                    <li><b>Overlay filters</b> includes Flood so you can compare value patterns against flood-risk hotspots.</li>
-                    <li>On mobile, Overlay and Value panels can be collapsed into small boxes so the map remains readable.</li>
-                  </ol>
-                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                    <button
-                      type="button"
-                      onClick={() => setInstructionsPage(1)}
-                      style={{
-                        cursor: "pointer",
-                        border: "1px solid rgba(255,255,255,0.18)",
-                        background: "rgba(255,255,255,0.08)",
-                        color: "white",
-                        padding: "4px 8px",
-                        borderRadius: 999,
-                        fontSize: 10,
-                      }}
-                    >
-                      Previous page
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setInstructionsPage(3)}
-                      style={{
-                        cursor: "pointer",
-                        border: "1px solid rgba(255,255,255,0.18)",
-                        background: "rgba(255,255,255,0.08)",
-                        color: "white",
-                        padding: "4px 8px",
-                        borderRadius: 999,
-                        fontSize: 10,
-                      }}
-                    >
-                      Next page
-                    </button>
-                  </div>
-                </>
-              )}
-
-              {instructionsPage === 3 && (
-                <>
-                  <div style={{ fontSize: 10, opacity: 0.7, marginBottom: 8 }}>Page 3 of 3 · Reading results carefully</div>
-                  <div style={{ fontWeight: 600, marginBottom: 6 }}>How to interpret what you see</div>
-                  <ol start={1} style={{ margin: "0 0 10px 16px", padding: 0 }}>
-                    <li>Clicking a cell opens postcode context; this helps move from pattern-finding to practical checking.</li>
-                    <li>Use medians as a robust baseline, then switch to change metrics to test momentum.</li>
-                    <li>If a pattern appears, change one filter at a time to check whether the signal still holds.</li>
-                    <li>Treat flood overlay as exploratory context until production-grade historic datasets are integrated.</li>
-                  </ol>
-                  <div style={{ fontWeight: 600, marginBottom: 6 }}>Data notes</div>
-                  <ol start={1} style={{ margin: 0, padding: "0 0 0 16px" }}>
-                    <li>Prices are sold prices, not asking prices.</li>
-                    <li>Medians reduce outlier distortion but can still move if the mix of sold homes changes.</li>
-                    <li>Scotland coverage is partial and may lag by 1–2 years in places.</li>
-                  </ol>
-                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                    <button
-                      type="button"
-                      onClick={() => setInstructionsPage(2)}
-                      style={{
-                        cursor: "pointer",
-                        border: "1px solid rgba(255,255,255,0.18)",
-                        background: "rgba(255,255,255,0.08)",
-                        color: "white",
-                        padding: "4px 8px",
-                        borderRadius: 999,
-                        fontSize: 10,
-                      }}
-                    >
-                      Previous page
-                    </button>
-                  </div>
-                </>
-              )}
+      {/* ── Floating Data Sources panel ── */}
+      {dataSourcesOpen && !cleanScreenMode && (
+        <div
+          style={{ position: "fixed", top: 56, left: 18, zIndex: frontZ("datasources", 45), width: 420, maxWidth: "calc(100vw - 36px)", maxHeight: "calc(100vh - 72px)", overflow: "auto", padding: 14, borderRadius: 14, background: "rgba(10,12,20,0.96)", border: "1px solid rgba(255,255,255,0.15)", backdropFilter: "blur(12px)", color: "white", boxShadow: "0 8px 40px rgba(0,0,0,0.55)", fontSize: 11, lineHeight: 1.45 }}
+          onMouseDown={() => bringToFront("datasources")}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <div style={{ fontWeight: 700, fontSize: 13 }}>📊 Data sources</div>
+            <button type="button" onClick={() => setDataSourcesOpen(false)} style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "white", width: 26, height: 26, borderRadius: 999, fontSize: 15, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>✕</button>
           </div>
-        )}
+          <ol start={1} style={{ margin: 0, padding: "0 0 0 16px" }}>
+            <li>UK Land Registry Price Paid Data (sold price transactions).</li>
+            <li>Office for National Statistics: ONSPD_Online_latest_Postcode_Centroids.</li>
+            <li>Energy Performance of Buildings Register (Domestic EPC data) — Department for Levelling Up, Housing and Communities.</li>
+          </ol>
+          <div style={{ marginTop: 8, opacity: 0.8 }}>Licensing and attribution follow the terms provided by each source.</div>
+        </div>
+      )}
 
-        {/* Controls */}
-        {filtersOpen && (
-          <>
-            <div
-              id="filters-panel"
-              className="controls"
-              data-open={filtersOpen ? "true" : "false"}
-              style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10, marginTop: 14 }}
-            >
-              <ControlRow label="Grid">
-                <div style={{ display: "grid", gap: 8 }}>
-                  <div className="auto-grid-row" style={{ display: "none", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                    <div style={{ fontSize: 11, opacity: 0.82 }}>
-                      Grid mode: {gridMode === "auto" ? `Auto (${state.grid})` : "Manual"}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setGridMode((v) => (v === "auto" ? "manual" : "auto"))}
-                      style={{
-                        cursor: "pointer",
-                        border: "1px solid rgba(255,255,255,0.18)",
-                        background: "rgba(255,255,255,0.08)",
-                        color: "white",
-                        padding: "4px 8px",
-                        borderRadius: 999,
-                        fontSize: 10,
-                      }}
-                    >
-                      {gridMode === "auto" ? "Switch to manual" : "Switch to auto"}
-                    </button>
-                  </div>
-                  <Segment
-                  options={isDeltaMetric(state.metric) ? ["5km", "10km", "25km"] : ["1km", "5km", "10km", "25km"]}
-                    value={state.grid}
-                    onChange={(v) => {
-                      setGridMode("manual");
-                      setState((s) => ({ ...s, grid: v as GridSize }));
-                    }}
-                  />
-                </div>
-              </ControlRow>
-              {isDeltaMetric(state.metric) && state.grid === "1km" && (
-                <div style={{ fontSize: 11, color: "#ff9999", fontStyle: "italic", marginTop: -8 }}>
-                  1km deltas unavailable
-                </div>
-              )}
-
-              <ControlRow label="Metric">
-                <Segment
-                  options={["median", "median_ppsf", "delta_gbp", "delta_pct"]}
-                  value={state.metric}
-                  onChange={(v) => setState((s) => ({ ...s, metric: v as Metric }))}
-                  renderOption={(v) => METRIC_LABEL[v as Metric]}
-                />
-              </ControlRow>
-
-              <ControlRow label="Type">
-                <Segment
-                  options={["ALL", "D", "S", "T", "F"]}
-                  value={state.propertyType}
-                  onChange={(v) => setState((s) => ({ ...s, propertyType: v as PropertyType }))}
-                  renderOption={(v) => PROPERTY_LABEL[v as PropertyType]}
-                />
-              </ControlRow>
-
-              <ControlRow label="New build">
-                <Segment
-                  options={["ALL", "Y", "N"]}
-                  value={state.newBuild}
-                  onChange={(v) => setState((s) => ({ ...s, newBuild: v as NewBuild }))}
-                  renderOption={(v) => NEWBUILD_LABEL[v as NewBuild]}
-                />
-              </ControlRow>
-
-              <ControlRow label="Period">
-                <Segment
-                  options={[...PERIOD_OPTIONS]}
-                  value={state.endMonth ?? "2025-12-01"}
-                  onChange={(v) => setState((s) => ({ ...s, endMonth: v }))}
-                  renderOption={(v) => {
-                    const labels: Record<string, string> = {
-                      "2025-12-01": "Dec 2025",
-                      "2024-12-01": "Dec 2024",
-                      "2023-12-01": "Dec 2023",
-                      "2022-12-01": "Dec 2022",
-                      "2021-12-01": "Dec 2021",
-                    };
-                    return labels[v] ?? v;
-                  }}
-                />
-              </ControlRow>
-
-            </div>
-
-            {/* Deltas explanation */}
-            {isDeltaMetric(state.metric) && (
-              <div className="panel-delta" style={{ marginTop: 12, padding: 10, borderRadius: 8, background: "rgba(255,255,255,0.08)", borderLeft: "3px solid #fdae61", fontSize: 11, lineHeight: 1.4, opacity: 0.9 }}>
-                <div style={{ fontWeight: 600, marginBottom: 6 }}>Price change</div>
-                <div style={{ marginBottom: 6 }}>
-                  Comparing <b>earliest available month (Dec 2021)</b> to <b>latest month (Dec 2025)</b>.
-                </div>
-                <div>
-                  <b>Note:</b> Small deltas may reflect differences in which property types sold in each period, not solely price changes in the area. Large transactions or demographic shifts can influence median prices independently of market rates.
-                </div>
-              </div>
-            )}
-          </>
-        )}
-        {dataSourcesOpen && (
-          <div
-            className="datasources-panel"
-            style={{
-              marginTop: 8,
-              padding: 10,
-              borderRadius: 10,
-              background: "rgba(0,0,0,0.35)",
-              border: "1px solid rgba(255,255,255,0.12)",
-              fontSize: 11,
-              lineHeight: 1.45,
-              opacity: 0.92,
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <div style={{ fontWeight: 600 }}>Data sources</div>
-              <button
-                type="button"
-                onClick={() => {
-                  setDataSourcesOpen(false);
-                  setMenuOpen(true);
-                }}
-                style={{
-                  cursor: "pointer",
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  background: "rgba(255,255,255,0.08)",
-                  color: "white",
-                  padding: "4px 8px",
-                  borderRadius: 999,
-                  fontSize: 10,
-                }}
-              >
-                Back
-              </button>
-            </div>
-            <ol start={1} style={{ margin: 0, padding: "0 0 0 16px" }}>
-              <li>UK Land Registry Price Paid Data (sold price transactions).</li>
-              <li>Office for National Statistics: ONSPD_Online_latest_Postcode_Centroids.</li>
-              <li>Energy Performance of Buildings Register (Domestic EPC data) — Department for Levelling Up, Housing and Communities.</li>
-            </ol>
-            <div style={{ marginTop: 8, opacity: 0.8 }}>
-              Licensing and attribution follow the terms provided by each source.
-            </div>
+      {/* ── Floating Election Info panel ── */}
+      {electionInfoOpen && !cleanScreenMode && (
+        <div
+          style={{ position: "fixed", top: 56, left: 18, zIndex: frontZ("electioninfo", 45), width: 430, maxWidth: "calc(100vw - 36px)", maxHeight: "calc(100vh - 72px)", overflow: "auto", padding: 14, borderRadius: 14, background: "rgba(10,12,20,0.96)", border: "1px solid rgba(255,255,255,0.15)", backdropFilter: "blur(12px)", color: "white", boxShadow: "0 8px 40px rgba(0,0,0,0.55)", fontSize: 11, lineHeight: 1.45 }}
+          onMouseDown={() => bringToFront("electioninfo")}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <div style={{ fontWeight: 700, fontSize: 13 }}>🗳 Election overlay (GE 2024)</div>
+            <button type="button" onClick={() => setElectionInfoOpen(false)} style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "white", width: 26, height: 26, borderRadius: 999, fontSize: 15, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>✕</button>
           </div>
-        )}
-        {electionInfoOpen && (
-          <div
-            className="electioninfo-panel"
-            style={{
-              marginTop: 8,
-              padding: 10,
-              borderRadius: 10,
-              background: "rgba(0,0,0,0.35)",
-              border: "1px solid rgba(255,255,255,0.12)",
-              fontSize: 11,
-              lineHeight: 1.45,
-              opacity: 0.92,
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <div style={{ fontWeight: 600 }}>Election overlay (GE 2024)</div>
-              <button
-                type="button"
-                onClick={() => {
-                  setElectionInfoOpen(false);
-                  setMenuOpen(true);
-                }}
-                style={{
-                  cursor: "pointer",
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  background: "rgba(255,255,255,0.08)",
-                  color: "white",
-                  padding: "4px 8px",
-                  borderRadius: 999,
-                  fontSize: 10,
-                }}
-              >
-                Back
-              </button>
-            </div>
-            <div style={{ marginBottom: 8 }}>
-              This overlay maps General Election 2024 vote shares by constituency boundary. Turn it on in Overlay filters;
-              colours automatically reflect which grouping is strongest in each area.
-            </div>
-            <ol start={1} style={{ margin: 0, padding: "0 0 0 16px" }}>
-              <li><b>Progressive</b>: Labour, Lib Dem, Green, SNP, Plaid Cymru, Alliance, SDLP, Sinn Féin and related centre-left parties.</li>
-              <li><b>Conservative</b>: Conservative and Unionist family parties.</li>
-              <li><b>Popular Right</b>: Reform UK and related right-populist parties.</li>
-              <li><b>Other</b>: all remaining parties/candidates not in those three groupings.</li>
-            </ol>
-            <div style={{ marginTop: 8, opacity: 0.8 }}>
-              Percentages are vote-share within each constituency and are for exploratory information only.
-            </div>
-          </div>
-        )}
-      </div>
+          <div style={{ marginBottom: 8 }}>This overlay maps General Election 2024 vote shares by constituency boundary. Turn it on in Overlay filters.</div>
+          <ol start={1} style={{ margin: 0, padding: "0 0 0 16px" }}>
+            <li><b>Progressive</b>: Labour, Lib Dem, Green, SNP, Plaid Cymru, Alliance, SDLP, Sinn Féin and related centre-left parties.</li>
+            <li><b>Conservative</b>: Conservative and Unionist family parties.</li>
+            <li><b>Popular Right</b>: Reform UK and related right-populist parties.</li>
+            <li><b>Other</b>: all remaining parties/candidates not in those three groupings.</li>
+          </ol>
+          <div style={{ marginTop: 8, opacity: 0.8 }}>Percentages are vote-share within each constituency and are for exploratory information only.</div>
+        </div>
+      )}
+
+
 
       {/* Find My Area – centered modal */}
       {indexOpen && (
@@ -1796,7 +1188,7 @@ export default function Home() {
           style={{
             position: "fixed",
             inset: 0,
-            zIndex: 20,
+            zIndex: frontZ("index", 46),
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -1804,6 +1196,7 @@ export default function Home() {
             backdropFilter: "blur(3px)",
           }}
           onClick={(e) => { if (e.target === e.currentTarget) setIndexOpen(false); }}
+          onMouseDown={() => bringToFront("index")}
         >
           <div
             className="index-modal"
@@ -2025,13 +1418,12 @@ export default function Home() {
 
       {/* Right-side stacked panels */}
       {(!isMobileViewport || !postcodeOpen) &&
-        !instructionsOpen &&
         !cleanScreenMode &&
         (indexActive || legendOpen || state.metric === "median" || state.metric === "median_ppsf" || state.metric === "delta_gbp" || state.metric === "delta_pct") && (
         <div
           ref={rightPanelsRef}
           className="right-panels"
-          data-menu-open={menuOpen ? "true" : "false"}
+          data-menu-open={anySubpanelOpen ? "true" : "false"}
           style={{
             position: "absolute",
             right: 18,
@@ -2041,8 +1433,9 @@ export default function Home() {
             gap: 6,
             width: 520,
             maxWidth: "calc(100vw - 36px)",
-            zIndex: 3,
+            zIndex: frontZ("rightpanels", 45),
           }}
+          onMouseDown={() => bringToFront("rightpanels")}
         >
           {showOutcodePanel && state.metric === "median" && (
             <div
@@ -2560,10 +1953,7 @@ export default function Home() {
       )}
 
       {!cleanScreenMode &&
-        !filtersOpen &&
-        !menuOpen &&
-        !instructionsOpen &&
-        !dataSourcesOpen &&
+        !anySubpanelOpen &&
         (
         <div className="mobile-grid-dock" aria-label="Map grid controls">
           <button
@@ -3176,6 +2566,5 @@ function getQuantileValue(legend: Extract<LegendData, { kind: "median" }>, p: nu
   if (idx < 0 || idx >= legend.breaks.length) return NaN;
   return legend.breaks[idx];
 }
-
 
 
