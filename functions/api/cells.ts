@@ -9,6 +9,8 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   const propertyType = (url.searchParams.get("propertyType") ?? "ALL").toUpperCase();
   const newBuild = (url.searchParams.get("newBuild") ?? "ALL").toUpperCase();
   const endMonthParam = (url.searchParams.get("endMonth") ?? "LATEST").toUpperCase();
+  const minTxCount = Math.max(1, Number.parseInt(url.searchParams.get("minTxCount") ?? "3", 10) || 3);
+  const refreshCache = ["1", "true", "yes"].includes((url.searchParams.get("refresh") ?? "").toLowerCase());
 
   if (!isGridKey(grid)) {
     return Response.json("Invalid grid. Use 1km|5km|10km|25km", { status: 400 });
@@ -19,7 +21,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   }
 
   // ---- load + cache data (PER GRID) ----
-  const data = await getCachedGrid(env, grid, metric);
+  const data = await getCachedGrid(env, grid, metric, refreshCache);
 
   const endMonth = endMonthParam === "LATEST" ? data.latestEndMonth : endMonthParam;
 
@@ -28,7 +30,8 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     (r) =>
       r.end_month === endMonth &&
       r.property_type === propertyType &&
-      r.new_build === newBuild
+      r.new_build === newBuild &&
+      Number(r.tx_count ?? 0) >= minTxCount
   );
 
   const rows = filtered.map((r) => ({
@@ -46,6 +49,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
       end_month: endMonth,
       propertyType,
       newBuild,
+      minTxCount,
       count: rows.length,
       rows,
     },
@@ -109,6 +113,7 @@ interface Env {
 type CacheEntry = {
   rows: CellRow[];
   latestEndMonth: string;
+  loadedAtMs: number;
 };
 
 const CACHE_BY_GRID_AND_METRIC: Partial<Record<`${GridKey}|${CellsMetric}`, CacheEntry>> = {};
@@ -133,10 +138,13 @@ function r2KeyForGrid(grid: GridKey, metric: CellsMetric) {
   }
 }
 
-async function getCachedGrid(env: Env, grid: GridKey, metric: CellsMetric): Promise<CacheEntry> {
+const GRID_CACHE_TTL_MS = 10 * 60 * 1000;
+
+async function getCachedGrid(env: Env, grid: GridKey, metric: CellsMetric, forceRefresh: boolean): Promise<CacheEntry> {
   const cacheKey = `${grid}|${metric}` as const;
   const cached = CACHE_BY_GRID_AND_METRIC[cacheKey];
-  if (cached) {
+  const now = Date.now();
+  if (cached && !forceRefresh && now - cached.loadedAtMs <= GRID_CACHE_TTL_MS) {
     await backfillVoteDataIfMissing(env, grid, cached.rows);
     return cached;
   }
@@ -159,7 +167,7 @@ async function getCachedGrid(env: Env, grid: GridKey, metric: CellsMetric): Prom
     if (r.end_month > latest) latest = r.end_month;
   }
 
-  const entry = { rows, latestEndMonth: latest };
+  const entry = { rows, latestEndMonth: latest, loadedAtMs: Date.now() };
   CACHE_BY_GRID_AND_METRIC[cacheKey] = entry;
   return entry;
 }

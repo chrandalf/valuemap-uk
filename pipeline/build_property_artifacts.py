@@ -14,7 +14,9 @@ from paths import MODEL_PROPERTY_DIR, RAW_EPC_DIR, RAW_PROPERTY_DIR, ensure_pipe
 
 GRID_SIZES = [1000, 5000, 10000, 25000]
 DELTA_GRID_SIZES = [5000, 10000, 25000]
-PPSF_YEARS_BACK_BY_GRID = {1000: 1, 5000: 3, 10000: 3, 25000: 3}
+MEDIAN_YEARS_BACK_BY_GRID = {1000: 0, 5000: 5, 10000: 5, 25000: 5}
+PPSF_YEARS_BACK_BY_GRID = {1000: 0, 5000: 5, 10000: 5, 25000: 5}
+SCOTLAND_DAILY_THRESHOLD = 50
 SQFT_PER_M2 = 10.76391041671
 
 PP_COLS = [
@@ -60,6 +62,15 @@ def normalize_paon(value: str) -> str:
     text = re.sub(r"\s+", "", text)
     text = text.lstrip("0")
     return text
+
+
+def parse_scot_date(series: pd.Series) -> pd.Series:
+    text = series.astype("string").str.strip()
+    dt = pd.to_datetime(text, format="%d-%m-%Y", errors="coerce")
+    missing = dt.isna()
+    if missing.any():
+        dt.loc[missing] = pd.to_datetime(text.loc[missing], dayfirst=True, errors="coerce")
+    return dt
 
 
 def extract_paon_from_epc_address(addr: str) -> str:
@@ -164,7 +175,7 @@ def load_pp(path: Path, years_back: int) -> pd.DataFrame:
         chunk["property_type"] = chunk["property_type"].astype("string").fillna("ALL")
         chunk["new_build"] = chunk["new_build"].astype("string").fillna("ALL")
 
-        frames.append(chunk[["price", "month", "postcode", "postcode_key", "paon_key", "property_type", "new_build"]])
+        frames.append(chunk[["price", "date", "month", "postcode", "postcode_key", "paon_key", "property_type", "new_build"]])
 
     if not frames:
         raise RuntimeError("No valid rows found in PP file after filtering")
@@ -172,12 +183,16 @@ def load_pp(path: Path, years_back: int) -> pd.DataFrame:
     return pd.concat(frames, ignore_index=True)
 
 
-def load_scotland_properties(path: Path, years_back: int) -> pd.DataFrame:
+def load_scotland_properties(
+    path: Path,
+    years_back: int,
+    anchor_month: pd.Timestamp | None = None,
+    daily_threshold: int = SCOTLAND_DAILY_THRESHOLD,
+) -> pd.DataFrame:
     if not path.exists():
         return pd.DataFrame(columns=["price", "month", "postcode", "postcode_key", "paon_key", "property_type", "new_build"])
 
-    today = pd.Timestamp.today().normalize().date()
-    cutoff = (pd.Timestamp.today().normalize() - pd.DateOffset(years=years_back)).date()
+    today = pd.Timestamp.today().normalize()
     frames: list[pd.DataFrame] = []
 
     for chunk in pd.read_csv(
@@ -187,10 +202,9 @@ def load_scotland_properties(path: Path, years_back: int) -> pd.DataFrame:
         chunksize=500_000,
     ):
         chunk = chunk.rename(columns={"Postcode": "postcode", "Date": "date", "Price": "price"})
-        chunk["date"] = pd.to_datetime(chunk["date"], errors="coerce", dayfirst=True)
+        chunk["date"] = parse_scot_date(chunk["date"])
         chunk = chunk[chunk["date"].notna()]
-        chunk = chunk[chunk["date"].dt.date >= cutoff]
-        chunk = chunk[chunk["date"].dt.date <= today]
+        chunk = chunk[chunk["date"] <= today]
 
         if chunk.empty:
             continue
@@ -215,12 +229,43 @@ def load_scotland_properties(path: Path, years_back: int) -> pd.DataFrame:
         chunk["new_build"] = "N"
         chunk["paon_key"] = ""
 
-        frames.append(chunk[["price", "month", "postcode", "postcode_key", "paon_key", "property_type", "new_build"]])
+        frames.append(chunk[["price", "date", "month", "postcode", "postcode_key", "paon_key", "property_type", "new_build"]])
 
     if not frames:
         return pd.DataFrame(columns=["price", "month", "postcode", "postcode_key", "paon_key", "property_type", "new_build"])
 
-    return pd.concat(frames, ignore_index=True)
+    scotland = pd.concat(frames, ignore_index=True)
+
+    daily_counts = scotland.groupby(scotland["date"].dt.normalize()).size().sort_index()
+    if daily_counts.empty:
+        return pd.DataFrame(columns=["price", "month", "postcode", "postcode_key", "paon_key", "property_type", "new_build"])
+
+    busy_days = daily_counts[daily_counts >= max(1, int(daily_threshold))]
+    if not busy_days.empty:
+        end_date = busy_days.index.max()
+    else:
+        end_date = daily_counts.idxmax()
+
+    start_date = end_date - pd.DateOffset(years=1)
+    scotland = scotland[(scotland["date"] >= start_date) & (scotland["date"] <= end_date)].copy()
+    if scotland.empty:
+        return pd.DataFrame(columns=["price", "month", "postcode", "postcode_key", "paon_key", "property_type", "new_build"])
+
+    if anchor_month is not None and pd.notna(anchor_month):
+        latest_month_start = pd.to_datetime(anchor_month).to_period("M").to_timestamp()
+        latest_month_end = (latest_month_start + pd.offsets.MonthEnd(0)).normalize()
+        days_in_latest_month = int(latest_month_end.day)
+        orig_day = scotland["date"].dt.day.clip(upper=days_in_latest_month)
+        scotland["date"] = pd.to_datetime(
+            {
+                "year": latest_month_start.year,
+                "month": latest_month_start.month,
+                "day": orig_day,
+            }
+        )
+
+    scotland["month"] = scotland["date"].dt.to_period("M").dt.to_timestamp()
+    return scotland[["price", "month", "postcode", "postcode_key", "paon_key", "property_type", "new_build"]]
 
 
 def load_epc_latest(path: Path) -> pd.DataFrame:
@@ -368,29 +413,33 @@ def yearly_end_months(month_col: pd.Series, years_back: int) -> list[pd.Timestam
 
 
 def build_grid_outputs(df: pd.DataFrame, output_dir: Path, latest_end_month: pd.Timestamp) -> None:
-    latest_start = (latest_end_month - pd.DateOffset(months=11)).to_period("M").to_timestamp()
-    latest_window = df[(df["month"] >= latest_start) & (df["month"] <= latest_end_month)].copy()
-
-    end_month_str = latest_end_month.strftime("%Y-%m-%d")
-
     for g in GRID_SIZES:
-        agg = aggregate_segments(latest_window, g)
+        years_back = MEDIAN_YEARS_BACK_BY_GRID.get(g, 0)
+        end_months = yearly_end_months(df["month"], years_back=years_back)
         gx = f"gx_{g}"
         gy = f"gy_{g}"
 
-        rows = []
-        for r in agg.itertuples(index=False):
-            rows.append(
-                {
-                    "gx": int(getattr(r, gx)),
-                    "gy": int(getattr(r, gy)),
-                    "end_month": end_month_str,
-                    "property_type": str(r.property_type),
-                    "new_build": str(r.new_build),
-                    "median": float(r.median),
-                    "tx_count": int(r.tx_count),
-                }
-            )
+        rows: list[dict] = []
+        for end_month in end_months:
+            start_month = (end_month - pd.DateOffset(months=11)).to_period("M").to_timestamp()
+            window = df[(df["month"] >= start_month) & (df["month"] <= end_month)].copy()
+            if window.empty:
+                continue
+
+            agg = aggregate_segments(window, g)
+            end_month_str = pd.to_datetime(end_month).strftime("%Y-%m-%d")
+            for r in agg.itertuples(index=False):
+                rows.append(
+                    {
+                        "gx": int(getattr(r, gx)),
+                        "gy": int(getattr(r, gy)),
+                        "end_month": end_month_str,
+                        "property_type": str(r.property_type),
+                        "new_build": str(r.new_build),
+                        "median": float(r.median),
+                        "tx_count": int(r.tx_count),
+                    }
+                )
 
         dump_json_gz(output_dir / f"grid_{g//1000}km_full.json.gz", rows)
 
@@ -571,7 +620,11 @@ def main() -> None:
     onspd = load_onspd(onspd_path)
     epc_latest = load_epc_latest(epc_path)
     pp = load_pp(pp_path, years_back=max(1, int(args.years_back)))
-    scotland = load_scotland_properties(scotland_path, years_back=max(1, int(args.years_back)))
+    scotland = load_scotland_properties(
+        scotland_path,
+        years_back=max(1, int(args.years_back)),
+        anchor_month=pp["month"].max(),
+    )
     if not scotland.empty:
         pp = pd.concat([pp, scotland], ignore_index=True)
     merged = with_grid_cells(pp, onspd)

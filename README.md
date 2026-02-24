@@ -37,6 +37,40 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 ## Data Pipeline
 
+## Tomorrow: First Review (Property Snapshots)
+
+Before any new upload, review property snapshot outputs first:
+
+- Median grids (`grid_*_full.json.gz`): **5 years back** (latest + yearly snapshots)
+- PPSF grids (`grid_*_ppsf_full.json.gz`): **1km = 1 year back**, **5km/10km/25km = 3 years back**
+
+Quick check command:
+
+```bash
+$tmp = "pipeline/tmp_policy_stats.py"
+$code = @'
+import gzip
+import json
+from pathlib import Path
+
+base = Path("pipeline/data/publish/property")
+print("MEDIAN FILES")
+for g in ["1km", "5km", "10km", "25km"]:
+	rows = json.loads(gzip.decompress((base / f"grid_{g}_full.json.gz").read_bytes()).decode("utf-8"))
+	months = sorted({r.get("end_month") for r in rows if r.get("end_month") is not None})
+	print(f"{g}: rows={len(rows)} months={len(months)} first={months[0] if months else None} last={months[-1] if months else None}")
+
+print("\nPPSF FILES")
+for g in ["1km", "5km", "10km", "25km"]:
+	rows = json.loads(gzip.decompress((base / f"grid_{g}_ppsf_full.json.gz").read_bytes()).decode("utf-8"))
+	months = sorted({r.get("end_month") for r in rows if r.get("end_month") is not None})
+	print(f"{g}: rows={len(rows)} months={len(months)} first={months[0] if months else None} last={months[-1] if months else None}")
+'@
+Set-Content -Path $tmp -Value $code -Encoding UTF8
+python $tmp
+Remove-Item $tmp
+```
+
 Pipeline data is now organized under `pipeline/data`:
 
 - `pipeline/data/raw` → source files you download/import
@@ -95,3 +129,14 @@ If property is also managed outside this flow, skip that group too:
 ```bash
 python pipeline/upload_model_assets_to_r2.py --skip-flood --skip-property
 ```
+
+## API notes (cells)
+
+`functions/api/cells.ts` supports two useful query params:
+
+- `minTxCount` (default `3`) → filters out low-sample cells (e.g. `tx_count` 1-2)
+- `refresh=1` → bypasses in-memory worker cache and reloads latest grid object from R2
+
+Example:
+
+`/api/cells?grid=1km&metric=median&propertyType=ALL&newBuild=ALL&endMonth=LATEST&minTxCount=3&refresh=1`
