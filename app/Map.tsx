@@ -124,6 +124,9 @@ type SchoolSearchEntry = {
   lat: number;
 };
 
+const LOCAL_NEAREST_FLOOD_MAX_DISTANCE_METERS = 8_047; // 5 miles
+const LOCAL_NEAREST_SCHOOL_MAX_DISTANCE_METERS = 19_312; // 12 miles
+
 const VOTE_CELLS_DATA_VERSION = process.env.NEXT_PUBLIC_VOTE_CELLS_DATA_VERSION ?? "20260222b";
 
 export type LocateMeResult = {
@@ -274,7 +277,12 @@ export default function ValueMap({
           : [];
         const nearestSchool = schoolsEnabled
           ? (requestedCoords
-              ? findNearestSchoolEntryByDistance(requestedCoords.lon, requestedCoords.lat, schoolEntries)
+              ? findNearestSchoolEntryByDistance(
+                  requestedCoords.lon,
+                  requestedCoords.lat,
+                  schoolEntries,
+                  LOCAL_NEAREST_SCHOOL_MAX_DISTANCE_METERS
+                )
               : findNearestSchoolPostcodeMatch(normalized, schoolEntries))
           : null;
         const nearestGoodSchool = schoolsEnabled
@@ -282,7 +290,8 @@ export default function ValueMap({
               ? findNearestSchoolEntryByDistance(
                   requestedCoords.lon,
                   requestedCoords.lat,
-                  schoolEntries.filter((entry) => entry.isGood)
+                  schoolEntries.filter((entry) => entry.isGood),
+                  LOCAL_NEAREST_SCHOOL_MAX_DISTANCE_METERS
                 )
               : findNearestSchoolPostcodeMatch(
                   normalized,
@@ -393,9 +402,16 @@ export default function ValueMap({
         }
 
         const nearestByDistance = requestedCoords
-          ? findNearestFloodEntryByDistance(requestedCoords.lon, requestedCoords.lat, entries)
+          ? findNearestFloodEntryByDistance(
+              requestedCoords.lon,
+              requestedCoords.lat,
+              entries,
+              LOCAL_NEAREST_FLOOD_MAX_DISTANCE_METERS
+            )
           : null;
-        const nearest = nearestByDistance ?? findNearestPostcodeMatch(normalized, entries);
+        const nearest = requestedCoords
+          ? nearestByDistance
+          : (nearestByDistance ?? findNearestPostcodeMatch(normalized, entries));
         if (nearest) {
           animateToPostcodeTarget(map, [nearest.lon, nearest.lat], Math.max(map.getZoom(), 12));
           setFloodSearchFocus(map, nearest);
@@ -505,7 +521,12 @@ export default function ValueMap({
           try {
             if (floodEnabled) {
               const entries = await getFloodSearchEntries(floodSearchEntriesRef, floodSearchEntriesPromiseRef);
-              const nearest = findNearestFloodEntryByDistance(lng, lat, entries);
+              const nearest = findNearestFloodEntryByDistance(
+                lng,
+                lat,
+                entries,
+                LOCAL_NEAREST_FLOOD_MAX_DISTANCE_METERS
+              );
               if (nearest) {
                 floodNearest = {
                   postcode: nearest.postcode,
@@ -518,7 +539,12 @@ export default function ValueMap({
 
             if (schoolsEnabled) {
               const schoolEntries = await getSchoolSearchEntries(schoolSearchEntriesRef, schoolSearchEntriesPromiseRef);
-              nearestSchoolEntry = findNearestSchoolEntryByDistance(lng, lat, schoolEntries);
+              nearestSchoolEntry = findNearestSchoolEntryByDistance(
+                lng,
+                lat,
+                schoolEntries,
+                LOCAL_NEAREST_SCHOOL_MAX_DISTANCE_METERS
+              );
               if (nearestSchoolEntry) {
                 schoolNearest = {
                   schoolName: nearestSchoolEntry.schoolName,
@@ -532,7 +558,8 @@ export default function ValueMap({
               nearestGoodEntry = findNearestSchoolEntryByDistance(
                 lng,
                 lat,
-                schoolEntries.filter((entry) => entry.isGood)
+                schoolEntries.filter((entry) => entry.isGood),
+                LOCAL_NEAREST_SCHOOL_MAX_DISTANCE_METERS
               );
               if (nearestGoodEntry) {
                 schoolNearestGood = {
@@ -3278,7 +3305,12 @@ function setFloodSearchContext(
   );
 }
 
-function findNearestFloodEntryByDistance(lng: number, lat: number, entries: FloodSearchEntry[]) {
+function findNearestFloodEntryByDistance(
+  lng: number,
+  lat: number,
+  entries: FloodSearchEntry[],
+  maxDistanceMeters = Number.POSITIVE_INFINITY
+) {
   if (!entries.length) return null;
 
   let best: (FloodSearchEntry & { distanceMeters: number }) | null = null;
@@ -3292,10 +3324,16 @@ function findNearestFloodEntryByDistance(lng: number, lat: number, entries: Floo
     }
   }
 
-  return best;
+  if (!best) return null;
+  return best.distanceMeters <= maxDistanceMeters ? best : null;
 }
 
-function findNearestSchoolEntryByDistance(lng: number, lat: number, entries: SchoolSearchEntry[]) {
+function findNearestSchoolEntryByDistance(
+  lng: number,
+  lat: number,
+  entries: SchoolSearchEntry[],
+  maxDistanceMeters = Number.POSITIVE_INFINITY
+) {
   if (!entries.length) return null;
 
   let best: (SchoolSearchEntry & { distanceMeters: number }) | null = null;
@@ -3309,7 +3347,8 @@ function findNearestSchoolEntryByDistance(lng: number, lat: number, entries: Sch
     }
   }
 
-  return best;
+  if (!best) return null;
+  return best.distanceMeters <= maxDistanceMeters ? best : null;
 }
 
 function riskBandFromScore(score: number) {
