@@ -1933,10 +1933,7 @@ export default function Home() {
                 <Segment
                   options={["off", "lte", "gte"]}
                   value={indexSuitabilityMode}
-                  onChange={(v) => {
-                    setIndexSuitabilityMode(v as ValueFilterMode);
-                    setIndexToken((t) => t + 1);
-                  }}
+                  onChange={(v) => setIndexSuitabilityMode(v as ValueFilterMode)}
                   renderOption={(v) => {
                     const labels: Record<string, string> = {
                       off: "Off",
@@ -1957,10 +1954,7 @@ export default function Home() {
                     max={100}
                     step={1}
                     value={indexSuitabilityThreshold}
-                    onChange={(e) => {
-                      setIndexSuitabilityThreshold(Number(e.target.value));
-                      setIndexToken((t) => t + 1);
-                    }}
+                    onChange={(e) => setIndexSuitabilityThreshold(Number(e.target.value))}
                     style={{ width: "100%", accentColor: "#22c55e", opacity: indexSuitabilityMode === "off" ? 0.55 : 1 }}
                     disabled={indexSuitabilityMode === "off"}
                   />

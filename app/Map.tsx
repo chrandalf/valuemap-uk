@@ -211,6 +211,7 @@ export default function ValueMap({
   const schoolSearchEntriesPromiseRef = useRef<Promise<SchoolSearchEntry[]> | null>(null);
   const indexPrefsRef = useRef<IndexPrefs | null>(indexPrefs ?? null);
   const prevIndexActiveRef = useRef(false);
+  const prevIndexScoringSignatureRef = useRef<string | null>(null);
   const cellFcRef = useRef<any>(null);
 
 
@@ -1067,7 +1068,7 @@ export default function ValueMap({
     filter: ["==", ["get", "tx_count"], 0],
   });
 
-  applyValueFilter(map, stateRef.current);
+  applyValueFilter(map, stateRef.current, indexPrefsRef.current);
 
   // Add hover tooltip (after layers exist)
   const popup = new maplibregl.Popup({
@@ -1463,11 +1464,11 @@ export default function ValueMap({
     const map = mapRef.current;
     if (!map) return;
     if (!map.isStyleLoaded()) {
-      map.once("load", () => applyValueFilter(map, stateRef.current));
+      map.once("load", () => applyValueFilter(map, stateRef.current, indexPrefsRef.current));
       return;
     }
 
-    applyValueFilter(map, state);
+    applyValueFilter(map, state, indexPrefsRef.current);
   }, [state.metric, state.valueFilterMode, state.valueThreshold]);
 
   // Index scoring effect
@@ -1479,15 +1480,26 @@ export default function ValueMap({
 
     const active = indexPrefs != null;
     if (active) {
-      void (async () => {
-        const ok = await applyIndexScoring(map, indexPrefs, stateRef.current, cellFcRef.current ?? undefined);
-        if (ok) onIndexScoringAppliedRef.current?.();
-      })();
+      const nextSignature = buildIndexScoringSignature(indexPrefs);
+      const scoringChanged = prevIndexScoringSignatureRef.current !== nextSignature;
+      const needsFullRescore = !prevIndexActiveRef.current || scoringChanged;
+
+      if (needsFullRescore) {
+        prevIndexScoringSignatureRef.current = nextSignature;
+        void (async () => {
+          const ok = await applyIndexScoring(map, indexPrefs, stateRef.current, cellFcRef.current ?? undefined);
+          if (ok) onIndexScoringAppliedRef.current?.();
+        })();
+      } else {
+        applyCombinedCellFilters(map, stateRef.current, indexPrefs);
+      }
     } else if (prevIndexActiveRef.current) {
       // Restore opacity then re-apply quantile colour mapping (NOT static getFillColorExpression)
       if (map.getLayer("cells-fill")) {
         map.setPaintProperty("cells-fill", "fill-opacity", 0.72);
       }
+      applyCombinedCellFilters(map, stateRef.current, null);
+      prevIndexScoringSignatureRef.current = null;
       void ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange);
     }
     prevIndexActiveRef.current = active;
@@ -2450,19 +2462,52 @@ function buildValueFilter(state: MapState) {
   return [op, ["coalesce", ["get", prop], 0], threshold] as any;
 }
 
-function applyValueFilter(map: maplibregl.Map, state: MapState) {
+function buildIndexFilter(indexPrefs: IndexPrefs | null | undefined) {
+  if (!indexPrefs) return null;
+  const mode = indexPrefs.indexFilterMode ?? "off";
+  if (mode === "off") return null;
+  const threshold = Math.max(0, Math.min(1, Number(indexPrefs.indexFilterThreshold ?? 0.6)));
+  const op = mode === "lte" ? "<=" : ">=";
+  return [op, ["coalesce", ["get", "index_score"], 0], threshold] as any;
+}
+
+function applyCombinedCellFilters(
+  map: maplibregl.Map,
+  state: MapState,
+  indexPrefs: IndexPrefs | null | undefined
+) {
   const valueFilter = buildValueFilter(state);
+  const indexFilter = buildIndexFilter(indexPrefs);
+  const combinedFilter = valueFilter && indexFilter
+    ? (["all", valueFilter, indexFilter] as any)
+    : (valueFilter ?? indexFilter);
+
   if (map.getLayer("cells-fill")) {
-    map.setFilter("cells-fill", valueFilter as any);
+    map.setFilter("cells-fill", combinedFilter as any);
   }
   if (map.getLayer("cells-outline")) {
-    map.setFilter("cells-outline", valueFilter as any);
+    map.setFilter("cells-outline", combinedFilter as any);
   }
   if (map.getLayer("cells-no-sales")) {
     const noSalesBase: any = ["==", ["get", "tx_count"], 0];
-    const noSalesFilter = valueFilter ? (["all", noSalesBase, valueFilter] as any) : noSalesBase;
+    const noSalesFilter = combinedFilter ? (["all", noSalesBase, combinedFilter] as any) : noSalesBase;
     map.setFilter("cells-no-sales", noSalesFilter as any);
   }
+}
+
+function applyValueFilter(map: maplibregl.Map, state: MapState, indexPrefs?: IndexPrefs | null) {
+  applyCombinedCellFilters(map, state, indexPrefs ?? null);
+}
+
+function buildIndexScoringSignature(prefs: IndexPrefs) {
+  return [
+    prefs.budget,
+    prefs.propertyType,
+    prefs.affordWeight,
+    prefs.floodWeight,
+    prefs.schoolWeight,
+    prefs.coastWeight,
+  ].join("|");
 }
 
 /* ─── Index "Find My Area" scoring ─── */
@@ -2768,26 +2813,9 @@ async function applyIndexScoring(
       0.75, "#66bd63",
       1,    "#1a9850",
     ] as any);
-    const mode = prefs.indexFilterMode ?? "off";
-    const threshold = Math.max(0, Math.min(1, Number(prefs.indexFilterThreshold ?? 0.6)));
-    if (mode === "gte") {
-      map.setPaintProperty("cells-fill", "fill-opacity", [
-        "case",
-        [">=", ["get", "index_score"], threshold],
-        baseOpacityExpr,
-        0.08,
-      ] as any);
-    } else if (mode === "lte") {
-      map.setPaintProperty("cells-fill", "fill-opacity", [
-        "case",
-        ["<=", ["get", "index_score"], threshold],
-        baseOpacityExpr,
-        0.08,
-      ] as any);
-    } else {
-      map.setPaintProperty("cells-fill", "fill-opacity", baseOpacityExpr);
-    }
+    map.setPaintProperty("cells-fill", "fill-opacity", baseOpacityExpr);
   }
+  applyCombinedCellFilters(map, state, prefs);
   return true;
 }
 
