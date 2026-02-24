@@ -1818,20 +1818,6 @@ export default function Home() {
                 <div style={{ marginTop: 4 }}><b>Popular Right:</b> Reform UK and related right-populist parties.</div>
               </div>
             )}
-            <div
-              style={{
-                marginTop: 8,
-                padding: "7px 9px",
-                borderRadius: 10,
-                background: "rgba(250,204,21,0.12)",
-                border: "1px solid rgba(250,204,21,0.35)",
-                fontSize: 10,
-                lineHeight: 1.35,
-                opacity: 0.92,
-              }}
-            >
-              <b>Coverage note:</b> Flood and school overlay data is currently England-only. Wales and Scotland support will be added later.
-            </div>
           </div>
 
           {!indexActive && (

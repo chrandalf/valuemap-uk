@@ -506,7 +506,7 @@ export default function ValueMap({
           const gy = Number(cellProps?.gy);
           const median = Number(cellProps?.median);
           if (Number.isFinite(gx) && Number.isFinite(gy)) {
-            setPostcodeMaxPrice(stateRef.current.metric === "median" && Number.isFinite(median) ? median * 1.25 : null);
+            setPostcodeMaxPrice(resolveZooplaMaxPrice(median));
             setScotlandNote(gy >= 568300 ? "Scotland data coverage is partial and may be 1–2 years out of date." : null);
             void fetchPostcodesRef.current(gx, gy, 0, false);
           }
@@ -627,9 +627,26 @@ export default function ValueMap({
   // Cache: avoid recomputing polygons when toggling metric only
   const geoCacheRef = useRef<Map<string, any>>(new Map<string, any>());
 
+  const resolveZooplaMaxPrice = (cellMedian?: number) => {
+    const s = stateRef.current;
+    const prefs = indexPrefsRef.current;
+
+    if (prefs && s.metric === "median" && Number.isFinite(prefs.budget) && prefs.budget > 0) {
+      return prefs.budget;
+    }
+
+    if (s.metric === "median" && typeof cellMedian === "number" && Number.isFinite(cellMedian)) {
+      return cellMedian * 1.25;
+    }
+
+    return null;
+  };
+
   const buildZooplaHref = (outcode: string, maxPrice?: number | null) => {
     const clean = outcode.trim().toLowerCase();
     const s = stateRef.current;
+    const prefs = indexPrefsRef.current;
+    const effectivePropertyType = prefs?.propertyType ?? s.propertyType;
     const params = new URLSearchParams({
       q: clean,
       search_source: s.newBuild === "Y" ? "new-homes" : "for-sale",
@@ -640,7 +657,7 @@ export default function ValueMap({
       ? `https://www.zoopla.co.uk/new-homes/property/${encodeURIComponent(clean)}/`
       : `https://www.zoopla.co.uk/for-sale/property/${encodeURIComponent(clean)}/`;
 
-    switch (s.propertyType) {
+    switch (effectivePropertyType) {
       case "D":
         path = isNewHomes
           ? `https://www.zoopla.co.uk/new-homes/houses/${encodeURIComponent(clean)}/`
@@ -1428,11 +1445,7 @@ export default function ValueMap({
     const gy = Number(f.properties?.gy);
     if (!Number.isFinite(gx) || !Number.isFinite(gy)) return;
     const median = Number(f.properties?.median);
-    if (Number.isFinite(median) && stateRef.current.metric === "median") {
-      setPostcodeMaxPrice(median * 1.25);
-    } else {
-      setPostcodeMaxPrice(null);
-    }
+    setPostcodeMaxPrice(resolveZooplaMaxPrice(median));
     // Subtle Scotland caveat when clicking northern cells (Gretna ~331900, 568300)
     if (gy >= 568300) {
       setScotlandNote("Scotland data coverage is partial and may be 1–2 years out of date.");
