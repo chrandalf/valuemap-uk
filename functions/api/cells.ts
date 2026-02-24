@@ -10,7 +10,6 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   const newBuild = (url.searchParams.get("newBuild") ?? "ALL").toUpperCase();
   const endMonthParam = (url.searchParams.get("endMonth") ?? "LATEST").toUpperCase();
   const minTxCount = Math.max(1, Number.parseInt(url.searchParams.get("minTxCount") ?? "3", 10) || 3);
-  const refreshCache = ["1", "true", "yes"].includes((url.searchParams.get("refresh") ?? "").toLowerCase());
 
   if (!isGridKey(grid)) {
     return Response.json("Invalid grid. Use 1km|5km|10km|25km", { status: 400 });
@@ -20,46 +19,51 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     return Response.json("Invalid metric. Use median|median_ppsf", { status: 400 });
   }
 
-  // ---- load + cache data (PER GRID) ----
-  const data = await getCachedGrid(env, grid, metric, refreshCache);
-
-  const endMonth = endMonthParam === "LATEST" ? data.latestEndMonth : endMonthParam;
-
-  // ---- filter rows ----
-  const filtered = data.rows.filter(
-    (r) =>
-      r.end_month === endMonth &&
-      r.property_type === propertyType &&
-      r.new_build === newBuild &&
-      Number(r.tx_count ?? 0) >= minTxCount
-  );
-
-  const rows = filtered.map((r) => ({
-    ...r,
-    median:
-      metric === "median_ppsf"
-        ? Number((r as any).median_ppsf ?? r.median ?? NaN)
-        : Number(r.median ?? NaN),
-  }));
-
-  return Response.json(
-    {
-      grid,
-      metric,
-      end_month: endMonth,
-      propertyType,
-      newBuild,
-      minTxCount,
-      count: rows.length,
-      rows,
-    },
-    {
-      headers: {
-        // cache at edge a bit; tune later
-        "Cache-Control": "public, max-age=1200",
-      },
+  // ---- resolve end_month ----
+  let endMonth: string;
+  if (endMonthParam === "LATEST") {
+    const manifest = await getManifest(env, grid, metric);
+    if (!manifest) {
+      // Fall back to legacy monolithic path
+      return await legacyHandler(env, grid, metric, propertyType, newBuild, endMonthParam, minTxCount);
     }
-  );
+    const months = [...new Set(manifest.partitions.map((p: any) => p.end_month as string))].sort();
+    endMonth = months[months.length - 1] as string;
+  } else {
+    endMonth = endMonthParam;
+  }
+
+  // ---- fetch the exact partition ----
+  const partitionKey = `cells/${grid}/${metric}/${endMonth}/${propertyType}_${newBuild}.json.gz`;
+
+  // Check in-memory cache
+  const now = Date.now();
+  const cached = PARTITION_CACHE.get(partitionKey);
+  if (cached && now - cached.loadedAtMs <= CACHE_TTL_MS) {
+    const rows = applyFilters(cached.rows, minTxCount, metric);
+    const withVotes = await backfillVotes(env, grid, rows);
+    return jsonResponse({ grid, metric, end_month: endMonth, propertyType, newBuild, minTxCount, count: withVotes.length, rows: withVotes });
+  }
+
+  // Fetch from R2
+  const bucket = getBucket(env);
+  const obj = await bucket.get(partitionKey);
+
+  if (!obj) {
+    // Partition not found — try legacy monolithic file as fallback
+    return await legacyHandler(env, grid, metric, propertyType, newBuild, endMonth, minTxCount);
+  }
+
+  const gz = await obj.arrayBuffer();
+  const jsonText = await gunzipToString(gz);
+  const rawRows = JSON.parse(jsonText) as CellRow[];
+
+  // Cache it
+  PARTITION_CACHE.set(partitionKey, { rows: rawRows, loadedAtMs: Date.now() });
+
+  const rows = applyFilters(rawRows, minTxCount, metric);
+  const withVotes = await backfillVotes(env, grid, rows);
+  return jsonResponse({ grid, metric, end_month: endMonth, propertyType, newBuild, minTxCount, count: withVotes.length, rows: withVotes });
 };
 
 /* ---------- types ---------- */
@@ -81,7 +85,7 @@ type CellRow = {
   end_month: string;
   property_type: string;
   new_build: string;
-  median: number;
+  median?: number;
   median_ppsf?: number;
   tx_count: number;
   delta_gbp?: number;
@@ -108,69 +112,57 @@ interface Env {
   R2: R2Bucket;
 }
 
-/* ---------- cache (PER GRID) ---------- */
+/* ---------- helpers ---------- */
 
-type CacheEntry = {
-  rows: CellRow[];
-  latestEndMonth: string;
-  loadedAtMs: number;
-};
-
-const CACHE_BY_GRID_AND_METRIC: Partial<Record<`${GridKey}|${CellsMetric}`, CacheEntry>> = {};
-const VOTE_CACHE_BY_GRID: Partial<Record<GridKey, Map<string, VoteCellValue>>> = {};
-
-function r2KeyForGrid(grid: GridKey, metric: CellsMetric) {
-  // Must match your bucket object names
-  if (metric === "median_ppsf") {
-    switch (grid) {
-      case "1km": return "grid_1km_ppsf_full.json.gz";
-      case "5km": return "grid_5km_ppsf_full.json.gz";
-      case "10km": return "grid_10km_ppsf_full.json.gz";
-      case "25km": return "grid_25km_ppsf_full.json.gz";
-    }
-  }
-
-  switch (grid) {
-    case "1km": return "grid_1km_full.json.gz";
-    case "5km": return "grid_5km_full.json.gz";
-    case "10km": return "grid_10km_full.json.gz";
-    case "25km": return "grid_25km_full.json.gz";
-  }
+function applyFilters(rows: CellRow[], minTxCount: number, metric: CellsMetric): CellRow[] {
+  return rows
+    .filter((r) => Number(r.tx_count ?? 0) >= minTxCount)
+    .map((r) => ({
+      ...r,
+      median:
+        metric === "median_ppsf"
+          ? Number((r as any).median_ppsf ?? r.median ?? NaN)
+          : Number(r.median ?? NaN),
+    }));
 }
 
-const GRID_CACHE_TTL_MS = 10 * 60 * 1000;
+function jsonResponse(data: any) {
+  return Response.json(data, {
+    headers: { "Cache-Control": "public, max-age=1200" },
+  });
+}
 
-async function getCachedGrid(env: Env, grid: GridKey, metric: CellsMetric, forceRefresh: boolean): Promise<CacheEntry> {
-  const cacheKey = `${grid}|${metric}` as const;
-  const cached = CACHE_BY_GRID_AND_METRIC[cacheKey];
+/* ---------- partition cache ---------- */
+
+type PartitionEntry = { rows: CellRow[]; loadedAtMs: number };
+const PARTITION_CACHE = new Map<string, PartitionEntry>();
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+/* ---------- manifest cache ---------- */
+
+const MANIFEST_CACHE = new Map<string, { data: any; loadedAtMs: number }>();
+
+async function getManifest(env: Env, grid: GridKey, metric: CellsMetric): Promise<any | null> {
+  const key = `cells/${grid}/${metric}/_manifest.json`;
   const now = Date.now();
-  if (cached && !forceRefresh && now - cached.loadedAtMs <= GRID_CACHE_TTL_MS) {
-    await backfillVoteDataIfMissing(env, grid, cached.rows);
-    return cached;
+  const cached = MANIFEST_CACHE.get(key);
+  if (cached && now - cached.loadedAtMs <= CACHE_TTL_MS) {
+    return cached.data;
   }
 
-  const key = r2KeyForGrid(grid, metric);
+  const bucket = getBucket(env);
+  const obj = await bucket.get(key);
+  if (!obj) return null;
 
-  const obj = await env.R2.get(key);
-  if (!obj) {
-    throw new Error(`R2 object not found: ${key}`);
-  }
-
-  const gz = await obj.arrayBuffer();
-  const jsonText = await gunzipToString(gz);
-  const rows = JSON.parse(jsonText) as CellRow[];
-
-  await backfillVoteDataIfMissing(env, grid, rows);
-
-  let latest = "0000-00-00";
-  for (const r of rows) {
-    if (r.end_month > latest) latest = r.end_month;
-  }
-
-  const entry = { rows, latestEndMonth: latest, loadedAtMs: Date.now() };
-  CACHE_BY_GRID_AND_METRIC[cacheKey] = entry;
-  return entry;
+  const text = await obj.text();
+  const data = JSON.parse(text);
+  MANIFEST_CACHE.set(key, { data, loadedAtMs: Date.now() });
+  return data;
 }
+
+/* ---------- vote data ---------- */
+
+const VOTE_CACHE_BY_GRID: Partial<Record<GridKey, Map<string, VoteCellValue>>> = {};
 
 function voteKeyForGrid(grid: GridKey) {
   switch (grid) {
@@ -185,11 +177,10 @@ async function getCachedVoteLookup(env: Env, grid: GridKey): Promise<Map<string,
   const cached = VOTE_CACHE_BY_GRID[grid];
   if (cached) return cached;
 
+  const bucket = getBucket(env);
   const key = voteKeyForGrid(grid);
-  const obj = await getBucket(env).get(key);
-  if (!obj) {
-    return null;
-  }
+  const obj = await bucket.get(key);
+  if (!obj) return null;
 
   const gz = await obj.arrayBuffer();
   const jsonText = await gunzipToString(gz);
@@ -209,30 +200,117 @@ async function getCachedVoteLookup(env: Env, grid: GridKey): Promise<Map<string,
   return lookup;
 }
 
-async function backfillVoteDataIfMissing(env: Env, grid: GridKey, rows: CellRow[]) {
-  const sample = rows.find((row) => row.pct_progressive !== undefined || row.pct_conservative !== undefined || row.pct_popular_right !== undefined);
-  if (sample) return;
-
-  const voteLookup = await getCachedVoteLookup(env, grid);
-  if (!voteLookup) return;
-
-  for (const row of rows) {
-    const vote = voteLookup.get(`${row.gx}_${row.gy}`);
-    if (!vote) continue;
-    row.pct_progressive = vote.pct_progressive;
-    row.pct_conservative = vote.pct_conservative;
-    row.pct_popular_right = vote.pct_popular_right;
-    if (vote.constituency) {
-      row.constituency = vote.constituency;
-    }
+async function backfillVotes(env: Env, grid: GridKey, rows: CellRow[]): Promise<CellRow[]> {
+  let voteLookup: Map<string, VoteCellValue> | null = null;
+  try {
+    voteLookup = await getCachedVoteLookup(env, grid);
+  } catch {
+    return rows;
   }
+  if (!voteLookup) return rows;
+
+  return rows.map((row) => {
+    const vote = voteLookup!.get(`${row.gx}_${row.gy}`);
+    if (!vote) return row;
+    return {
+      ...row,
+      pct_progressive: vote.pct_progressive,
+      pct_conservative: vote.pct_conservative,
+      pct_popular_right: vote.pct_popular_right,
+      constituency: vote.constituency,
+    };
+  });
 }
+
+/* ---------- legacy fallback (monolithic files) ---------- */
+
+type LegacyCacheEntry = {
+  rows: CellRow[];
+  latestEndMonth: string;
+  loadedAtMs: number;
+};
+
+const LEGACY_CACHE: Partial<Record<string, LegacyCacheEntry>> = {};
+
+function legacyR2Key(grid: GridKey, metric: CellsMetric) {
+  if (metric === "median_ppsf") {
+    return `grid_${grid}_ppsf_full.json.gz`;
+  }
+  return `grid_${grid}_full.json.gz`;
+}
+
+async function legacyHandler(
+  env: Env,
+  grid: GridKey,
+  metric: CellsMetric,
+  propertyType: string,
+  newBuild: string,
+  endMonth: string,
+  minTxCount: number,
+): Promise<Response> {
+  const cacheKey = `legacy|${grid}|${metric}`;
+  const now = Date.now();
+  let entry = LEGACY_CACHE[cacheKey];
+
+  if (!entry || now - entry.loadedAtMs > CACHE_TTL_MS) {
+    const key = legacyR2Key(grid, metric);
+    const bucket = getBucket(env);
+    const obj = await bucket.get(key);
+    if (!obj) {
+      return Response.json({ error: `Data not found: ${key}` }, { status: 404 });
+    }
+    const gz = await obj.arrayBuffer();
+    const jsonText = await gunzipToString(gz);
+    const rows = JSON.parse(jsonText) as CellRow[];
+
+    let latest = "0000-00-00";
+    for (const r of rows) {
+      if (r.end_month > latest) latest = r.end_month;
+    }
+
+    entry = { rows, latestEndMonth: latest, loadedAtMs: Date.now() };
+    LEGACY_CACHE[cacheKey] = entry;
+  }
+
+  const resolvedMonth = endMonth === "LATEST" ? entry.latestEndMonth : endMonth;
+
+  const filtered = entry.rows.filter(
+    (r) =>
+      r.end_month === resolvedMonth &&
+      r.property_type === propertyType &&
+      r.new_build === newBuild &&
+      Number(r.tx_count ?? 0) >= minTxCount
+  );
+
+  const rows = filtered.map((r) => ({
+    ...r,
+    median:
+      metric === "median_ppsf"
+        ? Number((r as any).median_ppsf ?? r.median ?? NaN)
+        : Number(r.median ?? NaN),
+  }));
+
+  const withVotes = await backfillVotes(env, grid, rows);
+
+  return jsonResponse({
+    grid,
+    metric,
+    end_month: resolvedMonth,
+    propertyType,
+    newBuild,
+    minTxCount,
+    count: withVotes.length,
+    rows: withVotes,
+  });
+}
+
+/* ---------- R2 bucket resolution ---------- */
 
 function getBucket(env: Env): R2Bucket {
   return ((env && ((env as any).R2 || (env as any).BRICKGRID_BUCKET)) as unknown) as R2Bucket;
 }
 
-/* ---------- gzip helper (Workers runtime supports this) ---------- */
+/* ---------- gzip helper ---------- */
 
 async function gunzipToString(gz: ArrayBuffer): Promise<string> {
   // @ts-ignore – available in Workers runtime

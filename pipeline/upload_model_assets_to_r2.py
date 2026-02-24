@@ -79,6 +79,14 @@ def collect_assets(
         )
     if include_property:
         files.extend(property_dir / name for name in REQUIRED_PROPERTY_ASSET_NAMES)
+        # Include partitioned cell files (cells/{grid}/{metric}/{endMonth}/*.json.gz)
+        cells_dir = property_dir / "cells"
+        if cells_dir.is_dir():
+            for partition_file in sorted(cells_dir.rglob("*.json.gz")):
+                files.append(partition_file)
+            # Also include manifest files
+            for manifest_file in sorted(cells_dir.rglob("_manifest.json")):
+                files.append(manifest_file)
     return files
 
 
@@ -87,13 +95,20 @@ def content_type_for(path: Path) -> str:
         return "application/geo+json"
     if path.name.endswith(".json.gz"):
         return "application/json"
+    if path.name.endswith(".json"):
+        return "application/json"
     return "application/gzip"
 
 
-def object_keys_for_files(files: list[Path], prefix: str) -> list[str]:
+def object_keys_for_files(files: list[Path], prefix: str, property_dir: Path | None = None) -> list[str]:
     keys: list[str] = []
     for path in files:
-        object_key = f"{prefix}/{path.name}" if prefix else path.name
+        # For partition files under cells/, preserve the relative directory structure
+        if property_dir and path.is_relative_to(property_dir / "cells"):
+            rel = path.relative_to(property_dir)
+            object_key = f"{prefix}/{rel.as_posix()}" if prefix else rel.as_posix()
+        else:
+            object_key = f"{prefix}/{path.name}" if prefix else path.name
         keys.append(object_key)
     return keys
 
@@ -258,7 +273,7 @@ def main() -> None:
     s3.head_bucket(Bucket=bucket_name)
     print("Bucket access check: OK")
 
-    object_keys = object_keys_for_files(files, prefix)
+    object_keys = object_keys_for_files(files, prefix, property_dir=property_dir if include_property else None)
     if backup_before_upload:
         backup_remote_objects(
             s3=s3,
@@ -269,15 +284,17 @@ def main() -> None:
         )
 
     for path, object_key in zip(files, object_keys):
+        extra_args: dict = {
+            "ContentType": content_type_for(path),
+            "CacheControl": "public, max-age=86400",
+        }
+        if path.name.endswith(".gz"):
+            extra_args["ContentEncoding"] = "gzip"
         s3.upload_file(
             str(path),
             bucket_name,
             object_key,
-            ExtraArgs={
-                "ContentType": content_type_for(path),
-                "ContentEncoding": "gzip",
-                "CacheControl": "public, max-age=86400",
-            },
+            ExtraArgs=extra_args,
         )
         print(f"Uploaded: {object_key}")
 

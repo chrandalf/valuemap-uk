@@ -96,6 +96,50 @@ def dump_json_gz(path: Path, payload: object) -> None:
         json.dump(payload, f, ensure_ascii=False, separators=(",", ":"))
 
 
+def write_partitions(rows: list[dict], output_dir: Path, grid_label: str, metric: str) -> int:
+    """Write rows partitioned by end_month / property_type / new_build.
+
+    R2 key layout:  cells/{grid_label}/{metric}/{end_month}/{property_type}_{new_build}.json.gz
+    Local mirror:   {output_dir}/cells/{grid_label}/{metric}/{end_month}/{property_type}_{new_build}.json.gz
+
+    Returns the number of partition files written.
+    """
+    from collections import defaultdict
+
+    buckets: dict[tuple[str, str, str], list[dict]] = defaultdict(list)
+    for r in rows:
+        key = (r["end_month"], r["property_type"], r["new_build"])
+        buckets[key].append(r)
+
+    written = 0
+    for (end_month, ptype, nb), partition_rows in buckets.items():
+        part_dir = output_dir / "cells" / grid_label / metric / end_month
+        part_path = part_dir / f"{ptype}_{nb}.json.gz"
+        dump_json_gz(part_path, partition_rows)
+        written += 1
+
+    # Write a manifest listing all available partitions for this grid/metric
+    manifest = {
+        "grid": grid_label,
+        "metric": metric,
+        "partitions": [
+            {
+                "end_month": em,
+                "property_type": pt,
+                "new_build": nb,
+                "row_count": len(pr),
+            }
+            for (em, pt, nb), pr in sorted(buckets.items())
+        ],
+    }
+    manifest_path = output_dir / "cells" / grid_label / metric / "_manifest.json"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(manifest_path, "w", encoding="utf-8") as f:
+        json.dump(manifest, f, ensure_ascii=False, separators=(",", ":"))
+
+    return written
+
+
 def load_onspd(path: Path) -> pd.DataFrame:
     if not path.exists():
         raise FileNotFoundError(f"ONSPD input not found: {path}")
@@ -443,6 +487,11 @@ def build_grid_outputs(df: pd.DataFrame, output_dir: Path, latest_end_month: pd.
 
         dump_json_gz(output_dir / f"grid_{g//1000}km_full.json.gz", rows)
 
+        # Also write partitioned files
+        grid_label = f"{g // 1000}km"
+        n = write_partitions(rows, output_dir, grid_label, metric="median")
+        print(f"  Partitions written: {grid_label}/median -> {n} files")
+
 
 def build_ppsf_outputs(df: pd.DataFrame, epc_latest: pd.DataFrame, output_dir: Path) -> None:
     if df.empty:
@@ -502,6 +551,11 @@ def build_ppsf_outputs(df: pd.DataFrame, epc_latest: pd.DataFrame, output_dir: P
                 )
 
         dump_json_gz(output_dir / f"grid_{g//1000}km_ppsf_full.json.gz", rows)
+
+        # Also write partitioned files
+        grid_label = f"{g // 1000}km"
+        n = write_partitions(rows, output_dir, grid_label, metric="median_ppsf")
+        print(f"  Partitions written: {grid_label}/median_ppsf -> {n} files")
 
 
 def build_delta_outputs(df: pd.DataFrame, output_dir: Path, latest_end_month: pd.Timestamp) -> None:
