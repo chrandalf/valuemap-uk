@@ -122,7 +122,7 @@ export default function Home() {
   const [cleanScreenMode, setCleanScreenMode] = useState(false);
   const [mobileOverlayRatio, setMobileOverlayRatio] = useState(0);
   const [mobileQuickFilterKey, setMobileQuickFilterKey] = useState<MobileQuickFilterKey>("grid");
-  const [indexOpen, setIndexOpen] = useState(false);
+  const [indexOpen, setIndexOpen] = useState(true);
   const [indexActive, setIndexActive] = useState(false);
   const [indexScoringPending, setIndexScoringPending] = useState(false);
   const [indexToken, setIndexToken] = useState(0);
@@ -503,8 +503,8 @@ export default function Home() {
   const legendContent = (
     <>
       {indexActive && indexLegendContent}
+      {state.schoolOverlayMode !== "off" && schoolLegendContent}
       {!indexActive && state.voteOverlayMode === "on" && voteLegendContent}
-      {!indexActive && state.schoolOverlayMode !== "off" && schoolLegendContent}
       {!indexActive && state.voteOverlayMode !== "on" && (
       <>
       <div className="legend-title" style={{ fontWeight: 600, marginBottom: 12, fontSize: 16, opacity: 0.9 }}>
@@ -1971,6 +1971,27 @@ export default function Home() {
                 🟢 Great match → 🟡 Average → 🔴 Poor match
               </div>
             )}
+
+            {!indexActive && (
+              <button
+                type="button"
+                onClick={() => setIndexOpen(false)}
+                style={{
+                  marginTop: 10,
+                  width: "100%",
+                  cursor: "pointer",
+                  border: "none",
+                  background: "transparent",
+                  color: "rgba(255,255,255,0.45)",
+                  fontSize: 12,
+                  padding: "6px 0 2px",
+                  textDecoration: "underline",
+                  textUnderlineOffset: 3,
+                }}
+              >
+                Skip — explore manually
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -2089,7 +2110,6 @@ export default function Home() {
             </div>
           )}
 
-          {!indexActive && (
           <div
             className="overlay-filter-panel mobile-collapsible"
             data-collapsed={overlayPanelCollapsed ? "true" : "false"}
@@ -2219,7 +2239,6 @@ export default function Home() {
               </div>
             )}
           </div>
-          )}
 
           {!indexActive && (
             state.metric === "median" ||
