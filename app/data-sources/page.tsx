@@ -1,3 +1,5 @@
+import BackToMapChip from "../components/BackToMapChip";
+
 export default function DataSourcesPage() {
   return (
     <main
@@ -44,7 +46,7 @@ export default function DataSourcesPage() {
         </div>
 
         <div style={{ marginTop: 16, display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <NavChip href="/">Back to map</NavChip>
+          <BackToMapChip />
           <NavChip href="/instructions">Instructions</NavChip>
           <NavChip href="/election-info">Election info</NavChip>
           <NavChip href="/legal">Legal</NavChip>

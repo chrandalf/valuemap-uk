@@ -980,7 +980,7 @@ export default function Home() {
           <div style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 0 }}>
             <div style={{ fontWeight: 700, fontSize: 13, lineHeight: 1.1, whiteSpace: "nowrap", flexShrink: 0, marginRight: 2 }}>
               UK House Price Grid{" "}
-              <span style={{ fontSize: 9, fontWeight: 400, opacity: 0.45 }}>v0.1</span>
+              <span style={{ fontSize: 9, fontWeight: 400, opacity: 0.45 }}>v0.4</span>
             </div>
 
             <div ref={controlsDropRef} style={{ position: "relative", flexShrink: 0 }}>
@@ -1044,6 +1044,14 @@ export default function Home() {
                     { label: "🔒 Privacy", href: "/privacy" },
                   ] as Array<{ label: string; href: string }>).map(({ label, href }) => (
                     <a key={href} href={href} style={{ display: "block", padding: "8px 14px", fontSize: 11, color: "white", textDecoration: "none" }}
+                      onClick={() => {
+                        if (typeof window === "undefined") return;
+                        try {
+                          sessionStorage.setItem("valuemap:return-url", `${window.location.pathname}${window.location.search}`);
+                        } catch {
+                          // ignore storage errors
+                        }
+                      }}
                       onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
                       onMouseLeave={e => (e.currentTarget.style.background = "")}
                     >

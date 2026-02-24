@@ -1,3 +1,5 @@
+import BackToMapChip from "../components/BackToMapChip";
+
 export default function PrivacyPage() {
   return (
     <main
@@ -50,7 +52,7 @@ export default function PrivacyPage() {
         </Section>
 
         <div style={{ marginTop: 16, display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <NavChip href="/">Back to map</NavChip>
+          <BackToMapChip />
           <NavChip href="/legal">Legal</NavChip>
           <NavChip href="/contact">Contact</NavChip>
         </div>

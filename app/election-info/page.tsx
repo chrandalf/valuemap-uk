@@ -1,3 +1,5 @@
+import BackToMapChip from "../components/BackToMapChip";
+
 export default function ElectionInfoPage() {
   return (
     <main
@@ -48,7 +50,7 @@ export default function ElectionInfoPage() {
         </div>
 
         <div style={{ marginTop: 16, display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <NavChip href="/">Back to map</NavChip>
+          <BackToMapChip />
           <NavChip href="/instructions">Instructions</NavChip>
           <NavChip href="/data-sources">Data sources</NavChip>
           <NavChip href="/description">Description</NavChip>
