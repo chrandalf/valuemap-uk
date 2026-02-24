@@ -692,6 +692,10 @@ export default function Home() {
     state.valueFilterMode === "off"
       ? "Off"
       : `${state.valueFilterMode === "lte" ? "Below" : "Above"} ${formatMetricFilterValue(state.metric, state.valueThreshold)}`;
+  const indexSuitabilityLabel =
+    indexSuitabilityMode === "off"
+      ? "Off"
+      : `${indexSuitabilityMode === "lte" ? "Below" : "Above"} ${indexSuitabilityThreshold}%`;
   const floodOverlayLabel =
     state.floodOverlayMode === "off"
       ? "Off"
@@ -1433,37 +1437,8 @@ export default function Home() {
               />
             </div>
 
-            {/* Suitability filter */}
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 6 }}>🎯 Suitability filter (green↔red)</div>
-              <Segment
-                options={["off", "gte", "lte"]}
-                value={indexSuitabilityMode}
-                onChange={(v) => setIndexSuitabilityMode(v as ValueFilterMode)}
-                renderOption={(v) => {
-                  if (v === "off") return "Off";
-                  if (v === "gte") return "Show best";
-                  return "Show worst";
-                }}
-              />
-              {indexSuitabilityMode !== "off" && (
-                <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    step={1}
-                    value={indexSuitabilityThreshold}
-                    onChange={(e) => setIndexSuitabilityThreshold(Number(e.target.value))}
-                    style={{ width: "100%", accentColor: "#22c55e" }}
-                  />
-                  <div style={{ fontSize: 11, opacity: 0.8 }}>
-                    {indexSuitabilityMode === "gte"
-                      ? `Visible when score is ${indexSuitabilityThreshold}% or higher`
-                      : `Visible when score is ${indexSuitabilityThreshold}% or lower`}
-                  </div>
-                </div>
-              )}
+            <div style={{ marginBottom: 14, fontSize: 11, opacity: 0.72, lineHeight: 1.35 }}>
+              Suitability filter is available in the right-side panel after scoring.
             </div>
 
             {/* Score / Clear buttons */}
@@ -1932,61 +1907,127 @@ export default function Home() {
             </div>
           )}
 
-          {/* Minimised index bar when scoring is active */}
+          {/* Index suitability panel when scoring is active */}
           {indexActive && !indexOpen && (
             <div
               style={{
                 width: "100%",
-                padding: "8px 12px",
+                padding: "10px 12px",
                 borderRadius: 14,
                 background: "rgba(10, 12, 20, 0.9)",
                 border: "2px solid rgba(26,152,80,0.5)",
                 backdropFilter: "blur(10px)",
                 color: "white",
                 fontSize: 12,
-                display: "flex",
-                alignItems: "center",
+                display: "grid",
                 gap: 10,
               }}
             >
-              <span style={{ fontWeight: 700, fontSize: 12 }}>
-                {indexScoringPending ? "⏳ Scoring areas..." : "🔍 Areas scored"}
-              </span>
-              <span style={{ flex: 1, fontSize: 10, opacity: 0.6 }}>
-                {indexScoringPending ? "Applying colours to cells" : "Green = great match"}
-              </span>
-              <button
-                type="button"
-                onClick={() => setIndexOpen(true)}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                <div style={{ fontWeight: 700, fontSize: 16 }}>Median value filter</div>
+                <div style={{ fontSize: 11, opacity: 0.78 }}>0%–100%</div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, alignItems: "center" }}>
+                <div style={{ fontSize: 12, opacity: 0.8 }}>Mode</div>
+                <Segment
+                  options={["off", "lte", "gte"]}
+                  value={indexSuitabilityMode}
+                  onChange={(v) => {
+                    setIndexSuitabilityMode(v as ValueFilterMode);
+                    setIndexToken((t) => t + 1);
+                  }}
+                  renderOption={(v) => {
+                    const labels: Record<string, string> = {
+                      off: "Off",
+                      lte: "Below",
+                      gte: "Above",
+                    };
+                    return labels[v] ?? v;
+                  }}
+                />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, alignItems: "center" }}>
+                <div style={{ fontSize: 12, opacity: indexSuitabilityMode === "off" ? 0.5 : 0.8 }}>Threshold</div>
+                <div style={{ display: "grid", gap: 6 }}>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={indexSuitabilityThreshold}
+                    onChange={(e) => {
+                      setIndexSuitabilityThreshold(Number(e.target.value));
+                      setIndexToken((t) => t + 1);
+                    }}
+                    style={{ width: "100%", accentColor: "#22c55e", opacity: indexSuitabilityMode === "off" ? 0.55 : 1 }}
+                    disabled={indexSuitabilityMode === "off"}
+                  />
+                  <div style={{ fontSize: 11, opacity: 0.8 }}>
+                    {indexSuitabilityMode === "off"
+                      ? "Showing all suitability levels"
+                      : indexSuitabilityMode === "gte"
+                        ? `Above ${indexSuitabilityThreshold}%`
+                        : `Below ${indexSuitabilityThreshold}%`}
+                  </div>
+                </div>
+              </div>
+
+              <div
                 style={{
-                  cursor: "pointer",
-                  border: "1px solid rgba(255,255,255,0.2)",
-                  background: "rgba(255,255,255,0.08)",
-                  color: "white",
-                  padding: "4px 10px",
-                  borderRadius: 999,
-                  fontSize: 11,
-                  fontWeight: 600,
+                  marginTop: 2,
+                  padding: "8px 10px",
+                  borderRadius: 12,
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(255,255,255,0.12)",
                 }}
               >
-                Edit
-              </button>
-              <button
-                type="button"
-                onClick={() => { setIndexScoringPending(false); setIndexActive(false); setIndexOpen(false); }}
-                style={{
-                  cursor: "pointer",
-                  border: "1px solid rgba(239,68,68,0.3)",
-                  background: "rgba(239,68,68,0.12)",
-                  color: "white",
-                  padding: "4px 10px",
-                  borderRadius: 999,
-                  fontSize: 11,
-                  fontWeight: 600,
-                }}
-              >
-                Clear
-              </button>
+                <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.9, marginBottom: 6 }}>
+                  Current filters
+                </div>
+                <div style={{ fontSize: 11, opacity: 0.8, lineHeight: 1.35 }}>
+                  {currentFiltersSummary}
+                </div>
+                <div style={{ fontSize: 11, opacity: 0.8, marginTop: 4 }}>
+                  {`Suitability filter: ${indexSuitabilityLabel}`}
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                <button
+                  type="button"
+                  onClick={() => setIndexOpen(true)}
+                  style={{
+                    cursor: "pointer",
+                    border: "1px solid rgba(255,255,255,0.2)",
+                    background: "rgba(255,255,255,0.08)",
+                    color: "white",
+                    padding: "5px 10px",
+                    borderRadius: 999,
+                    fontSize: 11,
+                    fontWeight: 600,
+                  }}
+                >
+                  Edit scoring
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setIndexScoringPending(false); setIndexActive(false); setIndexOpen(false); }}
+                  style={{
+                    cursor: "pointer",
+                    border: "1px solid rgba(239,68,68,0.3)",
+                    background: "rgba(239,68,68,0.12)",
+                    color: "white",
+                    padding: "5px 10px",
+                    borderRadius: 999,
+                    fontSize: 11,
+                    fontWeight: 600,
+                  }}
+                >
+                  Clear
+                </button>
+              </div>
             </div>
           )}
         </div>
