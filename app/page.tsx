@@ -127,6 +127,7 @@ export default function Home() {
   const [indexScoringPending, setIndexScoringPending] = useState(false);
   const [indexToken, setIndexToken] = useState(0);
   const [indexBudget, setIndexBudget] = useState(300000);
+  const [indexPropertyType, setIndexPropertyType] = useState<"ALL" | "D" | "S" | "T" | "F">("ALL");
   const [indexAffordWeight, setIndexAffordWeight] = useState(5);
   const [indexFloodWeight, setIndexFloodWeight] = useState(5);
   const [indexSchoolWeight, setIndexSchoolWeight] = useState(5);
@@ -142,7 +143,7 @@ export default function Home() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const computedIndexPrefs: IndexPrefs | null = useMemo(() => {
     if (!indexActive) return null;
-    return { budget: indexBudget, affordWeight: indexAffordWeight, floodWeight: indexFloodWeight, schoolWeight: indexSchoolWeight, coastWeight: indexCoastWeight };
+    return { budget: indexBudget, propertyType: indexPropertyType, affordWeight: indexAffordWeight, floodWeight: indexFloodWeight, schoolWeight: indexSchoolWeight, coastWeight: indexCoastWeight };
   }, [indexActive, indexToken]);
 
   const DEFAULT_STATE: MapState = {
@@ -1867,6 +1868,32 @@ export default function Home() {
                 onChange={(e) => setIndexBudget(Number(e.target.value))}
                 style={{ width: "100%", accentColor: "#facc15" }}
               />
+            </div>
+
+            {/* Property type */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 6 }}>🏠 Property type</div>
+              <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                {(["ALL", "D", "S", "T", "F"] as const).map((pt) => (
+                  <button
+                    key={pt}
+                    type="button"
+                    onClick={() => setIndexPropertyType(pt)}
+                    style={{
+                      cursor: "pointer",
+                      border: indexPropertyType === pt ? "2px solid rgba(250,204,21,0.8)" : "1px solid rgba(255,255,255,0.18)",
+                      background: indexPropertyType === pt ? "rgba(250,204,21,0.2)" : "rgba(255,255,255,0.06)",
+                      color: "white",
+                      padding: "4px 10px",
+                      borderRadius: 999,
+                      fontSize: 11,
+                      fontWeight: indexPropertyType === pt ? 700 : 400,
+                    }}
+                  >
+                    {PROPERTY_LABEL[pt]}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Affordability weight */}

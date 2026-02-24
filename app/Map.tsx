@@ -28,6 +28,7 @@ export type MapState = {
 
 export type IndexPrefs = {
   budget: number;           // target price (median GBP or PPSF depending on metric)
+  propertyType: "ALL" | "D" | "S" | "T" | "F"; // property type for affordability
   affordWeight: number;     // 0-10 importance
   floodWeight: number;      // 0-10 importance
   schoolWeight: number;     // 0-10 importance
@@ -1250,7 +1251,10 @@ export default function ValueMap({
         let html = `<div style="font-family:system-ui;font-size:12px;line-height:1.4;min-width:180px;max-width:210px;">`;
         const totalCol = totalScore < 0.35 ? "#ef4444" : totalScore < 0.55 ? "#fb923c" : totalScore < 0.72 ? "#facc15" : "#4ade80";
         html += `<div style="font-weight:700;margin-bottom:7px;font-size:13px;">🗺️ Match score: <span style="color:${totalCol}">${Math.round(totalScore * 100)}%</span></div>`;
-        if (prefs.affordWeight > 0) html += wRow("💰 Affordability", prefs.affordWeight, bar(Number(p.ix_a ?? 0.5)));
+        const ptLabels: Record<string, string> = { ALL: "All types", D: "Detached", S: "Semi", T: "Terraced", F: "Flat" };
+        const ptLabel = ptLabels[prefs.propertyType ?? "ALL"] ?? "";
+        const affordLabel = ptLabel && ptLabel !== "All types" ? `💰 ${ptLabel}` : "💰 Affordability";
+        if (prefs.affordWeight > 0) html += wRow(affordLabel, prefs.affordWeight, bar(Number(p.ix_a ?? 0.5)));
         if (prefs.floodWeight > 0)  html += wRow("🌊 Flood safety",   prefs.floodWeight,  bar(Number(p.ix_f ?? 0.5), p.ix_fn === 1));
         if (prefs.schoolWeight > 0) html += wRow("🏫 Schools",        prefs.schoolWeight, bar(Number(p.ix_s ?? 0.5), p.ix_sn === 1));
         if (prefs.coastWeight > 0)  html += wRow("🏖️ Coast",          prefs.coastWeight,  bar(0.5, true));
@@ -2458,6 +2462,7 @@ function applyValueFilter(map: maplibregl.Map, state: MapState) {
 // Module-level cache for overlay data + spatial grid indexes (built once per session)
 let _indexFloodCache: Array<{ lon: number; lat: number; riskScore: number }> | null = null;
 let _indexSchoolCache: Array<{ lon: number; lat: number; qualityScore: number; isGood: boolean }> | null = null;
+let _indexCellsCache: { key: string; lookup: Map<string, number> } | null = null;
 
 type SpatialGrid<T> = { buckets: Map<number, T[]>; cellSize: number };
 let _indexFloodGrid: SpatialGrid<{ lon: number; lat: number; riskScore: number }> | null = null;
@@ -2539,7 +2544,7 @@ async function applyIndexScoring(
           .map((f: any) => ({
             lon: Number(f.geometry.coordinates[0]),
             lat: Number(f.geometry.coordinates[1]),
-            qualityScore: Number(f.properties?.quality_score ?? 50) || 50,
+            qualityScore: Number(f.properties?.quality_score ?? 0.5) || 0.5,
             isGood: Boolean(f.properties?.is_good),
           }));
       } else {
@@ -2559,6 +2564,39 @@ async function applyIndexScoring(
   const floodGrid = _indexFloodGrid;
   const schoolGrid = _indexSchoolGrid;
   const metricProp = metricPropName(state.metric);
+
+  // — Fetch property-type-specific cell data if user chose a type different from current state —
+  let ptLookup: Map<string, number> | null = null;
+  const indexPT = prefs.propertyType ?? "ALL";
+  if (prefs.affordWeight > 0 && indexPT !== (state.propertyType ?? "ALL")) {
+    const isDelta = isDeltaMetric(state.metric);
+    const endpoint = isDelta ? "/api/deltas" : "/api/cells";
+    const endMonth = isDelta ? undefined : state.endMonth ?? "LATEST";
+    const ptKey = `${state.grid}|${indexPT}|${state.newBuild}|${state.metric}|${endMonth ?? "LATEST"}`;
+    if (_indexCellsCache?.key === ptKey) {
+      ptLookup = _indexCellsCache.lookup;
+    } else {
+      try {
+        const qs = new URLSearchParams({ grid: state.grid, propertyType: indexPT, newBuild: state.newBuild ?? "ALL" });
+        if (!isDelta) { qs.set("metric", state.metric); qs.set("endMonth", endMonth!); }
+        const res = await fetch(`${endpoint}?${qs.toString()}`);
+        if (res.ok) {
+          const payload = (await res.json()) as any;
+          const rows: any[] = Array.isArray(payload?.features) ? payload.features : (Array.isArray(payload?.rows) ? payload.rows : []);
+          ptLookup = new Map<string, number>();
+          for (const item of rows) {
+            const p = item?.properties ?? item;
+            const gx = Number(p.gx); const gy = Number(p.gy);
+            const val = Number(p[metricProp] ?? 0) || 0;
+            if (Number.isFinite(gx) && Number.isFinite(gy) && val > 0) {
+              ptLookup.set(`${gx}_${gy}`, val);
+            }
+          }
+          _indexCellsCache = { key: ptKey, lookup: ptLookup };
+        }
+      } catch { /* use existing cell values */ }
+    }
+  }
 
   // Tight search radius for scoring (~8km), wide radius for data-coverage check (~50km)
   const NEAR_DEG = 0.08;
@@ -2584,7 +2622,11 @@ async function applyIndexScoring(
     // 1) Affordability
     let affordScore = 0.5;
     if (prefs.affordWeight > 0) {
-      const cellValue = Number(props[metricProp] ?? 0) || 0;
+      // Use property-type-specific lookup if available, else fall back to cell properties
+      const gx = Number(props.gx); const gy = Number(props.gy);
+      const cellValue = (ptLookup && Number.isFinite(gx) && Number.isFinite(gy))
+        ? (ptLookup.get(`${gx}_${gy}`) ?? 0)
+        : (Number(props[metricProp] ?? 0) || 0);
       if (cellValue > 0 && prefs.budget > 0) {
         const ratio = cellValue / prefs.budget;
         affordScore = Math.max(0, Math.min(1, (1.6 - ratio) / 0.9));
@@ -2594,7 +2636,7 @@ async function applyIndexScoring(
     }
     props.ix_a = affordScore;
 
-    // 2) Flood risk — distinguish "safe area" from "no data area"
+    // 2) Flood risk — density-aware: aggregate impact from ALL nearby flood zones
     let floodScore = 0.5;
     let floodNoData = false;
     if (prefs.floodWeight > 0) {
@@ -2605,19 +2647,25 @@ async function applyIndexScoring(
         floodNoData = true;
         floodScore = 0.5;
       } else {
-        // We have data — find nearest flood zone within 8km
-        let nearestDist = Number.POSITIVE_INFINITY;
-        let nearestRisk = 0;
+        // Aggregate flood impact from all zones within 8km
+        // Multiple nearby flood zones = worse than a single one
+        let aggregateImpact = 0;
+        let anyWithin8k = false;
         for (const fp of querySpatialGrid(floodGrid, cLon, cLat, NEAR_DEG)) {
           const d = haversineDistanceMeters(cLat, cLon, fp.lat, fp.lon);
-          if (d < nearestDist) { nearestDist = d; nearestRisk = fp.riskScore; }
+          if (d < 8000) {
+            anyWithin8k = true;
+            const proximity = 1 - d / 8000; // 1 = on top, 0 = 8km away
+            const severity = Math.min(fp.riskScore / 4, 1); // 0-1 severity
+            // Quadratic falloff: nearby flood zones matter much more
+            aggregateImpact += severity * proximity * proximity;
+          }
         }
-        if (nearestDist > 8000) {
-          floodScore = 1.0; // data coverage exists but this area has no flood zones nearby → genuinely safe
+        if (!anyWithin8k) {
+          floodScore = 1.0; // data coverage exists but no flood zones nearby → safe
         } else {
-          const proximity = 1 - nearestDist / 8000;
-          const severity = Math.min(nearestRisk / 4, 1);
-          floodScore = Math.max(0, 1 - proximity * severity);
+          // Cap aggregate at 1.0 so the worst possible score is 0
+          floodScore = Math.max(0, 1 - Math.min(aggregateImpact, 1));
         }
       }
       totalScore += prefs.floodWeight * floodScore;
@@ -2637,15 +2685,28 @@ async function applyIndexScoring(
         schoolNoData = true;
         schoolScore = 0.5;
       } else {
+        // Distance-weighted average of nearby schools (closer = heavier weight)
+        let weightedSum = 0;
+        let weightSum = 0;
         let bestScore = -1;
         for (const sp of querySpatialGrid(schoolGrid, cLon, cLat, NEAR_DEG)) {
           const d = haversineDistanceMeters(cLat, cLon, sp.lat, sp.lon);
           if (d < 8000) {
-            const q = sp.qualityScore / 100;
+            const q = sp.qualityScore; // already 0-1 from pipeline rank_percentiles
             if (q > bestScore) bestScore = q;
+            // Inverse-distance weight: closer schools matter more
+            const w = 1 / Math.max(d, 500); // floor at 500m to avoid division issues
+            weightedSum += q * w;
+            weightSum += w;
           }
         }
-        schoolScore = bestScore >= 0 ? bestScore : 0.5; // 0.5 neutral if no school within 8km
+        if (bestScore >= 0) {
+          // Blend: 60% distance-weighted average + 40% best nearby school
+          const avg = weightedSum / weightSum;
+          schoolScore = 0.6 * avg + 0.4 * bestScore;
+        } else {
+          schoolScore = 0.5; // neutral if no school within 8km
+        }
       }
       totalScore += prefs.schoolWeight * schoolScore;
       totalWeight += prefs.schoolWeight;
