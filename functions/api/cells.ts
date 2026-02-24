@@ -109,7 +109,8 @@ type VoteCellRow = {
 type VoteCellValue = Omit<VoteCellRow, "gx" | "gy">;
 
 interface Env {
-  R2: R2Bucket;
+  R2?: R2Bucket;
+  BRICKGRID_BUCKET?: R2Bucket;
 }
 
 /* ---------- helpers ---------- */
@@ -307,7 +308,9 @@ async function legacyHandler(
 /* ---------- R2 bucket resolution ---------- */
 
 function getBucket(env: Env): R2Bucket {
-  return ((env && ((env as any).R2 || (env as any).BRICKGRID_BUCKET)) as unknown) as R2Bucket;
+  const bucket = env.BRICKGRID_BUCKET ?? env.R2;
+  if (!bucket) throw new Error("R2 binding not found. Expected `BRICKGRID_BUCKET` or `R2`.");
+  return bucket;
 }
 
 /* ---------- gzip helper ---------- */
