@@ -80,18 +80,59 @@ const MOBILE_QUICK_FILTER_ORDER = ["metric", "propertyType", "newBuild", "period
 type MobileQuickFilterKey = (typeof MOBILE_QUICK_FILTER_ORDER)[number];
 
 export default function Home() {
-  const [state, setState] = useState<MapState>({
-    grid: "5km",
-    metric: "median",
-    propertyType: "ALL",
-    newBuild: "ALL",
-    endMonth: "2025-12-01",
-    valueFilterMode: "off",
-    valueThreshold: 300000,
-    floodOverlayMode: "off",
-    schoolOverlayMode: "off",
-    voteOverlayMode: "off",
-    voteColorScale: "relative",
+  const [state, setState] = useState<MapState>(() => {
+    const defaults: MapState = {
+      grid: "5km",
+      metric: "median",
+      propertyType: "ALL",
+      newBuild: "ALL",
+      endMonth: "2025-12-01",
+      valueFilterMode: "off",
+      valueThreshold: 300000,
+      floodOverlayMode: "off",
+      schoolOverlayMode: "off",
+      voteOverlayMode: "off",
+      voteColorScale: "relative",
+    };
+    if (typeof window === "undefined") return defaults;
+    try {
+      const p = new URLSearchParams(window.location.search);
+      const grid = p.get("grid");
+      const metric = p.get("metric");
+      const type = p.get("type");
+      const newBuild = p.get("newBuild");
+      const period = p.get("period");
+      const vfm = p.get("vfm");
+      const vth = p.get("vth");
+      const flood = p.get("flood");
+      const schools = p.get("schools");
+      const vote = p.get("vote");
+      const voteScale = p.get("voteScale");
+      const GRIDS: GridSize[] = ["1km", "5km", "10km", "25km"];
+      const METRICS: Metric[] = ["median", "median_ppsf", "delta_gbp", "delta_pct"];
+      const TYPES: PropertyType[] = ["ALL", "D", "S", "T", "F"];
+      const NEWBUILDS: NewBuild[] = ["ALL", "Y", "N"];
+      const VFMS: ValueFilterMode[] = ["off", "lte", "gte"];
+      const FLOODS: FloodOverlayMode[] = ["off", "on", "on_hide_cells"];
+      const SCHOOLS: SchoolOverlayMode[] = ["off", "on", "on_hide_cells"];
+      // Only hydrate if at least one known param is present
+      if (!grid && !metric && !type && !flood && !schools && !vote) return defaults;
+      return {
+        grid: GRIDS.includes(grid as GridSize) ? (grid as GridSize) : defaults.grid,
+        metric: METRICS.includes(metric as Metric) ? (metric as Metric) : defaults.metric,
+        propertyType: TYPES.includes(type as PropertyType) ? (type as PropertyType) : defaults.propertyType,
+        newBuild: NEWBUILDS.includes(newBuild as NewBuild) ? (newBuild as NewBuild) : defaults.newBuild,
+        endMonth: period ?? defaults.endMonth,
+        valueFilterMode: VFMS.includes(vfm as ValueFilterMode) ? (vfm as ValueFilterMode) : defaults.valueFilterMode,
+        valueThreshold: vth ? parseFloat(vth) : defaults.valueThreshold,
+        floodOverlayMode: FLOODS.includes(flood as FloodOverlayMode) ? (flood as FloodOverlayMode) : defaults.floodOverlayMode,
+        schoolOverlayMode: SCHOOLS.includes(schools as SchoolOverlayMode) ? (schools as SchoolOverlayMode) : defaults.schoolOverlayMode,
+        voteOverlayMode: vote === "on" ? "on" : defaults.voteOverlayMode,
+        voteColorScale: voteScale === "absolute" ? "absolute" : defaults.voteColorScale,
+      };
+    } catch {
+      return defaults;
+    }
   });
   const [legend, setLegend] = useState<LegendData | null>(null);
   const medianLegend =
