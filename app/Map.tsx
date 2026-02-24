@@ -1254,20 +1254,31 @@ export default function ValueMap({
         let html = `<div style="font-family:system-ui;font-size:12px;line-height:1.4;min-width:180px;max-width:210px;">`;
         const totalCol = totalScore < 0.35 ? "#ef4444" : totalScore < 0.55 ? "#fb923c" : totalScore < 0.72 ? "#facc15" : "#4ade80";
         html += `<div style="font-weight:700;margin-bottom:7px;font-size:13px;">🗺️ Match score: <span style="color:${totalCol}">${Math.round(totalScore * 100)}%</span></div>`;
-        if (Number.isFinite(median) && median > 0) {
+        const ptLabels: Record<string, string> = { ALL: "All types", D: "Detached", S: "Semi", T: "Terraced", F: "Flat" };
+        const ptLabel = ptLabels[prefs.propertyType ?? "ALL"] ?? "";
+        const affordRef = Number(p.ix_av ?? NaN);
+        const affordNoData = Number(p.ix_an ?? 0) === 1;
+        const hasAffordRef = prefs.affordWeight > 0 && !affordNoData && Number.isFinite(affordRef) && affordRef > 0;
+        const unit = stateRef.current.metric === "median_ppsf" ? " /ft²" : "";
+        if (hasAffordRef) {
+          const medianLabel = ptLabel && ptLabel !== "All types" ? `${ptLabel} median value` : "Median value";
+          html += `<div style="font-size:11px;opacity:0.9;margin-bottom:6px;">🏠 ${medianLabel}: <b>£${Math.round(affordRef).toLocaleString()}${unit}</b></div>`;
+        } else if (prefs.affordWeight > 0 && affordNoData) {
+          const missingLabel = ptLabel && ptLabel !== "All types" ? ptLabel : "selected type";
+          html += `<div style="font-size:11px;opacity:0.9;margin-bottom:6px;">🏠 ${missingLabel} median value: <b>❌ Not enough data</b></div>`;
+        } else if (Number.isFinite(median) && median > 0) {
           html += `<div style="font-size:11px;opacity:0.9;margin-bottom:6px;">🏠 Median value: <b>£${Math.round(median).toLocaleString()}</b></div>`;
         }
         if (Number.isFinite(tx) && tx > 0) {
           html += `<div style="font-size:11px;opacity:0.7;margin-bottom:6px;">Sales sample: <b>${tx}</b></div>`;
         }
-        const ptLabels: Record<string, string> = { ALL: "All types", D: "Detached", S: "Semi", T: "Terraced", F: "Flat" };
-        const ptLabel = ptLabels[prefs.propertyType ?? "ALL"] ?? "";
         const affordLabel = ptLabel && ptLabel !== "All types" ? `💰 ${ptLabel}` : "💰 Affordability";
         if (prefs.affordWeight > 0) {
-          html += wRow(affordLabel, prefs.affordWeight, bar(Number(p.ix_a ?? 0.5)));
-          const affordRef = Number(p.ix_av ?? NaN);
-          if (Number.isFinite(affordRef) && affordRef > 0) {
-            const unit = stateRef.current.metric === "median_ppsf" ? " /ft²" : "";
+          html += wRow(affordLabel, prefs.affordWeight, bar(Number(p.ix_a ?? 0.5), affordNoData));
+          if (affordNoData) {
+            html += `<div style="font-size:10px;opacity:0.72;margin:-2px 0 5px 0;">❌ Not enough data for selected type in this cell</div>`;
+          }
+          if (!hasAffordRef && Number.isFinite(affordRef) && affordRef > 0) {
             html += `<div style="font-size:10px;opacity:0.72;margin:-2px 0 5px 0;">Affordability reference median: <b>£${Math.round(affordRef).toLocaleString()}${unit}</b></div>`;
           }
         }
@@ -2729,13 +2740,28 @@ async function applyIndexScoring(
       // Always prefer selected house-type median lookup for affordability, so
       // ALL/D/S/T/F references are consistent with Find My Area settings.
       const gx = Number(props.gx); const gy = Number(props.gy);
-      const cellValue = (ptLookup && Number.isFinite(gx) && Number.isFinite(gy))
-        ? (ptLookup.get(`${gx}_${gy}`) ?? 0)
-        : (Number(props[metricProp] ?? 0) || 0);
-      props.ix_av = cellValue;
-      if (cellValue > 0 && prefs.budget > 0) {
+      let cellValue = 0;
+      let affordHasData = false;
+      if (ptLookup && Number.isFinite(gx) && Number.isFinite(gy)) {
+        const lookedUp = ptLookup.get(`${gx}_${gy}`);
+        if (lookedUp != null && lookedUp > 0) {
+          cellValue = lookedUp;
+          affordHasData = true;
+        }
+      } else {
+        const fallback = Number(props[metricProp] ?? 0) || 0;
+        if (fallback > 0) {
+          cellValue = fallback;
+          affordHasData = true;
+        }
+      }
+      props.ix_av = affordHasData ? cellValue : null;
+      props.ix_an = affordHasData ? 0 : 1;
+      if (affordHasData && cellValue > 0 && prefs.budget > 0) {
         const ratio = cellValue / prefs.budget;
         affordScore = Math.max(0, Math.min(1, (1.6 - ratio) / 0.9));
+      } else {
+        affordScore = 0.5;
       }
       totalScore += prefs.affordWeight * affordScore;
       totalWeight += prefs.affordWeight;
