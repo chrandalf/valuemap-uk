@@ -128,7 +128,7 @@ export default function Home() {
   const infoDropRef = useRef<HTMLDivElement | null>(null);
   const [mobileOverlayRatio, setMobileOverlayRatio] = useState(0);
   const [mobileQuickFilterKey, setMobileQuickFilterKey] = useState<MobileQuickFilterKey>("grid");
-  const [indexOpen, setIndexOpen] = useState(true);
+  const [indexOpen, setIndexOpen] = useState(false);
   const [indexActive, setIndexActive] = useState(false);
   const [indexScoringPending, setIndexScoringPending] = useState(false);
   const [indexToken, setIndexToken] = useState(0);
@@ -943,19 +943,9 @@ export default function Home() {
             {infoDropOpen && (
               <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, width: 210, background: "rgba(8,10,22,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,0.16)", borderRadius: 10, padding: "6px 0", boxShadow: "0 10px 40px rgba(0,0,0,0.65)", zIndex: 200 }}>
                 {([
-                  { label: "📖 Instructions", action: () => { setInstructionsOpen(true); setInstructionsPage(1); setInfoDropOpen(false); bringToFront("instructions"); } },
-                  { label: "📊 Data sources", action: () => { setDataSourcesOpen(true); setInfoDropOpen(false); bringToFront("datasources"); } },
-                  { label: "🗳 Election info", action: () => { setElectionInfoOpen(true); setInfoDropOpen(false); bringToFront("electioninfo"); } },
-                ] as Array<{ label: string; action: () => void }>).map(({ label, action }) => (
-                  <button key={label} type="button" onClick={action}
-                    style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", color: "white", cursor: "pointer", padding: "8px 14px", fontSize: 11 }}
-                    onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
-                    onMouseLeave={e => (e.currentTarget.style.background = "none")}>
-                    {label}
-                  </button>
-                ))}
-                <div style={{ height: 1, background: "rgba(255,255,255,0.1)", margin: "4px 0" }} />
-                {([
+                  { label: "📖 Instructions", href: "/instructions" },
+                  { label: "📊 Data sources", href: "/data-sources" },
+                  { label: "🗳 Election info", href: "/election-info" },
                   { label: "📝 Description", href: "/description" },
                   { label: "🗺 Next steps", href: "/next-steps" },
                   { label: "✉ Contact", href: "/contact" },
@@ -964,7 +954,7 @@ export default function Home() {
                 ] as Array<{ label: string; href: string }>).map(({ label, href }) => (
                   <a key={href} href={href} style={{ display: "block", padding: "8px 14px", fontSize: 11, color: "white", textDecoration: "none" }}
                     onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
-                    onMouseLeave={e => (e.currentTarget.style.background = "")}>
+                    onMouseLeave={e => (e.currentTarget.style.background = "") }>
                     {label}
                   </a>
                 ))}
@@ -1925,7 +1915,7 @@ export default function Home() {
           style={{
             position: "fixed",
             right: 8,
-            top: 106,
+            top: 162,
             zIndex: 6,
             border: "1px solid rgba(255,255,255,0.24)",
             background: cleanScreenMode ? "rgba(147,197,253,0.9)" : "rgba(10, 12, 20, 0.88)",
