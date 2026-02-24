@@ -1269,9 +1269,6 @@ export default function ValueMap({
         } else if (Number.isFinite(median) && median > 0) {
           html += `<div style="font-size:11px;opacity:0.9;margin-bottom:6px;">🏠 Median value: <b>£${Math.round(median).toLocaleString()}</b></div>`;
         }
-        if (Number.isFinite(tx) && tx > 0) {
-          html += `<div style="font-size:11px;opacity:0.7;margin-bottom:6px;">Sales sample: <b>${tx}</b></div>`;
-        }
         const affordLabel = ptLabel && ptLabel !== "All types" ? `💰 ${ptLabel}` : "💰 Affordability";
         if (prefs.affordWeight > 0) {
           html += wRow(affordLabel, prefs.affordWeight, bar(Number(p.ix_a ?? 0.5), affordNoData));
@@ -2703,8 +2700,11 @@ async function applyIndexScoring(
       const d = haversineDistanceMeters(cLat, cLon, fp.lat, fp.lon);
       if (d < 8000) {
         const proximity = 1 - d / 8000;
-        const severity = Math.min(fp.riskScore / 4, 1);
-        raw += severity * proximity * proximity;
+        const risk = Number(fp.riskScore ?? 0);
+        // Strongly prioritise medium/high risk over low risk for relative flood-zone scoring.
+        // Requested weighting: low ≈ 10x less than medium, high ≈ 5x more than medium.
+        const severityWeight = risk >= 4 ? 5 : risk >= 3 ? 1 : risk >= 2 ? 0.1 : risk >= 1 ? 0.05 : 0;
+        raw += severityWeight * proximity * proximity;
       }
     }
     floodMeta[i] = { rawImpact: raw, hasData: true, hasInCellRisk: true };
