@@ -1263,7 +1263,14 @@ export default function ValueMap({
         const ptLabels: Record<string, string> = { ALL: "All types", D: "Detached", S: "Semi", T: "Terraced", F: "Flat" };
         const ptLabel = ptLabels[prefs.propertyType ?? "ALL"] ?? "";
         const affordLabel = ptLabel && ptLabel !== "All types" ? `💰 ${ptLabel}` : "💰 Affordability";
-        if (prefs.affordWeight > 0) html += wRow(affordLabel, prefs.affordWeight, bar(Number(p.ix_a ?? 0.5)));
+        if (prefs.affordWeight > 0) {
+          html += wRow(affordLabel, prefs.affordWeight, bar(Number(p.ix_a ?? 0.5)));
+          const affordRef = Number(p.ix_av ?? NaN);
+          if (Number.isFinite(affordRef) && affordRef > 0) {
+            const unit = stateRef.current.metric === "median_ppsf" ? " /ft²" : "";
+            html += `<div style="font-size:10px;opacity:0.72;margin:-2px 0 5px 0;">Affordability reference median: <b>£${Math.round(affordRef).toLocaleString()}${unit}</b></div>`;
+          }
+        }
         if (prefs.floodWeight > 0)  html += wRow("🌊 Flood safety",   prefs.floodWeight,  bar(Number(p.ix_f ?? 0.5), p.ix_fn === 1));
         if (prefs.schoolWeight > 0) html += wRow("🏫 Schools",        prefs.schoolWeight, bar(Number(p.ix_s ?? 0.5), p.ix_sn === 1));
         if (prefs.coastWeight > 0)  html += wRow("🏖️ Coast",          prefs.coastWeight,  bar(0.5, true));
@@ -2618,10 +2625,10 @@ async function applyIndexScoring(
   const schoolGrid = _indexSchoolGrid;
   const metricProp = metricPropName(state.metric);
 
-  // — Fetch property-type-specific cell data if user chose a type different from current state —
+  // — Fetch property-type-specific cell data for affordability reference —
   let ptLookup: Map<string, number> | null = null;
   const indexPT = prefs.propertyType ?? "ALL";
-  if (prefs.affordWeight > 0 && indexPT !== (state.propertyType ?? "ALL")) {
+  if (prefs.affordWeight > 0) {
     const isDelta = isDeltaMetric(state.metric);
     const endpoint = isDelta ? "/api/deltas" : "/api/cells";
     const endMonth = isDelta ? undefined : state.endMonth ?? "LATEST";
@@ -2719,11 +2726,13 @@ async function applyIndexScoring(
     // 1) Affordability
     let affordScore = 0.5;
     if (prefs.affordWeight > 0) {
-      // Use property-type-specific lookup if available, else fall back to cell properties
+      // Always prefer selected house-type median lookup for affordability, so
+      // ALL/D/S/T/F references are consistent with Find My Area settings.
       const gx = Number(props.gx); const gy = Number(props.gy);
       const cellValue = (ptLookup && Number.isFinite(gx) && Number.isFinite(gy))
         ? (ptLookup.get(`${gx}_${gy}`) ?? 0)
         : (Number(props[metricProp] ?? 0) || 0);
+      props.ix_av = cellValue;
       if (cellValue > 0 && prefs.budget > 0) {
         const ratio = cellValue / prefs.budget;
         affordScore = Math.max(0, Math.min(1, (1.6 - ratio) / 0.9));

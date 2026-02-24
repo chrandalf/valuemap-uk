@@ -750,6 +750,7 @@ export default function Home() {
     !isDeltaMetric(state.metric) && medianLegend
       ? `${formatMetricFilterValue(state.metric, medianLegend.breaks[0])}–${formatMetricFilterValue(state.metric, medianLegend.breaks[medianLegend.breaks.length - 1])}`
       : null;
+  const indexAffordabilitySummary = `Find my area affordability uses ${PROPERTY_LABEL[indexApplied.propertyType]} medians vs budget ${state.metric === "median_ppsf" ? `£${Math.round(indexApplied.budget).toLocaleString()}/ft²` : `£${Math.round(indexApplied.budget).toLocaleString()}`}`;
   const topBarHeight = isMobileViewport ? 88 : 48;
   const topStripTop = topBarHeight + 4;
   const floatingPanelTop = topBarHeight + 8;
@@ -1056,7 +1057,11 @@ export default function Home() {
                 <div style={{ fontSize: 10, opacity: 0.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                   {headerFilterSummary}
                 </div>
-                {headerMedianSummary && (
+                {indexActive ? (
+                  <div style={{ fontSize: 10, opacity: 0.8, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {indexAffordabilitySummary}
+                  </div>
+                ) : headerMedianSummary && (
                   <div style={{ fontSize: 10, opacity: 0.72, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                     {`Median range: ${headerMedianSummary}`}
                   </div>
