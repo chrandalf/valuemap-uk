@@ -19,6 +19,18 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     return Response.json("Invalid metric. Use median|median_ppsf", { status: 400 });
   }
 
+  if (!isPropertyType(propertyType)) {
+    return Response.json("Invalid propertyType. Use ALL|D|S|T|F", { status: 400 });
+  }
+
+  if (!isNewBuild(newBuild)) {
+    return Response.json("Invalid newBuild. Use ALL|Y|N", { status: 400 });
+  }
+
+  if (!isValidEndMonthParam(endMonthParam)) {
+    return Response.json("Invalid endMonth. Use LATEST or YYYY-MM-DD", { status: 400 });
+  }
+
   // ---- resolve end_month ----
   let endMonth: string;
   if (endMonthParam === "LATEST") {
@@ -70,6 +82,8 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
 
 type GridKey = "1km" | "5km" | "10km" | "25km";
 type CellsMetric = "median" | "median_ppsf";
+type PropertyType = "ALL" | "D" | "S" | "T" | "F";
+type NewBuild = "ALL" | "Y" | "N";
 
 function isGridKey(v: string): v is GridKey {
   return v === "1km" || v === "5km" || v === "10km" || v === "25km";
@@ -77,6 +91,18 @@ function isGridKey(v: string): v is GridKey {
 
 function isCellsMetric(v: string): v is CellsMetric {
   return v === "median" || v === "median_ppsf";
+}
+
+function isPropertyType(v: string): v is PropertyType {
+  return v === "ALL" || v === "D" || v === "S" || v === "T" || v === "F";
+}
+
+function isNewBuild(v: string): v is NewBuild {
+  return v === "ALL" || v === "Y" || v === "N";
+}
+
+function isValidEndMonthParam(v: string): boolean {
+  return v === "LATEST" || /^\d{4}-\d{2}-\d{2}$/.test(v);
 }
 
 type CellRow = {

@@ -120,7 +120,7 @@ type OutcodeRank = {
 };
 
 interface Env {
-  R2: R2Bucket;
+  R2?: R2Bucket;
   BRICKGRID_BUCKET?: R2Bucket;
   POSTCODE_LOOKUP_INDEX_KEY?: string;
 }
@@ -147,8 +147,9 @@ async function getCachedGrid(env: Env, grid: GridKey): Promise<CacheEntry> {
   if (cached) return cached;
 
   const key = r2KeyForGrid(grid);
+  const bucket = getBucket(env);
 
-  const obj = await env.R2.get(key);
+  const obj = await bucket.get(key);
   if (!obj) {
     throw new Error(`R2 object not found: ${key}`);
   }
@@ -168,10 +169,7 @@ async function getCachedGrid(env: Env, grid: GridKey): Promise<CacheEntry> {
 }
 
 async function loadOutcodeIndex(env: Env, indexKey: string): Promise<Record<string, string[]>> {
-  const bucket = ((env && ((env as any).BRICKGRID_BUCKET || (env as any).R2)) as unknown) as R2Bucket | undefined;
-  if (!bucket) {
-    throw new Error("R2 binding not found. Expected environment binding `BRICKGRID_BUCKET` or `R2`.");
-  }
+  const bucket = getBucket(env);
 
   const triedKeys: string[] = [];
   const candidates = Array.from(new Set([
@@ -196,6 +194,14 @@ async function loadOutcodeIndex(env: Env, indexKey: string): Promise<Record<stri
   }
 
   throw new Error(`Index not found: tried keys: ${triedKeys.join(", ")}`);
+}
+
+function getBucket(env: Env): R2Bucket {
+  const bucket = env.BRICKGRID_BUCKET ?? env.R2;
+  if (!bucket) {
+    throw new Error("R2 binding not found. Expected environment binding `BRICKGRID_BUCKET` or `R2`.");
+  }
+  return bucket;
 }
 
 async function gunzipToString(gz: ArrayBuffer): Promise<string> {
