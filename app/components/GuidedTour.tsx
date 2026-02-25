@@ -283,11 +283,7 @@ export default function GuidedTour({ steps, active, onEnd, stepIndex, onStepChan
             </div>
           )}
 
-          {/* Click shield */}
-          <div
-            style={{ position: "fixed", inset: 0, pointerEvents: "auto" }}
-            onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
-          />
+          {/* No click shield — map is always interactive so users can zoom, pan, and click */}
         </>
       )}
 

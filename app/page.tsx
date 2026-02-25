@@ -204,7 +204,7 @@ export default function Home() {
   const [indexSuitabilityThreshold, setIndexSuitabilityThreshold] = useState(65);
   const [tourActive, setTourActive] = useState(false);
   const [tourStep, setTourStep] = useState(0);
-  const [showMeVisible, setShowMeVisible] = useState(true);
+  const [showMePulse, setShowMePulse] = useState(true);
   const [flyToRequest, setFlyToRequest] = useState<{ center: [number, number]; zoom: number; token: number } | null>(null);
   const flyToSeqRef = useRef(0);
   const introInitRef = useRef(false);
@@ -327,10 +327,10 @@ export default function Home() {
       const next = `${url.pathname}${url.search}${url.hash}`;
       window.history.replaceState({}, "", next);
     }
-    // Show the "Show me" button only if user hasn't dismissed / finished the tour before
+    // Stop the pulse animation if user has already completed the tour
     try {
       const tourDone = localStorage.getItem("valuemap_tour_done");
-      if (tourDone === "1") setShowMeVisible(false);
+      if (tourDone === "1") setShowMePulse(false);
     } catch { /* ignore */ }
   }, []);
 
@@ -972,7 +972,7 @@ export default function Home() {
     setCleanScreenMode(false);
     setTourStep(0);
     setTourActive(true);
-    setShowMeVisible(false);
+    setShowMePulse(false);
     // Reset map to default view
     setState((s) => ({ ...s, grid: "5km", metric: "median", propertyType: "ALL", floodOverlayMode: "off", schoolOverlayMode: "off", voteOverlayMode: "off" }));
     const t = ++flyToSeqRef.current;
@@ -982,7 +982,7 @@ export default function Home() {
   const endTour = useCallback(() => {
     setTourActive(false);
     setTourStep(0);
-    setShowMeVisible(false);
+    setShowMePulse(false);
     // Reset everything the demo may have changed
     resetAll();
     // Fly back to default UK view
@@ -997,7 +997,7 @@ export default function Home() {
     {
       target: null,
       title: "Welcome to the UK House Price Grid",
-      text: "I'll walk you through the map section by section. Each section has a \"Show me\" button that demonstrates exactly what to do — or you can skip ahead. Let's begin!",
+      text: "I'll walk you through the map section by section. Each section has a \"Show me\" button that demonstrates exactly what to do — or you can skip ahead. You can zoom in and out at any time using your scroll wheel or pinching on mobile. Let's begin!",
       placement: "center" as const,
     },
 
@@ -1088,7 +1088,7 @@ export default function Home() {
     {
       target: null,
       title: "Step 6 — Let's see the results",
-      text: "The map is now colour-coded: green = great match, yellow = okay, red = poor match. I'm gently zooming into Yorkshire so you can see the scored cells up close.",
+      text: "The map is now colour-coded: green = great match, yellow = okay, red = poor match. I'm zooming into Yorkshire — feel free to zoom in/out yourself with the scroll wheel or pinch to explore at your own pace.",
       placement: "top-center" as const,
       enterDelay: 1200,
       onEnter: () => {
@@ -1100,7 +1100,7 @@ export default function Home() {
     {
       target: null,
       title: "Step 7 — Reading the cell colours",
-      text: "Each coloured square is a 1km area. Bright green cells scored 80%+ match for your criteria — these are your best bets. Yellow cells are 40–60% match. Red or dark cells scored below 30% — they don't fit your budget or priorities. Try clicking a cell on the map below!",
+      text: "Each coloured square is a 1km area. Bright green = 80%+ match, yellow = 40–60%, red = below 30%. Zoom in with your scroll wheel to see individual cells more clearly, or zoom out to see the bigger picture. Try clicking a cell on the map!",
       placement: "top-center" as const,
       noOverlay: true,
       enterDelay: 1200,
@@ -1319,7 +1319,7 @@ export default function Home() {
     {
       target: null,
       title: "Step 3 — Reading the flood data",
-      text: "Green dots are low risk, orange and red are higher risk. Try clicking a flood dot on the map now to see its details! When you search a postcode with flood risk on, it also finds the nearest monitoring point and tells you its risk level.",
+      text: "Green dots are low risk, orange and red are higher risk. Use your scroll wheel to zoom in and explore the flood plain. Try clicking a flood dot to see its details! When you search a postcode with flood risk on, it finds the nearest monitoring point and shows its risk level.",
       placement: "top-center" as const,
       noOverlay: true,
       enterDelay: 1000,
@@ -1341,7 +1341,7 @@ export default function Home() {
     {
       target: null,
       title: "Step 5 — Reading the school data",
-      text: "Each school dot has a quality band from A (best) to E. Try clicking a school dot now to see its details! When you search a postcode, it finds the nearest school and the nearest 'good' school — useful for families.",
+      text: "Each school dot has a quality band from A (best) to E. Zoom in with your scroll wheel to see individual schools. Try clicking a school dot to see its details! When you search a postcode, it finds the nearest school and nearest 'good' school — useful for families.",
       placement: "top-center" as const,
       noOverlay: true,
       enterDelay: 1000,
@@ -1654,7 +1654,7 @@ export default function Home() {
             </div>
 
             {/* ── Show Me How pill in top bar (desktop only) ── */}
-            {!isMobileViewport && showMeVisible && !tourActive && (
+            {!isMobileViewport && !tourActive && (
               <button
                 type="button"
                 onClick={startTour}
@@ -1669,7 +1669,7 @@ export default function Home() {
                   fontWeight: 700,
                   whiteSpace: "nowrap",
                   flexShrink: 0,
-                  animation: "tourShowMePulseInline 1.6s ease-in-out infinite",
+                  ...(showMePulse ? { animation: "tourShowMePulseInline 1.6s ease-in-out infinite" } : {}),
                 }}
               >
                 ✨ Show me how
@@ -3130,8 +3130,8 @@ export default function Home() {
         </div>
       )}
 
-      {/* ── Show Me button (flashes on first load) ── */}
-      {showMeVisible && !tourActive && !cleanScreenMode && isMobileViewport && (
+      {/* ── Show Me button (permanent on mobile, pulses on first load only) ── */}
+      {!tourActive && !cleanScreenMode && isMobileViewport && (
         <button
           data-tour="show-me"
           type="button"
@@ -3152,9 +3152,9 @@ export default function Home() {
             fontWeight: 700,
             backdropFilter: "blur(10px)",
             boxShadow: "0 4px 24px rgba(0,0,0,0.4)",
-            animation: "tourShowMePulse 1.6s ease-in-out infinite",
             whiteSpace: "nowrap",
             letterSpacing: 0.3,
+            ...(showMePulse ? { animation: "tourShowMePulse 1.6s ease-in-out infinite" } : {}),
           }}
         >
           ✨ Show me how
