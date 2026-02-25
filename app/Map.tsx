@@ -368,7 +368,7 @@ export default function ValueMap({
 
           // Even with no overlay active, navigate to the postcode if coords are known
           if (requestedCoords) {
-            animateToPostcodeTarget(map, [requestedCoords.lon, requestedCoords.lat], Math.max(map.getZoom(), 13));
+            animateToPostcodeTarget(map, [requestedCoords.lon, requestedCoords.lat], Math.max(map.getZoom(), 12));
             onPostcodeSearchResultRef.current?.({
               status: "found",
               lookupMode,
@@ -404,7 +404,7 @@ export default function ValueMap({
 
         const exact = entries.find((entry) => entry.postcodeKey === normalized || normalizePostcodeSearch(entry.postcode) === normalized);
         if (exact) {
-          animateToPostcodeTarget(map, [exact.lon, exact.lat], Math.max(map.getZoom(), 13));
+          animateToPostcodeTarget(map, [exact.lon, exact.lat], Math.max(map.getZoom(), 12));
           setFloodSearchFocus(map, exact);
           setFloodSearchContext(map, null);
           onPostcodeSearchResultRef.current?.({
@@ -448,7 +448,7 @@ export default function ValueMap({
           ? nearestByDistance
           : (nearestByDistance ?? findNearestPostcodeMatch(normalized, entries));
         if (nearest) {
-          animateToPostcodeTarget(map, [nearest.lon, nearest.lat], Math.max(map.getZoom(), 12));
+          animateToPostcodeTarget(map, [nearest.lon, nearest.lat], Math.max(map.getZoom(), 11));
           setFloodSearchFocus(map, nearest);
           setFloodSearchContext(
             map,
@@ -527,7 +527,7 @@ export default function ValueMap({
         }
 
         const run = async () => {
-          animateToPostcodeTarget(map, [lng, lat], Math.max(map.getZoom(), 14));
+          animateToPostcodeTarget(map, [lng, lat], Math.max(map.getZoom(), 12));
 
           locateMarkerRef.current?.remove();
           locateMarkerRef.current = new maplibregl.Marker({ color: "#3b82f6" })

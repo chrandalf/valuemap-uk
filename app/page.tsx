@@ -1292,24 +1292,24 @@ export default function Home() {
     {
       target: null,
       title: "Step 1 — Let's look at one area",
-      text: "I'm zooming into the Yorkshire area. We'll stay right here and toggle the overlays on and off so you can see each layer clearly — no jumping around between cities.",
+      text: "I'm zooming into the York and Humber area — this is one of the best spots to see flood data. We'll stay here and toggle the overlays on and off so you can see each layer clearly.",
       placement: "top-center" as const,
       enterDelay: 1200,
       onEnter: () => {
         setState((s) => ({ ...s, floodOverlayMode: "off", schoolOverlayMode: "off", voteOverlayMode: "off" }));
-        tourFlyTo([-1.55, 53.6], 9);
+        tourFlyTo([-1.08, 53.96], 9);
       },
     },
 
-    /* 25 — Demo: flood overlay on */
+    /* 25 — Demo: flood overlay on (hide-cells) */
     {
       target: "[data-tour='overlay-panel']",
       title: "Step 2 — Flood risk layer",
-      text: "I've turned on flood risk. See the coloured dots appearing on the map? Each dot represents a flood monitoring area. Warmer colours (orange/red) = higher flood risk. This data covers England.",
+      text: "I've turned on flood risk with \"hide cells\" mode — this removes the price grid so you can see the flood dots clearly without the coloured squares getting in the way. Each dot is a flood monitoring area.",
       placement: "left" as const,
       enterDelay: 1000,
       onEnter: () => {
-        setState((s) => ({ ...s, floodOverlayMode: "on", schoolOverlayMode: "off", voteOverlayMode: "off" }));
+        setState((s) => ({ ...s, floodOverlayMode: "on_hide_cells", schoolOverlayMode: "off", voteOverlayMode: "off" }));
       },
     },
 
@@ -1317,20 +1317,20 @@ export default function Home() {
     {
       target: null,
       title: "Step 3 — Reading the flood data",
-      text: "Green dots are low risk, orange and red are higher risk. When you search a postcode with flood risk on, the map also finds the nearest monitored flood point and tells you its risk level.",
+      text: "Green dots are low risk, orange and red are higher risk. You can see the York/Humber flood plain clearly here. When you search a postcode with flood risk on, it also finds the nearest flood monitoring point and tells you its risk level.",
       placement: "top-center" as const,
       enterDelay: 1000,
     },
 
-    /* 27 — Demo: switch to schools */
+    /* 27 — Demo: switch to schools (hide-cells) */
     {
       target: "[data-tour='overlay-panel']",
       title: "Step 4 — School quality layer",
-      text: "Now I've turned off floods and turned on school quality instead. These dots show secondary school performance ratings. Brighter/greener dots = better performing schools.",
+      text: "Now I've turned off floods and turned on school quality — again with \"hide cells\" so the dots are easy to read. Each dot is a secondary school, coloured by performance rating.",
       placement: "left" as const,
       enterDelay: 1200,
       onEnter: () => {
-        setState((s) => ({ ...s, floodOverlayMode: "off", schoolOverlayMode: "on" }));
+        setState((s) => ({ ...s, floodOverlayMode: "off", schoolOverlayMode: "on_hide_cells" }));
       },
     },
 
@@ -1343,29 +1343,29 @@ export default function Home() {
       enterDelay: 1000,
     },
 
-    /* 29 — Demo: vote overlay — zoom out first, then enable */
+    /* 29 — Demo: vote overlay — zoom out to show England */
     {
       target: "[data-tour='overlay-panel']",
       title: "Step 6 — Election results layer",
-      text: "I've turned off schools and turned on the election overlay. The map is zooming out so you can see the constituency patterns — coloured shading shows General Election 2024 results.",
+      text: "I've turned off schools and turned on the election overlay. The map is zooming out so you can see England's constituency patterns — coloured shading shows General Election 2024 results by party.",
       placement: "left" as const,
       enterDelay: 1200,
       onEnter: () => {
         setState((s) => ({ ...s, schoolOverlayMode: "off", voteOverlayMode: "on" }));
-        setTimeout(() => tourFlyTo([-1.5, 53.5], 6), 300);
+        setTimeout(() => tourFlyTo([-1.4, 52.6], 6.5), 300);
       },
     },
 
-    /* 30 — Demo: hide-cells mode — back to Yorkshire */
+    /* 30 — Demo: hide-cells mode — back to York/Humber */
     {
       target: "[data-tour='overlay-panel']",
-      title: "Step 7 — Hide-cells mode",
-      text: "Each overlay has a \"hide cells\" option. I've set flood risk to hide-cells — this removes the price grid entirely so you only see the flood data. Very useful for focusing on one layer at a time.",
+      title: "Step 7 — Turning cells back on",
+      text: "You saw floods and schools with \"hide cells\" for clarity. You can also use the normal \"On\" mode which shows overlay dots on top of the price grid — useful when you want to see both layers at once.",
       placement: "left" as const,
       enterDelay: 1200,
       onEnter: () => {
-        setState((s) => ({ ...s, voteOverlayMode: "off", floodOverlayMode: "on_hide_cells" }));
-        setTimeout(() => tourFlyTo([-1.55, 53.6], 9), 300);
+        setState((s) => ({ ...s, voteOverlayMode: "off", floodOverlayMode: "on" }));
+        setTimeout(() => tourFlyTo([-1.08, 53.96], 9), 300);
       },
     },
 
@@ -1648,6 +1648,29 @@ export default function Home() {
                 </div>
               )}
             </div>
+
+            {/* ── Show Me How pill in top bar (desktop only) ── */}
+            {!isMobileViewport && showMeVisible && !tourActive && (
+              <button
+                type="button"
+                onClick={startTour}
+                style={{
+                  cursor: "pointer",
+                  border: "1px solid rgba(250,204,21,0.7)",
+                  background: "rgba(250,204,21,0.18)",
+                  color: "white",
+                  padding: "5px 12px",
+                  borderRadius: 999,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
+                  animation: "tourShowMePulse 1.6s ease-in-out infinite",
+                }}
+              >
+                ✨ Show me how
+              </button>
+            )}
 
             {!isMobileViewport && (
               <div style={{ display: "grid", gap: 1, maxWidth: 330, flexShrink: 1, overflow: "hidden" }}>
@@ -3104,14 +3127,14 @@ export default function Home() {
       )}
 
       {/* ── Show Me button (flashes on first load) ── */}
-      {showMeVisible && !tourActive && !cleanScreenMode && (
+      {showMeVisible && !tourActive && !cleanScreenMode && isMobileViewport && (
         <button
           data-tour="show-me"
           type="button"
           onClick={startTour}
           style={{
             position: "fixed",
-            bottom: isMobileViewport ? 18 : 24,
+            bottom: 18,
             left: "50%",
             transform: "translateX(-50%)",
             zIndex: 60,
@@ -3119,9 +3142,9 @@ export default function Home() {
             border: "2px solid rgba(250,204,21,0.75)",
             background: "rgba(250,204,21,0.22)",
             color: "white",
-            padding: isMobileViewport ? "10px 22px" : "12px 28px",
+            padding: "10px 22px",
             borderRadius: 999,
-            fontSize: isMobileViewport ? 13 : 14,
+            fontSize: 13,
             fontWeight: 700,
             backdropFilter: "blur(10px)",
             boxShadow: "0 4px 24px rgba(0,0,0,0.4)",

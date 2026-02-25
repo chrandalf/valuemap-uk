@@ -182,7 +182,10 @@ export default function GuidedTour({ steps, active, onEnd, stepIndex, onStepChan
   const goPrev = useCallback(() => {
     if (stepRef.current <= 0) return;
     steps[stepRef.current]?.onLeave?.();
-    onStepChange(stepRef.current - 1);
+    const prevIdx = stepRef.current - 1;
+    onStepChange(prevIdx);
+    // Re-fire previous step's onEnter so its state is restored
+    setTimeout(() => steps[prevIdx]?.onEnter?.(), 80);
   }, [steps, onStepChange]);
 
   const goTo = useCallback((idx: number) => {
@@ -231,7 +234,7 @@ export default function GuidedTour({ steps, active, onEnd, stepIndex, onStepChan
                 )}
               </mask>
             </defs>
-            <rect width="100%" height="100%" fill="rgba(0,0,0,0.62)" mask="url(#tour-mask)" />
+            <rect width="100%" height="100%" fill="rgba(0,0,0,0.38)" mask="url(#tour-mask)" />
           </svg>
 
           {hasSpotlight && (
@@ -265,7 +268,7 @@ export default function GuidedTour({ steps, active, onEnd, stepIndex, onStepChan
           maxWidth: "calc(100vw - 16px)",
           padding: "16px 18px",
           borderRadius: 14,
-          background: "rgba(10,12,20,0.97)",
+          background: "rgba(10,12,20,0.92)",
           border: step.isSectionIntro
             ? "2px solid rgba(250,204,21,0.65)"
             : "1px solid rgba(250,204,21,0.45)",
