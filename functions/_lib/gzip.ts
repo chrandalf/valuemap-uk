@@ -9,3 +9,12 @@ export async function gunzipToString(buffer: ArrayBuffer): Promise<string> {
   const decompressedStream = stream.pipeThrough(new DecompressionStream("gzip"));
   return await new Response(decompressedStream).text();
 }
+
+export function gunzipStream(stream: ReadableStream<unknown>): ReadableStream<Uint8Array> {
+  const input = stream as ReadableStream<Uint8Array<ArrayBufferLike>>;
+  const decompressor = new DecompressionStream("gzip") as unknown as TransformStream<
+    Uint8Array<ArrayBufferLike>,
+    Uint8Array
+  >;
+  return input.pipeThrough(decompressor);
+}
