@@ -176,6 +176,7 @@ export default function ValueMap({
   indexPrefs,
   onIndexScoringApplied,
   onStatsUpdate,
+  flyToRequest,
 }: {
   state: MapState;
   onLegendChange?: (legend: LegendData | null) => void;
@@ -189,6 +190,7 @@ export default function ValueMap({
   indexPrefs?: IndexPrefs | null;
   onIndexScoringApplied?: () => void;
   onStatsUpdate?: (stats: { label: string; value: string; txCount: number } | null) => void;
+  flyToRequest?: { center: [number, number]; zoom: number; token: number } | null;
 }) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -241,6 +243,21 @@ export default function ValueMap({
     onIndexScoringAppliedRef.current = onIndexScoringApplied;
     onStatsUpdateRef.current = onStatsUpdate;
   }, [onIndexScoringApplied, onStatsUpdate]);
+
+  // ── flyToRequest: let parent drive map pan/zoom (used by guided tour) ──
+  const flyToTokenRef = useRef(0);
+  useEffect(() => {
+    if (!flyToRequest) return;
+    if (flyToRequest.token <= flyToTokenRef.current) return;
+    flyToTokenRef.current = flyToRequest.token;
+    const map = mapRef.current;
+    if (!map) return;
+    const run = () => {
+      animateToPostcodeTarget(map, flyToRequest.center, flyToRequest.zoom);
+    };
+    if (map.isStyleLoaded()) run();
+    else map.once("idle", run);
+  }, [flyToRequest]);
 
   useEffect(() => {
     setPostcodeCell(null);
