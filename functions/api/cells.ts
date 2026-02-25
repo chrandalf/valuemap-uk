@@ -1,4 +1,5 @@
 import type { R2Bucket } from "@cloudflare/workers-types";
+import { gunzipToString } from "../_lib/gzip";
 
 export const onRequestGet = async ({ env, request }: { env: Env; request: Request }) => {
   const url = new URL(request.url);
@@ -339,11 +340,3 @@ function getBucket(env: Env): R2Bucket {
   return bucket;
 }
 
-/* ---------- gzip helper ---------- */
-
-async function gunzipToString(gz: ArrayBuffer): Promise<string> {
-  // @ts-ignore – available in Workers runtime
-  const ds = new DecompressionStream("gzip");
-  const stream = new Response(gz).body!.pipeThrough(ds);
-  return await new Response(stream).text();
-}

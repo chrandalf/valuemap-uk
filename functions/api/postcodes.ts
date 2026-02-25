@@ -1,4 +1,5 @@
 import type { R2Bucket } from "@cloudflare/workers-types";
+import { gunzipToString } from "../_lib/gzip";
 
 export const onRequestGet = async ({ env, request }: { env: Env; request: Request }) => {
   try {
@@ -132,8 +133,7 @@ async function tryLoadIndex(env: Env, indexKey: string): Promise<Record<string, 
   const found = await fetchObjectWithCandidates(bucket, candidates, triedKeys);
   if (!found) return null;
 
-  const decompressed = await decompressGzip(await found.obj.arrayBuffer());
-  const text = new TextDecoder().decode(decompressed);
+  const text = await gunzipToString(await found.obj.arrayBuffer());
   const parsed = JSON.parse(text) as Record<string, string[]>;
   INDEX_CACHE.set(indexKey, parsed);
   return parsed;
@@ -161,33 +161,4 @@ function clampInt(v: string | null, fallback: number, min: number, max: number) 
   const n = Number(v);
   if (!Number.isFinite(n)) return fallback;
   return Math.max(min, Math.min(max, Math.floor(n)));
-}
-
-async function decompressGzip(buffer: ArrayBuffer): Promise<ArrayBuffer> {
-  const stream = new ReadableStream({
-    start(controller) {
-      controller.enqueue(new Uint8Array(buffer));
-      controller.close();
-    },
-  });
-
-  const decompressedStream = stream.pipeThrough(new DecompressionStream("gzip"));
-  const reader = decompressedStream.getReader();
-  const chunks: Uint8Array[] = [];
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-  }
-
-  const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
-  const result = new Uint8Array(totalLength);
-  let offset = 0;
-  for (const chunk of chunks) {
-    result.set(chunk, offset);
-    offset += chunk.length;
-  }
-
-  return result.buffer;
 }

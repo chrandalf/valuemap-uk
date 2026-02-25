@@ -1,4 +1,5 @@
 import type { R2Bucket } from "@cloudflare/workers-types";
+import { gunzipToString } from "../_lib/gzip";
 
 export const onRequestGet = async ({ env, request }: { env: Env; request: Request }) => {
   try {
@@ -187,8 +188,7 @@ async function loadOutcodeIndex(env: Env, indexKey: string): Promise<Record<stri
     // eslint-disable-next-line no-await-in-loop
     const attempt = await bucket.get(k as any as string);
     if (attempt) {
-      const decompressed = await decompressGzip(await attempt.arrayBuffer());
-      const text = new TextDecoder().decode(decompressed);
+      const text = await gunzipToString(await attempt.arrayBuffer());
       return JSON.parse(text) as Record<string, string[]>;
     }
   }
@@ -202,39 +202,4 @@ function getBucket(env: Env): R2Bucket {
     throw new Error("R2 binding not found. Expected environment binding `BRICKGRID_BUCKET` or `R2`.");
   }
   return bucket;
-}
-
-async function gunzipToString(gz: ArrayBuffer): Promise<string> {
-  const ds = new DecompressionStream("gzip");
-  const stream = new Response(gz).body!.pipeThrough(ds);
-  return await new Response(stream).text();
-}
-
-async function decompressGzip(buffer: ArrayBuffer): Promise<ArrayBuffer> {
-  const stream = new ReadableStream({
-    start(controller) {
-      controller.enqueue(new Uint8Array(buffer));
-      controller.close();
-    },
-  });
-
-  const decompressedStream = stream.pipeThrough(new DecompressionStream("gzip"));
-  const reader = decompressedStream.getReader();
-  const chunks: Uint8Array[] = [];
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-  }
-
-  const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
-  const result = new Uint8Array(totalLength);
-  let offset = 0;
-  for (const chunk of chunks) {
-    result.set(chunk, offset);
-    offset += chunk.length;
-  }
-
-  return result.buffer;
 }

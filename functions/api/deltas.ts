@@ -1,4 +1,5 @@
 import type { R2Bucket } from "@cloudflare/workers-types";
+import { gunzipToString } from "../_lib/gzip";
 
 export const onRequestGet = async ({ env, request }: { env: Env; request: Request }) => {
   const url = new URL(request.url);
@@ -143,8 +144,7 @@ async function getCachedVoteLookup(env: Env, grid: GridKey): Promise<Map<string,
     return null;
   }
 
-  const decompressed = await decompressGzip(await obj.arrayBuffer());
-  const text = new TextDecoder().decode(decompressed);
+  const text = await gunzipToString(await obj.arrayBuffer());
   const rows = JSON.parse(text) as VoteCellRow[];
 
   const lookup = new Map<string, VoteCellValue>();
@@ -206,40 +206,10 @@ async function loadDeltasFromR2(env: Env, grid: GridKey): Promise<DeltaData> {
   }
 
   // Decompress gzip
-  const decompressed = await decompressGzip(await obj.arrayBuffer());
-  const text = new TextDecoder().decode(decompressed);
+  const text = await gunzipToString(await obj.arrayBuffer());
   const rows = JSON.parse(text) as DeltaRow[];
 
   return { rows };
-}
-
-async function decompressGzip(buffer: ArrayBuffer): Promise<ArrayBuffer> {
-  const stream = new ReadableStream({
-    start(controller) {
-      controller.enqueue(new Uint8Array(buffer));
-      controller.close();
-    },
-  });
-
-  const decompressedStream = stream.pipeThrough(new DecompressionStream("gzip"));
-  const reader = decompressedStream.getReader();
-  const chunks: Uint8Array[] = [];
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-  }
-
-  const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
-  const result = new Uint8Array(totalLength);
-  let offset = 0;
-  for (const chunk of chunks) {
-    result.set(chunk, offset);
-    offset += chunk.length;
-  }
-
-  return result.buffer;
 }
 
 /* ---------- environment types ---------- */
