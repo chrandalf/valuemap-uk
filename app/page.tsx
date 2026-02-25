@@ -169,6 +169,7 @@ export default function Home() {
   const [supporterNames, setSupporterNames] = useState<string[]>([]);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [gridMode, setGridMode] = useState<GridMode>("manual");
+  const [mapStats, setMapStats] = useState<{ label: string; value: string; txCount: number } | null>(null);
   const [mapZoom, setMapZoom] = useState<number | null>(null);
   const [cleanScreenMode, setCleanScreenMode] = useState(false);
   const [controlsDropOpen, setControlsDropOpen] = useState(false);
@@ -958,6 +959,7 @@ export default function Home() {
         onLocateMeResult={handleLocateMeResult}
         indexPrefs={computedIndexPrefs}
         onIndexScoringApplied={() => setIndexScoringPending(false)}
+        onStatsUpdate={setMapStats}
         onPostcodeSearchResult={(result) => {
           const floodLookupActive = result.lookupMode !== "schools" && state.floodOverlayMode !== "off";
           const schoolLookupActive = result.lookupMode !== "flood" && state.schoolOverlayMode !== "off";
@@ -1120,6 +1122,11 @@ export default function Home() {
                     {`Median range: ${headerMedianSummary}`}
                   </div>
                 )}
+                {mapStats && (
+                  <div style={{ fontSize: 10, opacity: 0.85, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "rgba(250,204,21,0.9)" }}>
+                    {mapStats.label}: <b>{mapStats.value}</b> &middot; {mapStats.txCount.toLocaleString()} sales
+                  </div>
+                )}
               </div>
             )}
             <div style={{ flex: 1 }} />
@@ -1160,24 +1167,29 @@ export default function Home() {
                 onKeyDown={(e) => { if (e.key === "Enter") { const q = postcodeSearch.trim(); if (q) { setActivePostcodeSearch(q); setPostcodeSearchToken(v => v + 1); } } }}
                 placeholder="Postcode…"
                 aria-label="Search postcode"
-                style={{ flex: 1, minWidth: 0, borderRadius: 7, border: "1px solid rgba(255,255,255,0.22)", background: "rgba(255,255,255,0.1)", color: "white", padding: "5px 8px", fontSize: 11 }}
+                style={{ width: 90, minWidth: 0, flexShrink: 0, borderRadius: 7, border: "1px solid rgba(255,255,255,0.22)", background: "rgba(255,255,255,0.1)", color: "white", padding: "5px 8px", fontSize: 11 }}
               />
               <button
                 type="button"
                 onClick={() => { setLocateMeStatus("Requesting location permission..."); setLocateMeSummary(null); setLocateMeToken(v => v + 1); }}
                 title="Use my location (one-shot)"
                 aria-label="Use my location once"
-                style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.22)", background: "rgba(59,130,246,0.2)", color: "white", padding: "5px 8px", borderRadius: 7, fontSize: 11, whiteSpace: "nowrap" }}
+                style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.22)", background: "rgba(59,130,246,0.2)", color: "white", padding: "5px 8px", borderRadius: 7, fontSize: 11, whiteSpace: "nowrap", flexShrink: 0 }}
               >
                 📍 Locate
               </button>
               <button
                 type="button"
                 onClick={() => { const q = postcodeSearch.trim(); if (!q) { setPostcodeSearchStatus("Enter a postcode"); return; } setActivePostcodeSearch(q); setPostcodeSearchToken(v => v + 1); }}
-                style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.22)", background: "rgba(255,255,255,0.1)", color: "white", padding: "5px 9px", borderRadius: 7, fontSize: 11 }}
+                style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.22)", background: "rgba(255,255,255,0.1)", color: "white", padding: "5px 9px", borderRadius: 7, fontSize: 11, flexShrink: 0 }}
               >
                 Go
               </button>
+              {mapStats && (
+                <div style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 10, opacity: 0.85, color: "rgba(250,204,21,0.9)" }}>
+                  <b>{mapStats.value}</b> &middot; {mapStats.txCount.toLocaleString()} sales
+                </div>
+              )}
             </div>
           )}
         </div>

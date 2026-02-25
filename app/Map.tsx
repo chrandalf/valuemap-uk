@@ -175,6 +175,7 @@ export default function ValueMap({
   onLocateMeResult,
   indexPrefs,
   onIndexScoringApplied,
+  onStatsUpdate,
 }: {
   state: MapState;
   onLegendChange?: (legend: LegendData | null) => void;
@@ -187,6 +188,7 @@ export default function ValueMap({
   onLocateMeResult?: (result: LocateMeResult) => void;
   indexPrefs?: IndexPrefs | null;
   onIndexScoringApplied?: () => void;
+  onStatsUpdate?: (stats: { label: string; value: string; txCount: number } | null) => void;
 }) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -197,6 +199,7 @@ export default function ValueMap({
   const onPostcodeSearchResultRef = useRef<typeof onPostcodeSearchResult>(onPostcodeSearchResult);
   const onLocateMeResultRef = useRef<typeof onLocateMeResult>(onLocateMeResult);
   const onIndexScoringAppliedRef = useRef<typeof onIndexScoringApplied>(onIndexScoringApplied);
+  const onStatsUpdateRef = useRef<typeof onStatsUpdate>(onStatsUpdate);
   const locateMarkerRef = useRef<maplibregl.Marker | null>(null);
 
   const [postcodeCell, setPostcodeCell] = useState<string | null>(null);
@@ -236,7 +239,8 @@ export default function ValueMap({
 
   useEffect(() => {
     onIndexScoringAppliedRef.current = onIndexScoringApplied;
-  }, [onIndexScoringApplied]);
+    onStatsUpdateRef.current = onStatsUpdate;
+  }, [onIndexScoringApplied, onStatsUpdate]);
 
   useEffect(() => {
     setPostcodeCell(null);
@@ -1462,7 +1466,7 @@ export default function ValueMap({
   });
 
   // Initial real data load
-  const initFc = await setRealData(map, state, geoCacheRef.current, undefined, onLegendChange);
+  const initFc = await setRealData(map, state, geoCacheRef.current, undefined, onLegendChange, onStatsUpdateRef.current);
   if (initFc) cellFcRef.current = initFc;
   if (indexPrefsRef.current) {
     void applyIndexScoring(map, indexPrefsRef.current, stateRef.current, cellFcRef.current ?? undefined).then((ok) => {
@@ -1495,7 +1499,7 @@ export default function ValueMap({
 
     const debounceMs = 200;
     const timeoutId = setTimeout(() => {
-      setRealData(map, state, geoCacheRef.current, abortController.signal, onLegendChange)
+      setRealData(map, state, geoCacheRef.current, abortController.signal, onLegendChange, onStatsUpdateRef.current)
         .then((fc) => {
           if (fc) cellFcRef.current = fc;
           if (indexPrefsRef.current) {
@@ -1561,7 +1565,7 @@ export default function ValueMap({
       }
       applyCombinedCellFilters(map, stateRef.current, null);
       prevIndexScoringSignatureRef.current = null;
-      void ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange);
+      void ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange, onStatsUpdateRef.current);
     }
     prevIndexActiveRef.current = active;
   }, [indexPrefs, onLegendChange]);
@@ -1657,7 +1661,7 @@ export default function ValueMap({
     try {
       if (map.getLayer("cells-fill")) {
         if (mode === "off") {
-          void ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange);
+          void ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange, onStatsUpdateRef.current);
         } else {
           applyVoteOverlayColorFromSource(map, scale);
         }
@@ -1693,20 +1697,8 @@ export default function ValueMap({
       <div
         id="median-overlay"
         className="median-overlay"
-        style={{
-          position: "absolute",
-          top: 12,
-          right: 70,
-          background: "rgba(255,255,255,0.95)",
-          padding: "6px 10px",
-          borderRadius: 6,
-          boxShadow: "0 1px 4px rgba(0,0,0,0.2)",
-          fontSize: 13,
-          zIndex: 2,
-        }}
-      >
-        Loading...
-      </div>
+        style={{ display: "none" }}
+      />
       {postcodeCell && (
         <div
           className="postcode-wrap"
@@ -2056,7 +2048,8 @@ async function setRealData(
   state: MapState,
   cache: Map<string, any>,
   signal?: AbortSignal,
-  onLegendChange?: (legend: LegendData | null) => void
+  onLegendChange?: (legend: LegendData | null) => void,
+  onStatsUpdate?: ((stats: { label: string; value: string; txCount: number } | null) => void) | null
 ): Promise<any> {
   // Determine if we're fetching delta or regular data
   const isDelta = isDeltaMetric(state.metric);
@@ -2071,7 +2064,7 @@ async function setRealData(
     if ((state.voteOverlayMode ?? "off") !== "off") {
       applyVoteOverlayColorFromSource(map, state.voteColorScale ?? "relative", cached);
     }
-    await ensureAggregatesAndUpdate(map, state, cache, onLegendChange);
+    await ensureAggregatesAndUpdate(map, state, cache, onLegendChange, onStatsUpdate);
     return cached;
   }
 
@@ -2122,7 +2115,7 @@ async function setRealData(
   if ((state.voteOverlayMode ?? "off") !== "off") {
     applyVoteOverlayColorFromSource(map, state.voteColorScale ?? "relative", fc);
   }
-  await ensureAggregatesAndUpdate(map, state, cache, onLegendChange);
+  await ensureAggregatesAndUpdate(map, state, cache, onLegendChange, onStatsUpdate);
   return fc;
 }
 
@@ -2154,7 +2147,8 @@ async function ensureAggregatesAndUpdate(
   map: maplibregl.Map,
   state: MapState,
   cache: Map<string, any>,
-  onLegendChange?: (legend: LegendData | null) => void
+  onLegendChange?: (legend: LegendData | null) => void,
+  onStatsUpdate?: ((stats: { label: string; value: string; txCount: number } | null) => void) | null
 ) {
   try {
     const voteModeActive = (state.voteOverlayMode ?? "off") !== "off";
@@ -2225,13 +2219,13 @@ async function ensureAggregatesAndUpdate(
     }
 
     if (fc25) {
-      updateOverlayFromFeatureCollection(map, fc25, state.metric);
+      updateOverlayFromFeatureCollection(map, fc25, state.metric, onStatsUpdate);
     } else {
       // fallback: use any available featurecollection (current map source)
       try {
         const src = map.getSource("cells") as maplibregl.GeoJSONSource | undefined;
         const data: any = src ? (src as any)._data ?? null : null;
-        if (data) updateOverlayFromFeatureCollection(map, data, state.metric);
+        if (data) updateOverlayFromFeatureCollection(map, data, state.metric, onStatsUpdate);
       } catch (e) {
         // ignore
       }
@@ -2460,7 +2454,12 @@ function makeTailColors() {
   return [...bottom, ...middle, ...top];
 }
 
-function updateOverlayFromFeatureCollection(map: maplibregl.Map, fc: any, metric: Metric) {
+function updateOverlayFromFeatureCollection(
+  map: maplibregl.Map,
+  fc: any,
+  metric: Metric,
+  onStats?: ((stats: { label: string; value: string; txCount: number } | null) => void) | null
+) {
   try {
     const features = fc?.features ?? [];
     let sumW = 0;
@@ -2490,8 +2489,10 @@ function updateOverlayFromFeatureCollection(map: maplibregl.Map, fc: any, metric
         : `GBP ${avg.toLocaleString()}`;
       html = `<div style="font-weight:700">${metricLabel}: ${val}</div>`;
       html += `<div style="margin-top:4px">Transactions: <b>${sumW.toLocaleString()}</b></div>`;
+      onStats?.({ label: metricLabel, value: val, txCount: sumW });
     } else {
       html += `<div style="margin-top:4px">Transactions: <b>0</b></div>`;
+      onStats?.({ label: metricLabel, value: "N/A", txCount: 0 });
     }
 
     if (el) el.innerHTML = html;
