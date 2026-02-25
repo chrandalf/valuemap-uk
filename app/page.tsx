@@ -1013,10 +1013,10 @@ export default function Home() {
 
     /* 2 — Demo: open Controls dropdown */
     {
-      target: "[data-tour='controls-btn']",
+      target: "[data-tour='controls-menu']",
       title: "Step 1 — Open the Controls menu",
-      text: "First, you'd tap Controls. I've opened it for you — see the options: Filters, Find my area, and Reset all. Let's tap Find my area.",
-      placement: "bottom" as const,
+      text: "First, you'd tap Controls. I've opened it for you — see the options highlighted: Filters, Find my area, and Reset all. Let's tap Find my area.",
+      placement: "right" as const,
       noOverlay: true,
       enterDelay: 500,
       onEnter: () => { closeAllSubpanels(); setInfoDropOpen(false); setControlsDropOpen(true); },
@@ -1100,8 +1100,9 @@ export default function Home() {
     {
       target: null,
       title: "Step 7 — Reading the cell colours",
-      text: "Each coloured square is a 1km area. Bright green cells scored 80%+ match for your criteria — these are your best bets. Yellow cells are 40–60% match. Red or dark cells scored below 30% — they don't fit your budget or priorities. The colour tells you at a glance where to focus.",
+      text: "Each coloured square is a 1km area. Bright green cells scored 80%+ match for your criteria — these are your best bets. Yellow cells are 40–60% match. Red or dark cells scored below 30% — they don't fit your budget or priorities. Try clicking a cell on the map below!",
       placement: "top-center" as const,
+      noOverlay: true,
       enterDelay: 1200,
     },
 
@@ -1109,8 +1110,9 @@ export default function Home() {
     {
       target: null,
       title: "Step 8 — What's inside each cell?",
-      text: "Click any cell and a popup appears showing: the median house price, total number of sales, and a list of postcodes inside that 1km square. Every postcode is a link to Zoopla — so you can jump straight to real listings. Try it after the tour!",
+      text: "Go ahead — click any coloured cell on the map now! A popup appears showing the median price, number of sales, and postcodes inside that 1km square. Every postcode links to Zoopla for real listings. Close the popup and press Next when you're ready.",
       placement: "top-center" as const,
+      noOverlay: true,
       enterDelay: 1200,
     },
 
@@ -1155,11 +1157,11 @@ export default function Home() {
     {
       target: "[data-tour='overlay-panel']",
       title: "Step 12 — Layer extra data on top",
-      text: "While scores are active, you can turn on overlays too. I've added flood risk and school quality dots — now you can see which green-scored areas also have flood concerns or good schools nearby.",
+      text: "While scores are active, you can layer overlays on top. I've added flood risk and school quality dots with cells hidden so the dots are clear and clickable. This lets you see which scored areas also have flood concerns or good schools nearby.",
       placement: "left" as const,
       enterDelay: 1000,
       onEnter: () => {
-        setState((s) => ({ ...s, floodOverlayMode: "on", schoolOverlayMode: "on" }));
+        setState((s) => ({ ...s, floodOverlayMode: "on_hide_cells", schoolOverlayMode: "on_hide_cells" }));
       },
     },
 
@@ -1317,8 +1319,9 @@ export default function Home() {
     {
       target: null,
       title: "Step 3 — Reading the flood data",
-      text: "Green dots are low risk, orange and red are higher risk. You can see the York/Humber flood plain clearly here. When you search a postcode with flood risk on, it also finds the nearest flood monitoring point and tells you its risk level.",
+      text: "Green dots are low risk, orange and red are higher risk. Try clicking a flood dot on the map now to see its details! When you search a postcode with flood risk on, it also finds the nearest monitoring point and tells you its risk level.",
       placement: "top-center" as const,
+      noOverlay: true,
       enterDelay: 1000,
     },
 
@@ -1338,8 +1341,9 @@ export default function Home() {
     {
       target: null,
       title: "Step 5 — Reading the school data",
-      text: "Each school dot has a quality band from A (best) to E. When you search a postcode with schools on, it automatically finds the nearest school and the nearest 'good' school — useful for families.",
+      text: "Each school dot has a quality band from A (best) to E. Try clicking a school dot now to see its details! When you search a postcode, it finds the nearest school and the nearest 'good' school — useful for families.",
       placement: "top-center" as const,
+      noOverlay: true,
       enterDelay: 1000,
     },
 
@@ -1356,15 +1360,15 @@ export default function Home() {
       },
     },
 
-    /* 30 — Demo: hide-cells mode — back to York/Humber */
+    /* 30 — Demo: combining overlays — back to York/Humber */
     {
       target: "[data-tour='overlay-panel']",
-      title: "Step 7 — Turning cells back on",
-      text: "You saw floods and schools with \"hide cells\" for clarity. You can also use the normal \"On\" mode which shows overlay dots on top of the price grid — useful when you want to see both layers at once.",
+      title: "Step 7 — Combining data layers",
+      text: "You can stack multiple overlays — here I've turned on both flood and school dots together with cells hidden. Use \"Hide cells\" when you want to click on overlay dots; use \"On\" for a quick visual glance with the price grid still visible.",
       placement: "left" as const,
       enterDelay: 1200,
       onEnter: () => {
-        setState((s) => ({ ...s, voteOverlayMode: "off", floodOverlayMode: "on" }));
+        setState((s) => ({ ...s, voteOverlayMode: "off", floodOverlayMode: "on_hide_cells", schoolOverlayMode: "on_hide_cells" }));
         setTimeout(() => tourFlyTo([-1.08, 53.96], 9), 300);
       },
     },
@@ -1445,10 +1449,10 @@ export default function Home() {
 
     /* 37 — Demo: open Info menu */
     {
-      target: "[data-tour='info-btn']",
+      target: "[data-tour='info-menu']",
       title: "Step 1 — The Info menu",
       text: "I've opened Info. This is where you'll find full Instructions, Data Sources, Election Info, and all legal / privacy pages. Everything opens as an overlay — you never leave the map.",
-      placement: "bottom" as const,
+      placement: "right" as const,
       noOverlay: true,
       enterDelay: 700,
       onEnter: () => { setControlsDropOpen(false); setInfoDropOpen(true); },
@@ -1581,7 +1585,7 @@ export default function Home() {
                 <span data-tour="controls-dropdown" style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, width: 1, height: 1, pointerEvents: "none" }} />
               )}
               {controlsDropOpen && (
-                <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, width: 210, background: "rgba(8,10,22,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,0.16)", borderRadius: 10, padding: "6px 0", boxShadow: "0 10px 40px rgba(0,0,0,0.65)", zIndex: 200 }}>
+                <div data-tour="controls-menu" style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, width: 210, background: "rgba(8,10,22,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,0.16)", borderRadius: 10, padding: "6px 0", boxShadow: "0 10px 40px rgba(0,0,0,0.65)", zIndex: 200 }}>
                   {([
                     { label: filtersOpen ? "🗂 Filters (open)" : "🗂 Filters", action: () => { setFiltersOpen(v => !v); setControlsDropOpen(false); bringToFront("filters"); } },
                     { label: "🔍 Find my area", action: () => { setIndexOpen(v => !v); setControlsDropOpen(false); bringToFront("index"); } },
@@ -1625,7 +1629,7 @@ export default function Home() {
                 <span data-tour="info-dropdown" style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, width: 1, height: 1, pointerEvents: "none" }} />
               )}
               {infoDropOpen && (
-                <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, width: 210, background: "rgba(8,10,22,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,0.16)", borderRadius: 10, padding: "6px 0", boxShadow: "0 10px 40px rgba(0,0,0,0.65)", zIndex: 200 }}>
+                <div data-tour="info-menu" style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, width: 210, background: "rgba(8,10,22,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,0.16)", borderRadius: 10, padding: "6px 0", boxShadow: "0 10px 40px rgba(0,0,0,0.65)", zIndex: 200 }}>
                   {([
                     { label: "✨ Show me how",   action: () => { setInfoDropOpen(false); startTour(); } },
                     { label: "📖 Instructions", action: () => { setInstructionsOpen(v => !v); setInfoDropOpen(false); bringToFront("instructions"); } },
