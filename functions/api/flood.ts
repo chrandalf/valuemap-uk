@@ -1,4 +1,5 @@
 import type { R2Bucket } from "@cloudflare/workers-types";
+import { gunzipToString } from "../_lib/gzip";
 
 interface Env {
   R2?: R2Bucket;
@@ -42,11 +43,11 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
       );
     }
 
-    if (wantsPlain && resolved.key.endsWith(".gz") && resolved.object.body) {
-      const decompressed = (resolved.object.body as any).pipeThrough(new DecompressionStream("gzip") as any);
+    if (wantsPlain && resolved.key.endsWith(".gz")) {
+      const plainText = await gunzipToString(await resolved.object.arrayBuffer());
       headers.delete("Content-Encoding");
       headers.set("X-Flood-Plain", "1");
-      return new Response(decompressed, {
+      return new Response(plainText, {
         status: 200,
         headers,
       });
