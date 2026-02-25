@@ -250,6 +250,39 @@ export default function GuidedTour({ steps, active, onEnd, stepIndex, onStepChan
             }} />
           )}
 
+          {/* ── Animated cursor indicator — shows a pointer + click ripple on the target ── */}
+          {hasSpotlight && !step.isSectionIntro && !step.autoAdvanceOnly && (
+            <div
+              style={{
+                position: "fixed",
+                left: rect.left + rect.width * 0.55,
+                top: rect.top + rect.height * 0.55,
+                width: 32,
+                height: 32,
+                pointerEvents: "none",
+                zIndex: 10003,
+                animation: "tourCursorBob 2s ease-in-out infinite",
+              }}
+            >
+              {/* Cursor arrow SVG */}
+              <svg viewBox="0 0 24 24" width="28" height="28" style={{ filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.6))" }}>
+                <path d="M5.5 3.21V20.8c0 .45.54.67.85.35l4.86-4.86a.5.5 0 0 1 .35-.15h6.87a.5.5 0 0 0 .35-.85L6.35 2.86a.5.5 0 0 0-.85.35z" fill="white" stroke="rgba(250,204,21,0.9)" strokeWidth="1.2" strokeLinejoin="round" />
+              </svg>
+              {/* Click ripple */}
+              <div style={{
+                position: "absolute",
+                top: -2,
+                left: -2,
+                width: 18,
+                height: 18,
+                borderRadius: "50%",
+                border: "2px solid rgba(250,204,21,0.55)",
+                animation: "tourClickRipple 2.2s ease-out infinite",
+                animationDelay: "0.6s",
+              }} />
+            </div>
+          )}
+
           {/* Click shield */}
           <div
             style={{ position: "fixed", inset: 0, pointerEvents: "auto" }}

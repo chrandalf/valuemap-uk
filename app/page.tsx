@@ -1665,7 +1665,7 @@ export default function Home() {
                   fontWeight: 700,
                   whiteSpace: "nowrap",
                   flexShrink: 0,
-                  animation: "tourShowMePulse 1.6s ease-in-out infinite",
+                  animation: "tourShowMePulseInline 1.6s ease-in-out infinite",
                 }}
               >
                 ✨ Show me how

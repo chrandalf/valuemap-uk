@@ -82,6 +82,12 @@ textarea {
   50%  { box-shadow: 0 4px 24px rgba(0,0,0,0.4), 0 0 0 10px rgba(250,204,21,0.0); transform: translateX(-50%) scale(1.04); }
   100% { box-shadow: 0 4px 24px rgba(0,0,0,0.4), 0 0 0 0 rgba(250,204,21,0.55); transform: translateX(-50%) scale(1); }
 }
+/* Desktop variant — no translateX(-50%) since the button is in a flex row, not absolutely centered */
+@keyframes tourShowMePulseInline {
+  0%   { box-shadow: 0 2px 12px rgba(0,0,0,0.3), 0 0 0 0 rgba(250,204,21,0.55); transform: scale(1); }
+  50%  { box-shadow: 0 2px 12px rgba(0,0,0,0.3), 0 0 0 8px rgba(250,204,21,0.0); transform: scale(1.04); }
+  100% { box-shadow: 0 2px 12px rgba(0,0,0,0.3), 0 0 0 0 rgba(250,204,21,0.55); transform: scale(1); }
+}
 
 @keyframes tourSpotlightPulse {
   0%, 100% { box-shadow: 0 0 0 4px rgba(250,204,21,0.25), inset 0 0 0 1px rgba(250,204,21,0.12); }
@@ -91,5 +97,17 @@ textarea {
 @keyframes tourCardFadeIn {
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Cursor indicator: gentle hover bob + click ripple */
+@keyframes tourCursorBob {
+  0%, 100% { transform: translate(0, 0); }
+  40%      { transform: translate(1px, 3px); }
+  60%      { transform: translate(0, 2px); }
+}
+@keyframes tourClickRipple {
+  0%   { transform: scale(0.3); opacity: 0.7; }
+  50%  { transform: scale(2.2); opacity: 0; }
+  100% { transform: scale(0.3); opacity: 0; }
 }
 
