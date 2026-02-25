@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useLayoutEffect } from "react";
 
 /* ─────────────────────────────────────────────
    Tour step definition
@@ -41,14 +41,65 @@ type GuidedTourProps = {
 };
 
 /* ─────────────────────────────────────────────
+   Helpers
+   ───────────────────────────────────────────── */
+
+const EDGE_MARGIN = 8; // minimum px from any viewport edge
+const GAP = 14;        // gap between spotlight and tooltip
+const SPOTLIGHT_PAD = 8;
+
+type Placement = "top" | "bottom" | "left" | "right";
+
+/** Calculate available space on each side of the spotlight rect */
+function spaceAround(r: DOMRect) {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  return {
+    top: r.top - SPOTLIGHT_PAD,
+    bottom: vh - r.bottom - SPOTLIGHT_PAD,
+    left: r.left - SPOTLIGHT_PAD,
+    right: vw - r.right - SPOTLIGHT_PAD,
+  };
+}
+
+/** Pick the best placement that fits the tooltip without covering the target */
+function autoPick(r: DOMRect, tw: number, th: number, hint?: Placement | "center"): Placement {
+  const s = spaceAround(r);
+  // If the hint fits, use it
+  if (hint && hint !== "center") {
+    if (hint === "bottom" && s.bottom >= th + GAP) return "bottom";
+    if (hint === "top" && s.top >= th + GAP) return "top";
+    if (hint === "right" && s.right >= tw + GAP) return "right";
+    if (hint === "left" && s.left >= tw + GAP) return "left";
+  }
+  // Otherwise pick the side with the most space, preferring bottom > top > right > left
+  type Entry = [Placement, number];
+  const candidates: Entry[] = [
+    ["bottom", s.bottom],
+    ["top", s.top],
+    ["right", s.right],
+    ["left", s.left],
+  ];
+  candidates.sort((a, b) => b[1] - a[1]);
+  return candidates[0][0];
+}
+
+/** Clamp a value so the tooltip stays fully on-screen */
+function clampPos(pos: number, size: number, maxSize: number): number {
+  return Math.max(EDGE_MARGIN, Math.min(pos, maxSize - size - EDGE_MARGIN));
+}
+
+/* ─────────────────────────────────────────────
    Component
    ───────────────────────────────────────────── */
 
 export default function GuidedTour({ steps, active, onEnd, stepIndex, onStepChange }: GuidedTourProps) {
   const [rect, setRect] = useState<DOMRect | null>(null);
   const [visible, setVisible] = useState(false);
+  const [tooltipPos, setTooltipPos] = useState<React.CSSProperties>({});
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const stepRef = useRef(stepIndex);
+  const tooltipRef = useRef<HTMLDivElement | null>(null);
   stepRef.current = stepIndex;
 
   const step = steps[stepIndex] as TourStep | undefined;
@@ -109,6 +160,62 @@ export default function GuidedTour({ steps, active, onEnd, stepIndex, onStepChan
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, stepIndex, step]);
 
+  /* ── Recompute tooltip position after render so we know its real size ── */
+  useLayoutEffect(() => {
+    if (!visible) return;
+    const el = tooltipRef.current;
+    if (!el) return;
+
+    const tw = el.offsetWidth;
+    const th = el.offsetHeight;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    const hintPlacement = step?.placement ?? (rect ? "bottom" : "center");
+
+    if (!rect || hintPlacement === "center") {
+      setTooltipPos({
+        position: "fixed",
+        top: Math.max(EDGE_MARGIN, (vh - th) / 2),
+        left: Math.max(EDGE_MARGIN, (vw - tw) / 2),
+      });
+      return;
+    }
+
+    const picked = autoPick(rect, tw, th, hintPlacement);
+    let top = 0;
+    let left = 0;
+
+    switch (picked) {
+      case "bottom": {
+        top = rect.bottom + SPOTLIGHT_PAD + GAP;
+        left = rect.left + rect.width / 2 - tw / 2;
+        break;
+      }
+      case "top": {
+        top = rect.top - SPOTLIGHT_PAD - GAP - th;
+        left = rect.left + rect.width / 2 - tw / 2;
+        break;
+      }
+      case "right": {
+        top = rect.top + rect.height / 2 - th / 2;
+        left = rect.right + SPOTLIGHT_PAD + GAP;
+        break;
+      }
+      case "left": {
+        top = rect.top + rect.height / 2 - th / 2;
+        left = rect.left - SPOTLIGHT_PAD - GAP - tw;
+        break;
+      }
+    }
+
+    // Clamp to viewport
+    top = clampPos(top, th, vh);
+    left = clampPos(left, tw, vw);
+
+    setTooltipPos({ position: "fixed", top, left });
+  }, [visible, rect, step]);
+
   const goNext = useCallback(() => {
     const cur = stepRef.current;
     const s = steps[cur];
@@ -130,39 +237,6 @@ export default function GuidedTour({ steps, active, onEnd, stepIndex, onStepChan
 
   if (!active || !step || !visible) return null;
 
-  /* ── Tooltip positioning ── */
-  const PAD = 14;
-  const placement = step.placement ?? (rect ? "bottom" : "center");
-  let tooltipStyle: React.CSSProperties;
-
-  if (!rect || placement === "center") {
-    tooltipStyle = {
-      position: "fixed",
-      top: "50%",
-      left: "50%",
-      transform: "translate(-50%, -50%)",
-    };
-  } else {
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-    switch (placement) {
-      case "bottom":
-        tooltipStyle = { position: "fixed", top: rect.bottom + PAD, left: Math.max(12, Math.min(cx, window.innerWidth - 280)) };
-        break;
-      case "top":
-        tooltipStyle = { position: "fixed", bottom: window.innerHeight - rect.top + PAD, left: Math.max(12, Math.min(cx, window.innerWidth - 280)) };
-        break;
-      case "left":
-        tooltipStyle = { position: "fixed", top: cy, right: window.innerWidth - rect.left + PAD };
-        break;
-      case "right":
-        tooltipStyle = { position: "fixed", top: cy, left: rect.right + PAD };
-        break;
-    }
-  }
-
-  /* ── Spotlight cutout (SVG mask) ── */
-  const spotlightPad = 8;
   const hasSpotlight = !!rect;
 
   return (
@@ -178,10 +252,10 @@ export default function GuidedTour({ steps, active, onEnd, stepIndex, onStepChan
             <rect width="100%" height="100%" fill="white" />
             {hasSpotlight && (
               <rect
-                x={rect.left - spotlightPad}
-                y={rect.top - spotlightPad}
-                width={rect.width + spotlightPad * 2}
-                height={rect.height + spotlightPad * 2}
+                x={rect.left - SPOTLIGHT_PAD}
+                y={rect.top - SPOTLIGHT_PAD}
+                width={rect.width + SPOTLIGHT_PAD * 2}
+                height={rect.height + SPOTLIGHT_PAD * 2}
                 rx={10}
                 ry={10}
                 fill="black"
@@ -202,10 +276,10 @@ export default function GuidedTour({ steps, active, onEnd, stepIndex, onStepChan
         <div
           style={{
             position: "fixed",
-            left: rect.left - spotlightPad,
-            top: rect.top - spotlightPad,
-            width: rect.width + spotlightPad * 2,
-            height: rect.height + spotlightPad * 2,
+            left: rect.left - SPOTLIGHT_PAD,
+            top: rect.top - SPOTLIGHT_PAD,
+            width: rect.width + SPOTLIGHT_PAD * 2,
+            height: rect.height + SPOTLIGHT_PAD * 2,
             borderRadius: 10,
             border: "2px solid rgba(250,204,21,0.85)",
             boxShadow: "0 0 0 4px rgba(250,204,21,0.25), inset 0 0 0 1px rgba(250,204,21,0.12)",
@@ -219,17 +293,16 @@ export default function GuidedTour({ steps, active, onEnd, stepIndex, onStepChan
       <div
         style={{ position: "fixed", inset: 0 }}
         onClick={(e) => {
-          // If user clicks inside the spotlight rect, let it through
           if (hasSpotlight) {
             const mx = (e as React.MouseEvent).clientX;
             const my = (e as React.MouseEvent).clientY;
             if (
-              mx >= rect.left - spotlightPad &&
-              mx <= rect.right + spotlightPad &&
-              my >= rect.top - spotlightPad &&
-              my <= rect.bottom + spotlightPad
+              mx >= rect.left - SPOTLIGHT_PAD &&
+              mx <= rect.right + SPOTLIGHT_PAD &&
+              my >= rect.top - SPOTLIGHT_PAD &&
+              my <= rect.bottom + SPOTLIGHT_PAD
             ) {
-              return; // allow click-through
+              return;
             }
           }
           e.stopPropagation();
@@ -242,10 +315,10 @@ export default function GuidedTour({ steps, active, onEnd, stepIndex, onStepChan
         <div
           style={{
             position: "fixed",
-            left: rect.left - spotlightPad,
-            top: rect.top - spotlightPad,
-            width: rect.width + spotlightPad * 2,
-            height: rect.height + spotlightPad * 2,
+            left: rect.left - SPOTLIGHT_PAD,
+            top: rect.top - SPOTLIGHT_PAD,
+            width: rect.width + SPOTLIGHT_PAD * 2,
+            height: rect.height + SPOTLIGHT_PAD * 2,
             pointerEvents: "auto",
             zIndex: 10001,
           }}
@@ -254,11 +327,12 @@ export default function GuidedTour({ steps, active, onEnd, stepIndex, onStepChan
 
       {/* Tooltip card */}
       <div
+        ref={tooltipRef}
         style={{
-          ...tooltipStyle,
+          ...tooltipPos,
           zIndex: 10002,
-          width: 290,
-          maxWidth: "calc(100vw - 24px)",
+          width: "min(290px, calc(100vw - 16px))",
+          maxWidth: "calc(100vw - 16px)",
           padding: "14px 16px",
           borderRadius: 14,
           background: "rgba(10,12,20,0.97)",
