@@ -14,7 +14,7 @@ export type TourStep = {
   /** Bold header line */
   title?: string;
   /** Where the tooltip sits relative to the target */
-  placement?: "top" | "bottom" | "left" | "right" | "center";
+  placement?: "top" | "bottom" | "left" | "right" | "center" | "top-center";
   /** Auto-advance when this CSS selector appears in the DOM. */
   waitFor?: string;
   /** Callback fired when this step becomes active (e.g. open a panel) */
@@ -145,10 +145,11 @@ export default function GuidedTour({ steps, active, onEnd, stepIndex, onStepChan
     const vh = window.innerHeight;
     const hint = step?.placement ?? (rect ? "bottom" : "center");
 
-    if (!rect || hint === "center") {
+    if (!rect || hint === "center" || hint === "top-center") {
+      const topPos = hint === "top-center" ? EDGE_MARGIN + 60 : Math.max(EDGE_MARGIN, (vh - th) / 2);
       setTooltipPos({
         position: "fixed",
-        top: Math.max(EDGE_MARGIN, (vh - th) / 2),
+        top: topPos,
         left: Math.max(EDGE_MARGIN, (vw - tw) / 2),
         visibility: "visible" as const,
       });

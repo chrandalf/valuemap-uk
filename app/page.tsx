@@ -1008,7 +1008,7 @@ export default function Home() {
       text: "Find My Area scores the entire map based on your budget and what matters to you. Areas light up green (great match) to red (poor match). Want to see how it works?",
       placement: "center" as const,
       isSectionIntro: true,
-      nextSectionIndex: 13,
+      nextSectionIndex: 12,
     },
 
     /* 2 — Demo: open Controls dropdown */
@@ -1018,7 +1018,7 @@ export default function Home() {
       text: "First, you'd tap Controls. I've opened it for you — see the options: Filters, Find my area, and Reset all. Let's tap Find my area.",
       placement: "bottom" as const,
       noOverlay: true,
-      enterDelay: 300,
+      enterDelay: 500,
       onEnter: () => { closeAllSubpanels(); setInfoDropOpen(false); setControlsDropOpen(true); },
     },
 
@@ -1028,7 +1028,7 @@ export default function Home() {
       title: "Step 2 — The Find My Area panel",
       text: "This panel is where you set up your search. At the top is your budget slider — I'm about to move it. Below that are importance sliders for affordability, flood safety, and school quality. Watch as I set them up…",
       placement: "left" as const,
-      enterDelay: 400,
+      enterDelay: 600,
       onEnter: () => { setControlsDropOpen(false); setIndexOpen(true); },
     },
 
@@ -1038,7 +1038,7 @@ export default function Home() {
       title: "Step 3 — Setting the budget",
       text: "I've dragged the budget slider to £350,000. In real use, you'd drag this to match your spending power. The map will only score areas where homes fit this budget.",
       placement: "left" as const,
-      enterDelay: 300,
+      enterDelay: 500,
       onEnter: () => { setIndexBudget(350000); },
     },
 
@@ -1048,7 +1048,7 @@ export default function Home() {
       title: "Step 4 — Adjusting importance sliders",
       text: "Now I've moved the importance sliders: Affordability → 7, Flood safety → 8, School quality → 6. Higher numbers = matters more. These are personal to you — drag them to match your priorities.",
       placement: "left" as const,
-      enterDelay: 300,
+      enterDelay: 500,
       onEnter: () => {
         setIndexAffordWeight(7);
         setIndexFloodWeight(8);
@@ -1063,7 +1063,7 @@ export default function Home() {
       title: "Step 5 — Pressing Score Areas",
       text: "I've tapped the green \"Score Areas\" button. The map is now calculating how well every 1km cell matches your preferences — watch the colours change…",
       placement: "center" as const,
-      enterDelay: 300,
+      enterDelay: 500,
       autoAdvanceOnly: true,
       waitFor: "[data-tour='area-match-filter']",
       onEnter: () => {
@@ -1084,68 +1084,55 @@ export default function Home() {
       },
     },
 
-    /* 7 — Demo: zoom into results */
+    /* 7 — Demo: zoom into results — gentle zoom to ~9 */
     {
       target: null,
-      title: "Step 6 — Let's zoom in and explore!",
-      text: "The map is now colour-coded: green = great match, yellow = okay, red = poor match. I'm zooming into the Midlands so you can see the detail — look at how individual 1km cells have different scores.",
-      placement: "center" as const,
-      enterDelay: 800,
+      title: "Step 6 — Let's see the results",
+      text: "The map is now colour-coded: green = great match, yellow = okay, red = poor match. I'm gently zooming into Yorkshire so you can see the scored cells. Each coloured square is a 1km area — look at the variation between neighbouring cells.",
+      placement: "top-center" as const,
+      enterDelay: 1200,
       onEnter: () => {
-        // Fly to Birmingham area to show scored cells up close
-        tourFlyTo([-1.9, 52.48], 10);
+        tourFlyTo([-1.55, 53.6], 9);
       },
     },
 
-    /* 8 — Demo: zoom closer to see cells */
+    /* 8 — Demo: explain cell data */
     {
       target: null,
-      title: "Step 7 — Individual cell data",
-      text: "Now we're close enough to see individual cells. Each coloured square is a 1km area with its own score. In real use, you'd click a cell to see postcodes inside it — each postcode links to Zoopla for real property listings.",
-      placement: "center" as const,
-      enterDelay: 600,
-      onEnter: () => {
-        // Zoom closer to see individual cells
-        tourFlyTo([-1.9, 52.48], 12);
-      },
+      title: "Step 7 — What's inside each cell?",
+      text: "Click any coloured cell and a popup shows the median price and number of sales. Each cell also lists postcodes inside it — and every postcode links to Zoopla so you can check real property listings. Try it after the tour!",
+      placement: "top-center" as const,
+      enterDelay: 1000,
     },
 
     /* 9 — Demo: show area match filter */
     {
       target: "[data-tour='area-match-filter']",
       title: "Step 8 — Filtering the results",
-      text: "Over on the right, this Area Match Filter lets you narrow down. Set it to \"Above 65%\" to hide anything below 65% match — leaving only areas that truly suit your criteria.",
+      text: "This Area Match Filter lets you narrow down. Set it to \"Above 65%\" to hide anything below 65% match — leaving only areas that truly suit your criteria.",
       placement: "left" as const,
-      enterDelay: 300,
+      enterDelay: 600,
     },
 
-    /* 10 — Demo: turn on flood overlay on top of scoring */
+    /* 10 — Demo: show overlays on top of scoring */
     {
       target: "[data-tour='overlay-panel']",
-      title: "Step 9 — Adding flood risk detail",
-      text: "While scoring is active, I've turned on the flood risk overlay too. Now you can see which of your green-scored areas also have flood risk — the coloured dots show flood data on top of the score colours.",
+      title: "Step 9 — Layer extra data on top",
+      text: "While scores are active, you can turn on overlays too. I've added flood risk and school quality dots — now you can see which green-scored areas also have flood concerns or good schools nearby.",
       placement: "left" as const,
-      enterDelay: 500,
-      onEnter: () => { setState((s) => ({ ...s, floodOverlayMode: "on" })); },
+      enterDelay: 800,
+      onEnter: () => {
+        setState((s) => ({ ...s, floodOverlayMode: "on", schoolOverlayMode: "on" }));
+      },
     },
 
-    /* 11 — Demo: turn on school overlay */
-    {
-      target: "[data-tour='overlay-panel']",
-      title: "Step 10 — Adding school quality",
-      text: "Now I've added school quality dots too. You can stack overlays to build a complete picture — scored areas + flood risk + school quality all visible at once. This is the full power of Find My Area.",
-      placement: "left" as const,
-      enterDelay: 500,
-      onEnter: () => { setState((s) => ({ ...s, schoolOverlayMode: "on" })); },
-    },
-
-    /* 12 — Demo: cleanup and transition */
+    /* 11 — Demo: cleanup and zoom-out transition */
     {
       target: null,
       title: "That's Find My Area!",
-      text: "You saw how to: open Find My Area → set budget → adjust importance → score → zoom in → add overlays for detail. I'll clear everything for the next section.",
+      text: "You saw how to: open Find My Area → set budget → adjust importance → score → zoom in to explore → add overlays for detail. I'll clear everything and zoom back out for the next section.",
       placement: "center" as const,
-      enterDelay: 300,
+      enterDelay: 600,
       onEnter: () => {
         setIndexScoringPending(false);
         setIndexActive(false);
@@ -1155,23 +1142,24 @@ export default function Home() {
       },
     },
 
-    /* ═══ 13 — Section intro: Manual Exploration ═══ */
+    /* ═══ 12 — Section intro: Manual Exploration ═══ */
     {
       target: null,
       title: "🗺️ Exploring the Map Manually",
       text: "You can also browse the map using quick filters on the left. Change the grid size, metric, property type, and more — each change updates instantly. Want me to show you?",
       placement: "center" as const,
       isSectionIntro: true,
-      nextSectionIndex: 22,
+      nextSectionIndex: 20,
+      enterDelay: 1000,
     },
 
-    /* 14 — Demo: show quick dock on Grid */
+    /* 13 — Demo: show quick dock on Grid */
     {
       target: "[data-tour='quick-dock']",
       title: "Step 1 — The quick-filter dock",
       text: "This side dock is your fastest way to change settings. Right now it's showing the Grid options. I've selected 25km — see how each square covers a huge area? Perfect for the national overview.",
       placement: "right" as const,
-      enterDelay: 400,
+      enterDelay: 700,
       onEnter: () => {
         setMobileQuickFilterKey("grid");
         setGridMode("manual");
@@ -1180,226 +1168,206 @@ export default function Home() {
       },
     },
 
-    /* 15 — Demo: 5km grid */
+    /* 14 — Demo: 5km grid */
     {
       target: "[data-tour='quick-dock']",
-      title: "Step 2 — Zoom to 5km grid",
+      title: "Step 2 — Switch to 5km",
       text: "Now I've tapped 5km. More squares appear, showing finer local variation. You can go down to 1km for street-level detail. Watch how the map updates instantly.",
       placement: "right" as const,
-      enterDelay: 400,
+      enterDelay: 700,
       onEnter: () => { setState((s) => ({ ...s, grid: "5km" })); },
     },
 
-    /* 16 — Demo: cycle dock to Metric */
+    /* 15 — Demo: cycle dock to Metric */
     {
       target: "[data-tour='quick-dock']",
-      title: "Step 3 — Press the arrow to cycle",
-      text: "See the → arrow at the top of the dock? I've tapped it to cycle from Grid to Metric. The dock now shows different measurement options. This is how you switch between filter categories.",
+      title: "Step 3 — Press the arrow → to cycle",
+      text: "See the → arrow at the top of the dock? I've tapped it to cycle from Grid to Metric. The dock now shows different measurement options — Median, £/ft², and change metrics.",
       placement: "right" as const,
-      enterDelay: 400,
+      enterDelay: 700,
       onEnter: () => {
         setMobileQuickFilterKey("metric");
       },
     },
 
-    /* 17 — Demo: select ppsf */
+    /* 16 — Demo: select ppsf */
     {
       target: "[data-tour='quick-dock']",
-      title: "Step 4 — Select Price per ft²",
-      text: "Now I've tapped £/ft² (price per square foot). This is a fairer way to compare areas because it accounts for home sizes. Notice the legend updated — it now shows values in £ per ft² instead of total price.",
+      title: "Step 4 — Tap £/ft²",
+      text: "Now I've tapped £/ft² (price per square foot). This is a fairer way to compare areas because it accounts for home sizes. Notice the legend updated to show £ per ft² values.",
       placement: "right" as const,
-      enterDelay: 400,
+      enterDelay: 700,
       onEnter: () => { setState((s) => ({ ...s, metric: "median_ppsf" })); },
     },
 
-    /* 18 — Demo: cycle to Type */
+    /* 17 — Demo: cycle to Type */
     {
       target: "[data-tour='quick-dock']",
-      title: "Step 5 — Cycle to property Type",
-      text: "Another tap of the arrow → now we're on Type. I'll select Detached (D) so we're only comparing detached houses.",
+      title: "Step 5 — Arrow → again to Type",
+      text: "Another tap of the arrow → now we're on Type. This lets you filter by Detached, Semi, Terraced, or Flat. I'll tap D for detached.",
       placement: "right" as const,
-      enterDelay: 400,
+      enterDelay: 700,
       onEnter: () => {
         setMobileQuickFilterKey("propertyType");
       },
     },
 
-    /* 19 — Demo: select Detached */
+    /* 18 — Demo: select Detached */
     {
       target: "[data-tour='quick-dock']",
       title: "Step 6 — Filtered to Detached",
-      text: "Now the map shows only detached house prices. This is how you compare like-for-like. You can also pick S (Semi), T (Terraced), or F (Flat).",
+      text: "Now the map shows only detached house prices. This is how you compare like-for-like. The quick dock arrow cycles through: Grid → Metric → Type → New build → Period.",
       placement: "right" as const,
-      enterDelay: 400,
+      enterDelay: 700,
       onEnter: () => { setState((s) => ({ ...s, propertyType: "D" })); },
     },
 
-    /* 20 — Demo: full filters panel */
-    {
-      target: "[data-tour='filters-panel']",
-      title: "Step 7 — Full Filters panel",
-      text: "For total control, there's also this full Filters panel (opened via Controls → Filters). It shows every setting at once — grid, metric, type, new-build status, and time period. You can see and change everything in one place.",
-      placement: "right" as const,
-      enterDelay: 500,
-      onEnter: () => {
-        setState((s) => ({ ...s, metric: "median", propertyType: "ALL" }));
-        setMobileQuickFilterKey("grid");
-        setFiltersOpen(true);
-      },
-    },
-
-    /* 21 — Demo: cleanup */
+    /* 19 — Demo: cleanup */
     {
       target: null,
       title: "That's manual exploration!",
-      text: "Use the quick dock arrows for fast changes, or open the full Filters panel for everything. Next up — data overlay layers.",
+      text: "Use the quick dock arrows for fast changes. Next up — data overlay layers that add flood, school, and election data on top of the price map.",
       placement: "center" as const,
-      enterDelay: 300,
+      enterDelay: 600,
       onEnter: () => {
         setFiltersOpen(false);
         setState((s) => ({ ...s, grid: "5km", metric: "median", propertyType: "ALL" }));
       },
     },
 
-    /* ═══ 22 — Section intro: Overlays ═══ */
+    /* ═══ 20 — Section intro: Overlays ═══ */
     {
       target: null,
       title: "📊 Data Overlay Layers",
       text: "You can layer extra data on top of the price map — flood risk zones, school performance ratings, and election results. These help you understand what makes each area tick. Want me to show you?",
       placement: "center" as const,
       isSectionIntro: true,
-      nextSectionIndex: 31,
+      nextSectionIndex: 29,
+      enterDelay: 600,
     },
 
-    /* 23 — Demo: flood overlay on */
+    /* 21 — Demo: zoom into Yorkshire for all overlay demos */
+    {
+      target: null,
+      title: "Step 1 — Let's look at one area",
+      text: "I'm zooming into the Yorkshire area. We'll stay right here and toggle the overlays on and off so you can see each layer clearly — no jumping around between cities.",
+      placement: "top-center" as const,
+      enterDelay: 1200,
+      onEnter: () => {
+        setState((s) => ({ ...s, floodOverlayMode: "off", schoolOverlayMode: "off", voteOverlayMode: "off" }));
+        tourFlyTo([-1.55, 53.6], 9);
+      },
+    },
+
+    /* 22 — Demo: flood overlay on */
     {
       target: "[data-tour='overlay-panel']",
-      title: "Step 1 — Flood risk layer",
-      text: "I've turned on flood risk. Coloured dots are appearing on the map — each one represents a monitored flood area. Let me zoom in so you can see the detail…",
+      title: "Step 2 — Flood risk layer",
+      text: "I've turned on flood risk. See the coloured dots appearing on the map? Each dot represents a flood monitoring area. Warmer colours (orange/red) = higher flood risk. This data covers England.",
       placement: "left" as const,
-      enterDelay: 500,
+      enterDelay: 1000,
       onEnter: () => {
         setState((s) => ({ ...s, floodOverlayMode: "on", schoolOverlayMode: "off", voteOverlayMode: "off" }));
       },
     },
 
-    /* 24 — Demo: zoom into flood data */
+    /* 23 — Demo: explain flood detail */
     {
       target: null,
-      title: "Step 2 — Flood risk up close",
-      text: "Now we're looking at the Thames Valley. See the red and orange dots? These are individual flood monitoring stations. Red = higher flood risk. You'd use this to check whether a green-scored area also has flood concerns.",
-      placement: "center" as const,
-      enterDelay: 600,
-      onEnter: () => {
-        // Zoom into Thames Valley / Reading area to see flood dots
-        tourFlyTo([-0.97, 51.45], 11);
-      },
+      title: "Step 3 — Reading the flood data",
+      text: "Green dots are low risk, orange and red are higher risk. When you search a postcode with flood risk on, the map also finds the nearest monitored flood point and tells you its risk level.",
+      placement: "top-center" as const,
+      enterDelay: 1000,
     },
 
-    /* 25 — Demo: schools on */
+    /* 24 — Demo: switch to schools */
     {
       target: "[data-tour='overlay-panel']",
-      title: "Step 3 — School quality layer",
-      text: "I've turned off floods and turned on schools instead. These dots show secondary school performance. Let me zoom in to see the individual schools…",
+      title: "Step 4 — School quality layer",
+      text: "Now I've turned off floods and turned on school quality instead. These dots show secondary school performance ratings. Brighter/greener dots = better performing schools.",
       placement: "left" as const,
-      enterDelay: 500,
+      enterDelay: 1200,
       onEnter: () => {
         setState((s) => ({ ...s, floodOverlayMode: "off", schoolOverlayMode: "on" }));
-        tourFlyTo([-1.5, 53.5], 5);
       },
     },
 
-    /* 26 — Demo: zoom into schools */
+    /* 25 — Demo: explain school data */
     {
       target: null,
-      title: "Step 4 — Schools up close",
-      text: "Now we're zoomed into the Manchester area. Each dot is a school — brighter/greener dots mean higher performance ratings. When you search a postcode with schools enabled, it finds the nearest school and nearest 'good' school automatically.",
-      placement: "center" as const,
-      enterDelay: 600,
-      onEnter: () => {
-        tourFlyTo([-2.24, 53.48], 11);
-      },
+      title: "Step 5 — Reading the school data",
+      text: "Each school dot has a quality band from A (best) to E. When you search a postcode with schools on, it automatically finds the nearest school and the nearest 'good' school — useful for families.",
+      placement: "top-center" as const,
+      enterDelay: 1000,
     },
 
-    /* 27 — Demo: vote overlay */
+    /* 26 — Demo: vote overlay — zoom out first, then enable */
     {
       target: "[data-tour='overlay-panel']",
-      title: "Step 5 — Election results layer",
-      text: "Now I've turned on the election overlay. This shows General Election 2024 results. Coloured shading reveals the political leaning of each constituency — let me zoom out so you can see the pattern.",
+      title: "Step 6 — Election results layer",
+      text: "I've turned off schools and turned on the election overlay. The map is zooming out so you can see the constituency patterns — coloured shading shows General Election 2024 results.",
       placement: "left" as const,
-      enterDelay: 500,
+      enterDelay: 1200,
       onEnter: () => {
         setState((s) => ({ ...s, schoolOverlayMode: "off", voteOverlayMode: "on" }));
-        tourFlyTo([-1.5, 53.5], 6);
+        setTimeout(() => tourFlyTo([-1.5, 53.5], 6), 300);
       },
     },
 
-    /* 28 — Demo: hide-cells mode */
+    /* 27 — Demo: hide-cells mode — back to Yorkshire */
     {
       target: "[data-tour='overlay-panel']",
-      title: "Step 6 — Hide-cells mode",
-      text: "Each overlay has a \"hide cells\" option. I've set flood risk to \"hide cells\" — this removes the price grid entirely so you see only the overlay data. Very useful for focusing on one layer at a time.",
+      title: "Step 7 — Hide-cells mode",
+      text: "Each overlay has a \"hide cells\" option. I've set flood risk to hide-cells — this removes the price grid entirely so you only see the flood data. Very useful for focusing on one layer at a time.",
       placement: "left" as const,
-      enterDelay: 500,
+      enterDelay: 1200,
       onEnter: () => {
         setState((s) => ({ ...s, voteOverlayMode: "off", floodOverlayMode: "on_hide_cells" }));
-        tourFlyTo([-0.97, 51.45], 10);
+        setTimeout(() => tourFlyTo([-1.55, 53.6], 9), 300);
       },
     },
 
-    /* 29 — Demo: both together */
-    {
-      target: null,
-      title: "Step 7 — Stack them up!",
-      text: "You can run multiple overlays at once — flood risk and school quality together, for example. This is the best way to get the full picture before making a decision.",
-      placement: "center" as const,
-      enterDelay: 500,
-      onEnter: () => {
-        setState((s) => ({ ...s, floodOverlayMode: "on", schoolOverlayMode: "on", voteOverlayMode: "off" }));
-        tourFlyTo([-1.5, 52.5], 8);
-      },
-    },
-
-    /* 30 — Demo: cleanup */
+    /* 28 — Demo: cleanup overlays */
     {
       target: null,
       title: "That's overlays!",
-      text: "Toggle flood, schools, and vote overlays on and off whenever you need extra context. Zoom in to see the detail — zoom out for the big picture. Next up: postcode search.",
+      text: "Toggle flood, schools, and vote overlays on and off whenever you need extra context. Stack them together, or use hide-cells to focus on one. Next up: postcode search.",
       placement: "center" as const,
-      enterDelay: 300,
+      enterDelay: 600,
       onEnter: () => {
         setState((s) => ({ ...s, floodOverlayMode: "off", schoolOverlayMode: "off", voteOverlayMode: "off" }));
         tourFlyTo([-1.5, 53.5], 5);
       },
     },
 
-    /* ═══ 31 — Section intro: Postcode Search ═══ */
+    /* ═══ 29 — Section intro: Postcode Search ═══ */
     {
       target: null,
       title: "🔎 Searching for a Postcode",
       text: "Got a specific area in mind? Type any UK postcode and the map flies straight there. You can also press Locate to use your current GPS position. Want me to show you?",
       placement: "center" as const,
       isSectionIntro: true,
-      nextSectionIndex: 36,
+      nextSectionIndex: 33,
+      enterDelay: 1000,
     },
 
-    /* 32 — Demo: type postcode */
+    /* 30 — Demo: type postcode */
     {
       target: isMobileViewport ? null : "[data-tour='postcode-search']",
       title: "Step 1 — Type a postcode",
-      text: "I've typed SW1A 1AA (near Buckingham Palace) into the search box. You can type any UK postcode here — full or partial.",
+      text: "I've typed SW1A 1AA (near Buckingham Palace) into the search box. You can type any UK postcode — full or partial.",
       placement: isMobileViewport ? ("center" as const) : ("bottom" as const),
-      enterDelay: 400,
+      enterDelay: 700,
       onEnter: () => { setPostcodeSearch("SW1A 1AA"); },
     },
 
-    /* 33 — Demo: press Go — tooltip positioned at top so it doesn't cover the map */
+    /* 31 — Demo: press Go — tooltip at TOP so map result is visible underneath */
     {
       target: null,
       title: "Step 2 — The map flies there!",
-      text: "I've pressed Go — watch the map fly to central London! The map zooms to that postcode automatically. I've placed this text out of the way so you can see the map moving.",
-      placement: "center" as const,
-      enterDelay: 600,
+      text: "I've pressed Go — the map is flying to central London! Look below to see the price cells around the postcode. The map zooms to that location automatically.",
+      placement: "top-center" as const,
+      enterDelay: 1000,
       onEnter: () => {
         setPostcodeSearch("SW1A 1AA");
         setActivePostcodeSearch("SW1A 1AA");
@@ -1407,22 +1375,13 @@ export default function Home() {
       },
     },
 
-    /* 34 — Demo: show zoomed result */
-    {
-      target: null,
-      title: "Step 3 — Exploring the result",
-      text: "Now you're zoomed into central London. You can see the price cells around the postcode. In real use you'd click a cell to see individual postcodes — each one links to Zoopla for property listings.",
-      placement: "center" as const,
-      enterDelay: 400,
-    },
-
-    /* 35 — Demo: cleanup */
+    /* 32 — Demo: cleanup */
     {
       target: null,
       title: "That's postcode search!",
       text: "Use the search box for any postcode, or tap 📍 Locate to use your GPS. Both work with all overlays — if flood or schools are on, it also finds the nearest data points.",
       placement: "center" as const,
-      enterDelay: 300,
+      enterDelay: 600,
       onEnter: () => {
         setPostcodeSearch("");
         setActivePostcodeSearch("");
@@ -1431,38 +1390,39 @@ export default function Home() {
       },
     },
 
-    /* ═══ 36 — Section intro: Info & Help ═══ */
+    /* ═══ 33 — Section intro: Info & Help ═══ */
     {
       target: null,
       title: "ℹ️ Getting Help & Information",
       text: "All the reference pages — Instructions, Data Sources, Election Info, and legal / privacy pages — are in one place. Want me to show you where?",
       placement: "center" as const,
       isSectionIntro: true,
-      nextSectionIndex: 39,
+      nextSectionIndex: 36,
+      enterDelay: 1000,
     },
 
-    /* 37 — Demo: open Info menu */
+    /* 34 — Demo: open Info menu */
     {
       target: "[data-tour='info-btn']",
       title: "Step 1 — The Info menu",
       text: "I've opened Info. This is where you'll find full Instructions, Data Sources, Election Info, and all legal / privacy pages. Everything opens as an overlay — you never leave the map.",
       placement: "bottom" as const,
       noOverlay: true,
-      enterDelay: 400,
+      enterDelay: 700,
       onEnter: () => { setControlsDropOpen(false); setInfoDropOpen(true); },
     },
 
-    /* 38 — Demo: close Info */
+    /* 35 — Demo: close Info */
     {
       target: null,
       title: "Remember this!",
       text: "You can re-open this tour any time from the Info menu — just tap \"✨ Show me how\".",
       placement: "center" as const,
-      enterDelay: 300,
+      enterDelay: 600,
       onEnter: () => { setInfoDropOpen(false); },
     },
 
-    /* ═══ 39 — Finish ═══ */
+    /* ═══ 36 — Finish ═══ */
     {
       target: null,
       title: "You're all set! 🎉",
