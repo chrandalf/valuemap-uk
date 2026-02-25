@@ -970,125 +970,357 @@ export default function Home() {
     setTourActive(false);
     setTourStep(0);
     setShowMeVisible(false);
-    // Close anything the tour opened
-    closeAllSubpanels();
-    setControlsDropOpen(false);
-    setInfoDropOpen(false);
-    setIndexOpen(false);
+    // Reset everything the demo may have changed
+    resetAll();
     // Remember tour was completed/dismissed
     try { localStorage.setItem("valuemap_tour_done", "1"); } catch { /* ignore */ }
   }, []);
 
   const tourSteps: TourStep[] = useMemo(() => [
-    /* 0 — Welcome */
+    /* ═══ 0 — Welcome ═══ */
     {
       target: null,
       title: "Welcome to the UK House Price Grid",
-      text: "This quick tour shows you how to get the most out of the map. There are two ways to explore: let the map score areas against your preferences, or browse manually. Let's walk through both.",
-      placement: "center",
+      text: "I'll walk you through the map section by section. Each section has a \"Show me\" button that demonstrates exactly what to do — or you can skip ahead. Let's begin!",
+      placement: "center" as const,
     },
-    /* 1 — Top bar overview */
+
+    /* ═══ 1 — Section intro: Find My Area ═══ */
+    {
+      target: null,
+      title: "🔍 Finding Your Perfect Area",
+      text: "Find My Area scores the entire map based on your budget and what matters to you. Areas light up green (great match) to red (poor match). Want to see how it works?",
+      placement: "center" as const,
+      isSectionIntro: true,
+      nextSectionIndex: 10,
+    },
+
+    /* 2 — Demo: open Controls dropdown */
     {
       target: "[data-tour='controls-btn']",
-      title: "Controls menu",
-      text: "This is your main menu. It opens Filters, Find my area, and Reset all. Let's open it now.",
-      placement: "bottom",
-      onEnter: () => { setControlsDropOpen(false); setInfoDropOpen(false); },
+      title: "Step 1 — Open the Controls menu",
+      text: "I've opened the Controls menu for you. This is where the main actions live — Filters, Find My Area, and Reset All.",
+      placement: "bottom" as const,
+      noOverlay: true,
+      enterDelay: 300,
+      onEnter: () => { closeAllSubpanels(); setInfoDropOpen(false); setControlsDropOpen(true); },
     },
-    /* 2 — Controls dropdown visible */
-    {
-      target: "[data-tour='controls-btn']",
-      title: "Inside Controls",
-      text: "From here you can open the full Filters panel for grid, metric, type, and period. You can also open Find my area to score the map against your preferences. Let's start with Find my area.",
-      placement: "bottom",
-      enterDelay: 100,
-      onEnter: () => { setControlsDropOpen(true); setInfoDropOpen(false); },
-      onLeave: () => { setControlsDropOpen(false); },
-    },
-    /* 3 — Find My Area modal */
+
+    /* 3 — Demo: open Find My Area modal */
     {
       target: "[data-tour='index-modal']",
-      title: "🔍 Find my area",
-      text: "Set your budget with the slider, pick a property type, then drag the importance sliders for affordability, flood safety, and school quality. When ready, press Score areas — the map will turn green (great match) to red (poor match) at 1km detail.",
-      placement: "left",
-      enterDelay: 300,
-      onEnter: () => { setIndexOpen(true); setControlsDropOpen(false); },
+      title: "Step 2 — Open Find My Area",
+      text: "This is the Find My Area screen. Here you'll set a budget and choose what matters most to you — affordability, flood safety, school quality, or distance from the coast.",
+      placement: "left" as const,
+      enterDelay: 400,
+      onEnter: () => { setControlsDropOpen(false); setIndexOpen(true); },
     },
-    /* 4 — Close Find My Area, show we're back */
+
+    /* 4 — Demo: set budget */
+    {
+      target: "[data-tour='index-modal']",
+      title: "Step 3 — Set your budget",
+      text: "I've set the budget to £350,000. You'd drag this slider to match how much you want to spend on a home. The map will only score areas where homes are within reach.",
+      placement: "left" as const,
+      enterDelay: 300,
+      onEnter: () => { setIndexBudget(350000); },
+    },
+
+    /* 5 — Demo: set importance weights */
+    {
+      target: "[data-tour='index-modal']",
+      title: "Step 4 — Choose what's important",
+      text: "I've set Affordability to 7, Flood safety to 8, and School quality to 6. Higher numbers mean that factor matters more. Set these based on your own priorities.",
+      placement: "left" as const,
+      enterDelay: 300,
+      onEnter: () => {
+        setIndexAffordWeight(7);
+        setIndexFloodWeight(8);
+        setIndexSchoolWeight(6);
+        setIndexCoastWeight(0);
+      },
+    },
+
+    /* 6 — Demo: press Score areas */
     {
       target: null,
-      title: "After scoring",
-      text: "Once scored, the map recolours and an Area match filter appears on the right so you can hide cells above or below a suitability percentage. You can tap Edit scoring to refine, or Clear to return to the standard map. Let's skip scoring for now and look at manual exploration.",
-      placement: "center",
-      onEnter: () => { setIndexOpen(false); },
+      title: "Step 5 — Press Score Areas",
+      text: "I've pressed Score Areas. The map is calculating how well every area matches your preferences — this takes a few seconds…",
+      placement: "center" as const,
+      enterDelay: 300,
+      waitFor: "[data-tour='area-match-filter']",
+      onEnter: () => {
+        setIndexBudget(350000);
+        setIndexPropertyType("ALL");
+        setIndexAffordWeight(7);
+        setIndexFloodWeight(8);
+        setIndexSchoolWeight(6);
+        setIndexCoastWeight(0);
+        setIndexApplied({ budget: 350000, propertyType: "ALL", affordWeight: 7, floodWeight: 8, schoolWeight: 6, coastWeight: 0 });
+        setGridMode("manual");
+        setState((s) => ({ ...s, grid: "1km" }));
+        setIndexScoringPending(true);
+        setIndexActive(true);
+        setIndexToken((t) => t + 1);
+        setIndexSuitabilityMode("off");
+        setIndexOpen(false);
+      },
     },
-    /* 5 — Quick dock */
-    {
-      target: "[data-tour='quick-dock']",
-      title: "Quick filter dock",
-      text: "This side dock lets you rapidly switch Metric, Type, New build, Period, or Grid without opening any menu. Press the → arrow to cycle between categories, then tap the option you want.",
-      placement: "right",
-      onEnter: () => { setFiltersOpen(false); },
-    },
-    /* 6 — Open full filters */
-    {
-      target: "[data-tour='controls-btn']",
-      title: "Full Filters panel",
-      text: "For more control, open Controls → Filters. This shows every parameter at once: grid resolution, metric, property type, new-build status, and time period.",
-      placement: "bottom",
-      onEnter: () => { setFiltersOpen(true); setControlsDropOpen(false); },
-    },
-    /* 7 — Filters panel detail */
-    {
-      target: "[data-tour='filters-panel']",
-      title: "Filters explained",
-      text: "Grid sets the cell size (25km for the big picture, 1km for street-level). Metric switches between Median price, Price per ft², and Change metrics. Type and New build keep comparisons like-for-like. Period lets you compare across years.",
-      placement: "right",
-    },
-    /* 8 — Close filters, show overlay panel */
-    {
-      target: "[data-tour='overlay-panel']",
-      title: "Overlay layers",
-      text: "Toggle Flood risk, School quality, and Political vote overlays here. Each can be On (dots over cells) or On (hide cells) which removes the price grid so you only see the overlay data. Flood and school data covers England only in this build.",
-      placement: "left",
-      onEnter: () => { setFiltersOpen(false); },
-    },
-    /* 9 — Legend */
+
+    /* 7 — Demo: see the results */
     {
       target: "[data-tour='legend']",
-      title: "Legend",
-      text: "The legend updates automatically to match whichever metric or overlay is active. When index scoring is on, it shows the green-to-red match scale instead.",
-      placement: "left",
+      title: "Step 6 — See the results!",
+      text: "The map is now coloured green (great match) to red (poor match). Look for the bright green areas — those are the best matches for your budget and preferences.",
+      placement: "left" as const,
+      enterDelay: 500,
     },
-    /* 10 — Postcode search */
-    ...(isMobileViewport ? [] : [{
-      target: "[data-tour='postcode-search']",
-      title: "Postcode search & Locate me",
-      text: "Type any postcode and press Go to fly to that area. If flood or school overlays are active, you'll also see the nearest risk point and school. Press 📍 Locate to use your GPS for a one-shot local check.",
-      placement: "bottom" as const,
-    }]),
-    /* 11 — Clicking cells */
+
+    /* 8 — Demo: area match filter */
+    {
+      target: "[data-tour='area-match-filter']",
+      title: "Step 7 — Filter the results",
+      text: "This Area Match Filter lets you focus on only the best matches. For example, set it to \"Above 65%\" to hide everything below 65% match — so you only see strong options.",
+      placement: "left" as const,
+      enterDelay: 300,
+    },
+
+    /* 9 — Demo: cleanup and transition */
     {
       target: null,
-      title: "Exploring cells",
-      text: "Click any coloured cell on the map to see postcodes inside that area. Each postcode links to Zoopla so you can check real listings. If Find my area scoring is active, the search follows your scoring preferences too.",
-      placement: "center",
+      title: "That's Find My Area!",
+      text: "Now you know how to score the map. I'll clear the scores so we can look at the next feature — manual exploration. Press Next when you're ready.",
+      placement: "center" as const,
+      enterDelay: 300,
+      onEnter: () => {
+        setIndexScoringPending(false);
+        setIndexActive(false);
+        setIndexOpen(false);
+        setState((s) => ({ ...s, grid: "5km" }));
+      },
     },
-    /* 12 — Info menu */
+
+    /* ═══ 10 — Section intro: Manual Exploration ═══ */
+    {
+      target: null,
+      title: "🗺️ Exploring the Map Manually",
+      text: "You can browse the map yourself using the filters on the left. Change the grid size, metric, property type, and more. Each change updates the map instantly. Want me to show you?",
+      placement: "center" as const,
+      isSectionIntro: true,
+      nextSectionIndex: 17,
+    },
+
+    /* 11 — Demo: 25km grid */
+    {
+      target: "[data-tour='quick-dock']",
+      title: "Step 1 — Start with the big picture",
+      text: "I've set the grid to 25 km. Each coloured square covers a large area — perfect for the national overview. See the quick-filter dock on the left? These buttons let you change settings fast.",
+      placement: "right" as const,
+      enterDelay: 400,
+      onEnter: () => {
+        setGridMode("manual");
+        setState((s) => ({ ...s, grid: "25km", metric: "median", propertyType: "ALL" }));
+        setFiltersOpen(false);
+      },
+    },
+
+    /* 12 — Demo: 5km grid */
+    {
+      target: "[data-tour='quick-dock']",
+      title: "Step 2 — Zoom in for detail",
+      text: "Now I've switched to 5 km. See how there are more, smaller squares? This shows more local variation. You can go all the way down to 1 km for street-level detail.",
+      placement: "right" as const,
+      enterDelay: 400,
+      onEnter: () => { setState((s) => ({ ...s, grid: "5km" })); },
+    },
+
+    /* 13 — Demo: change metric */
+    {
+      target: "[data-tour='quick-dock']",
+      title: "Step 3 — Change what you're measuring",
+      text: "I've switched the metric to Price per square foot. This is fairer for comparing areas because it accounts for home sizes. Use the arrow button on the dock to see more filter categories.",
+      placement: "right" as const,
+      enterDelay: 400,
+      onEnter: () => { setState((s) => ({ ...s, metric: "median_ppsf" })); },
+    },
+
+    /* 14 — Demo: filter by type */
+    {
+      target: "[data-tour='quick-dock']",
+      title: "Step 4 — Filter by property type",
+      text: "I've filtered to Detached homes only. Now you're comparing like-for-like. You can also pick Semi-detached, Terraced, or Flat.",
+      placement: "right" as const,
+      enterDelay: 400,
+      onEnter: () => { setState((s) => ({ ...s, propertyType: "D" })); },
+    },
+
+    /* 15 — Demo: full filters panel */
+    {
+      target: "[data-tour='filters-panel']",
+      title: "Step 5 — Full Filters panel",
+      text: "For total control, open the full Filters panel (via Controls menu). Every setting is visible at once — grid, metric, type, new-build status, and time period.",
+      placement: "right" as const,
+      enterDelay: 500,
+      onEnter: () => {
+        setState((s) => ({ ...s, metric: "median", propertyType: "ALL" }));
+        setFiltersOpen(true);
+      },
+    },
+
+    /* 16 — Demo: cleanup */
+    {
+      target: null,
+      title: "That's manual exploration!",
+      text: "Use the quick dock for fast changes, or the full Filters panel when you need everything. Press Next for data overlays.",
+      placement: "center" as const,
+      enterDelay: 300,
+      onEnter: () => {
+        setFiltersOpen(false);
+        setState((s) => ({ ...s, grid: "5km", metric: "median", propertyType: "ALL" }));
+      },
+    },
+
+    /* ═══ 17 — Section intro: Overlays ═══ */
+    {
+      target: null,
+      title: "📊 Data Overlay Layers",
+      text: "You can add extra data layers on top of the price map — flood risk, school quality, and election results. These help you see the full picture for any area. Want me to show you?",
+      placement: "center" as const,
+      isSectionIntro: true,
+      nextSectionIndex: 23,
+    },
+
+    /* 18 — Demo: flood overlay */
+    {
+      target: "[data-tour='overlay-panel']",
+      title: "Step 1 — Flood risk overlay",
+      text: "I've turned on the flood risk layer. Look for coloured dots on the map — these show areas with flood risk data. Red dots mean higher risk. This data covers England.",
+      placement: "left" as const,
+      enterDelay: 500,
+      onEnter: () => { setState((s) => ({ ...s, floodOverlayMode: "on" })); },
+    },
+
+    /* 19 — Demo: school overlay */
+    {
+      target: "[data-tour='overlay-panel']",
+      title: "Step 2 — School quality overlay",
+      text: "Now I've added school quality. More coloured dots appear showing school performance ratings. You can turn on both at once to see the full picture.",
+      placement: "left" as const,
+      enterDelay: 500,
+      onEnter: () => { setState((s) => ({ ...s, schoolOverlayMode: "on" })); },
+    },
+
+    /* 20 — Demo: vote overlay */
+    {
+      target: "[data-tour='overlay-panel']",
+      title: "Step 3 — Election results overlay",
+      text: "The political vote overlay shows General Election 2024 results by constituency. Coloured shading shows the political leaning of each area.",
+      placement: "left" as const,
+      enterDelay: 500,
+      onEnter: () => { setState((s) => ({ ...s, voteOverlayMode: "on", floodOverlayMode: "off", schoolOverlayMode: "off" })); },
+    },
+
+    /* 21 — Demo: hide-cells mode */
+    {
+      target: "[data-tour='overlay-panel']",
+      title: "Step 4 — Hide-cells mode",
+      text: "Each overlay has a \"hide cells\" option. This removes the price grid so you see only the overlay data — very useful for focusing on flood risk or school quality alone.",
+      placement: "left" as const,
+      enterDelay: 500,
+      onEnter: () => { setState((s) => ({ ...s, voteOverlayMode: "off", floodOverlayMode: "on_hide_cells" })); },
+    },
+
+    /* 22 — Demo: cleanup */
+    {
+      target: null,
+      title: "That's overlays!",
+      text: "Toggle them on and off whenever you need extra context about an area. Press Next for postcode search.",
+      placement: "center" as const,
+      enterDelay: 300,
+      onEnter: () => { setState((s) => ({ ...s, floodOverlayMode: "off", schoolOverlayMode: "off", voteOverlayMode: "off" })); },
+    },
+
+    /* ═══ 23 — Section intro: Postcode Search ═══ */
+    {
+      target: null,
+      title: "🔎 Searching for a Postcode",
+      text: "Got a specific area in mind? Type any UK postcode and the map flies straight there. You can also press Locate to use your current GPS position. Want me to show you?",
+      placement: "center" as const,
+      isSectionIntro: true,
+      nextSectionIndex: 27,
+    },
+
+    /* 24 — Demo: type postcode */
+    {
+      target: isMobileViewport ? null : "[data-tour='postcode-search']",
+      title: "Step 1 — Type a postcode",
+      text: "I've typed SW1A 1AA (that's near Buckingham Palace!) into the search box. You can type any UK postcode here.",
+      placement: isMobileViewport ? ("center" as const) : ("bottom" as const),
+      enterDelay: 400,
+      onEnter: () => { setPostcodeSearch("SW1A 1AA"); },
+    },
+
+    /* 25 — Demo: press Go */
+    {
+      target: isMobileViewport ? null : "[data-tour='postcode-search']",
+      title: "Step 2 — Press Go",
+      text: "I've pressed Go. Watch the map — it flies to that location and shows you the local area. If flood or school overlays are on, it also shows the nearest data point.",
+      placement: isMobileViewport ? ("center" as const) : ("bottom" as const),
+      enterDelay: 400,
+      onEnter: () => {
+        setPostcodeSearch("SW1A 1AA");
+        setActivePostcodeSearch("SW1A 1AA");
+        setPostcodeSearchToken((v) => v + 1);
+      },
+    },
+
+    /* 26 — Demo: cleanup */
+    {
+      target: null,
+      title: "That's postcode search!",
+      text: "You can also tap the 📍 Locate button to use GPS. And clicking any coloured cell on the map shows the postcodes inside it — each links to Zoopla for real property listings.",
+      placement: "center" as const,
+      enterDelay: 300,
+      onEnter: () => { setPostcodeSearch(""); setActivePostcodeSearch(""); setPostcodeSearchStatus(null); },
+    },
+
+    /* ═══ 27 — Section intro: Info & Help ═══ */
+    {
+      target: null,
+      title: "ℹ️ Getting Help & Information",
+      text: "All the reference pages — Instructions, Data Sources, Election Info, and legal / privacy pages — are in one place. Want me to show you where?",
+      placement: "center" as const,
+      isSectionIntro: true,
+      nextSectionIndex: 30,
+    },
+
+    /* 28 — Demo: open Info menu */
     {
       target: "[data-tour='info-btn']",
-      title: "Info menu",
-      text: "Everything else lives here: full Instructions, Data sources, Election info, the project Description, and legal / privacy pages. All open as overlays so you never leave the map.",
-      placement: "bottom",
-      onEnter: () => { setInfoDropOpen(true); },
-      onLeave: () => { setInfoDropOpen(false); },
+      title: "Step 1 — The Info menu",
+      text: "I've opened the Info menu. Here you'll find Instructions, Data Sources, Election Info, and all the legal / privacy pages. Everything opens as an overlay so you never leave the map.",
+      placement: "bottom" as const,
+      noOverlay: true,
+      enterDelay: 400,
+      onEnter: () => { setControlsDropOpen(false); setInfoDropOpen(true); },
     },
-    /* 13 — Finish */
+
+    /* 29 — Demo: close Info */
     {
       target: null,
-      title: "You're ready!",
-      text: "Start with Find my area if you have preferences, or just zoom and explore. Tip: on mobile, the Clear button hides all panels so you can focus on the map — press Restore to bring them back. Happy exploring!",
-      placement: "center",
+      title: "Remember this!",
+      text: "You can re-open this tour any time from the Info menu — just tap \"✨ Show me how\". Press Next to finish up.",
+      placement: "center" as const,
+      enterDelay: 300,
+      onEnter: () => { setInfoDropOpen(false); },
+    },
+
+    /* ═══ 30 — Finish ═══ */
+    {
+      target: null,
+      title: "You're all set! 🎉",
+      text: "Start with Find My Area if you have preferences, or just zoom and browse. On mobile, tap \"Clear\" (top right) to hide all panels and focus on the map — press \"Restore\" to bring them back. Happy house hunting!",
+      placement: "center" as const,
     },
   ], [isMobileViewport]);
 
@@ -2237,6 +2469,7 @@ export default function Home() {
           {/* Index suitability panel when scoring is active */}
           {indexActive && !indexOpen && (
             <div
+              data-tour="area-match-filter"
               style={{
                 width: "100%",
                 padding: "8px 10px",

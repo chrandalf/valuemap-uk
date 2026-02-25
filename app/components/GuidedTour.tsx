@@ -9,17 +9,13 @@ import { useEffect, useState, useCallback, useRef, useLayoutEffect } from "react
 export type TourStep = {
   /** CSS selector for the element to spotlight (null = centred card with no spotlight) */
   target: string | null;
-  /** Tooltip / card body text (supports JSX via render) */
+  /** Tooltip / card body text */
   text: string;
   /** Bold header line */
   title?: string;
   /** Where the tooltip sits relative to the target */
   placement?: "top" | "bottom" | "left" | "right" | "center";
-  /**
-   * If set, the step will NOT auto-advance on "Next".
-   * Instead the tour waits until the described condition is met.
-   * `waitFor` is a CSS selector — the step advances once that element exists in DOM.
-   */
+  /** Auto-advance when this CSS selector appears in the DOM. */
   waitFor?: string;
   /** Callback fired when this step becomes active (e.g. open a panel) */
   onEnter?: () => void;
@@ -29,13 +25,18 @@ export type TourStep = {
   autoAdvanceOnly?: boolean;
   /** Extra ms to delay before showing the step (lets panels animate in) */
   enterDelay?: number;
+  /** Section intro — shows "Show me how" + "Skip" instead of "Next" */
+  isSectionIntro?: boolean;
+  /** Step index to jump to when user clicks "Skip" on a section intro */
+  nextSectionIndex?: number;
+  /** Hide dark overlay & spotlight ring (for steps showing open dropdowns) */
+  noOverlay?: boolean;
 };
 
 type GuidedTourProps = {
   steps: TourStep[];
   active: boolean;
   onEnd: () => void;
-  /** Current step index (managed externally so parent can react) */
   stepIndex: number;
   onStepChange: (idx: number) => void;
 };
@@ -44,49 +45,37 @@ type GuidedTourProps = {
    Helpers
    ───────────────────────────────────────────── */
 
-const EDGE_MARGIN = 8; // minimum px from any viewport edge
-const GAP = 14;        // gap between spotlight and tooltip
+const EDGE_MARGIN = 8;
+const GAP = 14;
 const SPOTLIGHT_PAD = 8;
 
 type Placement = "top" | "bottom" | "left" | "right";
 
-/** Calculate available space on each side of the spotlight rect */
 function spaceAround(r: DOMRect) {
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
   return {
     top: r.top - SPOTLIGHT_PAD,
-    bottom: vh - r.bottom - SPOTLIGHT_PAD,
+    bottom: window.innerHeight - r.bottom - SPOTLIGHT_PAD,
     left: r.left - SPOTLIGHT_PAD,
-    right: vw - r.right - SPOTLIGHT_PAD,
+    right: window.innerWidth - r.right - SPOTLIGHT_PAD,
   };
 }
 
-/** Pick the best placement that fits the tooltip without covering the target */
 function autoPick(r: DOMRect, tw: number, th: number, hint?: Placement | "center"): Placement {
   const s = spaceAround(r);
-  // If the hint fits, use it
   if (hint && hint !== "center") {
     if (hint === "bottom" && s.bottom >= th + GAP) return "bottom";
     if (hint === "top" && s.top >= th + GAP) return "top";
     if (hint === "right" && s.right >= tw + GAP) return "right";
     if (hint === "left" && s.left >= tw + GAP) return "left";
   }
-  // Otherwise pick the side with the most space, preferring bottom > top > right > left
-  type Entry = [Placement, number];
-  const candidates: Entry[] = [
-    ["bottom", s.bottom],
-    ["top", s.top],
-    ["right", s.right],
-    ["left", s.left],
-  ];
-  candidates.sort((a, b) => b[1] - a[1]);
-  return candidates[0][0];
+  type E = [Placement, number];
+  const c: E[] = [["bottom", s.bottom], ["top", s.top], ["right", s.right], ["left", s.left]];
+  c.sort((a, b) => b[1] - a[1]);
+  return c[0][0];
 }
 
-/** Clamp a value so the tooltip stays fully on-screen */
-function clampPos(pos: number, size: number, maxSize: number): number {
-  return Math.max(EDGE_MARGIN, Math.min(pos, maxSize - size - EDGE_MARGIN));
+function clampPos(pos: number, size: number, max: number): number {
+  return Math.max(EDGE_MARGIN, Math.min(pos, max - size - EDGE_MARGIN));
 }
 
 /* ─────────────────────────────────────────────
@@ -96,7 +85,9 @@ function clampPos(pos: number, size: number, maxSize: number): number {
 export default function GuidedTour({ steps, active, onEnd, stepIndex, onStepChange }: GuidedTourProps) {
   const [rect, setRect] = useState<DOMRect | null>(null);
   const [visible, setVisible] = useState(false);
-  const [tooltipPos, setTooltipPos] = useState<React.CSSProperties>({});
+  const [tooltipPos, setTooltipPos] = useState<React.CSSProperties>({
+    position: "fixed", top: -9999, left: -9999, visibility: "hidden" as const,
+  });
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const stepRef = useRef(stepIndex);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
@@ -106,16 +97,10 @@ export default function GuidedTour({ steps, active, onEnd, stepIndex, onStepChan
 
   /* ── Measure target element ── */
   const measure = useCallback(() => {
-    if (!step?.target) {
-      setRect(null);
-      return;
-    }
+    if (!step?.target) { setRect(null); return; }
     const el = document.querySelector(step.target);
-    if (el) {
-      setRect(el.getBoundingClientRect());
-    } else {
-      setRect(null);
-    }
+    if (el) setRect(el.getBoundingClientRect());
+    else setRect(null);
   }, [step]);
 
   /* ── On step change: fire onEnter, start measuring ── */
@@ -123,44 +108,32 @@ export default function GuidedTour({ steps, active, onEnd, stepIndex, onStepChan
     if (!active || !step) return;
 
     setVisible(false);
+    setTooltipPos({ position: "fixed", top: -9999, left: -9999, visibility: "hidden" as const });
     const delay = step.enterDelay ?? 200;
 
     const t = setTimeout(() => {
       step.onEnter?.();
-      // small extra delay so the DOM has time to render the panel
-      setTimeout(() => {
-        measure();
-        setVisible(true);
-      }, 150);
+      setTimeout(() => { measure(); setVisible(true); }, 180);
     }, delay);
 
-    // Keep measuring so the spotlight follows layout shifts
     const iv = setInterval(measure, 350);
     pollRef.current = iv;
 
-    return () => {
-      clearTimeout(t);
-      clearInterval(iv);
-      pollRef.current = null;
-    };
+    return () => { clearTimeout(t); clearInterval(iv); pollRef.current = null; };
   }, [active, stepIndex, step, measure]);
 
-  /* ── waitFor polling — auto-advance when element appears ── */
+  /* ── waitFor polling ── */
   useEffect(() => {
     if (!active || !step?.waitFor) return;
     const sel = step.waitFor;
     const iv = setInterval(() => {
-      const el = document.querySelector(sel);
-      if (el) {
-        clearInterval(iv);
-        goNext();
-      }
-    }, 250);
+      if (document.querySelector(sel)) { clearInterval(iv); goNext(); }
+    }, 300);
     return () => clearInterval(iv);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, stepIndex, step]);
 
-  /* ── Recompute tooltip position after render so we know its real size ── */
+  /* ── Position tooltip after render ── */
   useLayoutEffect(() => {
     if (!visible) return;
     const el = tooltipRef.current;
@@ -170,223 +143,186 @@ export default function GuidedTour({ steps, active, onEnd, stepIndex, onStepChan
     const th = el.offsetHeight;
     const vw = window.innerWidth;
     const vh = window.innerHeight;
+    const hint = step?.placement ?? (rect ? "bottom" : "center");
 
-    const hintPlacement = step?.placement ?? (rect ? "bottom" : "center");
-
-    if (!rect || hintPlacement === "center") {
+    if (!rect || hint === "center") {
       setTooltipPos({
         position: "fixed",
         top: Math.max(EDGE_MARGIN, (vh - th) / 2),
         left: Math.max(EDGE_MARGIN, (vw - tw) / 2),
+        visibility: "visible" as const,
       });
       return;
     }
 
-    const picked = autoPick(rect, tw, th, hintPlacement);
-    let top = 0;
-    let left = 0;
+    const picked = autoPick(rect, tw, th, hint);
+    let top = 0, left = 0;
 
     switch (picked) {
-      case "bottom": {
-        top = rect.bottom + SPOTLIGHT_PAD + GAP;
-        left = rect.left + rect.width / 2 - tw / 2;
-        break;
-      }
-      case "top": {
-        top = rect.top - SPOTLIGHT_PAD - GAP - th;
-        left = rect.left + rect.width / 2 - tw / 2;
-        break;
-      }
-      case "right": {
-        top = rect.top + rect.height / 2 - th / 2;
-        left = rect.right + SPOTLIGHT_PAD + GAP;
-        break;
-      }
-      case "left": {
-        top = rect.top + rect.height / 2 - th / 2;
-        left = rect.left - SPOTLIGHT_PAD - GAP - tw;
-        break;
-      }
+      case "bottom": top = rect.bottom + SPOTLIGHT_PAD + GAP; left = rect.left + rect.width / 2 - tw / 2; break;
+      case "top":    top = rect.top - SPOTLIGHT_PAD - GAP - th; left = rect.left + rect.width / 2 - tw / 2; break;
+      case "right":  top = rect.top + rect.height / 2 - th / 2; left = rect.right + SPOTLIGHT_PAD + GAP; break;
+      case "left":   top = rect.top + rect.height / 2 - th / 2; left = rect.left - SPOTLIGHT_PAD - GAP - tw; break;
     }
 
-    // Clamp to viewport
     top = clampPos(top, th, vh);
     left = clampPos(left, tw, vw);
-
-    setTooltipPos({ position: "fixed", top, left });
+    setTooltipPos({ position: "fixed", top, left, visibility: "visible" as const });
   }, [visible, rect, step]);
 
+  /* ── Navigation ── */
   const goNext = useCallback(() => {
-    const cur = stepRef.current;
-    const s = steps[cur];
+    const s = steps[stepRef.current];
     s?.onLeave?.();
-    if (cur + 1 >= steps.length) {
-      onEnd();
-    } else {
-      onStepChange(cur + 1);
-    }
+    if (stepRef.current + 1 >= steps.length) onEnd();
+    else onStepChange(stepRef.current + 1);
   }, [steps, onEnd, onStepChange]);
 
   const goPrev = useCallback(() => {
-    const cur = stepRef.current;
-    if (cur <= 0) return;
-    const s = steps[cur];
-    s?.onLeave?.();
-    onStepChange(cur - 1);
+    if (stepRef.current <= 0) return;
+    steps[stepRef.current]?.onLeave?.();
+    onStepChange(stepRef.current - 1);
   }, [steps, onStepChange]);
+
+  const goTo = useCallback((idx: number) => {
+    steps[stepRef.current]?.onLeave?.();
+    if (idx >= steps.length) onEnd();
+    else onStepChange(idx);
+  }, [steps, onEnd, onStepChange]);
 
   if (!active || !step || !visible) return null;
 
   const hasSpotlight = !!rect;
+  const showOverlay = !step.noOverlay;
+  const isLast = stepIndex + 1 >= steps.length;
+
+  /* Progress label — show section X of Y for intros, step N of total otherwise */
+  const sectionIntros = steps.filter(s => s.isSectionIntro);
+  const currentSectionIdx = step.isSectionIntro
+    ? sectionIntros.indexOf(step)
+    : (() => { for (let i = stepIndex; i >= 0; i--) { if (steps[i].isSectionIntro) return sectionIntros.indexOf(steps[i]); } return -1; })();
+  const progressLabel = step.isSectionIntro
+    ? `Section ${currentSectionIdx + 1} of ${sectionIntros.length}`
+    : currentSectionIdx >= 0
+      ? `${sectionIntros[currentSectionIdx]?.title ?? ""}`
+      : `Step ${stepIndex + 1} of ${steps.length}`;
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 10000 }}>
-      {/* Dark overlay with cutout */}
-      <svg
-        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
-        viewBox={`0 0 ${window.innerWidth} ${window.innerHeight}`}
-        preserveAspectRatio="none"
-      >
-        <defs>
-          <mask id="tour-mask">
-            <rect width="100%" height="100%" fill="white" />
-            {hasSpotlight && (
-              <rect
-                x={rect.left - SPOTLIGHT_PAD}
-                y={rect.top - SPOTLIGHT_PAD}
-                width={rect.width + SPOTLIGHT_PAD * 2}
-                height={rect.height + SPOTLIGHT_PAD * 2}
-                rx={10}
-                ry={10}
-                fill="black"
-              />
-            )}
-          </mask>
-        </defs>
-        <rect
-          width="100%"
-          height="100%"
-          fill="rgba(0,0,0,0.62)"
-          mask="url(#tour-mask)"
-        />
-      </svg>
+    <div style={{ position: "fixed", inset: 0, zIndex: 10000, pointerEvents: "none" }}>
 
-      {/* Spotlight ring glow */}
-      {hasSpotlight && (
-        <div
-          style={{
-            position: "fixed",
-            left: rect.left - SPOTLIGHT_PAD,
-            top: rect.top - SPOTLIGHT_PAD,
-            width: rect.width + SPOTLIGHT_PAD * 2,
-            height: rect.height + SPOTLIGHT_PAD * 2,
-            borderRadius: 10,
-            border: "2px solid rgba(250,204,21,0.85)",
-            boxShadow: "0 0 0 4px rgba(250,204,21,0.25), inset 0 0 0 1px rgba(250,204,21,0.12)",
-            pointerEvents: "none",
-            animation: "tourSpotlightPulse 1.8s ease-in-out infinite",
-          }}
-        />
+      {/* ── Dark overlay with cutout ── */}
+      {showOverlay && (
+        <>
+          <svg
+            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
+            viewBox={`0 0 ${window.innerWidth} ${window.innerHeight}`}
+            preserveAspectRatio="none"
+          >
+            <defs>
+              <mask id="tour-mask">
+                <rect width="100%" height="100%" fill="white" />
+                {hasSpotlight && (
+                  <rect
+                    x={rect.left - SPOTLIGHT_PAD} y={rect.top - SPOTLIGHT_PAD}
+                    width={rect.width + SPOTLIGHT_PAD * 2} height={rect.height + SPOTLIGHT_PAD * 2}
+                    rx={10} ry={10} fill="black"
+                  />
+                )}
+              </mask>
+            </defs>
+            <rect width="100%" height="100%" fill="rgba(0,0,0,0.62)" mask="url(#tour-mask)" />
+          </svg>
+
+          {hasSpotlight && (
+            <div style={{
+              position: "fixed",
+              left: rect.left - SPOTLIGHT_PAD, top: rect.top - SPOTLIGHT_PAD,
+              width: rect.width + SPOTLIGHT_PAD * 2, height: rect.height + SPOTLIGHT_PAD * 2,
+              borderRadius: 10,
+              border: "2px solid rgba(250,204,21,0.85)",
+              boxShadow: "0 0 0 4px rgba(250,204,21,0.25), inset 0 0 0 1px rgba(250,204,21,0.12)",
+              pointerEvents: "none",
+              animation: "tourSpotlightPulse 1.8s ease-in-out infinite",
+            }} />
+          )}
+
+          {/* Click shield */}
+          <div
+            style={{ position: "fixed", inset: 0, pointerEvents: "auto" }}
+            onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
+          />
+        </>
       )}
 
-      {/* Click shield — blocks interactions except on the spotlight area */}
-      <div
-        style={{ position: "fixed", inset: 0 }}
-        onClick={(e) => {
-          if (hasSpotlight) {
-            const mx = (e as React.MouseEvent).clientX;
-            const my = (e as React.MouseEvent).clientY;
-            if (
-              mx >= rect.left - SPOTLIGHT_PAD &&
-              mx <= rect.right + SPOTLIGHT_PAD &&
-              my >= rect.top - SPOTLIGHT_PAD &&
-              my <= rect.bottom + SPOTLIGHT_PAD
-            ) {
-              return;
-            }
-          }
-          e.stopPropagation();
-          e.preventDefault();
-        }}
-      />
-
-      {/* Allow pointer events inside spotlight */}
-      {hasSpotlight && (
-        <div
-          style={{
-            position: "fixed",
-            left: rect.left - SPOTLIGHT_PAD,
-            top: rect.top - SPOTLIGHT_PAD,
-            width: rect.width + SPOTLIGHT_PAD * 2,
-            height: rect.height + SPOTLIGHT_PAD * 2,
-            pointerEvents: "auto",
-            zIndex: 10001,
-          }}
-        />
-      )}
-
-      {/* Tooltip card */}
+      {/* ── Tooltip card ── */}
       <div
         ref={tooltipRef}
         style={{
           ...tooltipPos,
           zIndex: 10002,
-          width: "min(290px, calc(100vw - 16px))",
+          width: "min(310px, calc(100vw - 16px))",
           maxWidth: "calc(100vw - 16px)",
-          padding: "14px 16px",
+          padding: "16px 18px",
           borderRadius: 14,
           background: "rgba(10,12,20,0.97)",
-          border: "1px solid rgba(250,204,21,0.45)",
+          border: step.isSectionIntro
+            ? "2px solid rgba(250,204,21,0.65)"
+            : "1px solid rgba(250,204,21,0.45)",
           backdropFilter: "blur(14px)",
           color: "white",
           boxShadow: "0 10px 48px rgba(0,0,0,0.7), 0 0 0 1px rgba(250,204,21,0.15)",
-          fontSize: 12,
-          lineHeight: 1.5,
+          fontSize: 13,
+          lineHeight: 1.55,
           pointerEvents: "auto",
           animation: "tourCardFadeIn 220ms ease-out",
         }}
       >
-        {/* Step counter */}
-        <div style={{ fontSize: 9, opacity: 0.45, marginBottom: 6 }}>
-          Step {stepIndex + 1} of {steps.length}
+        <div style={{ fontSize: 10, opacity: 0.45, marginBottom: 6 }}>
+          {progressLabel}
         </div>
 
         {step.title && (
-          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6 }}>{step.title}</div>
+          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, lineHeight: 1.3 }}>
+            {step.title}
+          </div>
         )}
 
-        <div style={{ opacity: 0.92 }}>{step.text}</div>
+        <div style={{ opacity: 0.92, fontSize: 13, lineHeight: 1.6 }}>{step.text}</div>
 
-        {/* Navigation */}
-        <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "center" }}>
-          {stepIndex > 0 && (
-            <TourBtn onClick={goPrev} label="← Back" />
+        {/* ── Navigation ── */}
+        <div style={{ display: "flex", gap: 6, marginTop: 14, alignItems: "center", flexWrap: "wrap" }}>
+
+          {/* Section intro: "Show me" + "Skip" */}
+          {step.isSectionIntro && (
+            <>
+              <TourBtn onClick={goNext} label="✨ Show me" primary />
+              {step.nextSectionIndex != null && (
+                <TourBtn onClick={() => goTo(step.nextSectionIndex!)} label="Skip →" />
+              )}
+            </>
           )}
-          {!step.autoAdvanceOnly && (
-            <TourBtn
-              onClick={goNext}
-              label={stepIndex + 1 >= steps.length ? "Finish" : "Next →"}
-              primary
-            />
+
+          {/* Regular / demo step: Back + Next */}
+          {!step.isSectionIntro && !step.autoAdvanceOnly && (
+            <>
+              {stepIndex > 0 && <TourBtn onClick={goPrev} label="← Back" />}
+              <TourBtn onClick={goNext} label={isLast ? "Finish ✓" : "Next →"} primary />
+            </>
           )}
+
           {step.autoAdvanceOnly && (
-            <div style={{ flex: 1, fontSize: 10, opacity: 0.55, fontStyle: "italic" }}>
-              Waiting for you to do this…
+            <div style={{ flex: 1, fontSize: 11, opacity: 0.55, fontStyle: "italic" }}>
+              Just a moment…
             </div>
           )}
+
           <button
             type="button"
             onClick={onEnd}
             style={{
-              marginLeft: "auto",
-              cursor: "pointer",
-              border: "none",
-              background: "transparent",
-              color: "rgba(255,255,255,0.35)",
-              fontSize: 10,
-              textDecoration: "underline",
-              textUnderlineOffset: 3,
-              padding: "4px 2px",
+              marginLeft: "auto", cursor: "pointer", border: "none",
+              background: "transparent", color: "rgba(255,255,255,0.35)",
+              fontSize: 10, textDecoration: "underline", textUnderlineOffset: 3, padding: "4px 2px",
             }}
           >
             End tour
@@ -397,7 +333,7 @@ export default function GuidedTour({ steps, active, onEnd, stepIndex, onStepChan
   );
 }
 
-/* ── Tiny pill button for tour nav ── */
+/* ── Pill button ── */
 function TourBtn({ onClick, label, primary }: { onClick: () => void; label: string; primary?: boolean }) {
   return (
     <button
@@ -405,16 +341,12 @@ function TourBtn({ onClick, label, primary }: { onClick: () => void; label: stri
       onClick={onClick}
       style={{
         cursor: "pointer",
-        border: primary
-          ? "1px solid rgba(250,204,21,0.65)"
-          : "1px solid rgba(255,255,255,0.2)",
-        background: primary
-          ? "rgba(250,204,21,0.22)"
-          : "rgba(255,255,255,0.08)",
+        border: primary ? "1px solid rgba(250,204,21,0.65)" : "1px solid rgba(255,255,255,0.2)",
+        background: primary ? "rgba(250,204,21,0.22)" : "rgba(255,255,255,0.08)",
         color: "white",
-        padding: "5px 12px",
+        padding: "6px 14px",
         borderRadius: 999,
-        fontSize: 11,
+        fontSize: 12,
         fontWeight: primary ? 700 : 500,
         whiteSpace: "nowrap",
       }}
