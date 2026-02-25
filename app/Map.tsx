@@ -272,7 +272,7 @@ export default function ValueMap({
         const schoolsEnabled = (stateRef.current.schoolOverlayMode ?? "off") !== "off";
         const lookupMode: FloodSearchResult["lookupMode"] = floodEnabled
           ? (schoolsEnabled ? "both" : "flood")
-          : "schools";
+          : schoolsEnabled ? "schools" : undefined;
 
         const requestedCoords = await lookupPostcodeCoords(normalized);
         setPostcodeSearchMarker(map, requestedCoords);
@@ -343,6 +343,20 @@ export default function ValueMap({
               lookupMode,
               normalizedQuery: normalized,
               matchedPostcode: schoolAnchor.postcode,
+              schoolNearest: schoolNearestPayload,
+              schoolNearestGood: schoolNearestGoodPayload,
+            });
+            return;
+          }
+
+          // Even with no overlay active, navigate to the postcode if coords are known
+          if (requestedCoords) {
+            animateToPostcodeTarget(map, [requestedCoords.lon, requestedCoords.lat], Math.max(map.getZoom(), 13));
+            onPostcodeSearchResultRef.current?.({
+              status: "found",
+              lookupMode,
+              normalizedQuery: normalized,
+              matchedPostcode: normalized,
               schoolNearest: schoolNearestPayload,
               schoolNearestGood: schoolNearestGoodPayload,
             });

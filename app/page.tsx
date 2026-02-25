@@ -981,7 +981,10 @@ export default function Home() {
           }
 
           if (result.status === "found") {
-            setPostcodeSearchStatus(`Found ${result.matchedPostcode ?? result.normalizedQuery}${schoolSuffix}${schoolGoodSuffix}`);
+            const overlaySuffix = !floodLookupActive && !schoolLookupActive
+              ? " · Enable Flood or Schools overlay for flood risk / school data"
+              : "";
+            setPostcodeSearchStatus(`Found ${result.matchedPostcode ?? result.normalizedQuery}${schoolSuffix}${schoolGoodSuffix}${overlaySuffix}`);
             return;
           }
           if (result.status === "broad-has-risk") {
