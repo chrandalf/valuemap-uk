@@ -1301,12 +1301,18 @@ export default function ValueMap({
         const ptLabels: Record<string, string> = { ALL: "All types", D: "Detached", S: "Semi", T: "Terraced", F: "Flat" };
         const ptLabel = ptLabels[prefs.propertyType ?? "ALL"] ?? "";
         const affordRef = Number(p.ix_av ?? NaN);
-        const affordNoData = Number(p.ix_an ?? 0) === 1;
+        const ixan = Number(p.ix_an ?? 0);
+        const affordNoData   = ixan === 1; // truly no data
+        const affordEstimated = ixan === 2; // estimated via type-ratio
         const hasAffordRef = prefs.affordWeight > 0 && !affordNoData && Number.isFinite(affordRef) && affordRef > 0;
         const unit = stateRef.current.metric === "median_ppsf" ? " /ft²" : "";
         if (hasAffordRef) {
           const medianLabel = ptLabel && ptLabel !== "All types" ? `${ptLabel} median value` : "Median value";
-          html += `<div style="font-size:11px;opacity:0.9;margin-bottom:6px;">🏠 ${medianLabel}: <b>£${Math.round(affordRef).toLocaleString()}${unit}</b></div>`;
+          const estMark = affordEstimated ? " <span style='opacity:0.55;font-size:9px'>(est.)</span>" : "";
+          html += `<div style="font-size:11px;opacity:0.9;margin-bottom:${affordEstimated ? 2 : 6}px;">🏠 ${medianLabel}: <b>£${Math.round(affordRef).toLocaleString()}${unit}</b>${estMark}</div>`;
+          if (affordEstimated) {
+            html += `<div style="font-size:10px;opacity:0.55;margin-bottom:5px;">No ${ptLabel.toLowerCase()} sales in this cell — estimated from overall median</div>`;
+          }
         } else if (prefs.affordWeight > 0 && affordNoData) {
           const missingLabel = ptLabel && ptLabel !== "All types" ? ptLabel : "selected type";
           html += `<div style="font-size:11px;opacity:0.9;margin-bottom:6px;">🏠 ${missingLabel} median value: <b>❌ Not enough data</b></div>`;
@@ -2779,25 +2785,42 @@ async function applyIndexScoring(
     if (prefs.affordWeight > 0) {
       // Always prefer selected house-type median lookup for affordability, so
       // ALL/D/S/T/F references are consistent with Find My Area settings.
+      //
+      // UK-wide typical ratios of property-type median relative to the ALL-types median.
+      // Used to estimate affordability when no type-specific data exists for a cell
+      // (e.g. a London cell with no detached transactions is still almost certainly
+      // unaffordable at ~1.55× the overall median — don't silently score it neutral).
+      const TYPE_RATIO: Record<string, number> = { ALL: 1.0, D: 1.55, S: 1.10, T: 0.85, F: 0.70 };
       const gx = Number(props.gx); const gy = Number(props.gy);
       let cellValue = 0;
-      let affordHasData = false;
+      // 0 = real data  1 = no data at all  2 = estimated via type-ratio from overall median
+      let affordDataQuality = 1;
       if (ptLookup && Number.isFinite(gx) && Number.isFinite(gy)) {
         const lookedUp = ptLookup.get(`${gx}_${gy}`);
         if (lookedUp != null && lookedUp > 0) {
           cellValue = lookedUp;
-          affordHasData = true;
+          affordDataQuality = 0;
+        } else {
+          // Type-specific data missing for this cell — estimate from the overall/displayed
+          // cell median using the ratio of the desired type to the current map filter type.
+          const baseVal = Number(props[metricProp] ?? 0) || 0;
+          if (baseVal > 0) {
+            const fromRatio = TYPE_RATIO[state.propertyType] ?? 1.0;
+            const toRatio   = TYPE_RATIO[indexPT] ?? 1.0;
+            cellValue = baseVal * (toRatio / fromRatio);
+            affordDataQuality = 2;
+          }
         }
       } else {
         const fallback = Number(props[metricProp] ?? 0) || 0;
         if (fallback > 0) {
           cellValue = fallback;
-          affordHasData = true;
+          affordDataQuality = 0;
         }
       }
-      props.ix_av = affordHasData ? cellValue : null;
-      props.ix_an = affordHasData ? 0 : 1;
-      if (affordHasData && cellValue > 0 && prefs.budget > 0) {
+      props.ix_av = cellValue > 0 ? cellValue : null;
+      props.ix_an = affordDataQuality;
+      if (cellValue > 0 && prefs.budget > 0) {
         const ratio = cellValue / prefs.budget;
         affordScore = Math.max(0, Math.min(1, (1.6 - ratio) / 0.9));
       } else {

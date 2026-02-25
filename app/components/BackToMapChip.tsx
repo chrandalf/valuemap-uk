@@ -11,7 +11,10 @@ export default function BackToMapChip() {
     try {
       const stored = sessionStorage.getItem("valuemap:return-url");
       if (stored && stored.startsWith("/")) {
-        setHref(stored);
+        // Append from=docs so the intro modal (Find My Area) is suppressed on return
+        const url = new URL(stored, window.location.origin);
+        url.searchParams.set("from", "docs");
+        setHref(`${url.pathname}${url.search}`);
       }
     } catch {
       // ignore storage errors
