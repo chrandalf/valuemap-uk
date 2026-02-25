@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import ValueMap, { type LegendData, type LocateMeResult, type IndexPrefs } from "./Map";
+import GuidedTour, { type TourStep } from "./components/GuidedTour";
 
 type GridSize = "1km" | "5km" | "10km" | "25km";
 type Metric = "median" | "median_ppsf" | "delta_gbp" | "delta_pct";
@@ -201,6 +202,9 @@ export default function Home() {
   });
   const [indexSuitabilityMode, setIndexSuitabilityMode] = useState<ValueFilterMode>("off");
   const [indexSuitabilityThreshold, setIndexSuitabilityThreshold] = useState(65);
+  const [tourActive, setTourActive] = useState(false);
+  const [tourStep, setTourStep] = useState(0);
+  const [showMeVisible, setShowMeVisible] = useState(true);
   const introInitRef = useRef(false);
   const urlHydratedRef = useRef(false);
   const supportersScrollerRef = useRef<HTMLDivElement | null>(null);
@@ -321,6 +325,11 @@ export default function Home() {
       const next = `${url.pathname}${url.search}${url.hash}`;
       window.history.replaceState({}, "", next);
     }
+    // Show the "Show me" button only if user hasn't dismissed / finished the tour before
+    try {
+      const tourDone = localStorage.getItem("valuemap_tour_done");
+      if (tourDone === "1") setShowMeVisible(false);
+    } catch { /* ignore */ }
   }, []);
 
   const scrollSupportersRight = () => {
@@ -945,6 +954,144 @@ export default function Home() {
 
   const showOutcodePanel = false;
 
+  /* ═══ Guided tour step definitions ═══ */
+  const startTour = useCallback(() => {
+    // Reset UI to clean state before starting
+    closeAllSubpanels();
+    setControlsDropOpen(false);
+    setInfoDropOpen(false);
+    setCleanScreenMode(false);
+    setTourStep(0);
+    setTourActive(true);
+    setShowMeVisible(false);
+  }, []);
+
+  const endTour = useCallback(() => {
+    setTourActive(false);
+    setTourStep(0);
+    setShowMeVisible(false);
+    // Close anything the tour opened
+    closeAllSubpanels();
+    setControlsDropOpen(false);
+    setInfoDropOpen(false);
+    setIndexOpen(false);
+    // Remember tour was completed/dismissed
+    try { localStorage.setItem("valuemap_tour_done", "1"); } catch { /* ignore */ }
+  }, []);
+
+  const tourSteps: TourStep[] = useMemo(() => [
+    /* 0 — Welcome */
+    {
+      target: null,
+      title: "Welcome to the UK House Price Grid",
+      text: "This quick tour shows you how to get the most out of the map. There are two ways to explore: let the map score areas against your preferences, or browse manually. Let's walk through both.",
+      placement: "center",
+    },
+    /* 1 — Top bar overview */
+    {
+      target: "[data-tour='controls-btn']",
+      title: "Controls menu",
+      text: "This is your main menu. It opens Filters, Find my area, and Reset all. Let's open it now.",
+      placement: "bottom",
+      onEnter: () => { setControlsDropOpen(false); setInfoDropOpen(false); },
+    },
+    /* 2 — Controls dropdown visible */
+    {
+      target: "[data-tour='controls-btn']",
+      title: "Inside Controls",
+      text: "From here you can open the full Filters panel for grid, metric, type, and period. You can also open Find my area to score the map against your preferences. Let's start with Find my area.",
+      placement: "bottom",
+      enterDelay: 100,
+      onEnter: () => { setControlsDropOpen(true); setInfoDropOpen(false); },
+      onLeave: () => { setControlsDropOpen(false); },
+    },
+    /* 3 — Find My Area modal */
+    {
+      target: "[data-tour='index-modal']",
+      title: "🔍 Find my area",
+      text: "Set your budget with the slider, pick a property type, then drag the importance sliders for affordability, flood safety, and school quality. When ready, press Score areas — the map will turn green (great match) to red (poor match) at 1km detail.",
+      placement: "left",
+      enterDelay: 300,
+      onEnter: () => { setIndexOpen(true); setControlsDropOpen(false); },
+    },
+    /* 4 — Close Find My Area, show we're back */
+    {
+      target: null,
+      title: "After scoring",
+      text: "Once scored, the map recolours and an Area match filter appears on the right so you can hide cells above or below a suitability percentage. You can tap Edit scoring to refine, or Clear to return to the standard map. Let's skip scoring for now and look at manual exploration.",
+      placement: "center",
+      onEnter: () => { setIndexOpen(false); },
+    },
+    /* 5 — Quick dock */
+    {
+      target: "[data-tour='quick-dock']",
+      title: "Quick filter dock",
+      text: "This side dock lets you rapidly switch Metric, Type, New build, Period, or Grid without opening any menu. Press the → arrow to cycle between categories, then tap the option you want.",
+      placement: "right",
+      onEnter: () => { setFiltersOpen(false); },
+    },
+    /* 6 — Open full filters */
+    {
+      target: "[data-tour='controls-btn']",
+      title: "Full Filters panel",
+      text: "For more control, open Controls → Filters. This shows every parameter at once: grid resolution, metric, property type, new-build status, and time period.",
+      placement: "bottom",
+      onEnter: () => { setFiltersOpen(true); setControlsDropOpen(false); },
+    },
+    /* 7 — Filters panel detail */
+    {
+      target: "[data-tour='filters-panel']",
+      title: "Filters explained",
+      text: "Grid sets the cell size (25km for the big picture, 1km for street-level). Metric switches between Median price, Price per ft², and Change metrics. Type and New build keep comparisons like-for-like. Period lets you compare across years.",
+      placement: "right",
+    },
+    /* 8 — Close filters, show overlay panel */
+    {
+      target: "[data-tour='overlay-panel']",
+      title: "Overlay layers",
+      text: "Toggle Flood risk, School quality, and Political vote overlays here. Each can be On (dots over cells) or On (hide cells) which removes the price grid so you only see the overlay data. Flood and school data covers England only in this build.",
+      placement: "left",
+      onEnter: () => { setFiltersOpen(false); },
+    },
+    /* 9 — Legend */
+    {
+      target: "[data-tour='legend']",
+      title: "Legend",
+      text: "The legend updates automatically to match whichever metric or overlay is active. When index scoring is on, it shows the green-to-red match scale instead.",
+      placement: "left",
+    },
+    /* 10 — Postcode search */
+    ...(isMobileViewport ? [] : [{
+      target: "[data-tour='postcode-search']",
+      title: "Postcode search & Locate me",
+      text: "Type any postcode and press Go to fly to that area. If flood or school overlays are active, you'll also see the nearest risk point and school. Press 📍 Locate to use your GPS for a one-shot local check.",
+      placement: "bottom" as const,
+    }]),
+    /* 11 — Clicking cells */
+    {
+      target: null,
+      title: "Exploring cells",
+      text: "Click any coloured cell on the map to see postcodes inside that area. Each postcode links to Zoopla so you can check real listings. If Find my area scoring is active, the search follows your scoring preferences too.",
+      placement: "center",
+    },
+    /* 12 — Info menu */
+    {
+      target: "[data-tour='info-btn']",
+      title: "Info menu",
+      text: "Everything else lives here: full Instructions, Data sources, Election info, the project Description, and legal / privacy pages. All open as overlays so you never leave the map.",
+      placement: "bottom",
+      onEnter: () => { setInfoDropOpen(true); },
+      onLeave: () => { setInfoDropOpen(false); },
+    },
+    /* 13 — Finish */
+    {
+      target: null,
+      title: "You're ready!",
+      text: "Start with Find my area if you have preferences, or just zoom and explore. Tip: on mobile, the Clear button hides all panels so you can focus on the map — press Restore to bring them back. Happy exploring!",
+      placement: "center",
+    },
+  ], [isMobileViewport]);
+
   return (
     <main style={{ position: "relative", minHeight: "100vh", overflow: "hidden" }}>
       <Styles />
@@ -1041,12 +1188,16 @@ export default function Home() {
 
             <div ref={controlsDropRef} style={{ position: "relative", flexShrink: 0 }}>
               <button
+                data-tour="controls-btn"
                 type="button"
                 onClick={(e) => { e.stopPropagation(); setControlsDropOpen(v => !v); setInfoDropOpen(false); }}
                 style={{ cursor: "pointer", border: controlsDropOpen ? "1px solid rgba(250,204,21,0.7)" : "1px solid rgba(255,255,255,0.2)", background: controlsDropOpen ? "rgba(250,204,21,0.14)" : "rgba(255,255,255,0.08)", color: "white", padding: "5px 10px", borderRadius: 999, fontSize: 11, display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}
               >
                 ⚙ Controls ▾
               </button>
+              {controlsDropOpen && (
+                <span data-tour="controls-dropdown" style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, width: 1, height: 1, pointerEvents: "none" }} />
+              )}
               {controlsDropOpen && (
                 <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, width: 210, background: "rgba(8,10,22,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,0.16)", borderRadius: 10, padding: "6px 0", boxShadow: "0 10px 40px rgba(0,0,0,0.65)", zIndex: 200 }}>
                   {([
@@ -1081,6 +1232,7 @@ export default function Home() {
 
             <div ref={infoDropRef} style={{ position: "relative", flexShrink: 0 }}>
               <button
+                data-tour="info-btn"
                 type="button"
                 onClick={(e) => { e.stopPropagation(); setInfoDropOpen(v => !v); setControlsDropOpen(false); }}
                 style={{ cursor: "pointer", border: infoDropOpen ? "1px solid rgba(147,197,253,0.7)" : "1px solid rgba(255,255,255,0.2)", background: infoDropOpen ? "rgba(59,130,246,0.18)" : "rgba(255,255,255,0.08)", color: "white", padding: "5px 10px", borderRadius: 999, fontSize: 11, display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}
@@ -1088,8 +1240,12 @@ export default function Home() {
                 ℹ Info ▾
               </button>
               {infoDropOpen && (
+                <span data-tour="info-dropdown" style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, width: 1, height: 1, pointerEvents: "none" }} />
+              )}
+              {infoDropOpen && (
                 <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, width: 210, background: "rgba(8,10,22,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,0.16)", borderRadius: 10, padding: "6px 0", boxShadow: "0 10px 40px rgba(0,0,0,0.65)", zIndex: 200 }}>
                   {([
+                    { label: "✨ Show me how",   action: () => { setInfoDropOpen(false); startTour(); } },
                     { label: "📖 Instructions", action: () => { setInstructionsOpen(v => !v); setInfoDropOpen(false); bringToFront("instructions"); } },
                     { label: "📊 Data sources",  action: () => { setDataSourcesOpen(v => !v); setInfoDropOpen(false); bringToFront("datasources"); } },
                     { label: "🗳 Election info",  action: () => { setElectionInfoOpen(v => !v); setInfoDropOpen(false); bringToFront("electioninfo"); } },
@@ -1135,7 +1291,7 @@ export default function Home() {
             <div style={{ flex: 1 }} />
 
             {!isMobileViewport && (
-              <div style={{ display: "flex", gap: 4, alignItems: "center", flexShrink: 0 }}>
+              <div data-tour="postcode-search" style={{ display: "flex", gap: 4, alignItems: "center", flexShrink: 0 }}>
                 <input type="text"
                   value={postcodeSearch}
                   onChange={(e) => { setPostcodeSearch(e.target.value); if (postcodeSearchStatus) setPostcodeSearchStatus(null); }}
@@ -1231,7 +1387,7 @@ export default function Home() {
             <div style={{ fontWeight: 700, fontSize: 14 }}>🗂 Filters</div>
             <button type="button" onClick={() => setFiltersOpen(false)} style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "white", width: 26, height: 26, borderRadius: 999, fontSize: 15, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>✕</button>
           </div>
-          <div id="filters-panel" className="controls" data-open="true" style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
+          <div id="filters-panel" data-tour="filters-panel" className="controls" data-open="true" style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
             <ControlRow label="Grid">
               <Segment
                 options={isDeltaMetric(state.metric) ? ["5km", "10km", "25km"] : ["1km", "5km", "10km", "25km"]}
@@ -1390,6 +1546,7 @@ export default function Home() {
           onMouseDown={() => bringToFront("index")}
         >
           <div
+            data-tour="index-modal"
             className="index-modal"
             style={{
               width: compactIndexUi ? 352 : 380,
@@ -1759,6 +1916,7 @@ export default function Home() {
           )}
 
           <div
+            data-tour="overlay-panel"
             className="overlay-filter-panel mobile-collapsible"
             data-collapsed={overlayPanelCollapsed ? "true" : "false"}
             style={{
@@ -2059,6 +2217,7 @@ export default function Home() {
 
           {(legendOpen || indexActive) && (
             <div
+              data-tour="legend"
               className="legend"
               style={{
                 width: "100%",
@@ -2351,7 +2510,7 @@ export default function Home() {
       {!cleanScreenMode &&
         !anySubpanelOpen &&
         (
-        <div className="mobile-grid-dock" aria-label="Map grid controls">
+        <div data-tour="quick-dock" className="mobile-grid-dock" aria-label="Map grid controls">
           <button
             type="button"
             className="mobile-grid-btn"
@@ -2560,6 +2719,46 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* ── Show Me button (flashes on first load) ── */}
+      {showMeVisible && !tourActive && !cleanScreenMode && (
+        <button
+          data-tour="show-me"
+          type="button"
+          onClick={startTour}
+          style={{
+            position: "fixed",
+            bottom: isMobileViewport ? 18 : 24,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 60,
+            cursor: "pointer",
+            border: "2px solid rgba(250,204,21,0.75)",
+            background: "rgba(250,204,21,0.22)",
+            color: "white",
+            padding: isMobileViewport ? "10px 22px" : "12px 28px",
+            borderRadius: 999,
+            fontSize: isMobileViewport ? 13 : 14,
+            fontWeight: 700,
+            backdropFilter: "blur(10px)",
+            boxShadow: "0 4px 24px rgba(0,0,0,0.4)",
+            animation: "tourShowMePulse 1.6s ease-in-out infinite",
+            whiteSpace: "nowrap",
+            letterSpacing: 0.3,
+          }}
+        >
+          ✨ Show me how
+        </button>
+      )}
+
+      {/* ── Guided Tour overlay ── */}
+      <GuidedTour
+        steps={tourSteps}
+        active={tourActive}
+        onEnd={endTour}
+        stepIndex={tourStep}
+        onStepChange={setTourStep}
+      />
     </main>
   );
 }
