@@ -983,6 +983,7 @@ export default function Home() {
     setTourActive(false);
     setTourStep(0);
     setShowMePulse(false);
+    setCleanScreenMode(false);
     // Reset everything the demo may have changed
     resetAll();
     // Fly back to default UK view
@@ -1019,7 +1020,7 @@ export default function Home() {
       placement: "right" as const,
       noOverlay: true,
       enterDelay: 500,
-      onEnter: () => { closeAllSubpanels(); setInfoDropOpen(false); setControlsDropOpen(true); },
+      onEnter: () => { if (isMobileViewport) setCleanScreenMode(false); closeAllSubpanels(); setInfoDropOpen(false); setControlsDropOpen(true); },
     },
 
     /* 3 — Demo: open Find My Area modal */
@@ -1067,6 +1068,7 @@ export default function Home() {
       autoAdvanceOnly: true,
       waitFor: "[data-tour='area-match-filter']",
       onEnter: () => {
+        if (isMobileViewport) setCleanScreenMode(false);
         setIndexBudget(350000);
         setIndexPropertyType("ALL");
         setIndexAffordWeight(7);
@@ -1092,6 +1094,7 @@ export default function Home() {
       placement: "top-center" as const,
       enterDelay: 1200,
       onEnter: () => {
+        if (isMobileViewport) setCleanScreenMode(true);
         tourFlyTo([-1.55, 53.6], 9);
       },
     },
@@ -1104,6 +1107,9 @@ export default function Home() {
       placement: "top-center" as const,
       noOverlay: true,
       enterDelay: 1200,
+      onEnter: () => {
+        if (isMobileViewport) setCleanScreenMode(true);
+      },
     },
 
     /* 9 — Demo: explain what's inside a cell */
@@ -1114,6 +1120,9 @@ export default function Home() {
       placement: "top-center" as const,
       noOverlay: true,
       enterDelay: 1200,
+      onEnter: () => {
+        if (isMobileViewport) setCleanScreenMode(true);
+      },
     },
 
     /* 10 — Demo: area match filter — set to Above 65% */
@@ -1124,6 +1133,7 @@ export default function Home() {
       placement: "left" as const,
       enterDelay: 1000,
       onEnter: () => {
+        if (isMobileViewport) setCleanScreenMode(false);
         setIndexSuitabilityMode("gte");
         setIndexSuitabilityThreshold(65);
       },
@@ -1161,6 +1171,7 @@ export default function Home() {
       placement: "left" as const,
       enterDelay: 1000,
       onEnter: () => {
+        if (isMobileViewport) setCleanScreenMode(false);
         setState((s) => ({ ...s, floodOverlayMode: "on_hide_cells", schoolOverlayMode: "on_hide_cells" }));
       },
     },
@@ -1173,6 +1184,7 @@ export default function Home() {
       placement: "center" as const,
       enterDelay: 600,
       onEnter: () => {
+        if (isMobileViewport) setCleanScreenMode(false);
         setIndexScoringPending(false);
         setIndexActive(false);
         setIndexOpen(false);
@@ -1192,6 +1204,7 @@ export default function Home() {
       nextSectionIndex: 23,
       enterDelay: 1000,
       onEnter: () => {
+        if (isMobileViewport) setCleanScreenMode(false);
         // Ensure we're fully zoomed out — safety net in case prior zoom-out didn't complete
         tourFlyTo([-1.5, 53.5], 5);
       },
@@ -1205,6 +1218,7 @@ export default function Home() {
       placement: "right" as const,
       enterDelay: 700,
       onEnter: () => {
+        if (isMobileViewport) setCleanScreenMode(false);
         setMobileQuickFilterKey("grid");
         setGridMode("manual");
         setState((s) => ({ ...s, grid: "25km", metric: "median", propertyType: "ALL" }));
@@ -1298,6 +1312,7 @@ export default function Home() {
       placement: "top-center" as const,
       enterDelay: 1200,
       onEnter: () => {
+        if (isMobileViewport) setCleanScreenMode(true);
         setState((s) => ({ ...s, floodOverlayMode: "off", schoolOverlayMode: "off", voteOverlayMode: "off" }));
         tourFlyTo([-1.08, 53.96], 9);
       },
@@ -1311,6 +1326,7 @@ export default function Home() {
       placement: "left" as const,
       enterDelay: 1000,
       onEnter: () => {
+        if (isMobileViewport) setCleanScreenMode(false);
         setState((s) => ({ ...s, floodOverlayMode: "on_hide_cells", schoolOverlayMode: "off", voteOverlayMode: "off" }));
       },
     },
@@ -1323,6 +1339,9 @@ export default function Home() {
       placement: "top-center" as const,
       noOverlay: true,
       enterDelay: 1000,
+      onEnter: () => {
+        if (isMobileViewport) setCleanScreenMode(true);
+      },
     },
 
     /* 27 — Demo: switch to schools (hide-cells) */
@@ -1333,6 +1352,7 @@ export default function Home() {
       placement: "left" as const,
       enterDelay: 1200,
       onEnter: () => {
+        if (isMobileViewport) setCleanScreenMode(false);
         setState((s) => ({ ...s, floodOverlayMode: "off", schoolOverlayMode: "on_hide_cells" }));
       },
     },
@@ -1345,6 +1365,9 @@ export default function Home() {
       placement: "top-center" as const,
       noOverlay: true,
       enterDelay: 1000,
+      onEnter: () => {
+        if (isMobileViewport) setCleanScreenMode(true);
+      },
     },
 
     /* 29 — Demo: vote overlay — zoom out to show England */
@@ -1355,6 +1378,7 @@ export default function Home() {
       placement: "left" as const,
       enterDelay: 1200,
       onEnter: () => {
+        if (isMobileViewport) setCleanScreenMode(false);
         setState((s) => ({ ...s, schoolOverlayMode: "off", voteOverlayMode: "on" }));
         setTimeout(() => tourFlyTo([-1.4, 52.6], 6.5), 300);
       },
@@ -1368,6 +1392,7 @@ export default function Home() {
       placement: "left" as const,
       enterDelay: 1200,
       onEnter: () => {
+        if (isMobileViewport) setCleanScreenMode(false);
         setState((s) => ({ ...s, voteOverlayMode: "off", floodOverlayMode: "on_hide_cells", schoolOverlayMode: "on_hide_cells" }));
         setTimeout(() => tourFlyTo([-1.08, 53.96], 9), 300);
       },
@@ -1381,6 +1406,7 @@ export default function Home() {
       placement: "center" as const,
       enterDelay: 600,
       onEnter: () => {
+        if (isMobileViewport) setCleanScreenMode(false);
         setState((s) => ({ ...s, floodOverlayMode: "off", schoolOverlayMode: "off", voteOverlayMode: "off" }));
         tourFlyTo([-1.5, 53.5], 5);
       },
@@ -1404,7 +1430,7 @@ export default function Home() {
       text: "I've typed SW1A 1AA (near Buckingham Palace) into the search box. You can type any UK postcode — full or partial.",
       placement: isMobileViewport ? ("center" as const) : ("bottom" as const),
       enterDelay: 700,
-      onEnter: () => { setPostcodeSearch("SW1A 1AA"); },
+      onEnter: () => { if (isMobileViewport) setCleanScreenMode(false); setPostcodeSearch("SW1A 1AA"); },
     },
 
     /* 34 — Demo: press Go — tooltip at TOP so map result is visible underneath */
@@ -1455,7 +1481,7 @@ export default function Home() {
       placement: "right" as const,
       noOverlay: true,
       enterDelay: 700,
-      onEnter: () => { setControlsDropOpen(false); setInfoDropOpen(true); },
+      onEnter: () => { if (isMobileViewport) setCleanScreenMode(false); setControlsDropOpen(false); setInfoDropOpen(true); },
     },
 
     /* 38 — Demo: close Info */
