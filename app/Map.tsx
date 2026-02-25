@@ -80,6 +80,15 @@ function metricPropName(metric: Metric): "median" | "delta_gbp" | "delta_pct" {
   return "median";
 }
 
+function escapeHtml(value: unknown): string {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 type FloodSearchStatus = "found" | "broad-has-risk" | "no-risk-nearest" | "not-found" | "error";
 
 type FloodSearchResult = {
@@ -1178,11 +1187,13 @@ export default function ValueMap({
     const riskScore = Number(p.risk_score ?? 0);
     const riskBandRaw = String(p.risk_band ?? "").trim();
     const riskBand = riskBandRaw ? riskBandRaw : riskLabelFromScore(riskScore);
+    const postcodeHtml = escapeHtml(postcode);
+    const riskBandHtml = escapeHtml(riskBand);
 
     const html = `
       <div style="font-family: system-ui; font-size: 12px; line-height: 1.25;">
-        <div style="font-weight: 700; margin-bottom: 4px;">${postcode}</div>
-        <div>Flood risk: <b>${riskBand}</b></div>
+        <div style="font-weight: 700; margin-bottom: 4px;">${postcodeHtml}</div>
+        <div>Flood risk: <b>${riskBandHtml}</b></div>
         <div>Score: <b>${riskScore}</b></div>
         <a
           href="https://buymeacoffee.com/chrandalf"
@@ -1230,12 +1241,15 @@ export default function ValueMap({
     const postcode = String(p.postcode ?? p.postcode_key ?? "Unknown postcode");
     const qualityScore = Number(p.quality_score ?? NaN);
     const qualityBand = String(p.quality_band ?? "Unknown");
+    const schoolNameHtml = escapeHtml(schoolName);
+    const postcodeHtml = escapeHtml(postcode);
+    const qualityBandHtml = escapeHtml(qualityBand);
 
     const html = `
       <div style="font-family: system-ui; font-size: 12px; line-height: 1.25;">
-        <div style="font-weight: 700; margin-bottom: 4px;">${schoolName}</div>
-        <div>Postcode: <b>${postcode}</b></div>
-        <div>School quality: <b>${qualityBand}</b></div>
+        <div style="font-weight: 700; margin-bottom: 4px;">${schoolNameHtml}</div>
+        <div>Postcode: <b>${postcodeHtml}</b></div>
+        <div>School quality: <b>${qualityBandHtml}</b></div>
         <div>Score: <b>${Number.isFinite(qualityScore) ? qualityScore.toFixed(3) : "N/A"}</b></div>
       </div>
     `;
@@ -1375,6 +1389,7 @@ export default function ValueMap({
 
     if (voteMode !== "off") {
       const constituency = String(p.constituency ?? "Cell vote estimate");
+      const constituencyHtml = escapeHtml(constituency);
       const hasVoteData = Number.isFinite(prog) || Number.isFinite(cons) || Number.isFinite(right);
       const progSafe = Number.isFinite(prog) ? prog : 0;
       const consSafe = Number.isFinite(cons) ? cons : 0;
@@ -1388,7 +1403,7 @@ export default function ValueMap({
       const html = hasVoteData
         ? `
           <div style="font-family: system-ui; font-size: 12px; line-height: 1.3;">
-            <div style="font-weight: 700; margin-bottom: 4px;">${constituency}</div>
+            <div style="font-weight: 700; margin-bottom: 4px;">${constituencyHtml}</div>
             <div>Progressive: <b>${(progSafe * 100).toFixed(1)}%</b></div>
             <div>Conservative: <b>${(consSafe * 100).toFixed(1)}%</b></div>
             <div>Popular Right: <b>${(rightSafe * 100).toFixed(1)}%</b></div>
@@ -2512,13 +2527,15 @@ function updateOverlayFromFeatureCollection(
       : metric === "median_ppsf"
         ? "Weighted median PPSF"
         : "Weighted median";
-    let html = `<div style="font-weight:700">${metricLabel}: N/A</div>`;
+    const metricLabelHtml = escapeHtml(metricLabel);
+    let html = `<div style="font-weight:700">${metricLabelHtml}: N/A</div>`;
     if (sumW > 0) {
       const avg = Math.round(sumWX / sumW);
       const val = metric === "median_ppsf"
         ? `GBP ${avg.toLocaleString()} / ft²`
         : `GBP ${avg.toLocaleString()}`;
-      html = `<div style="font-weight:700">${metricLabel}: ${val}</div>`;
+      const valHtml = escapeHtml(val);
+      html = `<div style="font-weight:700">${metricLabelHtml}: ${valHtml}</div>`;
       html += `<div style="margin-top:4px">Transactions: <b>${sumW.toLocaleString()}</b></div>`;
       onStats?.({ label: metricLabel, value: val, txCount: sumW });
     } else {
