@@ -65,3 +65,14 @@ textarea {
     top: 92px !important;
   }
 }
+
+@keyframes scoringPulse {
+  0%, 100% { box-shadow: 0 8px 48px rgba(0,0,0,0.7), 0 0 0 1px rgba(26,152,80,0.2); }
+  50%       { box-shadow: 0 8px 48px rgba(0,0,0,0.7), 0 0 0 4px rgba(26,152,80,0.45); }
+}
+
+@keyframes scoringDot {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.35; }
+  40%           { transform: scale(1.2); opacity: 1; }
+}
+

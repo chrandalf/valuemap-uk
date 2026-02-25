@@ -1561,6 +1561,7 @@ export default function Home() {
                   setIndexScoringPending(true);
                   setIndexActive(true);
                   setIndexToken((t) => t + 1);
+                  setIndexSuitabilityMode("off"); // reset area match filter for fresh run
                   setIndexOpen(false);
                 }}
                 style={{
@@ -2471,6 +2472,55 @@ export default function Home() {
               </button>
             </>
           )}
+        </div>
+      )}
+
+      {/* ── Scoring loading overlay ── */}
+      {indexScoringPending && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0, left: 0, right: 0, bottom: 0,
+            zIndex: 500,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            pointerEvents: "none",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 14,
+              padding: "22px 32px",
+              borderRadius: 18,
+              background: "rgba(10,12,20,0.92)",
+              border: "1px solid rgba(26,152,80,0.55)",
+              backdropFilter: "blur(14px)",
+              boxShadow: "0 8px 48px rgba(0,0,0,0.7), 0 0 0 1px rgba(26,152,80,0.2)",
+              color: "white",
+              animation: "scoringPulse 1.6s ease-in-out infinite",
+            }}
+          >
+            <div style={{ fontSize: 32, lineHeight: 1 }}>🗺️</div>
+            <div style={{ fontWeight: 700, fontSize: 15 }}>Scoring areas…</div>
+            <div style={{ fontSize: 11, opacity: 0.65, textAlign: "center", maxWidth: 200, lineHeight: 1.4 }}>Calculating match scores across every cell on the map</div>
+            <div style={{ display: "flex", gap: 5 }}>
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  style={{
+                    width: 8, height: 8,
+                    borderRadius: 999,
+                    background: "rgba(26,152,80,0.9)",
+                    animation: `scoringDot 1.2s ease-in-out ${i * 0.2}s infinite`,
+                  }}
+                />
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
