@@ -1110,7 +1110,7 @@ export default function Home() {
     {
       target: null,
       title: "Step 8 — What's inside each cell?",
-      text: "Go ahead — click any coloured cell on the map now! A popup appears showing the median price, number of sales, and postcodes inside that 1km square. Every postcode links to Zoopla for real listings. Close the popup and press Next when you're ready.",
+      text: "Go ahead — click any coloured cell on the map now! Because scoring is active, the popup shows your Match Score with a breakdown: how well it scored on Affordability, Flood Safety, and Schools, each weighted by your importance sliders. Close the popup and press Next when you're ready.",
       placement: "top-center" as const,
       noOverlay: true,
       enterDelay: 1200,
