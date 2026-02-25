@@ -6,24 +6,39 @@ const fallbackHref = "/?from=docs";
 
 export default function BackToMapChip() {
   const [href, setHref] = useState(fallbackHref);
+  const [inIframe, setInIframe] = useState(false);
 
   useEffect(() => {
-    try {
-      const stored = sessionStorage.getItem("valuemap:return-url");
-      if (stored && stored.startsWith("/")) {
-        // Append from=docs so the intro modal (Find My Area) is suppressed on return
-        const url = new URL(stored, window.location.origin);
-        url.searchParams.set("from", "docs");
-        setHref(`${url.pathname}${url.search}`);
+    // Check if we're running inside the doc modal iframe
+    const embedded = typeof window !== "undefined" &&
+      (window !== window.top || new URLSearchParams(window.location.search).get("embedded") === "1");
+    setInIframe(embedded);
+
+    if (!embedded) {
+      try {
+        const stored = sessionStorage.getItem("valuemap:return-url");
+        if (stored && stored.startsWith("/")) {
+          const url = new URL(stored, window.location.origin);
+          url.searchParams.set("from", "docs");
+          setHref(`${url.pathname}${url.search}`);
+        }
+      } catch {
+        // ignore storage errors
       }
-    } catch {
-      // ignore storage errors
     }
   }, []);
 
+  const handleClick = (e: React.MouseEvent) => {
+    if (inIframe) {
+      e.preventDefault();
+      try { window.parent.postMessage("close-doc-modal", "*"); } catch { /* ignore */ }
+    }
+  };
+
   return (
     <a
-      href={href}
+      href={inIframe ? "#" : href}
+      onClick={handleClick}
       style={{
         display: "inline-flex",
         alignItems: "center",
@@ -35,9 +50,10 @@ export default function BackToMapChip() {
         color: "white",
         textDecoration: "none",
         fontSize: 12,
+        cursor: "pointer",
       }}
     >
-      Back to map
+      ← Back to map
     </a>
   );
 }

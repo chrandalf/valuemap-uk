@@ -173,6 +173,7 @@ export default function Home() {
   const [cleanScreenMode, setCleanScreenMode] = useState(false);
   const [controlsDropOpen, setControlsDropOpen] = useState(false);
   const [infoDropOpen, setInfoDropOpen] = useState(false);
+  const [docModalSrc, setDocModalSrc] = useState<string | null>(null);
   const [panelFront, setPanelFront] = useState<Record<string, number>>({});
   const zSeqRef = useRef(0);
   const controlsDropRef = useRef<HTMLDivElement | null>(null);
@@ -463,6 +464,15 @@ export default function Home() {
 
   useEffect(() => {
     urlHydratedRef.current = true;
+  }, []);
+
+  // Close doc modal when iframe BackToMapChip sends a postMessage
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data === "close-doc-modal") setDocModalSrc(null);
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
   }, []);
 
   useEffect(() => {
@@ -1075,29 +1085,22 @@ export default function Home() {
               {infoDropOpen && (
                 <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, width: 210, background: "rgba(8,10,22,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,0.16)", borderRadius: 10, padding: "6px 0", boxShadow: "0 10px 40px rgba(0,0,0,0.65)", zIndex: 200 }}>
                   {([
-                    { label: "📖 Instructions", href: "/instructions" },
-                    { label: "📊 Data sources", href: "/data-sources" },
-                    { label: "🗳 Election info", href: "/election-info" },
-                    { label: "📝 Description", href: "/description" },
-                    { label: "🗺 Next steps", href: "/next-steps" },
-                    { label: "✉ Contact", href: "/contact" },
-                    { label: "⚖ Legal", href: "/legal" },
-                    { label: "🔒 Privacy", href: "/privacy" },
-                  ] as Array<{ label: string; href: string }>).map(({ label, href }) => (
-                    <a key={href} href={href} style={{ display: "block", padding: "8px 14px", fontSize: 11, color: "white", textDecoration: "none" }}
-                      onClick={() => {
-                        if (typeof window === "undefined") return;
-                        try {
-                          sessionStorage.setItem("valuemap:return-url", `${window.location.pathname}${window.location.search}`);
-                        } catch {
-                          // ignore storage errors
-                        }
-                      }}
+                    { label: "📖 Instructions", action: () => { setInstructionsOpen(v => !v); setInfoDropOpen(false); bringToFront("instructions"); } },
+                    { label: "📊 Data sources",  action: () => { setDataSourcesOpen(v => !v); setInfoDropOpen(false); bringToFront("datasources"); } },
+                    { label: "🗳 Election info",  action: () => { setElectionInfoOpen(v => !v); setInfoDropOpen(false); bringToFront("electioninfo"); } },
+                    { label: "📝 Description",   action: () => { setDocModalSrc("/description?embedded=1"); setInfoDropOpen(false); } },
+                    { label: "🗺 Next steps",    action: () => { setDocModalSrc("/next-steps?embedded=1"); setInfoDropOpen(false); } },
+                    { label: "✉ Contact",        action: () => { setDocModalSrc("/contact?embedded=1"); setInfoDropOpen(false); } },
+                    { label: "⚖ Legal",          action: () => { setDocModalSrc("/legal?embedded=1"); setInfoDropOpen(false); } },
+                    { label: "🔒 Privacy",       action: () => { setDocModalSrc("/privacy?embedded=1"); setInfoDropOpen(false); } },
+                  ] as Array<{ label: string; action: () => void }>).map(({ label, action }) => (
+                    <button key={label} type="button" onClick={action}
+                      style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", color: "white", cursor: "pointer", padding: "8px 14px", fontSize: 11 }}
                       onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
-                      onMouseLeave={e => (e.currentTarget.style.background = "")}
+                      onMouseLeave={e => (e.currentTarget.style.background = "none")}
                     >
                       {label}
-                    </a>
+                    </button>
                   ))}
                 </div>
               )}
@@ -2468,6 +2471,28 @@ export default function Home() {
               </button>
             </>
           )}
+        </div>
+      )}
+
+      {/* ── Doc modal (iframe overlay for description, next-steps, legal, privacy, contact) ── */}
+      {docModalSrc && (
+        <div
+          style={{ position: "fixed", inset: 0, zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}
+          onClick={(e) => { if (e.target === e.currentTarget) setDocModalSrc(null); }}
+        >
+          <div style={{ position: "relative", width: 680, maxWidth: "calc(100vw - 24px)", height: "min(88vh, 820px)", borderRadius: 16, overflow: "hidden", border: "1px solid rgba(255,255,255,0.18)", boxShadow: "0 16px 60px rgba(0,0,0,0.7)", display: "flex", flexDirection: "column" }}>
+            <button
+              type="button"
+              onClick={() => setDocModalSrc(null)}
+              style={{ position: "absolute", top: 10, right: 12, zIndex: 10, cursor: "pointer", border: "1px solid rgba(255,255,255,0.25)", background: "rgba(10,12,20,0.85)", color: "white", width: 30, height: 30, borderRadius: 999, fontSize: 16, display: "inline-flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(6px)" }}
+              aria-label="Close"
+            >✕</button>
+            <iframe
+              src={docModalSrc}
+              style={{ flex: 1, border: "none", width: "100%", height: "100%", borderRadius: 16, background: "rgba(10,12,20,0.98)" }}
+              title="Info"
+            />
+          </div>
         </div>
       )}
     </main>
