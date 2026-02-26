@@ -1607,7 +1607,10 @@ export default function ValueMap({
     } else if (prevIndexActiveRef.current) {
       // Restore opacity then re-apply quantile colour mapping (NOT static getFillColorExpression)
       if (map.getLayer("cells-fill")) {
-        map.setPaintProperty("cells-fill", "fill-opacity", 0.72);
+        const hideCells =
+          (stateRef.current.floodOverlayMode ?? "off") === "on_hide_cells" ||
+          (stateRef.current.schoolOverlayMode ?? "off") === "on_hide_cells";
+        map.setPaintProperty("cells-fill", "fill-opacity", hideCells ? 0.09 : 0.42);
       }
       applyCombinedCellFilters(map, stateRef.current, null);
       prevIndexScoringSignatureRef.current = null;
@@ -1616,101 +1619,84 @@ export default function ValueMap({
     prevIndexActiveRef.current = active;
   }, [indexPrefs, onLegendChange]);
 
+  // Single consolidated effect for flood/school overlay visibility + hide-cells opacity.
+  // Using one effect (rather than three separate ones) avoids a race where setLayoutProperty
+  // calls for visibility cause MapLibre to briefly mark style.loaded()=false, which would
+  // silently prevent a following hide-cells effect from updating fill-opacity.
+  // A requestAnimationFrame deferral ensures all layout changes are committed before
+  // paint properties are updated, fixing both:
+  //   - Off → On (hide cells): cells not fading (hide-cells effect blocked by prior layout call)
+  //   - Going to Off: cells staying near-transparent (white) for same reason
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    if (!map.isStyleLoaded()) return;
 
-    const mode = state.floodOverlayMode ?? "off";
-    const floodVisibility = mode === "off" ? "none" : "visible";
-    try {
-      if (map.getLayer("flood-overlay-fill")) {
-        map.setLayoutProperty("flood-overlay-fill", "visibility", floodVisibility);
+    const floodMode = state.floodOverlayMode ?? "off";
+    const schoolMode = state.schoolOverlayMode ?? "off";
+    const floodVisibility = floodMode === "off" ? "none" : "visible";
+    const schoolVisibility = schoolMode === "off" ? "none" : "visible";
+    const hideCellsMode = floodMode === "on_hide_cells" || schoolMode === "on_hide_cells";
+
+    const apply = () => {
+      try {
+        // Flood layer visibility
+        if (map.getLayer("flood-overlay-fill")) map.setLayoutProperty("flood-overlay-fill", "visibility", floodVisibility);
+        if (map.getLayer("flood-overlay-outline")) map.setLayoutProperty("flood-overlay-outline", "visibility", floodVisibility);
+        if (map.getLayer("flood-overlay-points")) map.setLayoutProperty("flood-overlay-points", "visibility", floodVisibility);
+        if (map.getLayer("flood-overlay-clusters")) map.setLayoutProperty("flood-overlay-clusters", "visibility", floodVisibility);
+        if (map.getLayer("flood-overlay-cluster-count")) map.setLayoutProperty("flood-overlay-cluster-count", "visibility", floodVisibility);
+
+        // School layer visibility
+        if (map.getLayer("school-overlay-points")) map.setLayoutProperty("school-overlay-points", "visibility", schoolVisibility);
+        if (map.getLayer("school-overlay-clusters")) map.setLayoutProperty("school-overlay-clusters", "visibility", schoolVisibility);
+        if (map.getLayer("school-overlay-cluster-count")) map.setLayoutProperty("school-overlay-cluster-count", "visibility", schoolVisibility);
+        if (schoolMode === "off") setSchoolSearchFocus(map, null, null, null);
+
+        // Cell opacity — applied in the same call so it cannot be skipped by a mid-layout bail
+        if (map.getLayer("cells-fill")) {
+          map.setLayoutProperty("cells-fill", "visibility", "visible");
+          map.setPaintProperty("cells-fill", "fill-opacity", hideCellsMode ? 0.09 : 0.42);
+        }
+        if (map.getLayer("cells-outline")) {
+          map.setLayoutProperty("cells-outline", "visibility", "visible");
+          map.setPaintProperty("cells-outline", "line-opacity", hideCellsMode ? 0.22 : 1);
+        }
+        if (map.getLayer("cells-no-sales")) {
+          map.setLayoutProperty("cells-no-sales", "visibility", "visible");
+          map.setPaintProperty("cells-no-sales", "text-opacity", hideCellsMode ? 0.2 : 1);
+        }
+      } catch (e) {
+        // ignore
       }
-      if (map.getLayer("flood-overlay-outline")) {
-        map.setLayoutProperty("flood-overlay-outline", "visibility", floodVisibility);
-      }
-      if (map.getLayer("flood-overlay-points")) {
-        map.setLayoutProperty("flood-overlay-points", "visibility", floodVisibility);
-      }
-      if (map.getLayer("flood-overlay-clusters")) {
-        map.setLayoutProperty("flood-overlay-clusters", "visibility", floodVisibility);
-      }
-      if (map.getLayer("flood-overlay-cluster-count")) {
-        map.setLayoutProperty("flood-overlay-cluster-count", "visibility", floodVisibility);
-      }
-    } catch (e) {
-      // ignore
+    };
+
+    if (!map.getLayer("cells-fill")) {
+      // Layers not yet initialised (map.on("load") hasn't fired yet); retry once idle
+      map.once("idle", apply);
+      return () => { map.off("idle", apply); };
     }
-  }, [state.floodOverlayMode]);
 
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    if (!map.isStyleLoaded()) return;
-
-    const mode = state.schoolOverlayMode ?? "off";
-    const schoolVisibility = mode === "off" ? "none" : "visible";
-    try {
-      if (map.getLayer("school-overlay-points")) {
-        map.setLayoutProperty("school-overlay-points", "visibility", schoolVisibility);
-      }
-      if (map.getLayer("school-overlay-clusters")) {
-        map.setLayoutProperty("school-overlay-clusters", "visibility", schoolVisibility);
-      }
-      if (map.getLayer("school-overlay-cluster-count")) {
-        map.setLayoutProperty("school-overlay-cluster-count", "visibility", schoolVisibility);
-      }
-      if (mode === "off") {
-        setSchoolSearchFocus(map, null, null, null);
-      }
-    } catch (e) {
-      // ignore
-    }
-  }, [state.schoolOverlayMode]);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    if (!map.isStyleLoaded()) return;
-
-    const floodHideCells = (state.floodOverlayMode ?? "off") === "on_hide_cells";
-    const schoolHideCells = (state.schoolOverlayMode ?? "off") === "on_hide_cells";
-    const hideCellsMode = floodHideCells || schoolHideCells;
-
-    try {
-      if (map.getLayer("cells-fill")) {
-        map.setLayoutProperty("cells-fill", "visibility", "visible");
-        map.setPaintProperty("cells-fill", "fill-opacity", hideCellsMode ? 0.09 : 0.42);
-      }
-      if (map.getLayer("cells-outline")) {
-        map.setLayoutProperty("cells-outline", "visibility", "visible");
-        map.setPaintProperty("cells-outline", "line-opacity", hideCellsMode ? 0.22 : 1);
-      }
-      if (map.getLayer("cells-no-sales")) {
-        map.setLayoutProperty("cells-no-sales", "visibility", "visible");
-        map.setPaintProperty("cells-no-sales", "text-opacity", hideCellsMode ? 0.2 : 1);
-      }
-    } catch (e) {
-      // ignore
-    }
+    // Defer by one rAF so MapLibre finishes processing any outstanding layout changes
+    // before we apply paint property updates.
+    const raf = requestAnimationFrame(apply);
+    return () => { cancelAnimationFrame(raf); };
   }, [state.floodOverlayMode, state.schoolOverlayMode]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    if (!map.isStyleLoaded()) return;
+    // Use getLayer check rather than isStyleLoaded() — sources loading asynchronously
+    // can cause isStyleLoaded() to return false even on a live map.
+    if (!map.getLayer("cells-fill")) return;
 
     const mode = state.voteOverlayMode ?? "off";
     const scale = state.voteColorScale ?? "relative";
 
     try {
-      if (map.getLayer("cells-fill")) {
-        if (mode === "off") {
-          void ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange, onStatsUpdateRef.current);
-        } else {
-          applyVoteOverlayColorFromSource(map, scale);
-        }
+      if (mode === "off") {
+        void ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange, onStatsUpdateRef.current);
+      } else {
+        applyVoteOverlayColorFromSource(map, scale);
       }
     } catch (e) {
       // ignore
