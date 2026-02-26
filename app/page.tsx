@@ -148,7 +148,7 @@ export default function Home() {
   const [instructionsPage, setInstructionsPage] = useState(1);
   const [dataSourcesOpen, setDataSourcesOpen] = useState(false);
   const [electionInfoOpen, setElectionInfoOpen] = useState(false);
-  const [voteKeyOpen, setVoteKeyOpen] = useState(false);
+
   const [postcodeOpen, setPostcodeOpen] = useState(false);
   const [legendOpen, setLegendOpen] = useState(true);
   const [outcodeTop, setOutcodeTop] = useState<OutcodeRank[]>([]);
@@ -2474,63 +2474,24 @@ export default function Home() {
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 8,
-                  flexWrap: "nowrap",
-                  overflowX: "auto",
-                  whiteSpace: "nowrap",
+                  gap: 6,
+                  flexWrap: "wrap",
                 }}
               >
                 <Segment
-                  compact
                   options={["off", "on"]}
                   value={state.voteOverlayMode}
                   onChange={(v) => setState((s) => ({ ...s, voteOverlayMode: v as VoteOverlayMode }))}
                   renderOption={(v) => (v === "on" ? "On" : "Off")}
                 />
                 <Segment
-                  compact
                   options={["relative", "absolute"]}
                   value={state.voteColorScale}
                   onChange={(v) => setState((s) => ({ ...s, voteColorScale: v as VoteColorScale }))}
                   renderOption={(v) => (v === "relative" ? "Relative" : "Absolute")}
                 />
-                <button
-                  type="button"
-                  onClick={() => setVoteKeyOpen((x) => !x)}
-                  style={{
-                    cursor: "pointer",
-                    border: "1px solid rgba(255,255,255,0.18)",
-                    background: "rgba(255,255,255,0.08)",
-                    color: "white",
-                    padding: "6px 10px",
-                    borderRadius: 999,
-                    fontSize: 11,
-                    flex: "0 0 auto",
-                  }}
-                >
-                  {voteKeyOpen ? "Hide key" : "Open key"}
-                </button>
               </div>
             </div>
-            {voteKeyOpen && (
-              <div
-                style={{
-                  marginTop: 8,
-                  padding: "8px 10px",
-                  borderRadius: 10,
-                  background: "rgba(255,255,255,0.08)",
-                  border: "1px solid rgba(255,255,255,0.16)",
-                  fontSize: 10,
-                  lineHeight: 1.35,
-                  opacity: 0.9,
-                }}
-              >
-                <div style={{ fontWeight: 700, marginBottom: 4 }}>Election overlay key</div>
-                <div><b>Progressive:</b> Labour, Lib Dem, Green, SNP, Plaid Cymru, Alliance, SDLP, Sinn Féin (+ aligned).</div>
-                <div style={{ marginTop: 4 }}><b>Conservative:</b> Conservative and unionist family parties.</div>
-                <div style={{ marginTop: 4 }}><b>Popular Right:</b> Reform UK and related right-populist parties.</div>
-              </div>
-            )}
           </div>
 
           {!indexActive && (
@@ -3208,8 +3169,8 @@ export default function Home() {
         </div>
       )}
 
-      {/* ── Show Me button (permanent on mobile, pulses on first load only) ── */}
-      {!tourActive && !cleanScreenMode && isMobileViewport && (
+      {/* ── Show Me button (mobile, only until tour completed) ── */}
+      {!tourActive && !cleanScreenMode && isMobileViewport && showMePulse && (
         <button
           data-tour="show-me"
           type="button"
@@ -3432,9 +3393,9 @@ export function Styles() {
           position: fixed !important;
           left: 10px !important;
           right: auto !important;
-          top: 50% !important;
-          bottom: auto !important;
-          transform: translateY(-50%);
+          bottom: 14px !important;
+          top: auto !important;
+          transform: none !important;
           z-index: 5 !important;
           gap: 4px;
           flex-direction: column;
