@@ -3568,7 +3568,8 @@ export function Styles() {
         }
         .postcode-wrap {
           position: fixed !important;
-          left: 12px !important;
+          /* left offset clears the mobile-grid-dock column (10px + ~48px btn + 6px gap) */
+          left: 68px !important;
           right: 12px !important;
           top: auto !important;
           bottom: 12px !important;
