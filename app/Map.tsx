@@ -179,6 +179,7 @@ export default function ValueMap({
   onZoomChange,
   postcodeSearchQuery,
   postcodeSearchToken,
+  postcodeSearchClearToken,
   onPostcodeSearchResult,
   locateMeToken,
   onLocateMeResult,
@@ -193,6 +194,8 @@ export default function ValueMap({
   onZoomChange?: (zoom: number) => void;
   postcodeSearchQuery?: string;
   postcodeSearchToken?: number;
+  /** Incrementing token: when it changes the map clears all postcode search state (marker, flood/school focus). */
+  postcodeSearchClearToken?: number;
   onPostcodeSearchResult?: (result: FloodSearchResult) => void;
   locateMeToken?: number;
   onLocateMeResult?: (result: LocateMeResult) => void;
@@ -252,6 +255,18 @@ export default function ValueMap({
     onIndexScoringAppliedRef.current = onIndexScoringApplied;
     onStatsUpdateRef.current = onStatsUpdate;
   }, [onIndexScoringApplied, onStatsUpdate]);
+
+  // ── postcodeSearchClearToken: wipe all postcode search state from the map ──
+  useEffect(() => {
+    if (!postcodeSearchClearToken) return;
+    const map = mapRef.current;
+    if (!map) return;
+    setPostcodeSearchMarker(map, null);
+    setFloodSearchFocus(map, null);
+    setFloodSearchContext(map, null);
+    setSchoolSearchFocus(map, null, null, null);
+    setPostcodeCell(null);
+  }, [postcodeSearchClearToken]);
 
   // ── flyToRequest: let parent drive map pan/zoom (used by guided tour) ──
   const flyToTokenRef = useRef(0);

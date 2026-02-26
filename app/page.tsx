@@ -163,6 +163,7 @@ export default function Home() {
   const [postcodeSearch, setPostcodeSearch] = useState("");
   const [activePostcodeSearch, setActivePostcodeSearch] = useState("");
   const [postcodeSearchToken, setPostcodeSearchToken] = useState(0);
+  const [postcodeSearchClearToken, setPostcodeSearchClearToken] = useState(0);
   const [postcodeSearchStatus, setPostcodeSearchStatus] = useState<string | null>(null);
   const [locateMeToken, setLocateMeToken] = useState(0);
   const [locateMeStatus, setLocateMeStatus] = useState<string | null>(null);
@@ -270,6 +271,7 @@ export default function Home() {
     setInfoDropOpen(false);
     setActivePostcodeSearch("");
     setPostcodeSearchStatus(null);
+    setPostcodeSearchClearToken((v) => v + 1);
     setIndexOpen(false);
     setIndexActive(false);
     setIndexScoringPending(false);
@@ -1513,6 +1515,7 @@ export default function Home() {
         onZoomChange={handleMapZoomChange}
         postcodeSearchQuery={activePostcodeSearch}
         postcodeSearchToken={postcodeSearchToken}
+        postcodeSearchClearToken={postcodeSearchClearToken}
         locateMeToken={locateMeToken}
         onLocateMeResult={handleLocateMeResult}
         indexPrefs={computedIndexPrefs}
@@ -1729,7 +1732,16 @@ export default function Home() {
               <div data-tour="postcode-search" style={{ display: "flex", gap: 4, alignItems: "center", flexShrink: 0 }}>
                 <input type="text"
                   value={postcodeSearch}
-                  onChange={(e) => { setPostcodeSearch(e.target.value); if (postcodeSearchStatus) setPostcodeSearchStatus(null); }}
+                  onChange={(e) => {
+                    setPostcodeSearch(e.target.value);
+                    if (postcodeSearchStatus) setPostcodeSearchStatus(null);
+                    // If user clears the input box, also wipe the committed search so overlay
+                    // button changes no longer re-zoom to the old postcode.
+                    if (!e.target.value.trim() && activePostcodeSearch) {
+                      setActivePostcodeSearch("");
+                      setPostcodeSearchClearToken((v) => v + 1);
+                    }
+                  }}
                   onKeyDown={(e) => { if (e.key === "Enter") { const q = postcodeSearch.trim(); if (q) { setActivePostcodeSearch(q); setPostcodeSearchToken(v => v + 1); } } }}
                   placeholder="Search postcode…"
                   aria-label="Search postcode"
@@ -1741,6 +1753,22 @@ export default function Home() {
                 >
                   Go
                 </button>
+                {activePostcodeSearch && (
+                  <button
+                    type="button"
+                    title="Clear postcode search"
+                    aria-label="Clear postcode search"
+                    onClick={() => {
+                      setPostcodeSearch("");
+                      setActivePostcodeSearch("");
+                      setPostcodeSearchStatus(null);
+                      setPostcodeSearchClearToken((v) => v + 1);
+                    }}
+                    style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.22)", background: "rgba(239,68,68,0.18)", color: "rgba(255,255,255,0.85)", padding: "5px 8px", borderRadius: 7, fontSize: 12, lineHeight: 1 }}
+                  >
+                    ×
+                  </button>
+                )}
                 <button type="button"
                   onClick={() => { setLocateMeStatus("Requesting location permission..."); setLocateMeSummary(null); setLocateMeToken(v => v + 1); }}
                   title="Use my location (one-shot)" aria-label="Use my location once"
@@ -1757,21 +1785,45 @@ export default function Home() {
               <input
                 type="text"
                 value={postcodeSearch}
-                onChange={(e) => { setPostcodeSearch(e.target.value); if (postcodeSearchStatus) setPostcodeSearchStatus(null); }}
+                onChange={(e) => {
+                  setPostcodeSearch(e.target.value);
+                  if (postcodeSearchStatus) setPostcodeSearchStatus(null);
+                  if (!e.target.value.trim() && activePostcodeSearch) {
+                    setActivePostcodeSearch("");
+                    setPostcodeSearchClearToken((v) => v + 1);
+                  }
+                }}
                 onKeyDown={(e) => { if (e.key === "Enter") { const q = postcodeSearch.trim(); if (q) { setActivePostcodeSearch(q); setPostcodeSearchToken(v => v + 1); } } }}
                 placeholder="Postcode…"
                 aria-label="Search postcode"
                 style={{ width: 90, minWidth: 0, flexShrink: 0, borderRadius: 7, border: "1px solid rgba(255,255,255,0.22)", background: "rgba(255,255,255,0.1)", color: "white", padding: "5px 8px", fontSize: 11 }}
               />
-              <button
-                type="button"
-                onClick={() => { setLocateMeStatus("Requesting location permission..."); setLocateMeSummary(null); setLocateMeToken(v => v + 1); }}
-                title="Use my location (one-shot)"
-                aria-label="Use my location once"
-                style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.22)", background: "rgba(59,130,246,0.2)", color: "white", padding: "5px 8px", borderRadius: 7, fontSize: 11, whiteSpace: "nowrap", flexShrink: 0 }}
-              >
-                📍 Locate
-              </button>
+              {activePostcodeSearch ? (
+                <button
+                  type="button"
+                  title="Clear postcode search"
+                  aria-label="Clear postcode search"
+                  onClick={() => {
+                    setPostcodeSearch("");
+                    setActivePostcodeSearch("");
+                    setPostcodeSearchStatus(null);
+                    setPostcodeSearchClearToken((v) => v + 1);
+                  }}
+                  style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.22)", background: "rgba(239,68,68,0.18)", color: "rgba(255,255,255,0.85)", padding: "5px 8px", borderRadius: 7, fontSize: 12, lineHeight: 1, flexShrink: 0 }}
+                >
+                  ×
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => { setLocateMeStatus("Requesting location permission..."); setLocateMeSummary(null); setLocateMeToken(v => v + 1); }}
+                  title="Use my location (one-shot)"
+                  aria-label="Use my location once"
+                  style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.22)", background: "rgba(59,130,246,0.2)", color: "white", padding: "5px 8px", borderRadius: 7, fontSize: 11, whiteSpace: "nowrap", flexShrink: 0 }}
+                >
+                  📍 Locate
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => { const q = postcodeSearch.trim(); if (!q) { setPostcodeSearchStatus("Enter a postcode"); return; } setActivePostcodeSearch(q); setPostcodeSearchToken(v => v + 1); }}
