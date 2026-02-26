@@ -1632,6 +1632,21 @@ export default function Home() {
                       {label}
                     </button>
                   ))}
+                  <button type="button"
+                    onClick={() => {
+                      const next = !easyColours;
+                      setEasyColours(next);
+                      try { localStorage.setItem("valuemap_easy_colours", next ? "1" : "0"); } catch { /* ignore */ }
+                    }}
+                    style={{ display: "flex", width: "100%", alignItems: "center", justifyContent: "space-between", background: "none", border: "none", color: "white", cursor: "pointer", padding: "8px 14px", fontSize: 11 }}
+                    onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
+                    onMouseLeave={e => (e.currentTarget.style.background = "none")}
+                  >
+                    <span>🎨 Easy colours</span>
+                    <span style={{ fontSize: 10, opacity: 0.7, background: easyColours ? "rgba(250,204,21,0.22)" : "rgba(255,255,255,0.1)", border: easyColours ? "1px solid rgba(250,204,21,0.5)" : "1px solid rgba(255,255,255,0.2)", borderRadius: 999, padding: "1px 7px" }}>
+                      {easyColours ? "On" : "Off"}
+                    </span>
+                  </button>
                   <div style={{ height: 1, background: "rgba(255,255,255,0.1)", margin: "4px 0" }} />
                   <a href="https://buymeacoffee.com/chrandalf" target="_blank" rel="noreferrer"
                     style={{ display: "block", padding: "8px 14px", fontSize: 11, color: "white", textDecoration: "none" }}
@@ -2473,20 +2488,6 @@ export default function Home() {
                   return "Off";
                 }}
               />
-              <div style={{ fontSize: 11, opacity: 0.8 }}>Easy colours</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <Segment
-                  options={["off", "on"]}
-                  value={easyColours ? "on" : "off"}
-                  onChange={(v) => {
-                    const next = v === "on";
-                    setEasyColours(next);
-                    try { localStorage.setItem("valuemap_easy_colours", next ? "1" : "0"); } catch { /* ignore */ }
-                  }}
-                  renderOption={(v) => (v === "on" ? "On" : "Off")}
-                />
-                <span style={{ fontSize: 10, opacity: 0.55 }}>Colourblind-friendly</span>
-              </div>
               <div style={{ fontSize: 11, opacity: 0.8 }}>Political votes</div>
               <div
                 style={{
