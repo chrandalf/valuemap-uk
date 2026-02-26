@@ -159,6 +159,9 @@ export default function Home() {
   const [outcodeLimit, setOutcodeLimit] = useState(3);
   const [overlayPanelCollapsed, setOverlayPanelCollapsed] = useState(false);
   const [valuePanelCollapsed, setValuePanelCollapsed] = useState(false);
+  const [easyColours, setEasyColours] = useState(() => {
+    try { return localStorage.getItem("valuemap_easy_colours") === "1"; } catch { return false; }
+  });
   const [mobileFiltersActiveOpen, setMobileFiltersActiveOpen] = useState(false);
   const [postcodeSearch, setPostcodeSearch] = useState("");
   const [activePostcodeSearch, setActivePostcodeSearch] = useState("");
@@ -1522,6 +1525,7 @@ export default function Home() {
         onIndexScoringApplied={() => setIndexScoringPending(false)}
         onStatsUpdate={setMapStats}
         flyToRequest={flyToRequest}
+        easyColours={easyColours}
         onPostcodeSearchResult={(result) => {
           const floodLookupActive = result.lookupMode !== "schools" && state.floodOverlayMode !== "off";
           const schoolLookupActive = result.lookupMode !== "flood" && state.schoolOverlayMode !== "off";
@@ -2469,6 +2473,20 @@ export default function Home() {
                   return "Off";
                 }}
               />
+              <div style={{ fontSize: 11, opacity: 0.8 }}>Easy colours</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Segment
+                  options={["off", "on"]}
+                  value={easyColours ? "on" : "off"}
+                  onChange={(v) => {
+                    const next = v === "on";
+                    setEasyColours(next);
+                    try { localStorage.setItem("valuemap_easy_colours", next ? "1" : "0"); } catch { /* ignore */ }
+                  }}
+                  renderOption={(v) => (v === "on" ? "On" : "Off")}
+                />
+                <span style={{ fontSize: 10, opacity: 0.55 }}>Colourblind-friendly</span>
+              </div>
               <div style={{ fontSize: 11, opacity: 0.8 }}>Political votes</div>
               <div
                 style={{

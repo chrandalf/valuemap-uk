@@ -187,6 +187,7 @@ export default function ValueMap({
   onIndexScoringApplied,
   onStatsUpdate,
   flyToRequest,
+  easyColours,
 }: {
   state: MapState;
   onLegendChange?: (legend: LegendData | null) => void;
@@ -203,6 +204,8 @@ export default function ValueMap({
   onIndexScoringApplied?: () => void;
   onStatsUpdate?: (stats: { label: string; value: string; txCount: number } | null) => void;
   flyToRequest?: { center: [number, number]; zoom: number; token: number } | null;
+  /** When true, swap all map colour ramps to colorblind-safe palettes (Viridis / BrBG). */
+  easyColours?: boolean;
 }) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -233,11 +236,16 @@ export default function ValueMap({
   const prevIndexActiveRef = useRef(false);
   const prevIndexScoringSignatureRef = useRef<string | null>(null);
   const cellFcRef = useRef<any>(null);
+  const easyColoursRef = useRef(easyColours ?? false);
 
 
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
+
+  useEffect(() => {
+    easyColoursRef.current = easyColours ?? false;
+  }, [easyColours]);
 
   useEffect(() => {
     onZoomChangeRef.current = onZoomChange;
@@ -919,7 +927,7 @@ export default function ValueMap({
     type: "fill",
     source: "cells",
     paint: {
-      "fill-color": getFillColorExpression(state.metric),
+      "fill-color": getFillColorExpression(state.metric, easyColoursRef.current),
       "fill-opacity": 0.42,
     },
   });
@@ -933,7 +941,7 @@ export default function ValueMap({
       visibility: stateRef.current.floodOverlayMode && stateRef.current.floodOverlayMode !== "off" ? "visible" : "none",
     },
     paint: {
-      "fill-color": floodBandColorExpression(),
+      "fill-color": floodBandColorExpression(easyColoursRef.current),
       "fill-opacity": ["interpolate", ["linear"], floodSeverityExpression(), 0, 0.03, 4, 0.12] as any,
     },
   });
@@ -947,7 +955,7 @@ export default function ValueMap({
       visibility: stateRef.current.floodOverlayMode && stateRef.current.floodOverlayMode !== "off" ? "visible" : "none",
     },
     paint: {
-      "line-color": floodBandColorExpression(),
+      "line-color": floodBandColorExpression(easyColoursRef.current),
       "line-width": ["interpolate", ["linear"], floodSeverityExpression(), 0, 0.8, 4, 1.8] as any,
       "line-dasharray": [1, 1.5],
       "line-opacity": 0.9,
@@ -998,7 +1006,7 @@ export default function ValueMap({
       visibility: stateRef.current.schoolOverlayMode && stateRef.current.schoolOverlayMode !== "off" ? "visible" : "none",
     },
     paint: {
-      "circle-color": schoolQualityColorExpression(),
+      "circle-color": schoolQualityColorExpression(easyColoursRef.current),
       "circle-opacity": 0.92,
       "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 3.2, 6, 5, 8, 7.5, 10, 11] as any,
       "circle-stroke-color": "rgba(255,255,255,0.94)",
@@ -1527,7 +1535,7 @@ export default function ValueMap({
   });
 
   // Initial real data load
-  const initFc = await setRealData(map, state, geoCacheRef.current, undefined, onLegendChange, onStatsUpdateRef.current);
+  const initFc = await setRealData(map, state, geoCacheRef.current, undefined, onLegendChange, onStatsUpdateRef.current, easyColoursRef.current);
   if (initFc) cellFcRef.current = initFc;
   if (indexPrefsRef.current) {
     void applyIndexScoring(map, indexPrefsRef.current, stateRef.current, cellFcRef.current ?? undefined).then((ok) => {
@@ -1560,7 +1568,7 @@ export default function ValueMap({
 
     const debounceMs = 200;
     const timeoutId = setTimeout(() => {
-      setRealData(map, state, geoCacheRef.current, abortController.signal, onLegendChange, onStatsUpdateRef.current)
+      setRealData(map, state, geoCacheRef.current, abortController.signal, onLegendChange, onStatsUpdateRef.current, easyColoursRef.current)
         .then((fc) => {
           if (fc) cellFcRef.current = fc;
           if (indexPrefsRef.current) {
@@ -1629,7 +1637,7 @@ export default function ValueMap({
       }
       applyCombinedCellFilters(map, stateRef.current, null);
       prevIndexScoringSignatureRef.current = null;
-      void ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange, onStatsUpdateRef.current);
+      void ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange, onStatsUpdateRef.current, easyColoursRef.current);
     }
     prevIndexActiveRef.current = active;
   }, [indexPrefs, onLegendChange]);
@@ -1709,7 +1717,7 @@ export default function ValueMap({
 
     try {
       if (mode === "off") {
-        void ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange, onStatsUpdateRef.current);
+        void ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange, onStatsUpdateRef.current, easyColoursRef.current);
       } else {
         applyVoteOverlayColorFromSource(map, scale);
       }
@@ -1717,6 +1725,27 @@ export default function ValueMap({
       // ignore
     }
   }, [state.voteOverlayMode, state.voteColorScale, onLegendChange]);
+
+  // Re-apply colour ramps whenever the easy-colours (colourblind) preference changes.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.getLayer("cells-fill")) return;
+    const mode = stateRef.current.voteOverlayMode ?? "off";
+    if (mode !== "off") return; // vote overlay controls its own colours
+    void ensureAggregatesAndUpdate(
+      map, stateRef.current, geoCacheRef.current, onLegendChange, onStatsUpdateRef.current, easyColours ?? false
+    );
+    // Also update overlay layer colours that were baked in at init time.
+    if (map.getLayer("flood-overlay-fill")) {
+      map.setPaintProperty("flood-overlay-fill", "fill-color", floodBandColorExpression(easyColours ?? false));
+    }
+    if (map.getLayer("flood-overlay-outline")) {
+      map.setPaintProperty("flood-overlay-outline", "line-color", floodBandColorExpression(easyColours ?? false));
+    }
+    if (map.getLayer("school-overlay-points")) {
+      map.setPaintProperty("school-overlay-points", "circle-color", schoolQualityColorExpression(easyColours ?? false));
+    }
+  }, [easyColours, onLegendChange]);
 
   // Note: metric changes already trigger setRealData (via deps below).
   // Avoid a separate recolor effect to prevent stale data/legend during rapid filter changes.
@@ -2050,7 +2079,20 @@ function floodSeverityExpression() {
   ] as any;
 }
 
-function floodBandColorExpression() {
+function floodBandColorExpression(easy = false) {
+  if (easy) {
+    // Colorblind-safe: blue scale for low risk, amber/brown scale for high risk (no red-green)
+    return [
+      "match",
+      ["round", floodSeverityExpression()],
+      0, "#74b9e0", // pale blue (very low risk)
+      1, "#0066aa", // blue (low risk)
+      2, "#e07b00", // amber (moderate risk)
+      3, "#c04000", // dark orange (significant risk)
+      4, "#5c1a00", // very dark brown (high risk)
+      "#74b9e0",
+    ] as any;
+  }
   return [
     "match",
     ["round", floodSeverityExpression()],
@@ -2068,7 +2110,22 @@ function floodBandColorExpression() {
   ] as any;
 }
 
-function schoolQualityColorExpression() {
+function schoolQualityColorExpression(easy = false) {
+  if (easy) {
+    // PuOr diverging — colorblind-safe: dark brown (poor) → neutral grey → deep blue (excellent)
+    return [
+      "interpolate",
+      ["linear"],
+      ["coalesce", ["to-number", ["get", "quality_score"]], 0.5],
+      0,   "#7f3b08", // dark brown (very poor)
+      0.2, "#b35806", // brown
+      0.4, "#f1a340", // light orange
+      0.5, "#f7f7f7", // neutral
+      0.6, "#998ec3", // light purple
+      0.8, "#542788", // purple
+      1,   "#2d004b", // dark purple (excellent)
+    ] as any;
+  }
   return [
     "interpolate",
     ["linear"],
@@ -2096,7 +2153,8 @@ async function setRealData(
   cache: Map<string, any>,
   signal?: AbortSignal,
   onLegendChange?: (legend: LegendData | null) => void,
-  onStatsUpdate?: ((stats: { label: string; value: string; txCount: number } | null) => void) | null
+  onStatsUpdate?: ((stats: { label: string; value: string; txCount: number } | null) => void) | null,
+  easy = false
 ): Promise<any> {
   // Determine if we're fetching delta or regular data
   const isDelta = isDeltaMetric(state.metric);
@@ -2111,7 +2169,7 @@ async function setRealData(
     if ((state.voteOverlayMode ?? "off") !== "off") {
       applyVoteOverlayColorFromSource(map, state.voteColorScale ?? "relative", cached);
     }
-    await ensureAggregatesAndUpdate(map, state, cache, onLegendChange, onStatsUpdate);
+    await ensureAggregatesAndUpdate(map, state, cache, onLegendChange, onStatsUpdate, easy);
     return cached;
   }
 
@@ -2162,7 +2220,7 @@ async function setRealData(
   if ((state.voteOverlayMode ?? "off") !== "off") {
     applyVoteOverlayColorFromSource(map, state.voteColorScale ?? "relative", fc);
   }
-  await ensureAggregatesAndUpdate(map, state, cache, onLegendChange, onStatsUpdate);
+  await ensureAggregatesAndUpdate(map, state, cache, onLegendChange, onStatsUpdate, easy);
   return fc;
 }
 
@@ -2188,6 +2246,8 @@ function normalizeDeltaRows(rows: any[], grid: GridSize): ApiRow[] {
 
 const QUANTILE_PROBS = [0,0.01,0.02,0.03,0.04,0.05,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,0.95,0.96,0.97,0.98,0.99,1];
 const DELTA_COLORS = ["#4a0080", "#d73027", "#f46d43", "#f7f7f7", "#1a9850", "#238b45", "#08519c"];
+// Brown-Blue-Green (BrBG) diverging — safe for all common colorblindness types
+const DELTA_COLORS_CBF = ["#543005", "#bf812d", "#dfc27d", "#f5f5f5", "#80cdc1", "#35978f", "#003c30"];
 const DELTA_STOP_WEIGHTS = [-1, -0.5, -0.2, 0, 0.2, 0.5, 1];
 
 async function ensureAggregatesAndUpdate(
@@ -2195,7 +2255,8 @@ async function ensureAggregatesAndUpdate(
   state: MapState,
   cache: Map<string, any>,
   onLegendChange?: (legend: LegendData | null) => void,
-  onStatsUpdate?: ((stats: { label: string; value: string; txCount: number } | null) => void) | null
+  onStatsUpdate?: ((stats: { label: string; value: string; txCount: number } | null) => void) | null,
+  easy = false
 ) {
   try {
     const voteModeActive = (state.voteOverlayMode ?? "off") !== "off";
@@ -2209,7 +2270,7 @@ async function ensureAggregatesAndUpdate(
       const maxAbs = stats ? Math.max(Math.abs(stats.min), Math.abs(stats.max)) : 0;
       const safeMaxAbs = maxAbs > 0 ? maxAbs : fallbackMaxAbs;
       const stops = buildDeltaStops(safeMaxAbs);
-      const colors = DELTA_COLORS;
+      const colors = easy ? DELTA_COLORS_CBF : DELTA_COLORS;
       const expr = buildDeltaColorExpression(state.metric, stops, colors);
 
       if (!voteModeActive && map.getLayer("cells-fill")) {
@@ -2333,7 +2394,7 @@ async function ensureAggregatesAndUpdate(
       if (sourceFc) breaks = computeWeightedQuantiles(sourceFc, state.metric, QUANTILE_PROBS);
 
       if (breaks && breaks.length > 0 && breaks.every((v) => Number.isFinite(v)) && hasVariance(breaks)) {
-        const colors = makeTailColors();
+        const colors = makeTailColors(easy);
         const safeBreaks = ensureStrictlyIncreasingBreaks(breaks);
         const expr = buildTailColorExpression(metricPropName(state.metric), safeBreaks, colors, true);
         if (!voteModeActive && map.getLayer("cells-fill")) {
@@ -2343,7 +2404,7 @@ async function ensureAggregatesAndUpdate(
           onLegendChange({ kind: "median", breaks: safeBreaks, colors, probs: QUANTILE_PROBS });
         }
       } else {
-        const colors = makeTailColors();
+        const colors = makeTailColors(easy);
         const stats = computeMinMax(sourceFc, state.metric);
         if (stats) {
           const linearBreaks = ensureStrictlyIncreasingBreaks(
@@ -2358,7 +2419,7 @@ async function ensureAggregatesAndUpdate(
           }
         } else {
           if (!voteModeActive && map.getLayer("cells-fill")) {
-            map.setPaintProperty("cells-fill", "fill-color", getFillColorExpression(state.metric));
+            map.setPaintProperty("cells-fill", "fill-color", getFillColorExpression(state.metric, easy));
           }
           if (onLegendChange) {
             onLegendChange(null);
@@ -2490,7 +2551,17 @@ function buildTailColorExpression(metric: string, breaks: number[], colors: stri
   return expr as any;
 }
 
-function makeTailColors() {
+function makeTailColors(easy = false) {
+  if (easy) {
+    // Viridis palette — perceptually uniform, colorblind-safe (dark purple = cheap, bright yellow = expensive)
+    const bottom = ["#440154","#471365","#482374","#433381","#3b4b8c"];
+    const middle = [
+      "#325a8e","#2a698e","#24768e","#1f858e","#1d948c",
+      "#1ea287","#27b07e","#3dbc74","#5bc563","#7fce52",
+    ];
+    const top = ["#a8d741","#c9df32","#dfe329","#f0ec26","#fde725"];
+    return [...bottom, ...middle, ...top];
+  }
   // bottom tail (5 steps), middle (10), top tail (5)
   const bottom = ["#366ca1","#236686","#16799a","#2aa3c6","#58c7e6"];
   const middle = [
@@ -3020,8 +3091,19 @@ function rowsToGeoJsonSquares(rows: ApiRow[], g: number) {
 
 /** ---------------- Styling helpers (unchanged) ---------------- */
 
-function getFillColorExpression(metric: Metric) {
+function getFillColorExpression(metric: Metric, easy = false) {
   if (metric === "median") {
+    if (easy) return [
+      "interpolate", ["linear"], ["get", "median"],
+      100000,  "#440154", // dark purple (cheap) — Viridis
+      200000,  "#3b528b",
+      300000,  "#21918c",
+      400000,  "#3dbc74",
+      550000,  "#9fda3a",
+      700000,  "#d8e219",
+      850000,  "#f2f022",
+      1000000, "#fde725", // bright yellow (expensive)
+    ] as any;
     return [
     "interpolate", ["linear"], ["get", "median"],
     100000,  "#2c7bb6", // deep blue (cheap)
@@ -3036,6 +3118,17 @@ function getFillColorExpression(metric: Metric) {
 }
 
   if (metric === "median_ppsf") {
+    if (easy) return [
+      "interpolate", ["linear"], ["get", "median"],
+      100, "#440154",
+      150, "#3b528b",
+      200, "#21918c",
+      250, "#3dbc74",
+      325, "#9fda3a",
+      400, "#d8e219",
+      500, "#f2f022",
+      650, "#fde725",
+    ] as any;
     return [
       "interpolate", ["linear"], ["get", "median"],
       100,  "#2c7bb6",
@@ -3050,6 +3143,16 @@ function getFillColorExpression(metric: Metric) {
   }
 
   if (metric === "delta_gbp") {
+    if (easy) return [
+      "interpolate", ["linear"], ["get", "delta_gbp"],
+      -300000, "#543005", // extreme reduction: dark brown
+      -150000, "#bf812d", // reduction: brown
+      -50000,  "#dfc27d", // mild reduction: tan
+      0,       "#f5f5f5", // neutral
+      50000,   "#80cdc1", // increase: light teal
+      150000,  "#35978f", // more increase: teal
+      300000,  "#003c30", // extreme increase: dark teal
+    ] as any;
     return [
       "interpolate", ["linear"], ["get", "delta_gbp"],
       -300000, "#4a0080", // extreme reduction: dark purple
@@ -3062,6 +3165,16 @@ function getFillColorExpression(metric: Metric) {
     ] as any;
   }
 
+  if (easy) return [
+    "interpolate", ["linear"], ["get", "delta_pct"],
+    -30, "#543005", // extreme reduction: dark brown
+    -15, "#bf812d", // reduction: brown
+    -5,  "#dfc27d", // mild reduction: tan
+    0,   "#f5f5f5", // neutral
+    5,   "#80cdc1", // increase: light teal
+    15,  "#35978f", // more increase: teal
+    30,  "#003c30", // extreme increase: dark teal
+  ] as any;
   return [
     "interpolate", ["linear"], ["get", "delta_pct"],
     -30, "#4a0080", // extreme reduction: dark purple
