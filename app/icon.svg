@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Background -->
+  <rect width="32" height="32" rx="6" fill="#0a0c14"/>
+  <!-- House roof -->
+  <polygon points="16,4 28,14 4,14" fill="#facc15"/>
+  <!-- House body -->
+  <rect x="7" y="14" width="18" height="14" rx="1" fill="#facc15"/>
+  <!-- Door -->
+  <rect x="13" y="20" width="6" height="8" rx="1" fill="#0a0c14"/>
+  <!-- £ symbol on house front -->
+  <text x="16" y="19" font-family="Arial,sans-serif" font-size="7" font-weight="bold" fill="#0a0c14" text-anchor="middle">£</text>
+</svg>
