@@ -1,5 +1,175 @@
-TODO (next session)
-- Upload `postcode_grid_outcode_lookup.json.gz` to R2.
-- Update `functions/api/postcodes.ts` default key to the new outcode file name/path.
-- Confirm binding name (R2 vs BRICKGRID_BUCKET) in Pages Functions.
-- Verify map click shows outcode list; adjust UI if needed.
+================================================================================
+  VALUEMAP — PRODUCT BACKLOG
+  Updated: 2026-02-27
+  Effort key:  [XS] < 1 hr  [S] ~half day  [M] 1-2 days  [L] 3-5 days  [XL] week+
+  Status:      [x] done   [-] in progress   [ ] not started
+================================================================================
+
+
+────────────────────────────────────────────────────────────────────────────────
+INFRASTRUCTURE / OUTSTANDING CARRY-OVER
+────────────────────────────────────────────────────────────────────────────────
+
+[ ] [XS]  Upload `postcode_grid_outcode_lookup.json.gz` to R2
+[ ] [XS]  Update `functions/api/postcodes.ts` default key to new outcode filename
+[ ] [XS]  Confirm R2 binding name in Pages Functions (R2 vs BRICKGRID_BUCKET)
+[ ] [XS]  Verify map click shows outcode list; adjust UI if needed
+
+
+────────────────────────────────────────────────────────────────────────────────
+TIER 1 — QUICK WINS  (XS / S, low risk)
+────────────────────────────────────────────────────────────────────────────────
+
+[x] [XS]  Colourblind-friendly colour scheme toggle ("Easy colours" shipped)
+[x] [XS]  Tap-to-search 🔍 button on mobile for reverse-geocode popup
+[x] [XS]  Cell click disabled while tap-to-search is armed
+[x] [XS]  Search log: right-click lookups → Controls menu → CSV download
+[x] [S]   Flood scoring overhaul — absolute thresholds replacing percentile model
+[x] [S]   Right-click / tap popup: postcode + flood / school / station + map lines
+
+[ ] [XS]  Change all "UK" labels/copy to "Great Britain" (NI not covered)
+          - Search for "UK" in page.tsx, Map.tsx, README, description page
+          - Update page <title>, meta description, og:title
+
+[ ] [XS]  Purge stale cache / fix users still seeing the removed tour button
+          - Add cache-busting header or increment service-worker version
+          - Check whether tour state is persisted in localStorage — add reset path
+
+[ ] [S]   Budget: typed number input alongside / replacing slider
+          - Replace or augment the budget slider with <input type="number">
+          - Keep slider for coarse drag, input for precise entry
+          - Validate and clamp to min/max on blur
+
+[ ] [S]   Add minimum budget (floor as well as ceiling)
+          - Extend IndexScoringPrefs: add `budgetMin?: number`
+          - Pipeline: filter/score cells where median < budgetMin
+          - UI: second handle on budget slider OR separate min input
+
+
+────────────────────────────────────────────────────────────────────────────────
+TIER 2 — MEDIUM EFFORT  (M, moderate complexity)
+────────────────────────────────────────────────────────────────────────────────
+
+[x] [M]   Station proximity — data pipeline + overlay + popup line built
+
+[ ] [M]   Property type multi-select (e.g. D+S together, exclude F/T)
+          - Extend PropertyType from single value to Set<PropertyType>
+          - Update cell fetch params and pipeline aggregation query
+          - UI: replace Segment with multi-toggle chip group
+
+[ ] [M]   Clarify "Affordability" slider purpose
+          - Rename label to "Affordability weight" with tooltip explainer
+          - Add inline copy: "How much to weight price vs your budget ceiling"
+          - Make visually distinct from the budget input
+
+[ ] [M]   Improve school score display and calculation
+          a) Map qualityScore bands → Ofsted wording (Outstanding / Good /
+             Requires Improvement / Inadequate) in popup and overlays
+          b) Audit scoring formula — investigate why "good" areas score oddly
+             (likely a distance-penalty or aggregation artefact)
+          c) Add footnote in popup: "Based on Ofsted ratings within X km"
+
+[ ] [M]   Flood messaging: accuracy caveat + "guidance not guarantee"
+          - Add info tooltip/link on flood row explaining data source and limits
+          - Review known-flood areas that users report score incorrectly
+          - Link directly to EA long-term flood risk map from popup
+
+[ ] [M]   "Views switch" discoverability
+          - Audit current UX — is it below fold / hidden on mobile?
+          - Consider moving to a persistent tab bar or prominent toggle
+
+[ ] [M]   m² / ft² unit toggle (once floor-area data wired in from EPC pipeline)
+          - Store preference in localStorage
+          - All size displays respect the toggle
+
+
+────────────────────────────────────────────────────────────────────────────────
+TIER 3 — LARGER FEATURES  (L, significant work)
+────────────────────────────────────────────────────────────────────────────────
+
+[ ] [L]   Onboarding rework — non-blocking, "show don't tell"
+          a) Default map loads immediately — no startup dialog
+          b) Replace blocking tour with dismissible coach-marks
+             (contextual tooltips that appear on first use of each feature)
+          c) Move "Show me how" to Info menu only, not prominently in top bar
+          d) Shorten tour to 3-4 steps max if kept at all
+          e) Fix z-index: tour overlay must not sit over postcode search buttons
+
+[ ] [L]   Bedroom filter (bathrooms as stretch goal)
+          - Pipeline: aggregate separate bedroom-band price distributions per cell
+          - API: extend cells endpoint to accept `beds` param
+          - UI: bedroom chip selector (Any / 1 / 2 / 3 / 4+) in Filters panel
+          - Note: requires full pipeline rebuild across all grid sizes
+
+[ ] [L]   Proximity to coast as a scoring factor
+          - Pipeline: pre-compute nearest-coastline distance per cell centroid
+            (use OS BoundaryLine or Natural Earth coastline shapefile)
+          - Add `coastScore` to cell properties
+          - UI: Coast weight slider in Find My Area
+            (coastWeight already exists in IndexScoringPrefs — just needs data)
+
+[ ] [L]   Crime rate overlay / scoring
+          - Data: Police.uk open data API (per-LSOA monthly crime counts)
+          - Pipeline: aggregate LSOA crime rates → grid cells, normalise to 0-1
+          - Overlay: similar pattern to flood/school overlays, toggle in layers
+          - Find My Area: crime weight slider
+          - Important: add disclaimer — crime data has known geographic biases
+
+[ ] [L]   Public transport proximity (bus, tram, underground — beyond rail)
+          - Data: NaPTAN dataset (open gov — bus stops, tram, tube, metro)
+          - Pipeline: spatial index, nearest stop distance per cell
+          - Overlay + popup row alongside the existing station line
+          - Scoring: combine rail + bus/tram into a composite transit score
+
+[ ] [L]   "What does my budget buy me" views
+          a) % of listings under budget per cell (needs listing-level data)
+          b) Typical floor space / plot size achievable at budget (EPC join)
+          c) Most bedrooms typically achievable at budget per area
+          d) Heatmap mode: colour by "value for money vs GB median"
+          - Note: needs per-type listing counts per cell, not just medians
+
+
+────────────────────────────────────────────────────────────────────────────────
+TIER 4 — COMPLEX / RESEARCH NEEDED  (XL)
+────────────────────────────────────────────────────────────────────────────────
+
+[ ] [XL]  Commute time overlay (multi-destination)
+          Options to evaluate:
+            a) TfL / OpenTripPlanner isochrone API — free but needs hosting
+            b) Google Maps Distance Matrix — accurate but paid per request
+            c) Mapbox Isochrone API — paid, easy to integrate
+            d) Pre-compute isochrones for top ~50 employment centres offline
+               and store as GeoJSON in R2 (no per-request cost) ← recommended
+          Recommended approach:
+          - User enters up to 3 work destinations (postcode / freetext)
+          - Fetch isochrones on demand, cache results in R2 by origin+mode+mins
+          - Blend commute score into Find My Area index weighting
+          - UI: destination inputs in Filters or dedicated Commute panel
+
+[ ] [XL]  Planning application visibility
+          - No single national free feed (each LPA publishes separately)
+          - Short-term: deep-link from cell popup to local council planning portal
+          - Medium-term: DLUHC ECAB/RIPA consolidated feed when available
+          - Harder path: aggregate from PlanningFinder or scrape LPA feeds
+          - Scope carefully: recent applications as a point overlay only
+
+[ ] [XL]  "Hard requirements vs nice-to-haves" quiz / guided setup
+          - Replaces or precedes the current Find My Area sliders
+          - 5-7 question wizard: bedrooms, commute tolerance, school priority etc.
+          - Maps answers automatically to IndexScoringPrefs weights
+          - Modal wizard → sets prefs → opens map with scoring active
+
+
+────────────────────────────────────────────────────────────────────────────────
+NOTES / DECISIONS DEFERRED
+────────────────────────────────────────────────────────────────────────────────
+
+- Floor area data: HMLR price-paid has no floor area. EPC pipeline already
+  exists — extend it to expose per-cell median floor area.
+- Scotland: coverage is partial and ~1-2 years stale. A visual caveat on cells
+  north of ~55.5°N is already shown on click — consider extending to overlay.
+- Northern Ireland: not covered by HMLR at all. "Great Britain" rename handles.
+- Bedroom data: available in HMLR price-paid from ~2021 onwards for most
+  transaction types — pipeline work needed to aggregate by bed count per cell.
+
+================================================================================
