@@ -154,7 +154,7 @@ const LOCAL_NEAREST_SCHOOL_MAX_DISTANCE_METERS = 19_312; // 12 miles
 const LOCAL_NEAREST_STATION_MAX_DISTANCE_METERS = 80_467; // 50 miles
 // Distance scoring for train station: full score within 1 mile, zero at 20 miles
 const STATION_GOOD_DISTANCE_METERS = 1_609; // 1 mile
-const STATION_MAX_DISTANCE_METERS = 32_187; // 20 miles
+const STATION_MAX_DISTANCE_METERS = 16_093; // 10 miles
 
 const VOTE_CELLS_DATA_VERSION = process.env.NEXT_PUBLIC_VOTE_CELLS_DATA_VERSION ?? "20260222b";
 
@@ -3288,7 +3288,32 @@ async function applyIndexScoring(
       totalWeight += prefs.coastWeight;
     }
 
-    props.index_score = totalWeight > 0 ? totalScore / totalWeight : 0;
+    // ── Veto / deal-breaker logic ────────────────────────────────────────────
+    // A pure weighted average lets great scores in other areas compensate for a
+    // terrible score in something you've said you rely on. Instead, each factor
+    // that scores BELOW neutral (< 0.5) and carries meaningful weight applies a
+    // multiplicative drag that grows with both weight and shortfall.
+    //   shortfall = how far below neutral (0 → score=0.5, 1 → score=0)
+    //   veto multiplier *= 1 − weight × shortfall × 0.5
+    // At weight=1, score=0 (worst case): multiplier = 0.5 — halves the base score.
+    // At weight=0.2, score=0: multiplier = 0.9 — barely noticeable.
+    // Affordability is excluded because it already has budget-relative semantics.
+    let vetoMultiplier = 1.0;
+    if (prefs.floodWeight > 0 && !floodNoData && floodScore < 0.5) {
+      const shortfall = (0.5 - floodScore) / 0.5;
+      vetoMultiplier *= Math.max(0, 1 - prefs.floodWeight * shortfall * 0.5);
+    }
+    if (prefs.schoolWeight > 0 && !schoolNoData && schoolScore < 0.5) {
+      const shortfall = (0.5 - schoolScore) / 0.5;
+      vetoMultiplier *= Math.max(0, 1 - prefs.schoolWeight * shortfall * 0.5);
+    }
+    if (prefs.trainWeight > 0 && !trainNoData && trainScore < 0.5) {
+      const shortfall = (0.5 - trainScore) / 0.5;
+      vetoMultiplier *= Math.max(0, 1 - prefs.trainWeight * shortfall * 0.5);
+    }
+
+    const baseScore = totalWeight > 0 ? totalScore / totalWeight : 0;
+    props.index_score = Math.max(0, baseScore * vetoMultiplier);
   }
 
   src.setData(fc as any);
