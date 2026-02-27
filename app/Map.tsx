@@ -3176,6 +3176,11 @@ async function applyIndexScoring(
   const DATA_DEG = 0.45;
   const CHUNK = 300; // yield to browser every N cells
 
+  // Cell-size normalisation: at 5km each flood point covers 25× more area than at 1km,
+  // so raw impact must be scaled down proportionally to avoid unfairly penalising coarse cells.
+  const cellSizeM = gridToMeters(state.grid as GridSize);
+  const floodCellNorm = 1000 / cellSizeM; // 1.0 @ 1km · 0.2 @ 5km · 0.1 @ 10km
+
   const features = fc.features;
 
   // ─── Flood pre-pass: compute raw impact for every cell, collect for percentile ranking ───
@@ -3217,7 +3222,7 @@ async function applyIndexScoring(
       }
     }
     floodMeta[i] = { rawImpact: raw, hasData: true, hasInCellRisk: true };
-    floodRawAll.push(raw);
+    floodRawAll.push(raw * floodCellNorm); // normalised by cell width
   }
   floodRawAll.sort((a, b) => a - b);
   const nFloodAll = floodRawAll.length;
@@ -3319,7 +3324,7 @@ async function applyIndexScoring(
         // Blended with an absolute severity floor so a uniformly low-risk area
         // doesn't score red just because it has the "worst" low-grade flood points.
         // rank 0 = least impacted → score 1.0; rank 1 = most impacted → floor
-        const rank = floodPercentileRank(fm.rawImpact);
+        const rank = floodPercentileRank(fm.rawImpact * floodCellNorm);
         floodScore = floodScoreFloor + (1 - floodScoreFloor) * Math.max(0, 1 - rank);
       }
       totalScore += prefs.floodWeight * floodScore;
@@ -3404,22 +3409,26 @@ async function applyIndexScoring(
     // that scores BELOW neutral (< 0.5) and carries meaningful weight applies a
     // multiplicative drag that grows with both weight and shortfall.
     //   shortfall = how far below neutral (0 → score=0.5, 1 → score=0)
-    //   veto multiplier *= 1 − weight × shortfall × 0.5
-    // At weight=1, score=0 (worst case): multiplier = 0.5 — halves the base score.
-    // At weight=0.2, score=0: multiplier = 0.9 — barely noticeable.
-    // Affordability is excluded because it already has budget-relative semantics.
+    //   veto multiplier *= 1 − vetoW × shortfall × 0.5
+    // The effective weight is capped at 2.0: scores at coarser grids are inherently
+    // less precise, and a hard-zero veto from weight=10 would nuke entire large cells
+    // based on one river edge.  The cap still allows:
+    //   vetoW=2, score=0.0: multiplier = 0    (absolute worst → hard zero ✓)
+    //   vetoW=2, score=0.3: multiplier = 0.6  (40% drag — noticeably penalised)
+    //   vetoW=2, score=0.4: multiplier = 0.8  (20% drag)
+    const VETO_WEIGHT_CAP = 2.0;
     let vetoMultiplier = 1.0;
     if (prefs.floodWeight > 0 && !floodNoData && floodScore < 0.5) {
       const shortfall = (0.5 - floodScore) / 0.5;
-      vetoMultiplier *= Math.max(0, 1 - prefs.floodWeight * shortfall * 0.5);
+      vetoMultiplier *= Math.max(0, 1 - Math.min(prefs.floodWeight, VETO_WEIGHT_CAP) * shortfall * 0.5);
     }
     if (prefs.schoolWeight > 0 && !schoolNoData && schoolScore < 0.5) {
       const shortfall = (0.5 - schoolScore) / 0.5;
-      vetoMultiplier *= Math.max(0, 1 - prefs.schoolWeight * shortfall * 0.5);
+      vetoMultiplier *= Math.max(0, 1 - Math.min(prefs.schoolWeight, VETO_WEIGHT_CAP) * shortfall * 0.5);
     }
     if (prefs.trainWeight > 0 && !trainNoData && trainScore < 0.5) {
       const shortfall = (0.5 - trainScore) / 0.5;
-      vetoMultiplier *= Math.max(0, 1 - prefs.trainWeight * shortfall * 0.5);
+      vetoMultiplier *= Math.max(0, 1 - Math.min(prefs.trainWeight, VETO_WEIGHT_CAP) * shortfall * 0.5);
     }
 
     const baseScore = totalWeight > 0 ? totalScore / totalWeight : 0;
