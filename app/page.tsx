@@ -1720,6 +1720,7 @@ export default function Home() {
                   {([
                     { label: filtersOpen ? "🗂 Filters (open)" : "🗂 Filters", action: () => { setFiltersOpen(v => !v); setControlsDropOpen(false); bringToFront("filters"); } },
                     { label: "🔍 Find my area", action: () => { setIndexOpen(v => !v); setControlsDropOpen(false); bringToFront("index"); } },
+                    { label: rgLog.length > 0 ? `📋 Search log (${rgLog.length})` : "📋 Search log", action: () => { setRgLogOpen(v => !v); setControlsDropOpen(false); } },
                     { label: "↺  Reset all", action: () => { resetAll(); } },
                   ] as Array<{ label: string; action: () => void }>).map(({ label, action }) => (
                     <button key={label} type="button" onClick={action}
@@ -1966,10 +1967,6 @@ export default function Home() {
                 style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.22)", background: "rgba(255,255,255,0.1)", color: "white", padding: "5px 9px", borderRadius: 7, fontSize: 11, flexShrink: 0 }}
               >
                 Go
-              </button>
-              <button type="button" onClick={() => setRgLogOpen((v) => !v)} title="Search log" aria-label="Open search log"
-                style={{ cursor: "pointer", border: `1px solid ${rgLogOpen ? "rgba(99,102,241,0.8)" : "rgba(255,255,255,0.22)"}`, background: rgLogOpen ? "rgba(99,102,241,0.25)" : "rgba(255,255,255,0.08)", color: "white", padding: "5px 7px", borderRadius: 7, fontSize: 12, lineHeight: 1, flexShrink: 0 }}>
-                📋{rgLog.length > 0 && <span style={{ fontSize: 9, verticalAlign: "top", marginLeft: 1 }}>{rgLog.length}</span>}
               </button>
               {mapStats && (
                 <div style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 10, opacity: 0.85, color: "rgba(250,204,21,0.9)" }}>
