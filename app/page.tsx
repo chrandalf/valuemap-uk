@@ -3328,7 +3328,18 @@ export default function Home() {
               {rgLog.length > 0 && (
                 <>
                   <button type="button" title="Download CSV" onClick={() => {
-                    const lines = ["Timestamp,Postcode,Lat,Lng,Flood,Schools,Station"];
+                    const disclaimer = [
+                      "# IMPORTANT NOTICE — FOR INFORMATION ONLY",
+                      "# This data is provided for general information purposes only. It must not be relied upon for any financial, legal,",
+                      "# property, planning, insurance, or investment decision. Flood risk, school quality, and transport proximity",
+                      "# indicators are indicative estimates derived from third-party sources and may be incomplete, inaccurate, or out of date.",
+                      "# You must seek independent professional advice and consult official sources before making any decisions,",
+                      "# including but not limited to: the Environment Agency (check-long-term-flood-risk.service.gov.uk),",
+                      "# Ofsted (reports.ofsted.gov.uk), and National Rail (nationalrail.co.uk).",
+                      "# ValueMap accepts no responsibility or liability for any loss or damage arising from reliance on this data.",
+                      "#",
+                    ];
+                    const lines = [...disclaimer, "Timestamp,Postcode,Lat,Lng,Flood,Schools,Station"];
                     for (const e of rgLog) lines.push([e.timestamp, e.postcode, e.lat, e.lng, `"${e.floodSummary.replace(/"/g, '""')}"`, `"${e.schoolSummary.replace(/"/g, '""')}"`, `"${e.stationSummary.replace(/"/g, '""')}"`].join(","));
                     const blob = new Blob([lines.join("\n")], { type: "text/csv" });
                     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "valuemap-search-log.csv"; a.click(); URL.revokeObjectURL(a.href);
