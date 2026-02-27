@@ -1797,39 +1797,165 @@ export default function ValueMap({
   map.on("contextmenu", (e) => {
     e.originalEvent.preventDefault();
     const { lng, lat } = e.lngLat;
-    const popup = new maplibregl.Popup({ closeButton: true, offset: 8, maxWidth: "220px" })
+    const popup = new maplibregl.Popup({ closeButton: true, offset: 8, maxWidth: "260px" })
       .setLngLat([lng, lat])
-      .setHTML('<div style="font:13px/1.5 sans-serif;color:#374151">&#x1F4CD;&nbsp;Looking up postcode…</div>')
+      .setHTML('<div style="font:13px/1.5 sans-serif;color:#374151;padding:2px 0">📍 Looking up location…</div>')
       .addTo(map);
+
+    // Format metres → "450m" or "3.2km"
+    const fmtDist = (m: number) => m < 1000 ? `${Math.round(m)}m` : `${(m / 1000).toFixed(1)}km`;
+
+    // Lazy-load each dataset (cached after first call, identical to applyIndexScoring logic)
+    const ensureFlood = async () => {
+      if (_indexFloodCache === null) {
+        try {
+          const r = await fetch("/api/flood?plain=1");
+          _indexFloodCache = r.ok
+            ? ((await r.json() as any)?.features ?? [])
+                .filter((f: any) => f?.geometry?.type === "Point")
+                .map((f: any) => ({ lon: Number(f.geometry.coordinates[0]), lat: Number(f.geometry.coordinates[1]), riskScore: Number(f.properties?.risk_score ?? 0) || 0 }))
+            : [];
+        } catch { _indexFloodCache = []; }
+        _indexFloodGrid = null;
+      }
+      if (_indexFloodGrid === null) _indexFloodGrid = buildSpatialGrid(_indexFloodCache!, 0.12);
+      return _indexFloodGrid;
+    };
+    const ensureSchool = async () => {
+      if (_indexSchoolCache === null) {
+        try {
+          const r = await fetch("/api/schools?plain=1");
+          _indexSchoolCache = r.ok
+            ? ((await r.json() as any)?.features ?? [])
+                .filter((f: any) => f?.geometry?.type === "Point")
+                .map((f: any) => ({ lon: Number(f.geometry.coordinates[0]), lat: Number(f.geometry.coordinates[1]), qualityScore: Number(f.properties?.quality_score ?? 0.5) || 0.5, isGood: Boolean(f.properties?.is_good) }))
+            : [];
+        } catch { _indexSchoolCache = []; }
+        _indexSchoolGrid = null;
+      }
+      if (_indexSchoolGrid === null) _indexSchoolGrid = buildSpatialGrid(_indexSchoolCache!, 0.12);
+      return _indexSchoolGrid;
+    };
+    const ensureStation = async () => {
+      if (_indexStationCache === null) {
+        try {
+          const r = await fetch("/api/stations?plain=1");
+          if (r.ok) {
+            _indexStationCache = ((await r.json() as any)?.features ?? [])
+              .filter((f: any) => f?.geometry?.type === "Point")
+              .map((f: any) => ({ lon: Number(f.geometry.coordinates[0]), lat: Number(f.geometry.coordinates[1]), name: String(f.properties?.name ?? ""), code: String(f.properties?.code ?? "") }));
+            _indexStationGrid = null;
+          }
+        } catch { /* leave null */ }
+      }
+      if (_indexStationGrid === null && _indexStationCache !== null) _indexStationGrid = buildSpatialGrid(_indexStationCache, 0.12);
+      return _indexStationGrid;
+    };
+
     void (async () => {
       try {
-        // postcodes.io: exact postcode within 2000 m (API maximum radius)
-        const res = await fetch(
-          `https://api.postcodes.io/postcodes?lon=${lng}&lat=${lat}&limit=1&radius=2000`
-        );
-        if (!res.ok) throw new Error("bad response");
-        const data = (await res.json()) as any;
-        const found = data?.result?.[0];
-        if (found?.postcode) {
-          popup.remove();
-          onReverseGeocodeRef.current?.(found.postcode as string);
-          return;
+        // Run postcode lookup and dataset loading in parallel
+        const [floodG, schoolG, stationG, pcRes] = await Promise.all([
+          ensureFlood(),
+          ensureSchool(),
+          ensureStation(),
+          fetch(`https://api.postcodes.io/postcodes?lon=${lng}&lat=${lat}&limit=1&radius=2000`),
+        ]);
+
+        // ── Flood: worst-risk point within 10 km ──
+        let floodHtml = '<span style="color:#6b7280">No flood risk areas within 10km</span>';
+        if (floodG) {
+          const fps = querySpatialGrid(floodG, lng, lat, 0.09);
+          let worst = 0; let worstD = Infinity;
+          for (const fp of fps) {
+            const d = haversineDistanceMeters(lat, lng, fp.lat, fp.lon);
+            if (d < 10000 && fp.riskScore > worst) { worst = fp.riskScore; worstD = d; }
+          }
+          if (worst >= 4) floodHtml = `<span style="color:#b91c1c;font-weight:600">High risk</span> <span style="color:#9ca3af">${fmtDist(worstD)} away</span>`;
+          else if (worst >= 3) floodHtml = `<span style="color:#ea580c;font-weight:600">Medium risk</span> <span style="color:#9ca3af">${fmtDist(worstD)} away</span>`;
+          else if (worst >= 2) floodHtml = `<span style="color:#d97706">Low risk</span> <span style="color:#9ca3af">${fmtDist(worstD)} away</span>`;
+          else if (worst >= 1) floodHtml = `<span style="color:#84cc16">Very low risk</span> <span style="color:#9ca3af">${fmtDist(worstD)} away</span>`;
         }
-        // Fallback: no postcode within 2 km (rural/remote) — find nearest outcode instead.
-        // The search handles partial postcodes / outcodes via hierarchy matching.
-        const resOut = await fetch(
-          `https://api.postcodes.io/outcodes?lon=${lng}&lat=${lat}&limit=1&radius=50000`
-        );
-        if (resOut.ok) {
-          const dataOut = (await resOut.json()) as any;
-          const foundOut = dataOut?.result?.[0];
-          if (foundOut?.outcode) {
-            popup.remove();
-            onReverseGeocodeRef.current?.(foundOut.outcode as string);
-            return;
+
+        // ── Nearest school within 20 km ──
+        let schoolHtml = '<span style="color:#6b7280">No school data here</span>';
+        if (schoolG) {
+          const sps = querySpatialGrid(schoolG, lng, lat, 0.18);
+          let nearestSch: (typeof sps)[0] | null = null; let nearSchD = Infinity;
+          for (const sp of sps) {
+            const d = haversineDistanceMeters(lat, lng, sp.lat, sp.lon);
+            if (d < nearSchD) { nearestSch = sp; nearSchD = d; }
+          }
+          if (nearestSch) {
+            const q = nearestSch.qualityScore;
+            const label = q >= 0.7 ? "Good" : q >= 0.45 ? "Average" : "Below average";
+            const col = q >= 0.7 ? "#16a34a" : q >= 0.45 ? "#d97706" : "#b91c1c";
+            schoolHtml = `<span style="color:${col}">${label}</span> <span style="color:#9ca3af">${fmtDist(nearSchD)} away</span>`;
           }
         }
-        throw new Error("no postcode");
+
+        // ── Nearest station within 30 km ──
+        let stationHtml = '<span style="color:#6b7280">No station data here</span>';
+        if (stationG) {
+          const sts = querySpatialGrid(stationG, lng, lat, 0.27);
+          let nearestStn: (typeof sts)[0] | null = null; let nearStnD = Infinity;
+          for (const st of sts) {
+            const d = haversineDistanceMeters(lat, lng, st.lat, st.lon);
+            if (d < nearStnD) { nearestStn = st; nearStnD = d; }
+          }
+          if (nearestStn) {
+            stationHtml = `<span style="color:#374151">${nearestStn.name}</span> <span style="color:#9ca3af">${fmtDist(nearStnD)} away</span>`;
+          }
+        }
+
+        // ── Resolve postcode (with outcode fallback) ──
+        let postcode = "";
+        let isOutcode = false;
+        if (pcRes.ok) {
+          const pcData = (await pcRes.json()) as any;
+          const found = pcData?.result?.[0];
+          if (found?.postcode) postcode = found.postcode as string;
+        }
+        if (!postcode) {
+          const resOut = await fetch(`https://api.postcodes.io/outcodes?lon=${lng}&lat=${lat}&limit=1&radius=50000`);
+          if (resOut.ok) {
+            const dataOut = (await resOut.json()) as any;
+            const foundOut = dataOut?.result?.[0];
+            if (foundOut?.outcode) { postcode = foundOut.outcode as string; isOutcode = true; }
+          }
+        }
+        if (!postcode) throw new Error("no postcode");
+
+        // Clicking the postcode fires the area search and closes the popup
+        (window as any).__rgCb = () => {
+          popup.remove();
+          delete (window as any).__rgCb;
+          onReverseGeocodeRef.current?.(postcode);
+        };
+
+        const row = (icon: string, label: string, content: string) =>
+          `<div style="display:flex;gap:6px;align-items:baseline;padding:2px 0">
+            <span style="width:16px;flex-shrink:0;text-align:center">${icon}</span>
+            <span style="color:#9ca3af;width:48px;flex-shrink:0;font-size:11px;padding-top:1px">${label}</span>
+            <span style="font-size:12px;line-height:1.4">${content}</span>
+          </div>`;
+
+        popup.setHTML(
+          `<div style="font:13px/1.5 sans-serif;color:#374151;padding:2px 0;min-width:210px">
+            <div style="margin-bottom:7px">
+              <a href="#" onclick="if(window.__rgCb)window.__rgCb();return false"
+                 style="font-weight:700;font-size:14px;color:#1d4ed8;text-decoration:none;letter-spacing:.01em">
+                📍 ${postcode}
+              </a>
+              <span style="color:#9ca3af;font-size:11px;margin-left:5px">${isOutcode ? "district" : "— click to search"}</span>
+            </div>
+            <div style="border-top:1px solid #f3f4f6;padding-top:5px">
+              ${row("🌊", "Flood", floodHtml)}
+              ${row("🏫", "Schools", schoolHtml)}
+              ${row("🚂", "Station", stationHtml)}
+            </div>
+          </div>`
+        );
       } catch {
         popup.setHTML('<div style="font:13px/1.5 sans-serif;color:#b91c1c">No postcode found here</div>');
         setTimeout(() => popup.remove(), 2500);
@@ -3178,68 +3304,38 @@ async function applyIndexScoring(
 
   // Cell-size normalisation: at 5km each flood point covers 25× more area than at 1km,
   // so raw impact must be scaled down proportionally to avoid unfairly penalising coarse cells.
-  const cellSizeM = gridToMeters(state.grid as GridSize);
-  const floodCellNorm = 1000 / cellSizeM; // 1.0 @ 1km · 0.2 @ 5km · 0.1 @ 10km
-
   const features = fc.features;
 
-  // ─── Flood pre-pass: compute raw impact for every cell, collect for percentile ranking ───
-  type FloodMeta = { rawImpact: number; hasData: boolean; hasInCellRisk: boolean };
+  // ─── Flood pre-pass: compute worst-case severity×proximity score for every cell ───
+  // Uses max() not sum() so the score is density-independent: a London cell near the
+  // Thames gets the same score whether queried at 1km or 5km grid, regardless of how
+  // many flood-zone polygons are mapped in the dataset.
+  type FloodMeta = { rawImpact: number; hasData: boolean };
   const floodMeta: FloodMeta[] = new Array(features.length);
-  // ALL data-covered cells go into the distribution (safe cells as 0.0).
-  // Including the safe majority means the percentile rank and p90 calibration
-  // reflect the true neighbourhood context, not just the risky subset.
-  const floodRawAll: number[] = [];
   for (let i = 0; i < features.length; i++) {
     const coords = features[i].geometry?.coordinates?.[0];
-    if (!coords || coords.length < 4) { floodMeta[i] = { rawImpact: 0, hasData: false, hasInCellRisk: false }; continue; }
+    if (!coords || coords.length < 4) { floodMeta[i] = { rawImpact: 0, hasData: false }; continue; }
     const cLon = (coords[0][0] + coords[2][0]) / 2;
     const cLat = (coords[0][1] + coords[2][1]) / 2;
     if (querySpatialGrid(floodGrid, cLon, cLat, DATA_DEG).length === 0) {
-      floodMeta[i] = { rawImpact: 0, hasData: false, hasInCellRisk: false }; continue;
+      floodMeta[i] = { rawImpact: 0, hasData: false }; continue;
     }
-    const minLon = Math.min(coords[0][0], coords[2][0]);
-    const maxLon = Math.max(coords[0][0], coords[2][0]);
-    const minLat = Math.min(coords[0][1], coords[2][1]);
-    const maxLat = Math.max(coords[0][1], coords[2][1]);
     const nearFloodPoints = querySpatialGrid(floodGrid, cLon, cLat, NEAR_DEG);
-    const hasInCellRisk = nearFloodPoints.some((fp) => fp.lon >= minLon && fp.lon <= maxLon && fp.lat >= minLat && fp.lat <= maxLat);
-    if (!hasInCellRisk) {
-      floodMeta[i] = { rawImpact: 0, hasData: true, hasInCellRisk: false };
-      floodRawAll.push(0); // safe cell — included so risky cells rank in proper context
-      continue;
-    }
     let raw = 0;
     for (const fp of nearFloodPoints) {
       const d = haversineDistanceMeters(cLat, cLon, fp.lat, fp.lon);
       if (d < 8000) {
         const proximity = 1 - d / 8000;
         const risk = Number(fp.riskScore ?? 0);
-        // Strongly prioritise medium/high risk over low risk for relative flood-zone scoring.
-        // Requested weighting: low ≈ 10x less than medium, high ≈ 5x more than medium.
         const severityWeight = risk >= 4 ? 5 : risk >= 3 ? 1 : risk >= 2 ? 0.1 : risk >= 1 ? 0.05 : 0;
-        raw += severityWeight * proximity * proximity;
+        // Max (not sum) so the score reflects the single worst nearby point,
+        // independent of data point density across regions or zoom levels.
+        raw = Math.max(raw, severityWeight * proximity * proximity);
       }
     }
-    floodMeta[i] = { rawImpact: raw, hasData: true, hasInCellRisk: true };
-    floodRawAll.push(raw * floodCellNorm); // normalised by cell width
+    floodMeta[i] = { rawImpact: raw, hasData: true };
   }
-  floodRawAll.sort((a, b) => a - b);
-  const nFloodAll = floodRawAll.length;
-  // Binary upper-bound search → percentile rank across ALL data-covered cells (0=safest, 1=worst)
-  const floodPercentileRank = (v: number): number => {
-    let lo = 0, hi = nFloodAll;
-    while (lo < hi) { const mid = (lo + hi) >> 1; if (floodRawAll[mid] <= v) lo = mid + 1; else hi = mid; }
-    return nFloodAll > 0 ? lo / nFloodAll : 0;
-  };
-
-  // p90 of ALL data-covered cells (including safe 0s) — if most cells are safe,
-  // p90 will be 0 or very small, raising the floor so isolated low-risk riverside
-  // cells don't score red just because they're the worst in a mostly-safe viewport.
-  const p90idx = nFloodAll > 0 ? Math.min(nFloodAll - 1, Math.floor(nFloodAll * 0.9)) : 0;
-  const p90raw = nFloodAll > 0 ? floodRawAll[p90idx] : 0;
-  // floor: worst cell in a low-risk area can score no lower than this
-  const floodScoreFloor = p90raw < 0.05 ? 0.65 : p90raw < 0.5 ? 0.35 : p90raw < 2.0 ? 0.1 : 0.0;
+  // No percentile distribution — absolute thresholds used in per-cell scoring below.
 
   for (let i = 0; i < features.length; i++) {
     // Yield to browser between chunks so UI stays responsive
@@ -3307,25 +3403,32 @@ async function applyIndexScoring(
     }
     props.ix_a = affordScore;
 
-    // 2) Flood risk — relative/percentile: score vs all other cells in England (pre-computed)
+    // 2) Flood risk — absolute severity×proximity score (density-independent)
+    //    rawImpact = max(severityWeight × proximity²) across all flood points within 8km.
+    //    severityWeight: risk≥4 → 5, risk≥3 → 1, risk≥2 → 0.1, risk≥1 → 0.05
+    //    proximity = 1 - d/8000  (0 at 8km, 1 at 0km)
+    //    Representative values:
+    //      High-risk (sw=5) at 0km → r=5.0 | at 2km → r=2.8 | at 4km → r=1.3 | at 6km → r=0.3
+    //      Medium-risk (sw=1) at 0km → r=1.0 | at 4km → r=0.25
+    //      Low-risk (sw=0.1) at 0km → r=0.1
     let floodScore = 0.5;
     let floodNoData = false;
     if (prefs.floodWeight > 0) {
       const fm = floodMeta[i];
       if (!fm || !fm.hasData) {
-        // No dataset coverage (Wales, Scotland) — neutral
+        // No dataset coverage (Wales, Scotland, etc.) — neutral
         floodNoData = true;
         floodScore = 0.5;
-      } else if (!fm.hasInCellRisk || fm.rawImpact === 0) {
-        // Has coverage but no flood zones within 8km → genuinely safe (top score)
-        floodScore = 1.0;
       } else {
-        // Percentile rank relative to flood-impacted cells in the current view.
-        // Blended with an absolute severity floor so a uniformly low-risk area
-        // doesn't score red just because it has the "worst" low-grade flood points.
-        // rank 0 = least impacted → score 1.0; rank 1 = most impacted → floor
-        const rank = floodPercentileRank(fm.rawImpact * floodCellNorm);
-        floodScore = floodScoreFloor + (1 - floodScoreFloor) * Math.max(0, 1 - rank);
+        const r = fm.rawImpact; // max-based, bounded by severityWeight (≤5)
+        if      (r === 0)   floodScore = 1.00; // no flood points within 8km
+        else if (r < 0.02)  floodScore = 0.92; // only trace/negligible risk
+        else if (r < 0.07)  floodScore = 0.78; // very low risk (e.g. low-risk at 2km)
+        else if (r < 0.20)  floodScore = 0.60; // low-moderate (low-risk at 0km, or med at 7km)
+        else if (r < 0.50)  floodScore = 0.40; // moderate (medium at 4-6km)
+        else if (r < 1.30)  floodScore = 0.22; // significant (medium at 0-2km, high at 6km)
+        else if (r < 3.00)  floodScore = 0.10; // high (high-risk within ~4km)
+        else                floodScore = 0.03; // severe (directly in a high-risk zone)
       }
       totalScore += prefs.floodWeight * floodScore;
       totalWeight += prefs.floodWeight;
