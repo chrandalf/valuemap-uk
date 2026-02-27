@@ -1561,19 +1561,36 @@ export default function ValueMap({
 
     const p = f.properties || {};
     const schoolName = String(p.school_name ?? "School");
-    const postcode = String(p.postcode ?? p.postcode_key ?? "Unknown postcode");
+    const postcode   = String(p.postcode ?? p.postcode_key ?? "");
+    const town       = String(p.town ?? "");
     const qualityScore = Number(p.quality_score ?? NaN);
-    const qualityBand = String(p.quality_band ?? "Unknown");
-    const schoolNameHtml = escapeHtml(schoolName);
-    const postcodeHtml = escapeHtml(postcode);
-    const qualityBandHtml = escapeHtml(qualityBand);
+    const qualityBand  = String(p.quality_band ?? "Unknown");
+    const urn          = String(p.urn ?? "");
+
+    const col = qualityScore >= 0.75 ? "#16a34a"
+              : qualityScore >= 0.60 ? "#65a30d"
+              : qualityScore >= 0.40 ? "#d97706"
+              : "#b91c1c";
+
+    const ofstedUrl  = urn ? `https://reports.ofsted.gov.uk/search?q=${urn}` : null;
+    const nameHtml   = ofstedUrl
+      ? `<a href="${ofstedUrl}" target="_blank" rel="noreferrer"
+           style="color:#1d4ed8;font-weight:700;font-size:13px;text-decoration:none">${escapeHtml(schoolName)} ↗</a>`
+      : `<span style="font-weight:700;font-size:13px">${escapeHtml(schoolName)}</span>`;
+    const locationHtml = [town, postcode].filter(Boolean).map(escapeHtml).join(", ");
 
     const html = `
-      <div style="font-family: system-ui; font-size: 12px; line-height: 1.25;">
-        <div style="font-weight: 700; margin-bottom: 4px;">${schoolNameHtml}</div>
-        <div>Postcode: <b>${postcodeHtml}</b></div>
-        <div>School quality: <b>${qualityBandHtml}</b></div>
-        <div>Score: <b>${Number.isFinite(qualityScore) ? qualityScore.toFixed(3) : "N/A"}</b></div>
+      <div style="font:12px/1.5 system-ui,sans-serif;color:#374151;min-width:190px">
+        <div style="margin-bottom:5px">${nameHtml}</div>
+        ${locationHtml ? `<div style="font-size:11px;color:#6b7280;margin-bottom:5px">${locationHtml}</div>` : ""}
+        <div style="border-top:1px solid #f3f4f6;padding-top:5px;margin-bottom:2px">
+          <span style="color:${col};font-weight:600">${escapeHtml(qualityBand)}</span>
+          <span style="color:#9ca3af;font-size:11px"> GCSE outcomes score</span>
+        </div>
+        <div style="font-size:10px;color:#9ca3af;margin-top:4px;line-height:1.35">
+          ⚠ Score reflects GCSE results — not Ofsted rating.
+          ${ofstedUrl ? `<a href="${ofstedUrl}" target="_blank" rel="noreferrer" style="color:#6366f1;text-decoration:underline">View Ofsted report ↗</a>` : ""}
+        </div>
       </div>
     `;
 
@@ -1971,12 +1988,12 @@ export default function ValueMap({
               ? `https://reports.ofsted.gov.uk/search?q=${nearestSch.urn}`
               : null;
             const nameHtml = nearestSch.schoolName
-              ? (ofstedUrl
-                  ? `<a href="${ofstedUrl}" target="_blank" rel="noreferrer" style="color:#374151;text-decoration:underline;text-decoration-color:#d1d5db">${nearestSch.schoolName}</a>`
-                  : `<span style="color:#374151">${nearestSch.schoolName}</span>`)
-                + " &mdash; "
+              ? `<span style="color:#374151">${nearestSch.schoolName}</span> &mdash; `
               : "";
-            schoolHtml = `${nameHtml}<span style="color:${col}">${label}</span> <span style="color:#9ca3af">${fmtDist(nearSchD)} away</span>`;
+            const ofstedLink = ofstedUrl
+              ? ` <a href="${ofstedUrl}" target="_blank" rel="noreferrer" style="color:#6366f1;font-size:10px;text-decoration:none;white-space:nowrap">Ofsted ↗</a>`
+              : "";
+            schoolHtml = `${nameHtml}<span style="color:${col}">${label}</span> <span style="color:#9ca3af">${fmtDist(nearSchD)} away</span>${ofstedLink}<div style="font-size:10px;color:#9ca3af;margin-top:2px">⚠ GCSE outcomes only — not Ofsted rating</div>`;
             lineTargets.push([nearestSch.lon, nearestSch.lat]);
           }
           // Draw line(s) to school(s)
@@ -2061,10 +2078,10 @@ export default function ValueMap({
         }
 
         const row = (icon: string, label: string, content: string) =>
-          `<div style="display:flex;gap:6px;align-items:baseline;padding:2px 0">
-            <span style="width:16px;flex-shrink:0;text-align:center">${icon}</span>
-            <span style="color:#9ca3af;width:48px;flex-shrink:0;font-size:11px;padding-top:1px">${label}</span>
-            <span style="font-size:12px;line-height:1.4">${content}</span>
+          `<div style="display:flex;gap:6px;align-items:flex-start;padding:2px 0">
+            <span style="width:16px;flex-shrink:0;text-align:center;padding-top:1px">${icon}</span>
+            <span style="color:#9ca3af;width:48px;flex-shrink:0;font-size:11px;padding-top:2px">${label}</span>
+            <div style="font-size:12px;line-height:1.4;flex:1;min-width:0">${content}</div>
           </div>`;
 
         const finalHtml =

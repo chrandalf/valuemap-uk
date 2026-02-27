@@ -66,8 +66,14 @@ TIER 2 — MEDIUM EFFORT  (M, moderate complexity)
           a) Map qualityScore bands → Ofsted wording (Outstanding / Good /
              Requires Improvement / Inadequate) in popup and overlays
           b) Audit scoring formula — investigate why "good" areas score oddly
-             (likely a distance-penalty or aggregation artefact)
-          c) Add footnote in popup: "Based on Ofsted ratings within X km"
+             — ROOT CAUSE IDENTIFIED: score is KS4 GCSE outcomes only, not Ofsted
+             — specialist/vocational schools (e.g. agricultural) score poorly
+             — fix: add Progress 8 (value-added) alongside raw attainment
+          c) [x] Added caveat to both overlay popup and right-click popup:
+             "⚠ Score reflects GCSE results — not Ofsted rating"
+          d) [x] School name links to Ofsted search by URN in both popups
+          e) Consider fetching Ofsted inspection outcome dataset (gov.uk open data)
+             to show actual Ofsted grade alongside GCSE score
 
 [ ] [M]   Flood messaging: accuracy caveat + "guidance not guarantee"
           - Add info tooltip/link on flood row explaining data source and limits
