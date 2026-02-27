@@ -1852,6 +1852,12 @@ export default function ValueMap({
       return _indexStationGrid;
     };
 
+    // Clear any previous lines immediately when a new right-click starts
+    setFloodSearchFocus(map, null);
+    setFloodSearchContext(map, null);
+    setSchoolSearchFocus(map, null, null, null);
+    setStationSearchFocus(map, null, null);
+
     void (async () => {
       try {
         // Run postcode lookup and dataset loading in parallel
@@ -1863,18 +1869,33 @@ export default function ValueMap({
         ]);
 
         // ── Flood: worst-risk point within 10 km ──
-        let floodHtml = '<span style="color:#6b7280">No flood risk areas within 10km</span>';
+        let floodHtml = '<span style="color:#16a34a">✓ No flood zone within 10km</span>';
+        let worstFloodLon = 0, worstFloodLat = 0;
         if (floodG) {
           const fps = querySpatialGrid(floodG, lng, lat, 0.09);
           let worst = 0; let worstD = Infinity;
           for (const fp of fps) {
             const d = haversineDistanceMeters(lat, lng, fp.lat, fp.lon);
-            if (d < 10000 && fp.riskScore > worst) { worst = fp.riskScore; worstD = d; }
+            if (d < 10000 && fp.riskScore > worst) {
+              worst = fp.riskScore; worstD = d;
+              worstFloodLon = fp.lon; worstFloodLat = fp.lat;
+            }
           }
-          if (worst >= 4) floodHtml = `<span style="color:#b91c1c;font-weight:600">High risk</span> <span style="color:#9ca3af">${fmtDist(worstD)} away</span>`;
-          else if (worst >= 3) floodHtml = `<span style="color:#ea580c;font-weight:600">Medium risk</span> <span style="color:#9ca3af">${fmtDist(worstD)} away</span>`;
-          else if (worst >= 2) floodHtml = `<span style="color:#d97706">Low risk</span> <span style="color:#9ca3af">${fmtDist(worstD)} away</span>`;
-          else if (worst >= 1) floodHtml = `<span style="color:#84cc16">Very low risk</span> <span style="color:#9ca3af">${fmtDist(worstD)} away</span>`;
+          if (worst > 0) {
+            const riskLabel = worst >= 4 ? "High" : worst >= 3 ? "Medium" : worst >= 2 ? "Low" : "Very low";
+            const riskCol   = worst >= 4 ? "#b91c1c" : worst >= 3 ? "#ea580c" : worst >= 2 ? "#d97706" : "#84cc16";
+            if (worstD >= 3000) {
+              // Far enough away: no direct risk, but flag the nearest zone
+              floodHtml = `<span style="color:#16a34a">✓ No direct risk</span> <span style="color:#9ca3af">— nearest zone ${fmtDist(worstD)} <span style="color:${riskCol}">(${riskLabel.toLowerCase()} risk)</span></span>`;
+            } else if (worstD >= 800) {
+              floodHtml = `<span style="color:${riskCol};font-weight:600">${riskLabel} risk zone</span> <span style="color:#9ca3af">${fmtDist(worstD)} from here</span>`;
+            } else {
+              floodHtml = `<span style="color:${riskCol};font-weight:600">⚠ In ${riskLabel.toLowerCase()} risk flood zone</span>`;
+            }
+            // Draw line from click point to nearest flood point
+            setFloodSearchFocus(map, { postcode: "", postcodeKey: "", riskScore: worst, lon: worstFloodLon, lat: worstFloodLat });
+            setFloodSearchContext(map, { requested: { lon: lng, lat: lat }, nearest: { lon: worstFloodLon, lat: worstFloodLat } });
+          }
         }
 
         // ── Nearest school within 20 km ──
@@ -1882,9 +1903,11 @@ export default function ValueMap({
         if (schoolG) {
           const sps = querySpatialGrid(schoolG, lng, lat, 0.18);
           let nearestSch: (typeof sps)[0] | null = null; let nearSchD = Infinity;
+          let nearestGoodSch: (typeof sps)[0] | null = null; let nearGoodSchD = Infinity;
           for (const sp of sps) {
             const d = haversineDistanceMeters(lat, lng, sp.lat, sp.lon);
             if (d < nearSchD) { nearestSch = sp; nearSchD = d; }
+            if (sp.qualityScore >= 0.7 && d < nearGoodSchD) { nearestGoodSch = sp; nearGoodSchD = d; }
           }
           if (nearestSch) {
             const q = nearestSch.qualityScore;
@@ -1892,6 +1915,17 @@ export default function ValueMap({
             const col = q >= 0.7 ? "#16a34a" : q >= 0.45 ? "#d97706" : "#b91c1c";
             schoolHtml = `<span style="color:${col}">${label}</span> <span style="color:#9ca3af">${fmtDist(nearSchD)} away</span>`;
           }
+          // Draw line(s) to school(s)
+          const toSchEntry = (sp: NonNullable<typeof nearestSch>, d: number) => ({
+            schoolName: "", postcode: "", postcodeKey: "", qualityScore: sp.qualityScore,
+            qualityBand: "", isGood: sp.isGood, lon: sp.lon, lat: sp.lat, distanceMeters: d,
+          });
+          setSchoolSearchFocus(
+            map,
+            nearestSch ? toSchEntry(nearestSch, nearSchD) : null,
+            nearestGoodSch && nearestGoodSch !== nearestSch ? toSchEntry(nearestGoodSch, nearGoodSchD) : null,
+            { lon: lng, lat: lat }
+          );
         }
 
         // ── Nearest station within 30 km ──
@@ -1905,6 +1939,12 @@ export default function ValueMap({
           }
           if (nearestStn) {
             stationHtml = `<span style="color:#374151">${nearestStn.name}</span> <span style="color:#9ca3af">${fmtDist(nearStnD)} away</span>`;
+            // Draw rail-style line to station
+            setStationSearchFocus(
+              map,
+              { name: nearestStn.name, code: nearestStn.code, owner: "", lon: nearestStn.lon, lat: nearestStn.lat, distanceMeters: nearStnD },
+              { lon: lng, lat: lat }
+            );
           }
         }
 
@@ -1932,6 +1972,15 @@ export default function ValueMap({
           delete (window as any).__rgCb;
           onReverseGeocodeRef.current?.(postcode);
         };
+
+        // Clear lines when popup is dismissed
+        popup.once("close", () => {
+          setFloodSearchFocus(map, null);
+          setFloodSearchContext(map, null);
+          setSchoolSearchFocus(map, null, null, null);
+          setStationSearchFocus(map, null, null);
+          delete (window as any).__rgCb;
+        });
 
         const row = (icon: string, label: string, content: string) =>
           `<div style="display:flex;gap:6px;align-items:baseline;padding:2px 0">
