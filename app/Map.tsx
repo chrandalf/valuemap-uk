@@ -1148,32 +1148,48 @@ export default function ValueMap({
 
   map.addLayer({
     id: "station-overlay-points",
-    type: "circle",
+    type: "symbol",
     source: "station-overlay",
     filter: ["!", ["has", "point_count"]] as any,
     layout: {
       visibility: stateRef.current.stationOverlayMode && stateRef.current.stationOverlayMode !== "off" ? "visible" : "none",
+      "text-field": "🚂",
+      "text-size": ["interpolate", ["linear"], ["zoom"], 4, 10, 6, 13, 8, 17, 10, 22] as any,
+      "text-allow-overlap": false,
+      "text-ignore-placement": false,
+      "text-anchor": "center",
     },
     paint: {
-      "circle-color": "#b91c1c",
-      "circle-opacity": 0.93,
-      "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 3.5, 6, 5.5, 8, 8, 10, 12] as any,
-      "circle-stroke-color": "rgba(255,255,255,0.94)",
-      "circle-stroke-width": 1.2,
+      "text-halo-color": "rgba(0,0,0,0.6)",
+      "text-halo-width": 1.2,
+      "text-opacity": 0.97,
     },
   });
 
   // ── Station search focus layers ──
+  // Rail casing (wide white base — ballast/sleeper ground)
+  map.addLayer({
+    id: "station-search-focus-rail-casing",
+    type: "line",
+    source: "station-search-focus",
+    filter: ["==", ["geometry-type"], "LineString"] as any,
+    paint: {
+      "line-color": "rgba(255,255,255,0.88)",
+      "line-width": 8,
+      "line-opacity": 0.88,
+    },
+  });
+  // Rail inner (narrow black dashed — the rails)
   map.addLayer({
     id: "station-search-focus-link",
     type: "line",
     source: "station-search-focus",
     filter: ["==", ["geometry-type"], "LineString"] as any,
     paint: {
-      "line-color": "#f97316",
-      "line-width": 3.5,
-      "line-dasharray": [3, 1.5],
-      "line-opacity": 0.95,
+      "line-color": "#1a1a1a",
+      "line-width": 3,
+      "line-dasharray": [5, 3] as any,
+      "line-opacity": 0.97,
     },
   });
 
@@ -3007,20 +3023,19 @@ async function applyIndexScoring(
             name: String(f.properties?.name ?? ""),
             code: String(f.properties?.code ?? ""),
           }));
-      } else {
-        _indexStationCache = [];
+        _indexStationGrid = null;
       }
+      // else: leave null → retry on next applyIndexScoring call
     } catch {
-      _indexStationCache = [];
+      // leave null → retry on next applyIndexScoring call
     }
-    _indexStationGrid = null;
   }
 
   // Build spatial grid indexes (skipped if already built)
   const GRID_CELL = 0.12; // ~13km buckets
   if (_indexFloodGrid === null) _indexFloodGrid = buildSpatialGrid(_indexFloodCache!, GRID_CELL);
   if (_indexSchoolGrid === null) _indexSchoolGrid = buildSpatialGrid(_indexSchoolCache!, GRID_CELL);
-  if (_indexStationGrid === null) _indexStationGrid = buildSpatialGrid(_indexStationCache!, GRID_CELL);
+  if (_indexStationGrid === null && _indexStationCache !== null) _indexStationGrid = buildSpatialGrid(_indexStationCache, GRID_CELL);
 
   const floodGrid = _indexFloodGrid;
   const schoolGrid = _indexSchoolGrid;
@@ -3240,7 +3255,7 @@ async function applyIndexScoring(
     let trainNoData = false;
     if (prefs.trainWeight > 0) {
       // Wide check: any station data within ~80km?
-      const wideStation = querySpatialGrid(stationGrid, cLon, cLat, DATA_DEG * 3);
+      const wideStation = stationGrid ? querySpatialGrid(stationGrid, cLon, cLat, DATA_DEG * 3) : [];
       if (wideStation.length === 0) {
         // No dataset coverage (e.g. remote island with no station data) → neutral
         trainNoData = true;
