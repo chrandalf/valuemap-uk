@@ -3532,7 +3532,14 @@ async function applyIndexScoring(
     }
     floodMeta[i] = { rawImpact: raw, hasData: true };
   }
-  // No percentile distribution — absolute thresholds used in per-cell scoring below.
+  // Relative flood scoring: rank each cell within the non-zero rawImpacts of this batch.
+  // Using Math.max()-based rawImpact means density is irrelevant (London vs rural same scale).
+  // If no cell in the batch has any flood data (rawImpact > 0), all cells score 1.0 (forced green).
+  const _floodBatchSorted = floodMeta
+    .filter(fm => fm && fm.hasData && fm.rawImpact > 0)
+    .map(fm => fm.rawImpact)
+    .sort((a, b) => a - b);
+  const _floodBatchMax = _floodBatchSorted.length > 0 ? _floodBatchSorted[_floodBatchSorted.length - 1] : 0;
 
   for (let i = 0; i < features.length; i++) {
     // Yield to browser between chunks so UI stays responsive
@@ -3618,14 +3625,25 @@ async function applyIndexScoring(
         floodScore = 0.5;
       } else {
         const r = fm.rawImpact; // max-based, bounded by severityWeight (≤5)
-        if      (r === 0)   floodScore = 1.00; // no flood points within 8km
-        else if (r < 0.02)  floodScore = 0.92; // only trace/negligible risk
-        else if (r < 0.07)  floodScore = 0.78; // very low risk (e.g. low-risk at 2km)
-        else if (r < 0.20)  floodScore = 0.60; // low-moderate (low-risk at 0km, or med at 7km)
-        else if (r < 0.50)  floodScore = 0.40; // moderate (medium at 4-6km)
-        else if (r < 1.30)  floodScore = 0.22; // significant (medium at 0-2km, high at 6km)
-        else if (r < 3.00)  floodScore = 0.10; // high (high-risk within ~4km)
-        else                floodScore = 0.03; // severe (directly in a high-risk zone)
+        if (r === 0) {
+          // No flood points within 8km of this cell → definitively safe
+          floodScore = 1.00;
+        } else if (_floodBatchMax === 0) {
+          // No cell in this entire batch has any flood data → force all green
+          floodScore = 1.00;
+        } else {
+          // Percentile rank within the non-zero rawImpacts of this batch.
+          // Binary-search to find position of r in sorted array.
+          let lo = 0, hi = _floodBatchSorted.length - 1, pos = 0;
+          while (lo <= hi) {
+            const m = (lo + hi) >> 1;
+            if (_floodBatchSorted[m] <= r) { pos = m; lo = m + 1; } else hi = m - 1;
+          }
+          // rank ∈ (0, 1]: 1 = riskiest cell in batch, ~0 = safest non-zero cell
+          const rank = (pos + 1) / _floodBatchSorted.length;
+          // Map rank → score: safest batch cell ≈ 0.92, riskiest ≈ 0.03
+          floodScore = Math.max(0.03, Math.min(0.97, 0.92 - 0.89 * rank));
+        }
       }
       totalScore += prefs.floodWeight * floodScore;
       totalWeight += prefs.floodWeight;
