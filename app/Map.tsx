@@ -242,6 +242,16 @@ export type LocateMeResult = {
   };
 };
 
+export type RgLogEntry = {
+  postcode: string;
+  lat: number;
+  lng: number;
+  timestamp: string;      // ISO-8601
+  floodSummary: string;   // plain text
+  schoolSummary: string;
+  stationSummary: string;
+};
+
 export default function ValueMap({
   state,
   onLegendChange,
@@ -259,6 +269,7 @@ export default function ValueMap({
   flyToRequest,
   easyColours,
   onReverseGeocode,
+  onLocationLogged,
   tapToSearch,
 }: {
   state: MapState;
@@ -280,6 +291,8 @@ export default function ValueMap({
   easyColours?: boolean;
   /** Called when the user right-clicks the map and a postcode is successfully reverse-geocoded. */
   onReverseGeocode?: (postcode: string) => void;
+  /** Called each time a reverse-geocode popup resolves with its full summary data (for the log). */
+  onLocationLogged?: (entry: RgLogEntry) => void;
   /** When true, a single tap/click anywhere on the map triggers the postcode reverse-geocode popup (for mobile users). */
   tapToSearch?: boolean;
 }) {
@@ -294,6 +307,7 @@ export default function ValueMap({
   const onIndexScoringAppliedRef = useRef<typeof onIndexScoringApplied>(onIndexScoringApplied);
   const onStatsUpdateRef = useRef<typeof onStatsUpdate>(onStatsUpdate);
   const onReverseGeocodeRef = useRef<typeof onReverseGeocode>(onReverseGeocode);
+  const onLocationLoggedRef = useRef<typeof onLocationLogged>(onLocationLogged);
   const tapToSearchRef = useRef<boolean>(!!tapToSearch);
   const locateMarkerRef = useRef<maplibregl.Marker | null>(null);
 
@@ -338,6 +352,10 @@ export default function ValueMap({
   useEffect(() => {
     onReverseGeocodeRef.current = onReverseGeocode;
   }, [onReverseGeocode]);
+
+  useEffect(() => {
+    onLocationLoggedRef.current = onLocationLogged;
+  }, [onLocationLogged]);
 
   useEffect(() => {
     tapToSearchRef.current = !!tapToSearch;
@@ -1802,11 +1820,23 @@ export default function ValueMap({
   });
 
   // ── Right-click → reverse postcode lookup  /  tap-to-search mode ──
+  // Only one popup open at a time — opening a new one closes the previous.
+  let activeRgPopup: maplibregl.Popup | null = null;
+  const closeActiveRg = () => {
+    if (activeRgPopup) { activeRgPopup.remove(); activeRgPopup = null; }
+    setFloodSearchFocus(map, null);
+    setFloodSearchContext(map, null);
+    setSchoolSearchFocus(map, null, null, null);
+    setStationSearchFocus(map, null, null);
+    delete (window as any).__rgCb;
+  };
   const doReverseGeocode = (lng: number, lat: number) => {
+    closeActiveRg();
     let popup = new maplibregl.Popup({ closeButton: true, offset: 8, maxWidth: "260px" })
       .setLngLat([lng, lat])
       .setHTML('<div style="font:13px/1.5 sans-serif;color:#374151;padding:2px 0">📍 Looking up location…</div>')
       .addTo(map);
+    activeRgPopup = popup;
     const lineTargets: [number, number][] = [];
     // Format metres → "450m" or "3.2km"
     const fmtDist = (m: number) => m < 1000 ? `${Math.round(m)}m` : `${(m / 1000).toFixed(1)}km`;
@@ -1975,6 +2005,16 @@ export default function ValueMap({
         }
         if (!postcode) throw new Error("no postcode");
 
+        // ── Log this search entry ──
+        const stripHtml = (s: string) => s.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+        onLocationLoggedRef.current?.({
+          postcode, lat, lng,
+          timestamp: new Date().toISOString(),
+          floodSummary: stripHtml(floodHtml),
+          schoolSummary: stripHtml(schoolHtml),
+          stationSummary: stripHtml(stationHtml),
+        });
+
         // ── Position popup away from where the lines go ──
         // Compute centroid of all targets; popup anchor = same quadrant → body extends away.
         let anchor: maplibregl.PopupOptions["anchor"] = "bottom";
@@ -2033,12 +2073,14 @@ export default function ValueMap({
 
         // Clear lines when popup is dismissed
         popup.once("close", () => {
+          activeRgPopup = null;
           setFloodSearchFocus(map, null);
           setFloodSearchContext(map, null);
           setSchoolSearchFocus(map, null, null, null);
           setStationSearchFocus(map, null, null);
           delete (window as any).__rgCb;
         });
+        activeRgPopup = popup;
 
         // (popup HTML already set when popup was recreated above)
       } catch {

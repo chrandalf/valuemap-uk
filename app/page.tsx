@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import ValueMap, { type LegendData, type LocateMeResult, type IndexPrefs } from "./Map";
+import ValueMap, { type LegendData, type LocateMeResult, type IndexPrefs, type RgLogEntry } from "./Map";
 import GuidedTour, { type TourStep } from "./components/GuidedTour";
 
 type GridSize = "1km" | "5km" | "10km" | "25km";
@@ -233,6 +233,9 @@ export default function Home() {
   const [postcodeSearchToken, setPostcodeSearchToken] = useState(0);
   const [postcodeSearchClearToken, setPostcodeSearchClearToken] = useState(0);
   const [postcodeSearchStatus, setPostcodeSearchStatus] = useState<string | null>(null);
+  const [tapToSearch, setTapToSearch] = useState(false);
+  const [rgLog, setRgLog] = useState<RgLogEntry[]>([]);
+  const [rgLogOpen, setRgLogOpen] = useState(false);
   const [locateMeToken, setLocateMeToken] = useState(0);
   const [locateMeStatus, setLocateMeStatus] = useState<string | null>(null);
   const [locateMeSummary, setLocateMeSummary] = useState<string | null>(null);
@@ -1538,7 +1541,9 @@ export default function Home() {
     {
       target: null,
       title: "That's postcode search!",
-      text: "Use the search box for any postcode, or tap 📍 Locate to use your GPS. Both work with all overlays — if flood or schools are on, it also finds the nearest data points.",
+      text: isMobileViewport
+        ? "Type any postcode, tap 📍 Locate for GPS, or use the 🔍 tap-to-search button to tap anywhere on the map. All work with flood & school overlays too."
+        : "Type any postcode, press 📍 Locate for GPS, or right-click anywhere on the map. Flood & school overlays update automatically.",
       placement: "center" as const,
       enterDelay: 600,
       onEnter: () => {
@@ -1613,6 +1618,8 @@ export default function Home() {
           setActivePostcodeSearch(postcode);
           setPostcodeSearchToken((v) => v + 1);
         }}
+        tapToSearch={tapToSearch}
+        onLocationLogged={(entry) => setRgLog((prev) => [entry, ...prev])}
         onPostcodeSearchResult={(result) => {
           const floodLookupActive = result.lookupMode !== "schools" && state.floodOverlayMode !== "off";
           const schoolLookupActive = result.lookupMode !== "flood" && state.schoolOverlayMode !== "off";
@@ -1886,6 +1893,8 @@ export default function Home() {
                 >
                   📍 Locate
                 </button>
+                {/* Desktop hint: right-click tip */}
+                <span style={{ color: "rgba(255,255,255,0.38)", fontSize: 10, whiteSpace: "nowrap", userSelect: "none" }}>or right-click map</span>
               </div>
             )}
           </div>
@@ -1908,6 +1917,23 @@ export default function Home() {
                 aria-label="Search postcode"
                 style={{ width: 90, minWidth: 0, flexShrink: 0, borderRadius: 7, border: "1px solid rgba(255,255,255,0.22)", background: "rgba(255,255,255,0.1)", color: "white", padding: "5px 8px", fontSize: 11 }}
               />
+              {/* Tap-to-search toggle — magnifier icon, lights up when active */}
+              <button
+                type="button"
+                title={tapToSearch ? "Tap-to-search ON: tap any map spot" : "Tap-to-search: tap anywhere to look up postcode"}
+                aria-label="Toggle tap-to-search"
+                data-tour="tap-to-search"
+                onClick={() => setTapToSearch((v) => !v)}
+                style={{
+                  cursor: "pointer",
+                  border: tapToSearch ? "1px solid rgba(250,204,21,0.8)" : "1px solid rgba(255,255,255,0.22)",
+                  background: tapToSearch ? "rgba(250,204,21,0.22)" : "rgba(255,255,255,0.08)",
+                  color: tapToSearch ? "rgba(250,204,21,1)" : "rgba(255,255,255,0.65)",
+                  padding: "5px 7px", borderRadius: 7, fontSize: 13, lineHeight: 1, flexShrink: 0,
+                }}
+              >
+                🔍
+              </button>
               {activePostcodeSearch ? (
                 <button
                   type="button"
@@ -1940,6 +1966,10 @@ export default function Home() {
                 style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.22)", background: "rgba(255,255,255,0.1)", color: "white", padding: "5px 9px", borderRadius: 7, fontSize: 11, flexShrink: 0 }}
               >
                 Go
+              </button>
+              <button type="button" onClick={() => setRgLogOpen((v) => !v)} title="Search log" aria-label="Open search log"
+                style={{ cursor: "pointer", border: `1px solid ${rgLogOpen ? "rgba(99,102,241,0.8)" : "rgba(255,255,255,0.22)"}`, background: rgLogOpen ? "rgba(99,102,241,0.25)" : "rgba(255,255,255,0.08)", color: "white", padding: "5px 7px", borderRadius: 7, fontSize: 12, lineHeight: 1, flexShrink: 0 }}>
+                📋{rgLog.length > 0 && <span style={{ fontSize: 9, verticalAlign: "top", marginLeft: 1 }}>{rgLog.length}</span>}
               </button>
               {mapStats && (
                 <div style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 10, opacity: 0.85, color: "rgba(250,204,21,0.9)" }}>
@@ -3291,6 +3321,49 @@ export default function Home() {
         stepIndex={tourStep}
         onStepChange={setTourStep}
       />
+
+      {/* ── Search log panel ── */}
+      {rgLogOpen && (
+        <div style={{ position: "fixed", top: 60, right: 16, zIndex: 9999, width: 320, maxWidth: "calc(100vw - 32px)", maxHeight: "70vh", background: "rgba(8,10,20,0.95)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 10, color: "white", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px 8px", borderBottom: "1px solid rgba(255,255,255,0.1)", flexShrink: 0 }}>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>📋 Search log {rgLog.length > 0 && <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.6 }}>({rgLog.length})</span>}</span>
+            <div style={{ display: "flex", gap: 6 }}>
+              {rgLog.length > 0 && (
+                <>
+                  <button type="button" title="Download CSV" onClick={() => {
+                    const lines = ["Timestamp,Postcode,Lat,Lng,Flood,Schools,Station"];
+                    for (const e of rgLog) lines.push([e.timestamp, e.postcode, e.lat, e.lng, `"${e.floodSummary.replace(/"/g, '""')}"`, `"${e.schoolSummary.replace(/"/g, '""')}"`, `"${e.stationSummary.replace(/"/g, '""')}"`].join(","));
+                    const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+                    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "valuemap-search-log.csv"; a.click(); URL.revokeObjectURL(a.href);
+                  }} style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.8)", padding: "3px 8px", borderRadius: 6, fontSize: 11 }}>⬇ CSV</button>
+                  <button type="button" title="Clear all" onClick={() => setRgLog([])} style={{ cursor: "pointer", border: "1px solid rgba(239,68,68,0.35)", background: "rgba(239,68,68,0.12)", color: "rgba(239,68,68,0.85)", padding: "3px 8px", borderRadius: 6, fontSize: 11 }}>Clear</button>
+                </>
+              )}
+              <button type="button" onClick={() => setRgLogOpen(false)} style={{ cursor: "pointer", border: "none", background: "transparent", color: "rgba(255,255,255,0.5)", fontSize: 16, lineHeight: 1, padding: "0 2px" }}>✕</button>
+            </div>
+          </div>
+          <div style={{ overflowY: "auto", flex: 1, padding: rgLog.length === 0 ? "16px 12px" : "4px 0" }}>
+            {rgLog.length === 0 ? (
+              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", margin: 0, textAlign: "center" }}>No searches yet.<br/>Right-click the map to look up a location.</p>
+            ) : rgLog.map((entry, i) => (
+              <div key={`${entry.timestamp}-${i}`} style={{ padding: "8px 12px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", gap: 8, alignItems: "flex-start" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 3 }}>
+                    <span style={{ fontWeight: 700, fontSize: 13 }}>{entry.postcode}</span>
+                    <span style={{ fontSize: 10, color: "rgba(255,255,255,0.35)" }}>{new Date(entry.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", lineHeight: 1.4 }}>
+                    <div>🌊 {entry.floodSummary}</div>
+                    <div>🏫 {entry.schoolSummary}</div>
+                    <div>🚂 {entry.stationSummary}</div>
+                  </div>
+                </div>
+                <button type="button" onClick={() => setRgLog((prev) => prev.filter((_, j) => j !== i))} title="Remove" style={{ cursor: "pointer", border: "none", background: "transparent", color: "rgba(255,255,255,0.3)", fontSize: 14, padding: "0 2px", alignSelf: "flex-start", flexShrink: 0 }}>✕</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </main>
   );
 }
