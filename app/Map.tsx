@@ -258,6 +258,7 @@ export default function ValueMap({
   onStatsUpdate,
   flyToRequest,
   easyColours,
+  onReverseGeocode,
 }: {
   state: MapState;
   onLegendChange?: (legend: LegendData | null) => void;
@@ -276,6 +277,8 @@ export default function ValueMap({
   flyToRequest?: { center: [number, number]; zoom: number; token: number } | null;
   /** When true, swap all map colour ramps to colorblind-safe palettes (Viridis / BrBG). */
   easyColours?: boolean;
+  /** Called when the user right-clicks the map and a postcode is successfully reverse-geocoded. */
+  onReverseGeocode?: (postcode: string) => void;
 }) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -287,6 +290,7 @@ export default function ValueMap({
   const onLocateMeResultRef = useRef<typeof onLocateMeResult>(onLocateMeResult);
   const onIndexScoringAppliedRef = useRef<typeof onIndexScoringApplied>(onIndexScoringApplied);
   const onStatsUpdateRef = useRef<typeof onStatsUpdate>(onStatsUpdate);
+  const onReverseGeocodeRef = useRef<typeof onReverseGeocode>(onReverseGeocode);
   const locateMarkerRef = useRef<maplibregl.Marker | null>(null);
 
   const [postcodeCell, setPostcodeCell] = useState<string | null>(null);
@@ -326,6 +330,10 @@ export default function ValueMap({
   useEffect(() => {
     onPostcodeSearchResultRef.current = onPostcodeSearchResult;
   }, [onPostcodeSearchResult]);
+
+  useEffect(() => {
+    onReverseGeocodeRef.current = onReverseGeocode;
+  }, [onReverseGeocode]);
 
   useEffect(() => {
     onLocateMeResultRef.current = onLocateMeResult;
@@ -1783,6 +1791,50 @@ export default function ValueMap({
       setScotlandNote(null);
     }
     void fetchPostcodesRef.current(gx, gy, 0, false);
+  });
+
+  // ── Right-click → reverse postcode lookup ──
+  map.on("contextmenu", (e) => {
+    e.originalEvent.preventDefault();
+    const { lng, lat } = e.lngLat;
+    const popup = new maplibregl.Popup({ closeButton: true, offset: 8, maxWidth: "220px" })
+      .setLngLat([lng, lat])
+      .setHTML('<div style="font:13px/1.5 sans-serif;color:#374151">&#x1F4CD;&nbsp;Looking up postcode…</div>')
+      .addTo(map);
+    void (async () => {
+      try {
+        // postcodes.io: exact postcode within 2000 m (API maximum radius)
+        const res = await fetch(
+          `https://api.postcodes.io/postcodes?lon=${lng}&lat=${lat}&limit=1&radius=2000`
+        );
+        if (!res.ok) throw new Error("bad response");
+        const data = (await res.json()) as any;
+        const found = data?.result?.[0];
+        if (found?.postcode) {
+          popup.remove();
+          onReverseGeocodeRef.current?.(found.postcode as string);
+          return;
+        }
+        // Fallback: no postcode within 2 km (rural/remote) — find nearest outcode instead.
+        // The search handles partial postcodes / outcodes via hierarchy matching.
+        const resOut = await fetch(
+          `https://api.postcodes.io/outcodes?lon=${lng}&lat=${lat}&limit=1&radius=50000`
+        );
+        if (resOut.ok) {
+          const dataOut = (await resOut.json()) as any;
+          const foundOut = dataOut?.result?.[0];
+          if (foundOut?.outcode) {
+            popup.remove();
+            onReverseGeocodeRef.current?.(foundOut.outcode as string);
+            return;
+          }
+        }
+        throw new Error("no postcode");
+      } catch {
+        popup.setHTML('<div style="font:13px/1.5 sans-serif;color:#b91c1c">No postcode found here</div>');
+        setTimeout(() => popup.remove(), 2500);
+      }
+    })();
   });
 
   // Initial real data load

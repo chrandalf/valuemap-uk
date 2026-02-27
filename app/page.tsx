@@ -1550,6 +1550,11 @@ export default function Home() {
         onStatsUpdate={setMapStats}
         flyToRequest={flyToRequest}
         easyColours={easyColours}
+        onReverseGeocode={(postcode) => {
+          setPostcodeSearch(postcode);
+          setActivePostcodeSearch(postcode);
+          setPostcodeSearchToken((v) => v + 1);
+        }}
         onPostcodeSearchResult={(result) => {
           const floodLookupActive = result.lookupMode !== "schools" && state.floodOverlayMode !== "off";
           const schoolLookupActive = result.lookupMode !== "flood" && state.schoolOverlayMode !== "off";
