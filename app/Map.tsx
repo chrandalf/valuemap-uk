@@ -1797,10 +1797,12 @@ export default function ValueMap({
   map.on("contextmenu", (e) => {
     e.originalEvent.preventDefault();
     const { lng, lat } = e.lngLat;
-    const popup = new maplibregl.Popup({ closeButton: true, offset: 8, maxWidth: "260px" })
+    let popup = new maplibregl.Popup({ closeButton: true, offset: 8, maxWidth: "260px" })
       .setLngLat([lng, lat])
       .setHTML('<div style="font:13px/1.5 sans-serif;color:#374151;padding:2px 0">📍 Looking up location…</div>')
       .addTo(map);
+    // Accumulate targets (flood/school/station) so we can position popup away from them
+    const lineTargets: [number, number][] = [];
 
     // Format metres → "450m" or "3.2km"
     const fmtDist = (m: number) => m < 1000 ? `${Math.round(m)}m` : `${(m / 1000).toFixed(1)}km`;
@@ -1895,6 +1897,7 @@ export default function ValueMap({
             // Draw line from click point to nearest flood point
             setFloodSearchFocus(map, { postcode: "", postcodeKey: "", riskScore: worst, lon: worstFloodLon, lat: worstFloodLat });
             setFloodSearchContext(map, { requested: { lon: lng, lat: lat }, nearest: { lon: worstFloodLon, lat: worstFloodLat } });
+            lineTargets.push([worstFloodLon, worstFloodLat]);
           }
         }
 
@@ -1914,6 +1917,7 @@ export default function ValueMap({
             const label = q >= 0.7 ? "Good" : q >= 0.45 ? "Average" : "Below average";
             const col = q >= 0.7 ? "#16a34a" : q >= 0.45 ? "#d97706" : "#b91c1c";
             schoolHtml = `<span style="color:${col}">${label}</span> <span style="color:#9ca3af">${fmtDist(nearSchD)} away</span>`;
+            lineTargets.push([nearestSch.lon, nearestSch.lat]);
           }
           // Draw line(s) to school(s)
           const toSchEntry = (sp: NonNullable<typeof nearestSch>, d: number) => ({
@@ -1939,6 +1943,7 @@ export default function ValueMap({
           }
           if (nearestStn) {
             stationHtml = `<span style="color:#374151">${nearestStn.name}</span> <span style="color:#9ca3af">${fmtDist(nearStnD)} away</span>`;
+            lineTargets.push([nearestStn.lon, nearestStn.lat]);
             // Draw rail-style line to station
             setStationSearchFocus(
               map,
@@ -1966,6 +1971,55 @@ export default function ValueMap({
         }
         if (!postcode) throw new Error("no postcode");
 
+        // ── Position popup away from where the lines go ──
+        // Compute centroid of all targets; popup anchor = same quadrant → body extends away.
+        let anchor: maplibregl.PopupOptions["anchor"] = "bottom";
+        if (lineTargets.length > 0) {
+          const avgLon = lineTargets.reduce((s, t) => s + t[0], 0) / lineTargets.length;
+          const avgLat = lineTargets.reduce((s, t) => s + t[1], 0) / lineTargets.length;
+          const dLon = avgLon - lng; // positive = targets are east (right)
+          const dLat = avgLat - lat; // positive = targets are north (up on screen)
+          // anchor = corner of popup placed at click point; body extends in opposite direction.
+          // Targets NE → anchor top-right → popup body goes SW.
+          // Targets NW → anchor top-left  → popup body goes SE.
+          // Targets SE → anchor bottom-right → popup body goes NW.
+          // Targets SW → anchor bottom-left  → popup body goes NE.
+          if      (dLon >= 0 && dLat >= 0) anchor = "top-right";
+          else if (dLon <  0 && dLat >= 0) anchor = "top-left";
+          else if (dLon >= 0 && dLat <  0) anchor = "bottom-right";
+          else                              anchor = "bottom-left";
+        }
+
+        const row = (icon: string, label: string, content: string) =>
+          `<div style="display:flex;gap:6px;align-items:baseline;padding:2px 0">
+            <span style="width:16px;flex-shrink:0;text-align:center">${icon}</span>
+            <span style="color:#9ca3af;width:48px;flex-shrink:0;font-size:11px;padding-top:1px">${label}</span>
+            <span style="font-size:12px;line-height:1.4">${content}</span>
+          </div>`;
+
+        const finalHtml =
+          `<div style="font:13px/1.5 sans-serif;color:#374151;padding:2px 0;min-width:210px">
+            <div style="margin-bottom:7px">
+              <a href="#" onclick="if(window.__rgCb)window.__rgCb();return false"
+                 style="font-weight:700;font-size:14px;color:#1d4ed8;text-decoration:none;letter-spacing:.01em">
+                📍 ${postcode}
+              </a>
+              <span style="color:#9ca3af;font-size:11px;margin-left:5px">${isOutcode ? "district" : "— click to search"}</span>
+            </div>
+            <div style="border-top:1px solid #f3f4f6;padding-top:5px">
+              ${row("🌊", "Flood", floodHtml)}
+              ${row("🏫", "Schools", schoolHtml)}
+              ${row("🚂", "Station", stationHtml)}
+            </div>
+          </div>`;
+
+        // Remove the "loading" popup and recreate with the computed anchor
+        popup.remove();
+        popup = new maplibregl.Popup({ closeButton: true, offset: 10, maxWidth: "280px", anchor })
+          .setLngLat([lng, lat])
+          .setHTML(finalHtml)
+          .addTo(map);
+
         // Clicking the postcode fires the area search and closes the popup
         (window as any).__rgCb = () => {
           popup.remove();
@@ -1982,29 +2036,7 @@ export default function ValueMap({
           delete (window as any).__rgCb;
         });
 
-        const row = (icon: string, label: string, content: string) =>
-          `<div style="display:flex;gap:6px;align-items:baseline;padding:2px 0">
-            <span style="width:16px;flex-shrink:0;text-align:center">${icon}</span>
-            <span style="color:#9ca3af;width:48px;flex-shrink:0;font-size:11px;padding-top:1px">${label}</span>
-            <span style="font-size:12px;line-height:1.4">${content}</span>
-          </div>`;
-
-        popup.setHTML(
-          `<div style="font:13px/1.5 sans-serif;color:#374151;padding:2px 0;min-width:210px">
-            <div style="margin-bottom:7px">
-              <a href="#" onclick="if(window.__rgCb)window.__rgCb();return false"
-                 style="font-weight:700;font-size:14px;color:#1d4ed8;text-decoration:none;letter-spacing:.01em">
-                📍 ${postcode}
-              </a>
-              <span style="color:#9ca3af;font-size:11px;margin-left:5px">${isOutcode ? "district" : "— click to search"}</span>
-            </div>
-            <div style="border-top:1px solid #f3f4f6;padding-top:5px">
-              ${row("🌊", "Flood", floodHtml)}
-              ${row("🏫", "Schools", schoolHtml)}
-              ${row("🚂", "Station", stationHtml)}
-            </div>
-          </div>`
-        );
+        // (popup HTML already set when popup was recreated above)
       } catch {
         popup.setHTML('<div style="font:13px/1.5 sans-serif;color:#b91c1c">No postcode found here</div>');
         setTimeout(() => popup.remove(), 2500);
