@@ -1102,8 +1102,9 @@ export default function Home() {
         setIndexAffordWeight(7);
         setIndexFloodWeight(8);
         setIndexSchoolWeight(6);
+        setIndexTrainWeight(0);
         setIndexCoastWeight(0);
-        setIndexApplied({ budget: 350000, propertyType: "ALL", affordWeight: 7, floodWeight: 8, schoolWeight: 6, coastWeight: 0 });
+        setIndexApplied({ budget: 350000, propertyType: "ALL", affordWeight: 7, floodWeight: 8, schoolWeight: 6, trainWeight: 0, coastWeight: 0 });
         setGridMode("manual");
         setState((s) => ({ ...s, grid: "1km" }));
         setIndexScoringPending(true);
