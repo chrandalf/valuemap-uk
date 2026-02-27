@@ -3503,10 +3503,13 @@ async function applyIndexScoring(
   // so raw impact must be scaled down proportionally to avoid unfairly penalising coarse cells.
   const features = fc.features;
 
-  // ─── Flood pre-pass: compute worst-case severity×proximity score for every cell ───
-  // Uses max() not sum() so the score is density-independent: a London cell near the
-  // Thames gets the same score whether queried at 1km or 5km grid, regardless of how
-  // many flood-zone polygons are mapped in the dataset.
+  // ─── Flood pre-pass: compute worst-case severity score for every cell ───
+  // Flood points are only considered if they fall **within the cell itself**.
+  // We compute the cell's half-diagonal in metres from its corner coordinates and
+  // use that as the search radius.  This means a 1km cell only looks ~0.7km from
+  // its centre — a flood zone in the next valley simply doesn't count.
+  // Score = max severityWeight among all flood points inside the cell (no proximity
+  // weighting needed — if it's in the cell, it counts at full strength).
   type FloodMeta = { rawImpact: number; hasData: boolean };
   const floodMeta: FloodMeta[] = new Array(features.length);
   for (let i = 0; i < features.length; i++) {
@@ -3514,29 +3517,39 @@ async function applyIndexScoring(
     if (!coords || coords.length < 4) { floodMeta[i] = { rawImpact: 0, hasData: false }; continue; }
     const cLon = (coords[0][0] + coords[2][0]) / 2;
     const cLat = (coords[0][1] + coords[2][1]) / 2;
+
+    // Cell half-diagonal in metres (centre → corner)
+    const cellHalfDiagM = haversineDistanceMeters(cLat, cLon, coords[2][1], coords[2][0]);
+    // Convert to degrees for the spatial-grid query (rough approximation is fine here)
+    const cellQueryDeg = Math.max(cellHalfDiagM / 100000, 0.005); // floor 0.005° ≈ 550m
+
+    // First check: any flood dataset coverage at all in this region?
     if (querySpatialGrid(floodGrid, cLon, cLat, DATA_DEG).length === 0) {
       floodMeta[i] = { rawImpact: 0, hasData: false }; continue;
     }
-    const nearFloodPoints = querySpatialGrid(floodGrid, cLon, cLat, NEAR_DEG);
+    // Query only within the cell's own footprint
+    const cellFloodPoints = querySpatialGrid(floodGrid, cLon, cLat, cellQueryDeg);
     let raw = 0;
-    for (const fp of nearFloodPoints) {
+    for (const fp of cellFloodPoints) {
       const d = haversineDistanceMeters(cLat, cLon, fp.lat, fp.lon);
-      if (d < 8000) {
-        const proximity = 1 - d / 8000;
+      if (d <= cellHalfDiagM) {
         const risk = Number(fp.riskScore ?? 0);
+        // severityWeight: high-risk=5, medium=1, low=0.1, very-low=0.05
         const severityWeight = risk >= 4 ? 5 : risk >= 3 ? 1 : risk >= 2 ? 0.1 : risk >= 1 ? 0.05 : 0;
-        // Max (not sum) so the score reflects the single worst nearby point,
-        // independent of data point density across regions or zoom levels.
-        raw = Math.max(raw, severityWeight * proximity * proximity);
+        // Max (not sum) — worst point in cell, density-independent
+        raw = Math.max(raw, severityWeight);
       }
     }
     floodMeta[i] = { rawImpact: raw, hasData: true };
   }
-  // Relative flood scoring: rank each cell within the non-zero rawImpacts of this batch.
-  // Using Math.max()-based rawImpact means density is irrelevant (London vs rural same scale).
-  // If no cell in the batch has any flood data (rawImpact > 0), all cells score 1.0 (forced green).
+  // Hybrid flood scoring — based on severity of flood points WITHIN each cell:
+  //   rawImpact values: 0 (none), 0.05 (very-low), 0.1 (low), 1.0 (medium), 5.0 (high)
+  //   Threshold = 0.5: only medium (1.0) and high (5.0) risk points trigger relative ranking.
+  //   Low/very-low in-cell points get absolute safe scores so they don't look red
+  //   when ranked against cells that also only have low-risk points.
+  const FLOOD_RISK_THRESHOLD = 0.5; // medium-risk (sw=1) or higher in the cell
   const _floodBatchSorted = floodMeta
-    .filter(fm => fm && fm.hasData && fm.rawImpact > 0)
+    .filter(fm => fm && fm.hasData && fm.rawImpact >= FLOOD_RISK_THRESHOLD)
     .map(fm => fm.rawImpact)
     .sort((a, b) => a - b);
   const _floodBatchMax = _floodBatchSorted.length > 0 ? _floodBatchSorted[_floodBatchSorted.length - 1] : 0;
@@ -3607,14 +3620,9 @@ async function applyIndexScoring(
     }
     props.ix_a = affordScore;
 
-    // 2) Flood risk — absolute severity×proximity score (density-independent)
-    //    rawImpact = max(severityWeight × proximity²) across all flood points within 8km.
-    //    severityWeight: risk≥4 → 5, risk≥3 → 1, risk≥2 → 0.1, risk≥1 → 0.05
-    //    proximity = 1 - d/8000  (0 at 8km, 1 at 0km)
-    //    Representative values:
-    //      High-risk (sw=5) at 0km → r=5.0 | at 2km → r=2.8 | at 4km → r=1.3 | at 6km → r=0.3
-    //      Medium-risk (sw=1) at 0km → r=1.0 | at 4km → r=0.25
-    //      Low-risk (sw=0.1) at 0km → r=0.1
+    // 2) Flood risk — severity of flood points contained within this cell.
+    //    rawImpact = max severityWeight: high-risk→5, medium→1, low→0.1, very-low→0.05, none→0
+    //    Only medium+ in-cell risk triggers relative ranking; low/none get absolute safe scores.
     let floodScore = 0.5;
     let floodNoData = false;
     if (prefs.floodWeight > 0) {
@@ -3624,25 +3632,31 @@ async function applyIndexScoring(
         floodNoData = true;
         floodScore = 0.5;
       } else {
-        const r = fm.rawImpact; // max-based, bounded by severityWeight (≤5)
+        const r = fm.rawImpact; // max severityWeight among flood points inside this cell
         if (r === 0) {
-          // No flood points within 8km of this cell → definitively safe
+          // No flood points inside the cell → definitively safe
           floodScore = 1.00;
+        } else if (r < 0.08) {
+          // Only very-low risk points (risk=1, sw=0.05) in cell → safe
+          floodScore = 0.92;
+        } else if (r < FLOOD_RISK_THRESHOLD) {
+          // Only low risk points (risk=2, sw=0.1) in cell → safe-ish
+          floodScore = 0.82;
         } else if (_floodBatchMax === 0) {
-          // No cell in this entire batch has any flood data → force all green
-          floodScore = 1.00;
+          // All cells in batch are below threshold — guard
+          floodScore = 0.82;
         } else {
-          // Percentile rank within the non-zero rawImpacts of this batch.
-          // Binary-search to find position of r in sorted array.
+          // Medium (sw=1.0) or high (sw=5.0) risk inside the cell.
+          // Rank relative to other at-risk cells in this batch.
           let lo = 0, hi = _floodBatchSorted.length - 1, pos = 0;
           while (lo <= hi) {
             const m = (lo + hi) >> 1;
             if (_floodBatchSorted[m] <= r) { pos = m; lo = m + 1; } else hi = m - 1;
           }
-          // rank ∈ (0, 1]: 1 = riskiest cell in batch, ~0 = safest non-zero cell
+          // rank ∈ (0, 1]: 1 = riskiest in batch, near-0 = least risky above threshold
           const rank = (pos + 1) / _floodBatchSorted.length;
-          // Map rank → score: safest batch cell ≈ 0.92, riskiest ≈ 0.03
-          floodScore = Math.max(0.03, Math.min(0.97, 0.92 - 0.89 * rank));
+          // Safest above-threshold cell ≈ 0.75, riskiest ≈ 0.03
+          floodScore = Math.max(0.03, Math.min(0.75, 0.75 - 0.72 * rank));
         }
       }
       totalScore += prefs.floodWeight * floodScore;
