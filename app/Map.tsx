@@ -3181,7 +3181,10 @@ async function applyIndexScoring(
   // ─── Flood pre-pass: compute raw impact for every cell, collect for percentile ranking ───
   type FloodMeta = { rawImpact: number; hasData: boolean; hasInCellRisk: boolean };
   const floodMeta: FloodMeta[] = new Array(features.length);
-  const floodRawPositive: number[] = []; // only cells with actual flood impact > 0
+  // ALL data-covered cells go into the distribution (safe cells as 0.0).
+  // Including the safe majority means the percentile rank and p90 calibration
+  // reflect the true neighbourhood context, not just the risky subset.
+  const floodRawAll: number[] = [];
   for (let i = 0; i < features.length; i++) {
     const coords = features[i].geometry?.coordinates?.[0];
     if (!coords || coords.length < 4) { floodMeta[i] = { rawImpact: 0, hasData: false, hasInCellRisk: false }; continue; }
@@ -3198,6 +3201,7 @@ async function applyIndexScoring(
     const hasInCellRisk = nearFloodPoints.some((fp) => fp.lon >= minLon && fp.lon <= maxLon && fp.lat >= minLat && fp.lat <= maxLat);
     if (!hasInCellRisk) {
       floodMeta[i] = { rawImpact: 0, hasData: true, hasInCellRisk: false };
+      floodRawAll.push(0); // safe cell — included so risky cells rank in proper context
       continue;
     }
     let raw = 0;
@@ -3213,25 +3217,22 @@ async function applyIndexScoring(
       }
     }
     floodMeta[i] = { rawImpact: raw, hasData: true, hasInCellRisk: true };
-    if (raw > 0) floodRawPositive.push(raw);
+    floodRawAll.push(raw);
   }
-  floodRawPositive.sort((a, b) => a - b);
-  const nFloodPos = floodRawPositive.length;
-  // Binary upper-bound search → percentile rank (0 = safest, 1 = worst)
+  floodRawAll.sort((a, b) => a - b);
+  const nFloodAll = floodRawAll.length;
+  // Binary upper-bound search → percentile rank across ALL data-covered cells (0=safest, 1=worst)
   const floodPercentileRank = (v: number): number => {
-    let lo = 0, hi = nFloodPos;
-    while (lo < hi) { const mid = (lo + hi) >> 1; if (floodRawPositive[mid] <= v) lo = mid + 1; else hi = mid; }
-    return nFloodPos > 0 ? lo / nFloodPos : 0;
+    let lo = 0, hi = nFloodAll;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (floodRawAll[mid] <= v) lo = mid + 1; else hi = mid; }
+    return nFloodAll > 0 ? lo / nFloodAll : 0;
   };
 
-  // Calibrated score floor: if even the worst 10% of cells in the current view are
-  // objectively low-severity, compress the penalty so they don't score red unfairly.
-  // p90 raw impact reference values (based on severityWeight × proximity²):
-  //   ~0.05  → mostly low-risk zone (e.g. distant low severity points)
-  //   ~0.5   → moderate risk
-  //   ~2.0+  → genuinely high-risk zone (medium/high risk close by)
-  const p90idx = nFloodPos > 0 ? Math.min(nFloodPos - 1, Math.floor(nFloodPos * 0.9)) : 0;
-  const p90raw = nFloodPos > 0 ? floodRawPositive[p90idx] : 0;
+  // p90 of ALL data-covered cells (including safe 0s) — if most cells are safe,
+  // p90 will be 0 or very small, raising the floor so isolated low-risk riverside
+  // cells don't score red just because they're the worst in a mostly-safe viewport.
+  const p90idx = nFloodAll > 0 ? Math.min(nFloodAll - 1, Math.floor(nFloodAll * 0.9)) : 0;
+  const p90raw = nFloodAll > 0 ? floodRawAll[p90idx] : 0;
   // floor: worst cell in a low-risk area can score no lower than this
   const floodScoreFloor = p90raw < 0.05 ? 0.65 : p90raw < 0.5 ? 0.35 : p90raw < 2.0 ? 0.1 : 0.0;
 
