@@ -1881,7 +1881,7 @@ export default function ValueMap({
           _indexSchoolCache = r.ok
             ? ((await r.json() as any)?.features ?? [])
                 .filter((f: any) => f?.geometry?.type === "Point")
-                .map((f: any) => ({ lon: Number(f.geometry.coordinates[0]), lat: Number(f.geometry.coordinates[1]), qualityScore: Number(f.properties?.quality_score ?? 0.5) || 0.5, isGood: Boolean(f.properties?.is_good) }))
+                .map((f: any) => ({ lon: Number(f.geometry.coordinates[0]), lat: Number(f.geometry.coordinates[1]), qualityScore: Number(f.properties?.quality_score ?? 0.5) || 0.5, isGood: Boolean(f.properties?.is_good), schoolName: String(f.properties?.school_name ?? ""), urn: String(f.properties?.urn ?? "") }))
             : [];
         } catch { _indexSchoolCache = []; }
         _indexSchoolGrid = null;
@@ -1967,7 +1967,16 @@ export default function ValueMap({
             const q = nearestSch.qualityScore;
             const label = q >= 0.7 ? "Good" : q >= 0.45 ? "Average" : "Below average";
             const col = q >= 0.7 ? "#16a34a" : q >= 0.45 ? "#d97706" : "#b91c1c";
-            schoolHtml = `<span style="color:${col}">${label}</span> <span style="color:#9ca3af">${fmtDist(nearSchD)} away</span>`;
+            const ofstedUrl = nearestSch.urn
+              ? `https://reports.ofsted.gov.uk/provider/21/${nearestSch.urn}`
+              : null;
+            const nameHtml = nearestSch.schoolName
+              ? (ofstedUrl
+                  ? `<a href="${ofstedUrl}" target="_blank" rel="noreferrer" style="color:#374151;text-decoration:underline;text-decoration-color:#d1d5db">${nearestSch.schoolName}</a>`
+                  : `<span style="color:#374151">${nearestSch.schoolName}</span>`)
+                + " &mdash; "
+              : "";
+            schoolHtml = `${nameHtml}<span style="color:${col}">${label}</span> <span style="color:#9ca3af">${fmtDist(nearSchD)} away</span>`;
             lineTargets.push([nearestSch.lon, nearestSch.lat]);
           }
           // Draw line(s) to school(s)
@@ -3303,13 +3312,13 @@ function buildIndexScoringSignature(prefs: IndexPrefs) {
 
 // Module-level cache for overlay data + spatial grid indexes (built once per session)
 let _indexFloodCache: Array<{ lon: number; lat: number; riskScore: number }> | null = null;
-let _indexSchoolCache: Array<{ lon: number; lat: number; qualityScore: number; isGood: boolean }> | null = null;
+let _indexSchoolCache: Array<{ lon: number; lat: number; qualityScore: number; isGood: boolean; schoolName: string; urn: string }> | null = null;
 let _indexStationCache: Array<{ lon: number; lat: number; name: string; code: string }> | null = null;
 let _indexCellsCache: { key: string; lookup: Map<string, number> } | null = null;
 
 type SpatialGrid<T> = { buckets: Map<number, T[]>; cellSize: number };
 let _indexFloodGrid: SpatialGrid<{ lon: number; lat: number; riskScore: number }> | null = null;
-let _indexSchoolGrid: SpatialGrid<{ lon: number; lat: number; qualityScore: number; isGood: boolean }> | null = null;
+let _indexSchoolGrid: SpatialGrid<{ lon: number; lat: number; qualityScore: number; isGood: boolean; schoolName: string; urn: string }> | null = null;
 let _indexStationGrid: SpatialGrid<{ lon: number; lat: number; name: string; code: string }> | null = null;
 
 function buildSpatialGrid<T extends { lon: number; lat: number }>(points: T[], cellSize: number): SpatialGrid<T> {
@@ -3390,6 +3399,8 @@ async function applyIndexScoring(
             lat: Number(f.geometry.coordinates[1]),
             qualityScore: Number(f.properties?.quality_score ?? 0.5) || 0.5,
             isGood: Boolean(f.properties?.is_good),
+            schoolName: String(f.properties?.school_name ?? ""),
+            urn: String(f.properties?.urn ?? ""),
           }));
       } else {
         _indexSchoolCache = [];
