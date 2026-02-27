@@ -9,6 +9,7 @@ type Metric = "median" | "median_ppsf" | "delta_gbp" | "delta_pct";
 type ValueFilterMode = "off" | "lte" | "gte";
 type FloodOverlayMode = "off" | "on" | "on_hide_cells";
 type SchoolOverlayMode = "off" | "on" | "on_hide_cells";
+type StationOverlayMode = "off" | "on" | "on_hide_cells";
 type VoteOverlayMode = "off" | "on";
 type VoteColorScale = "relative" | "absolute";
 
@@ -22,6 +23,7 @@ export type MapState = {
   valueThreshold?: number;
   floodOverlayMode?: FloodOverlayMode;
   schoolOverlayMode?: SchoolOverlayMode;
+  stationOverlayMode?: StationOverlayMode;
   voteOverlayMode?: VoteOverlayMode;
   voteColorScale?: VoteColorScale;
 };
@@ -32,6 +34,7 @@ export type IndexPrefs = {
   affordWeight: number;     // 0-10 importance
   floodWeight: number;      // 0-10 importance
   schoolWeight: number;     // 0-10 importance
+  trainWeight: number;      // 0-10 importance (nearest station distance)
   coastWeight: number;      // 0-10 importance (placeholder for now)
   indexFilterMode?: "off" | "lte" | "gte";
   indexFilterThreshold?: number; // 0..1
@@ -112,6 +115,11 @@ type FloodSearchResult = {
     qualityScore: number;
     qualityBand: string;
   };
+  stationNearest?: {
+    name: string;
+    code: string;
+    distanceMeters: number;
+  };
 };
 
 type FloodSearchEntry = {
@@ -133,8 +141,20 @@ type SchoolSearchEntry = {
   lat: number;
 };
 
+type StationSearchEntry = {
+  name: string;
+  code: string;
+  owner: string;
+  lon: number;
+  lat: number;
+};
+
 const LOCAL_NEAREST_FLOOD_MAX_DISTANCE_METERS = 8_047; // 5 miles
 const LOCAL_NEAREST_SCHOOL_MAX_DISTANCE_METERS = 19_312; // 12 miles
+const LOCAL_NEAREST_STATION_MAX_DISTANCE_METERS = 80_467; // 50 miles
+// Distance scoring for train station: full score within 1 mile, zero at 20 miles
+const STATION_GOOD_DISTANCE_METERS = 1_609; // 1 mile
+const STATION_MAX_DISTANCE_METERS = 32_187; // 20 miles
 
 const VOTE_CELLS_DATA_VERSION = process.env.NEXT_PUBLIC_VOTE_CELLS_DATA_VERSION ?? "20260222b";
 
@@ -168,6 +188,11 @@ export type LocateMeResult = {
     postcode: string;
     qualityScore: number;
     qualityBand: string;
+    distanceMeters: number;
+  };
+  stationNearest?: {
+    name: string;
+    code: string;
     distanceMeters: number;
   };
 };
@@ -232,6 +257,8 @@ export default function ValueMap({
   const floodSearchEntriesPromiseRef = useRef<Promise<FloodSearchEntry[]> | null>(null);
   const schoolSearchEntriesRef = useRef<SchoolSearchEntry[] | null>(null);
   const schoolSearchEntriesPromiseRef = useRef<Promise<SchoolSearchEntry[]> | null>(null);
+  const stationSearchEntriesRef = useRef<StationSearchEntry[] | null>(null);
+  const stationSearchEntriesPromiseRef = useRef<Promise<StationSearchEntry[]> | null>(null);
   const indexPrefsRef = useRef<IndexPrefs | null>(indexPrefs ?? null);
   const prevIndexActiveRef = useRef(false);
   const prevIndexScoringSignatureRef = useRef<string | null>(null);
@@ -273,6 +300,7 @@ export default function ValueMap({
     setFloodSearchFocus(map, null);
     setFloodSearchContext(map, null);
     setSchoolSearchFocus(map, null, null, null);
+    setStationSearchFocus(map, null, null);
     setPostcodeCell(null);
   }, [postcodeSearchClearToken]);
 
@@ -319,6 +347,7 @@ export default function ValueMap({
       try {
         const floodEnabled = (stateRef.current.floodOverlayMode ?? "off") !== "off";
         const schoolsEnabled = (stateRef.current.schoolOverlayMode ?? "off") !== "off";
+        const stationsEnabled = (stateRef.current.stationOverlayMode ?? "off") !== "off";
         const lookupMode: FloodSearchResult["lookupMode"] = floodEnabled
           ? (schoolsEnabled ? "both" : "flood")
           : schoolsEnabled ? "schools" : undefined;
@@ -353,6 +382,22 @@ export default function ValueMap({
           : null;
 
         setSchoolSearchFocus(map, nearestSchool, nearestGoodSchool, requestedCoords);
+
+        // — Train station nearest —
+        let nearestStation: (StationSearchEntry & { distanceMeters: number }) | null = null;
+        if (stationsEnabled && requestedCoords) {
+          const stationEntries = await getStationSearchEntries(stationSearchEntriesRef, stationSearchEntriesPromiseRef);
+          nearestStation = findNearestStationByDistance(
+            requestedCoords.lon,
+            requestedCoords.lat,
+            stationEntries,
+            LOCAL_NEAREST_STATION_MAX_DISTANCE_METERS
+          );
+        }
+        setStationSearchFocus(map, nearestStation, requestedCoords);
+        const stationNearestPayload = nearestStation
+          ? { name: nearestStation.name, code: nearestStation.code, distanceMeters: Math.round(nearestStation.distanceMeters) }
+          : undefined;
 
         const schoolNearestPayload = nearestSchool
           ? {
@@ -394,6 +439,7 @@ export default function ValueMap({
               matchedPostcode: schoolAnchor.postcode,
               schoolNearest: schoolNearestPayload,
               schoolNearestGood: schoolNearestGoodPayload,
+              stationNearest: stationNearestPayload,
             });
             return;
           }
@@ -408,6 +454,7 @@ export default function ValueMap({
               matchedPostcode: normalized,
               schoolNearest: schoolNearestPayload,
               schoolNearestGood: schoolNearestGoodPayload,
+              stationNearest: stationNearestPayload,
             });
             return;
           }
@@ -418,6 +465,7 @@ export default function ValueMap({
             normalizedQuery: normalized,
             schoolNearest: schoolNearestPayload,
             schoolNearestGood: schoolNearestGoodPayload,
+            stationNearest: stationNearestPayload,
           });
           return;
         }
@@ -430,6 +478,7 @@ export default function ValueMap({
             normalizedQuery: normalized,
             schoolNearest: schoolNearestPayload,
             schoolNearestGood: schoolNearestGoodPayload,
+            stationNearest: stationNearestPayload,
           });
           return;
         }
@@ -446,6 +495,7 @@ export default function ValueMap({
             matchedPostcode: exact.postcode,
             schoolNearest: schoolNearestPayload,
             schoolNearestGood: schoolNearestGoodPayload,
+            stationNearest: stationNearestPayload,
           });
           return;
         }
@@ -464,6 +514,7 @@ export default function ValueMap({
             hierarchyMatchCount: hierarchyMatches.length,
             schoolNearest: schoolNearestPayload,
             schoolNearestGood: schoolNearestGoodPayload,
+            stationNearest: stationNearestPayload,
           });
           return;
         }
@@ -498,6 +549,7 @@ export default function ValueMap({
             nearestPostcode: nearest.postcode,
             schoolNearest: schoolNearestPayload,
             schoolNearestGood: schoolNearestGoodPayload,
+            stationNearest: stationNearestPayload,
           });
           return;
         }
@@ -510,11 +562,13 @@ export default function ValueMap({
           normalizedQuery: normalized,
           schoolNearest: schoolNearestPayload,
           schoolNearestGood: schoolNearestGoodPayload,
+          stationNearest: stationNearestPayload,
         });
       } catch {
         setFloodSearchFocus(map, null);
         setFloodSearchContext(map, null);
         setSchoolSearchFocus(map, null, null, null);
+        setStationSearchFocus(map, null, null);
         setPostcodeSearchMarker(map, null);
         onPostcodeSearchResultRef.current?.({ status: "error", normalizedQuery: normalized });
       }
@@ -581,10 +635,12 @@ export default function ValueMap({
           let floodNearest: LocateMeResult["floodNearest"];
           let schoolNearest: LocateMeResult["schoolNearest"];
           let schoolNearestGood: LocateMeResult["schoolNearestGood"];
+          let stationNearest: LocateMeResult["stationNearest"];
           let nearestSchoolEntry: (SchoolSearchEntry & { distanceMeters: number }) | null = null;
           let nearestGoodEntry: (SchoolSearchEntry & { distanceMeters: number }) | null = null;
           const floodEnabled = (stateRef.current.floodOverlayMode ?? "off") !== "off";
           const schoolsEnabled = (stateRef.current.schoolOverlayMode ?? "off") !== "off";
+          const stationsEnabled = (stateRef.current.stationOverlayMode ?? "off") !== "off";
           try {
             if (floodEnabled) {
               const entries = await getFloodSearchEntries(floodSearchEntriesRef, floodSearchEntriesPromiseRef);
@@ -638,8 +694,28 @@ export default function ValueMap({
                 };
               }
             }
+
+            if (stationsEnabled) {
+              const stationEntries = await getStationSearchEntries(stationSearchEntriesRef, stationSearchEntriesPromiseRef);
+              const nearestStationEntry = findNearestStationByDistance(
+                lng,
+                lat,
+                stationEntries,
+                LOCAL_NEAREST_STATION_MAX_DISTANCE_METERS
+              );
+              if (nearestStationEntry) {
+                stationNearest = {
+                  name: nearestStationEntry.name,
+                  code: nearestStationEntry.code,
+                  distanceMeters: Math.round(nearestStationEntry.distanceMeters),
+                };
+              }
+              setStationSearchFocus(map, nearestStationEntry, { lon: lng, lat });
+            } else {
+              setStationSearchFocus(map, null, null);
+            }
           } catch {
-            // ignore flood nearest errors
+            // ignore overlay nearest errors
           }
 
           setSchoolSearchFocus(map, nearestSchoolEntry, nearestGoodEntry, { lon: lng, lat });
@@ -659,6 +735,7 @@ export default function ValueMap({
             floodNearest,
             schoolNearest,
             schoolNearestGood,
+            stationNearest,
           });
         };
 
@@ -825,6 +902,19 @@ export default function ValueMap({
   });
 
   map.addSource("school-search-focus", {
+    type: "geojson",
+    data: { type: "FeatureCollection", features: [] },
+  });
+
+  map.addSource("station-overlay", {
+    type: "geojson",
+    data: "/api/stations?plain=1",
+    cluster: true,
+    clusterMaxZoom: 9,
+    clusterRadius: 40,
+  });
+
+  map.addSource("station-search-focus", {
     type: "geojson",
     data: { type: "FeatureCollection", features: [] },
   });
@@ -1012,6 +1102,106 @@ export default function ValueMap({
       "circle-stroke-color": "rgba(255,255,255,0.94)",
       "circle-stroke-width": 1,
       "circle-blur": 0.02,
+    },
+  });
+
+  // ── Train station overlay layers ──
+  map.addLayer({
+    id: "station-overlay-clusters",
+    type: "circle",
+    source: "station-overlay",
+    filter: ["has", "point_count"] as any,
+    layout: {
+      visibility: stateRef.current.stationOverlayMode && stateRef.current.stationOverlayMode !== "off" ? "visible" : "none",
+    },
+    paint: {
+      "circle-color": [
+        "step",
+        ["get", "point_count"],
+        "rgba(180,40,40,0.58)",
+        20,
+        "rgba(155,28,28,0.75)",
+        100,
+        "rgba(127,17,17,0.88)",
+      ] as any,
+      "circle-radius": ["step", ["get", "point_count"], 13, 20, 18, 100, 24] as any,
+      "circle-stroke-color": "rgba(255,255,255,0.92)",
+      "circle-stroke-width": 1,
+    },
+  });
+
+  map.addLayer({
+    id: "station-overlay-cluster-count",
+    type: "symbol",
+    source: "station-overlay",
+    filter: ["has", "point_count"] as any,
+    layout: {
+      visibility: stateRef.current.stationOverlayMode && stateRef.current.stationOverlayMode !== "off" ? "visible" : "none",
+      "text-field": ["get", "point_count_abbreviated"] as any,
+      "text-size": 11,
+      "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
+    },
+    paint: {
+      "text-color": "rgba(255,255,255,0.95)",
+    },
+  });
+
+  map.addLayer({
+    id: "station-overlay-points",
+    type: "circle",
+    source: "station-overlay",
+    filter: ["!", ["has", "point_count"]] as any,
+    layout: {
+      visibility: stateRef.current.stationOverlayMode && stateRef.current.stationOverlayMode !== "off" ? "visible" : "none",
+    },
+    paint: {
+      "circle-color": "#b91c1c",
+      "circle-opacity": 0.93,
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 3.5, 6, 5.5, 8, 8, 10, 12] as any,
+      "circle-stroke-color": "rgba(255,255,255,0.94)",
+      "circle-stroke-width": 1.2,
+    },
+  });
+
+  // ── Station search focus layers ──
+  map.addLayer({
+    id: "station-search-focus-link",
+    type: "line",
+    source: "station-search-focus",
+    filter: ["==", ["geometry-type"], "LineString"] as any,
+    paint: {
+      "line-color": "#f97316",
+      "line-width": 3.5,
+      "line-dasharray": [3, 1.5],
+      "line-opacity": 0.95,
+    },
+  });
+
+  map.addLayer({
+    id: "station-search-focus-ring",
+    type: "circle",
+    source: "station-search-focus",
+    filter: ["all", ["==", ["geometry-type"], "Point"], ["==", ["get", "role"], "nearest"]] as any,
+    paint: {
+      "circle-color": "rgba(0,0,0,0)",
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 10, 8, 15, 12, 21] as any,
+      "circle-stroke-color": "#f97316",
+      "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 4, 2.5, 8, 3.5, 12, 4.5] as any,
+      "circle-stroke-opacity": 0.98,
+    },
+  });
+
+  map.addLayer({
+    id: "station-search-focus-dot",
+    type: "circle",
+    source: "station-search-focus",
+    filter: ["all", ["==", ["geometry-type"], "Point"], ["==", ["get", "role"], "nearest"]] as any,
+    paint: {
+      "circle-color": "#f97316",
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 2.5, 8, 3.5, 12, 5] as any,
+      "circle-opacity": 0.97,
+      "circle-stroke-color": "#ffffff",
+      "circle-stroke-width": 1.2,
     },
   });
 
@@ -1403,6 +1593,7 @@ export default function ValueMap({
         }
         if (prefs.floodWeight > 0)  html += wRow("🌊 Flood safety",   prefs.floodWeight,  bar(Number(p.ix_f ?? 0.5), p.ix_fn === 1));
         if (prefs.schoolWeight > 0) html += wRow("🏫 Schools",        prefs.schoolWeight, bar(Number(p.ix_s ?? 0.5), p.ix_sn === 1));
+        if (prefs.trainWeight > 0)  html += wRow("🚂 Train station",  prefs.trainWeight,  bar(Number(p.ix_t ?? 0.5), p.ix_tn === 1));
         if (prefs.coastWeight > 0)  html += wRow("🏖️ Coast",          prefs.coastWeight,  bar(0.5, true));
         html += `</div>`;
         popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
@@ -1656,9 +1847,11 @@ export default function ValueMap({
 
     const floodMode = state.floodOverlayMode ?? "off";
     const schoolMode = state.schoolOverlayMode ?? "off";
+    const stationMode = state.stationOverlayMode ?? "off";
     const floodVisibility = floodMode === "off" ? "none" : "visible";
     const schoolVisibility = schoolMode === "off" ? "none" : "visible";
-    const hideCellsMode = floodMode === "on_hide_cells" || schoolMode === "on_hide_cells";
+    const stationVisibility = stationMode === "off" ? "none" : "visible";
+    const hideCellsMode = floodMode === "on_hide_cells" || schoolMode === "on_hide_cells" || stationMode === "on_hide_cells";
 
     const apply = () => {
       try {
@@ -1674,6 +1867,12 @@ export default function ValueMap({
         if (map.getLayer("school-overlay-clusters")) map.setLayoutProperty("school-overlay-clusters", "visibility", schoolVisibility);
         if (map.getLayer("school-overlay-cluster-count")) map.setLayoutProperty("school-overlay-cluster-count", "visibility", schoolVisibility);
         if (schoolMode === "off") setSchoolSearchFocus(map, null, null, null);
+
+        // Station layer visibility
+        if (map.getLayer("station-overlay-points")) map.setLayoutProperty("station-overlay-points", "visibility", stationVisibility);
+        if (map.getLayer("station-overlay-clusters")) map.setLayoutProperty("station-overlay-clusters", "visibility", stationVisibility);
+        if (map.getLayer("station-overlay-cluster-count")) map.setLayoutProperty("station-overlay-cluster-count", "visibility", stationVisibility);
+        if (stationMode === "off") setStationSearchFocus(map, null, null);
 
         // Cell opacity — applied in the same call so it cannot be skipped by a mid-layout bail
         if (map.getLayer("cells-fill")) {
@@ -1703,7 +1902,7 @@ export default function ValueMap({
     // before we apply paint property updates.
     const raf = requestAnimationFrame(apply);
     return () => { cancelAnimationFrame(raf); };
-  }, [state.floodOverlayMode, state.schoolOverlayMode]);
+  }, [state.floodOverlayMode, state.schoolOverlayMode, state.stationOverlayMode]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -2688,6 +2887,7 @@ function buildIndexScoringSignature(prefs: IndexPrefs) {
     prefs.affordWeight,
     prefs.floodWeight,
     prefs.schoolWeight,
+    prefs.trainWeight,
     prefs.coastWeight,
   ].join("|");
 }
@@ -2697,11 +2897,13 @@ function buildIndexScoringSignature(prefs: IndexPrefs) {
 // Module-level cache for overlay data + spatial grid indexes (built once per session)
 let _indexFloodCache: Array<{ lon: number; lat: number; riskScore: number }> | null = null;
 let _indexSchoolCache: Array<{ lon: number; lat: number; qualityScore: number; isGood: boolean }> | null = null;
+let _indexStationCache: Array<{ lon: number; lat: number; name: string; code: string }> | null = null;
 let _indexCellsCache: { key: string; lookup: Map<string, number> } | null = null;
 
 type SpatialGrid<T> = { buckets: Map<number, T[]>; cellSize: number };
 let _indexFloodGrid: SpatialGrid<{ lon: number; lat: number; riskScore: number }> | null = null;
 let _indexSchoolGrid: SpatialGrid<{ lon: number; lat: number; qualityScore: number; isGood: boolean }> | null = null;
+let _indexStationGrid: SpatialGrid<{ lon: number; lat: number; name: string; code: string }> | null = null;
 
 function buildSpatialGrid<T extends { lon: number; lat: number }>(points: T[], cellSize: number): SpatialGrid<T> {
   const buckets = new Map<number, T[]>();
@@ -2791,13 +2993,38 @@ async function applyIndexScoring(
     _indexSchoolGrid = null;
   }
 
+  // — Fetch station data once, build grid index —
+  if (_indexStationCache === null) {
+    try {
+      const res = await fetch("/api/stations?plain=1");
+      if (res.ok) {
+        const payload = (await res.json()) as any;
+        _indexStationCache = (Array.isArray(payload?.features) ? payload.features : [])
+          .filter((f: any) => f?.geometry?.type === "Point")
+          .map((f: any) => ({
+            lon: Number(f.geometry.coordinates[0]),
+            lat: Number(f.geometry.coordinates[1]),
+            name: String(f.properties?.name ?? ""),
+            code: String(f.properties?.code ?? ""),
+          }));
+      } else {
+        _indexStationCache = [];
+      }
+    } catch {
+      _indexStationCache = [];
+    }
+    _indexStationGrid = null;
+  }
+
   // Build spatial grid indexes (skipped if already built)
   const GRID_CELL = 0.12; // ~13km buckets
   if (_indexFloodGrid === null) _indexFloodGrid = buildSpatialGrid(_indexFloodCache!, GRID_CELL);
   if (_indexSchoolGrid === null) _indexSchoolGrid = buildSpatialGrid(_indexSchoolCache!, GRID_CELL);
+  if (_indexStationGrid === null) _indexStationGrid = buildSpatialGrid(_indexStationCache!, GRID_CELL);
 
   const floodGrid = _indexFloodGrid;
   const schoolGrid = _indexSchoolGrid;
+  const stationGrid = _indexStationGrid;
   const metricProp = metricPropName(state.metric);
 
   // — Fetch property-type-specific cell data for affordability reference —
@@ -3008,7 +3235,39 @@ async function applyIndexScoring(
     props.ix_s = schoolScore;
     props.ix_sn = schoolNoData ? 1 : 0;
 
-    // 4) Coast proximity (placeholder)
+    // 4) Train station proximity — score by distance to nearest station
+    let trainScore = 0.5;
+    let trainNoData = false;
+    if (prefs.trainWeight > 0) {
+      // Wide check: any station data within ~80km?
+      const wideStation = querySpatialGrid(stationGrid, cLon, cLat, DATA_DEG * 3);
+      if (wideStation.length === 0) {
+        // No dataset coverage (e.g. remote island with no station data) → neutral
+        trainNoData = true;
+        trainScore = 0.5;
+      } else {
+        // Find nearest station
+        let minDist = Infinity;
+        for (const sp of wideStation) {
+          const d = haversineDistanceMeters(cLat, cLon, sp.lat, sp.lon);
+          if (d < minDist) minDist = d;
+        }
+        if (minDist <= STATION_GOOD_DISTANCE_METERS) {
+          trainScore = 1.0; // within 1 mile — full score
+        } else if (minDist >= STATION_MAX_DISTANCE_METERS) {
+          trainScore = 0.0; // beyond 20 miles — zero
+        } else {
+          // Linear decay between 1 mile and 20 miles
+          trainScore = 1 - (minDist - STATION_GOOD_DISTANCE_METERS) / (STATION_MAX_DISTANCE_METERS - STATION_GOOD_DISTANCE_METERS);
+        }
+      }
+      totalScore += prefs.trainWeight * trainScore;
+      totalWeight += prefs.trainWeight;
+    }
+    props.ix_t = trainScore;
+    props.ix_tn = trainNoData ? 1 : 0;
+
+    // 5) Coast proximity (placeholder)
     if (prefs.coastWeight > 0) {
       totalScore += prefs.coastWeight * 0.5;
       totalWeight += prefs.coastWeight;
@@ -3698,6 +3957,111 @@ async function getSchoolSearchEntries(
   } finally {
     promiseRef.current = null;
   }
+}
+
+async function getStationSearchEntries(
+  cacheRef: { current: StationSearchEntry[] | null },
+  promiseRef: { current: Promise<StationSearchEntry[]> | null }
+): Promise<StationSearchEntry[]> {
+  if (cacheRef.current) return cacheRef.current;
+  if (promiseRef.current) return promiseRef.current;
+
+  promiseRef.current = (async () => {
+    const res = await fetch("/api/stations?plain=1", { cache: "no-store" });
+    if (!res.ok) {
+      throw new Error(`Station search load failed (${res.status})`);
+    }
+
+    const payload = (await res.json()) as { features?: any[] };
+    const features = Array.isArray(payload?.features) ? payload.features : [];
+    const next: StationSearchEntry[] = [];
+
+    for (const feature of features) {
+      const coordinates = feature?.geometry?.coordinates;
+      if (!Array.isArray(coordinates) || coordinates.length < 2) continue;
+      const lon = Number(coordinates[0]);
+      const lat = Number(coordinates[1]);
+      if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+
+      const properties = feature?.properties ?? {};
+      const name = String(properties.name ?? "").trim();
+      if (!name) continue;
+
+      next.push({
+        name,
+        code: String(properties.code ?? "").trim(),
+        owner: String(properties.owner ?? "").trim(),
+        lon,
+        lat,
+      });
+    }
+
+    cacheRef.current = next;
+    return next;
+  })();
+
+  try {
+    return await promiseRef.current;
+  } finally {
+    promiseRef.current = null;
+  }
+}
+
+function setStationSearchFocus(
+  map: maplibregl.Map,
+  nearest: (StationSearchEntry & { distanceMeters: number }) | null,
+  requested: { lon: number; lat: number } | null
+) {
+  const source = map.getSource("station-search-focus") as maplibregl.GeoJSONSource | undefined;
+  if (!source) return;
+
+  const features: any[] = [];
+  if (nearest) {
+    features.push({
+      type: "Feature",
+      properties: { role: "nearest", station_name: nearest.name, code: nearest.code },
+      geometry: { type: "Point", coordinates: [nearest.lon, nearest.lat] },
+    });
+
+    if (requested) {
+      features.push({
+        type: "Feature",
+        properties: { role: "link" },
+        geometry: {
+          type: "LineString",
+          coordinates: [
+            [requested.lon, requested.lat],
+            [nearest.lon, nearest.lat],
+          ],
+        },
+      });
+    }
+  }
+
+  source.setData({ type: "FeatureCollection", features } as any);
+}
+
+function findNearestStationByDistance(
+  lng: number,
+  lat: number,
+  entries: StationSearchEntry[],
+  maxDistanceMeters = Number.POSITIVE_INFINITY
+): (StationSearchEntry & { distanceMeters: number }) | null {
+  if (!entries.length) return null;
+
+  let best: (StationSearchEntry & { distanceMeters: number }) | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  for (const entry of entries) {
+    const distanceMeters = haversineDistanceMeters(lat, lng, entry.lat, entry.lon);
+    if (distanceMeters < bestDistance) {
+      bestDistance = distanceMeters;
+      best = { ...entry, distanceMeters };
+    }
+  }
+
+  if (!best) return null;
+  return best.distanceMeters <= maxDistanceMeters ? best : null;
 }
 
 function findNearestPostcodeMatch(query: string, entries: FloodSearchEntry[]): FloodSearchEntry | null {

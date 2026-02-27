@@ -11,6 +11,7 @@ type NewBuild = "ALL" | "Y" | "N";
 type ValueFilterMode = "off" | "lte" | "gte";
 type FloodOverlayMode = "off" | "on" | "on_hide_cells";
 type SchoolOverlayMode = "off" | "on" | "on_hide_cells";
+type StationOverlayMode = "off" | "on" | "on_hide_cells";
 type VoteOverlayMode = "off" | "on";
 type VoteColorScale = "relative" | "absolute";
 type GridMode = "auto" | "manual";
@@ -21,6 +22,7 @@ type IndexScoringPrefs = {
   affordWeight: number;
   floodWeight: number;
   schoolWeight: number;
+  trainWeight: number;
   coastWeight: number;
 };
 
@@ -34,6 +36,7 @@ type MapState = {
   valueThreshold: number;
   floodOverlayMode: FloodOverlayMode;
   schoolOverlayMode: SchoolOverlayMode;
+  stationOverlayMode: StationOverlayMode;
   voteOverlayMode: VoteOverlayMode;
   voteColorScale: VoteColorScale;
 };
@@ -92,6 +95,7 @@ export default function Home() {
       valueThreshold: 300000,
       floodOverlayMode: "off",
       schoolOverlayMode: "off",
+      stationOverlayMode: "off",
       voteOverlayMode: "off",
       voteColorScale: "relative",
     };
@@ -107,6 +111,7 @@ export default function Home() {
       const vth = p.get("vth");
       const flood = p.get("flood");
       const schools = p.get("schools");
+      const stations = p.get("stations");
       const vote = p.get("vote");
       const voteScale = p.get("voteScale");
       const GRIDS: GridSize[] = ["1km", "5km", "10km", "25km"];
@@ -116,8 +121,9 @@ export default function Home() {
       const VFMS: ValueFilterMode[] = ["off", "lte", "gte"];
       const FLOODS: FloodOverlayMode[] = ["off", "on", "on_hide_cells"];
       const SCHOOLS: SchoolOverlayMode[] = ["off", "on", "on_hide_cells"];
+      const STATIONS: StationOverlayMode[] = ["off", "on", "on_hide_cells"];
       // Only hydrate if at least one known param is present
-      if (!grid && !metric && !type && !flood && !schools && !vote) return defaults;
+      if (!grid && !metric && !type && !flood && !schools && !vote && !stations) return defaults;
       return {
         grid: GRIDS.includes(grid as GridSize) ? (grid as GridSize) : defaults.grid,
         metric: METRICS.includes(metric as Metric) ? (metric as Metric) : defaults.metric,
@@ -128,6 +134,7 @@ export default function Home() {
         valueThreshold: vth ? parseFloat(vth) : defaults.valueThreshold,
         floodOverlayMode: FLOODS.includes(flood as FloodOverlayMode) ? (flood as FloodOverlayMode) : defaults.floodOverlayMode,
         schoolOverlayMode: SCHOOLS.includes(schools as SchoolOverlayMode) ? (schools as SchoolOverlayMode) : defaults.schoolOverlayMode,
+        stationOverlayMode: STATIONS.includes(stations as StationOverlayMode) ? (stations as StationOverlayMode) : defaults.stationOverlayMode,
         voteOverlayMode: vote === "on" ? "on" : defaults.voteOverlayMode,
         voteColorScale: voteScale === "absolute" ? "absolute" : defaults.voteColorScale,
       };
@@ -195,6 +202,7 @@ export default function Home() {
   const [indexAffordWeight, setIndexAffordWeight] = useState(5);
   const [indexFloodWeight, setIndexFloodWeight] = useState(5);
   const [indexSchoolWeight, setIndexSchoolWeight] = useState(5);
+  const [indexTrainWeight, setIndexTrainWeight] = useState(0);
   const [indexCoastWeight, setIndexCoastWeight] = useState(0);
   const [indexApplied, setIndexApplied] = useState<IndexScoringPrefs>({
     budget: 300000,
@@ -202,6 +210,7 @@ export default function Home() {
     affordWeight: 5,
     floodWeight: 5,
     schoolWeight: 5,
+    trainWeight: 0,
     coastWeight: 0,
   });
   const [indexSuitabilityMode, setIndexSuitabilityMode] = useState<ValueFilterMode>("off");
@@ -229,6 +238,7 @@ export default function Home() {
       affordWeight: indexApplied.affordWeight,
       floodWeight: indexApplied.floodWeight,
       schoolWeight: indexApplied.schoolWeight,
+      trainWeight: indexApplied.trainWeight,
       coastWeight: indexApplied.coastWeight,
       indexFilterMode: indexSuitabilityMode,
       indexFilterThreshold: indexSuitabilityThreshold / 100,
@@ -251,6 +261,7 @@ export default function Home() {
     valueThreshold: 300000,
     floodOverlayMode: "off",
     schoolOverlayMode: "off",
+    stationOverlayMode: "off",
     voteOverlayMode: "off",
     voteColorScale: "relative",
   };
@@ -283,6 +294,7 @@ export default function Home() {
     setIndexAffordWeight(5);
     setIndexFloodWeight(5);
     setIndexSchoolWeight(5);
+    setIndexTrainWeight(0);
     setIndexCoastWeight(0);
     setIndexApplied({
       budget: 300000,
@@ -290,6 +302,7 @@ export default function Home() {
       affordWeight: 5,
       floodWeight: 5,
       schoolWeight: 5,
+      trainWeight: 0,
       coastWeight: 0,
     });
   };
@@ -312,7 +325,7 @@ export default function Home() {
   useEffect(() => {
     if (!activePostcodeSearch.trim()) return;
     setPostcodeSearchToken((v) => v + 1);
-  }, [state.floodOverlayMode, state.schoolOverlayMode, activePostcodeSearch]);
+  }, [state.floodOverlayMode, state.schoolOverlayMode, state.stationOverlayMode, activePostcodeSearch]);
 
   useEffect(() => {
     if (!indexActive) {
@@ -457,6 +470,7 @@ export default function Home() {
     state.valueFilterMode,
     state.floodOverlayMode,
     state.schoolOverlayMode,
+    state.stationOverlayMode,
   ]);
 
   useEffect(() => {
@@ -506,6 +520,7 @@ export default function Home() {
     params.set("vth", String(Math.round(state.valueThreshold * 10) / 10));
     params.set("flood", state.floodOverlayMode);
     params.set("schools", state.schoolOverlayMode);
+    params.set("stations", state.stationOverlayMode);
     params.set("vote", state.voteOverlayMode);
     params.set("voteScale", state.voteColorScale);
 
@@ -778,6 +793,12 @@ export default function Home() {
         `Nearest good school ${result.schoolNearestGood.schoolName} (${result.schoolNearestGood.distanceMeters}m)`
       );
     }
+    if (state.stationOverlayMode !== "off" && result.stationNearest) {
+      const distMiles = (result.stationNearest.distanceMeters / 1609).toFixed(1);
+      chunks.push(
+        `Nearest station ${result.stationNearest.name} (${distMiles}mi, ${result.stationNearest.distanceMeters}m)`
+      );
+    }
 
     setLocateMeStatus("Location found");
     setLocateMeSummary(chunks.join(" · "));
@@ -813,7 +834,9 @@ export default function Home() {
   const currentFiltersSummary =
     `Grid: ${state.grid} · Metric: ${METRIC_LABEL[state.metric]} · ` +
     `Type: ${PROPERTY_LABEL[state.propertyType]} · New build: ${NEWBUILD_LABEL[state.newBuild]} · ` +
-    `Period: ${periodLabel} · Flood: ${floodOverlayLabel} · Schools: ${schoolOverlayLabel} · Vote overlay: ${voteOverlayLabel} (${voteScaleLabel})`;
+    `Period: ${periodLabel} · Flood: ${floodOverlayLabel} · Schools: ${schoolOverlayLabel} · ` +
+    `Stations: ${state.stationOverlayMode === "off" ? "Off" : state.stationOverlayMode === "on" ? "On" : "On (hide cells)"} · ` +
+    `Vote overlay: ${voteOverlayLabel} (${voteScaleLabel})`;
   const headerFilterSummary =
     `${state.grid} · ${METRIC_LABEL[state.metric]} · ${PROPERTY_LABEL[state.propertyType]} · ${NEWBUILD_LABEL[state.newBuild]} · ${periodLabel}`;
   const headerMedianSummary =
@@ -1529,6 +1552,7 @@ export default function Home() {
         onPostcodeSearchResult={(result) => {
           const floodLookupActive = result.lookupMode !== "schools" && state.floodOverlayMode !== "off";
           const schoolLookupActive = result.lookupMode !== "flood" && state.schoolOverlayMode !== "off";
+          const stationLookupActive = state.stationOverlayMode !== "off";
 
           const schoolSuffix = schoolLookupActive && result.schoolNearest
             ? ` · nearest school: ${result.schoolNearest.schoolName} (${result.schoolNearest.distanceMeters}m, ${result.schoolNearest.qualityBand})`
@@ -1536,13 +1560,16 @@ export default function Home() {
           const schoolGoodSuffix = schoolLookupActive && result.schoolNearestGood
             ? ` · nearest good school: ${result.schoolNearestGood.schoolName} (${result.schoolNearestGood.distanceMeters}m)`
             : "";
+          const stationSuffix = stationLookupActive && result.stationNearest
+            ? ` · nearest station: ${result.stationNearest.name} (${(result.stationNearest.distanceMeters / 1609).toFixed(1)}mi)`
+            : "";
 
           if (!floodLookupActive && schoolLookupActive) {
             if (result.schoolNearest || result.schoolNearestGood) {
-              setPostcodeSearchStatus(`School lookup for ${result.normalizedQuery}${schoolSuffix}${schoolGoodSuffix}`);
+              setPostcodeSearchStatus(`School lookup for ${result.normalizedQuery}${schoolSuffix}${schoolGoodSuffix}${stationSuffix}`);
               return;
             }
-            setPostcodeSearchStatus(`No mapped school found for ${result.normalizedQuery}`);
+            setPostcodeSearchStatus(`No mapped school found for ${result.normalizedQuery}${stationSuffix}`);
             return;
           }
 
@@ -1550,7 +1577,7 @@ export default function Home() {
             const overlaySuffix = !floodLookupActive && !schoolLookupActive
               ? " · Enable Flood or Schools overlay for flood risk / school data"
               : "";
-            setPostcodeSearchStatus(`Found ${result.matchedPostcode ?? result.normalizedQuery}${schoolSuffix}${schoolGoodSuffix}${overlaySuffix}`);
+            setPostcodeSearchStatus(`Found ${result.matchedPostcode ?? result.normalizedQuery}${schoolSuffix}${schoolGoodSuffix}${stationSuffix}${overlaySuffix}`);
             return;
           }
           if (result.status === "broad-has-risk") {
@@ -1558,21 +1585,21 @@ export default function Home() {
             setPostcodeSearchStatus(
               `${result.normalizedQuery} is a broader postcode area. ${count.toLocaleString()} flood-risk postcodes found under it${
                 result.nearestPostcode ? ` (showing ${result.nearestPostcode})` : ""
-              }.${schoolSuffix}${schoolGoodSuffix}`
+              }.${schoolSuffix}${schoolGoodSuffix}${stationSuffix}`
             );
             return;
           }
           if (result.status === "no-risk-nearest") {
             setPostcodeSearchStatus(
-              `No mapped flood-risk postcode found for ${result.normalizedQuery}. Nearest mapped postcode: ${result.nearestPostcode ?? "available"}${schoolSuffix}${schoolGoodSuffix}`
+              `No mapped flood-risk postcode found for ${result.normalizedQuery}. Nearest mapped postcode: ${result.nearestPostcode ?? "available"}${schoolSuffix}${schoolGoodSuffix}${stationSuffix}`
             );
             return;
           }
           if (result.status === "not-found") {
-            setPostcodeSearchStatus(`No postcode match found for ${result.normalizedQuery}${schoolSuffix}${schoolGoodSuffix}`);
+            setPostcodeSearchStatus(`No postcode match found for ${result.normalizedQuery}${schoolSuffix}${schoolGoodSuffix}${stationSuffix}`);
             return;
           }
-          setPostcodeSearchStatus(`Postcode search unavailable right now${schoolSuffix}${schoolGoodSuffix}`);
+          setPostcodeSearchStatus(`Postcode search unavailable right now${schoolSuffix}${schoolGoodSuffix}${stationSuffix}`);
         }}
       />
 
@@ -2187,6 +2214,25 @@ export default function Home() {
               />
             </div>
 
+            {/* Train station weight */}
+            <div style={{ marginBottom: compactIndexUi ? 8 : 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: compactIndexUi ? 3 : 4 }}>
+                <span style={{ fontWeight: 600, fontSize: compactIndexUi ? 11 : 12 }}>🚂 Train station proximity</span>
+                <span style={{ fontSize: compactIndexUi ? 11 : 12, opacity: 0.8 }}>{indexTrainWeight}/10</span>
+              </div>
+              <input
+                type="range" min={0} max={10} step={1}
+                value={indexTrainWeight}
+                onChange={(e) => setIndexTrainWeight(Number(e.target.value))}
+                style={{ width: "100%", accentColor: "#f97316" }}
+              />
+              {indexTrainWeight > 0 && (
+                <div style={{ fontSize: compactIndexUi ? 9 : 10, opacity: 0.6, marginTop: 3 }}>
+                  Score 10/10 within 1 mile · fades to 0 beyond 20 miles
+                </div>
+              )}
+            </div>
+
             <div
               style={{
                 marginBottom: compactIndexUi ? 8 : 12,
@@ -2232,6 +2278,7 @@ export default function Home() {
                     affordWeight: indexAffordWeight,
                     floodWeight: indexFloodWeight,
                     schoolWeight: indexSchoolWeight,
+                    trainWeight: indexTrainWeight,
                     coastWeight: indexCoastWeight,
                   });
                   setGridMode("manual");
@@ -2441,7 +2488,7 @@ export default function Home() {
                 <span className="title-full">Overlay filters</span>
                 <span className="title-mini">Overlay</span>
               </div>
-              <div className="mobile-header-extra" style={{ fontSize: 10, opacity: 0.7 }}>Flood, schools, votes</div>
+              <div className="mobile-header-extra" style={{ fontSize: 10, opacity: 0.7 }}>Flood, schools, stations, votes</div>
               <button
                 type="button"
                 className="mobile-collapse-toggle"
@@ -2482,6 +2529,17 @@ export default function Home() {
                 options={["off", "on", "on_hide_cells"]}
                 value={state.schoolOverlayMode}
                 onChange={(v) => setState((s) => ({ ...s, schoolOverlayMode: v as SchoolOverlayMode }))}
+                renderOption={(v) => {
+                  if (v === "on") return "On";
+                  if (v === "on_hide_cells") return "On (hide cells)";
+                  return "Off";
+                }}
+              />
+              <div style={{ fontSize: 11, opacity: 0.8 }}>Train stations</div>
+              <Segment
+                options={["off", "on", "on_hide_cells"]}
+                value={state.stationOverlayMode}
+                onChange={(v) => setState((s) => ({ ...s, stationOverlayMode: v as StationOverlayMode }))}
                 renderOption={(v) => {
                   if (v === "on") return "On";
                   if (v === "on_hide_cells") return "On (hide cells)";

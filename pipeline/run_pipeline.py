@@ -13,6 +13,7 @@ from paths import (
     MODEL_DIR,
     MODEL_FLOOD_DIR,
     MODEL_SCHOOLS_DIR,
+    MODEL_STATIONS_DIR,
     MODEL_VOTE_DIR,
     PUBLIC_DATA_DIR,
     PUBLISH_DIR,
@@ -126,6 +127,17 @@ def run_flood() -> None:
     )
 
 
+def run_stations() -> None:
+    run_step(
+        "stations-overlay-points",
+        [
+            str(SCRIPT_DIR / "build_station_overlay_points.py"),
+            "--output",
+            str(MODEL_STATIONS_DIR / "station_overlay_points.geojson.gz"),
+        ],
+    )
+
+
 def run_vote() -> None:
     run_step(
         "vote-blocks",
@@ -164,6 +176,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-property", action="store_true", help="Skip property asset staging")
     parser.add_argument("--skip-schools", action="store_true", help="Skip school scoring and overlay generation")
     parser.add_argument("--skip-flood", action="store_true", help="Skip flood asset generation")
+    parser.add_argument("--skip-stations", action="store_true", help="Skip train station overlay generation")
     parser.add_argument("--skip-vote", action="store_true", help="Skip vote artifact generation")
     parser.add_argument(
         "--mainstream-only",
@@ -195,6 +208,9 @@ def main() -> None:
 
     if not args.skip_flood:
         run_flood()
+
+    if not args.skip_stations:
+        run_stations()
 
     if not args.skip_vote:
         run_vote()

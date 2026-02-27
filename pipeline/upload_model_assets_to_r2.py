@@ -13,6 +13,7 @@ from paths import (
     PUBLISH_FLOOD_DIR,
     PUBLISH_PROPERTY_DIR,
     PUBLISH_SCHOOLS_DIR,
+    PUBLISH_STATIONS_DIR,
     PUBLISH_VOTE_DIR,
     R2_ARCHIVE_DIR,
     REQUIRED_PROPERTY_ASSET_NAMES,
@@ -52,10 +53,12 @@ def collect_assets(
     schools_dir: Path,
     flood_dir: Path,
     property_dir: Path,
+    stations_dir: Path,
     include_vote: bool,
     include_schools: bool,
     include_flood: bool,
     include_property: bool,
+    include_stations: bool,
 ) -> list[Path]:
     files: list[Path] = []
     if include_vote:
@@ -69,6 +72,8 @@ def collect_assets(
         )
     if include_schools:
         files.append(schools_dir / "school_overlay_points.geojson.gz")
+    if include_stations:
+        files.append(stations_dir / "station_overlay_points.geojson.gz")
     if include_flood:
         files.extend(
             [
@@ -195,12 +200,14 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Upload staged model assets to Cloudflare R2")
     parser.add_argument("--vote-dir", default=str(PUBLISH_VOTE_DIR), help="Staged vote assets directory")
     parser.add_argument("--schools-dir", default=str(PUBLISH_SCHOOLS_DIR), help="Staged schools assets directory")
+    parser.add_argument("--stations-dir", default=str(PUBLISH_STATIONS_DIR), help="Staged stations assets directory")
     parser.add_argument("--flood-dir", default=str(PUBLISH_FLOOD_DIR), help="Staged flood assets directory")
     parser.add_argument("--property-dir", default=str(PUBLISH_PROPERTY_DIR), help="Staged property assets directory")
     parser.add_argument("--prefix", default=None, help="Optional R2 object prefix (overrides R2_PREFIX)")
     parser.add_argument("--skip-property", action="store_true", help="Skip property asset uploads")
     parser.add_argument("--skip-vote", action="store_true", help="Skip vote asset uploads")
     parser.add_argument("--skip-schools", action="store_true", help="Skip schools asset uploads")
+    parser.add_argument("--skip-stations", action="store_true", help="Skip stations asset uploads")
     parser.add_argument("--skip-flood", action="store_true", help="Skip flood asset uploads")
     parser.add_argument(
         "--no-backup-before-upload",
@@ -220,17 +227,19 @@ def main() -> None:
 
     vote_dir = Path(args.vote_dir)
     schools_dir = Path(args.schools_dir)
+    stations_dir = Path(args.stations_dir)
     flood_dir = Path(args.flood_dir)
     property_dir = Path(args.property_dir)
 
     include_vote = not args.skip_vote
     include_schools = not args.skip_schools
+    include_stations = not args.skip_stations
     include_flood = not args.skip_flood
     include_property = not args.skip_property
     backup_before_upload = not args.no_backup_before_upload
     backup_dir = Path(args.backup_dir)
 
-    if not (include_vote or include_schools or include_flood or include_property):
+    if not (include_vote or include_schools or include_stations or include_flood or include_property):
         raise SystemExit("Nothing to upload. Enable at least one asset group.")
 
     files = collect_assets(
@@ -238,10 +247,12 @@ def main() -> None:
         schools_dir,
         flood_dir,
         property_dir,
+        stations_dir,
         include_vote,
         include_schools,
         include_flood,
         include_property,
+        include_stations,
     )
     missing = [str(path) for path in files if not path.exists()]
     if missing:
