@@ -1619,6 +1619,7 @@ export default function Home() {
           setPostcodeSearchToken((v) => v + 1);
         }}
         tapToSearch={tapToSearch}
+        rgLogCount={rgLog.length}
         onLocationLogged={(entry) => setRgLog((prev) => [entry, ...prev])}
         onPostcodeSearchResult={(result) => {
           const floodLookupActive = result.lookupMode !== "schools" && state.floodOverlayMode !== "off";
@@ -3328,20 +3329,22 @@ export default function Home() {
               {rgLog.length > 0 && (
                 <>
                   <button type="button" title="Download CSV" onClick={() => {
+                    const dc = (s: string) => `"${s.replace(/"/g, '""')}"`;
                     const disclaimer = [
-                      "# IMPORTANT NOTICE — FOR INFORMATION ONLY",
-                      "# This data is provided for general information purposes only. It must not be relied upon for any financial, legal,",
-                      "# property, planning, insurance, or investment decision. Flood risk, school quality, and transport proximity",
-                      "# indicators are indicative estimates derived from third-party sources and may be incomplete, inaccurate, or out of date.",
-                      "# You must seek independent professional advice and consult official sources before making any decisions,",
-                      "# including but not limited to: the Environment Agency (check-long-term-flood-risk.service.gov.uk),",
-                      "# Ofsted (reports.ofsted.gov.uk), and National Rail (nationalrail.co.uk).",
-                      "# ValueMap accepts no responsibility or liability for any loss or damage arising from reliance on this data.",
-                      "#",
+                      dc("IMPORTANT NOTICE - FOR INFORMATION ONLY"),
+                      dc("This data is provided for general information purposes only. It must not be relied upon for any financial, legal, property, planning, insurance, or investment decision."),
+                      dc("Flood risk, school quality, and transport proximity indicators are indicative estimates derived from third-party sources and may be incomplete, inaccurate, or out of date."),
+                      dc("You must seek independent professional advice and consult official sources before making any decisions, including but not limited to:"),
+                      dc("  - Flood risk: Environment Agency - check-long-term-flood-risk.service.gov.uk"),
+                      dc("  - School quality: Ofsted - reports.ofsted.gov.uk"),
+                      dc("  - Rail proximity: National Rail - nationalrail.co.uk"),
+                      dc("ValueMap accepts no responsibility or liability for any loss or damage arising from reliance on this data."),
+                      dc(""),
                     ];
-                    const lines = [...disclaimer, "Timestamp,Postcode,Lat,Lng,Flood,Schools,Station"];
-                    for (const e of rgLog) lines.push([e.timestamp, e.postcode, e.lat, e.lng, `"${e.floodSummary.replace(/"/g, '""')}"`, `"${e.schoolSummary.replace(/"/g, '""')}"`, `"${e.stationSummary.replace(/"/g, '""')}"`].join(","));
-                    const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+                    const header = "Timestamp,Postcode,Lat,Lng,Flood,Schools,Station";
+                    const rows = rgLog.map(e => [e.timestamp, `"${e.postcode}"`, e.lat, e.lng, `"${e.floodSummary.replace(/"/g, '""')}"`, `"${e.schoolSummary.replace(/"/g, '""')}"`, `"${e.stationSummary.replace(/"/g, '""')}"`].join(","));
+                    // \uFEFF = UTF-8 BOM so Excel opens with correct encoding
+                    const blob = new Blob(["\uFEFF" + [...disclaimer, header, ...rows].join("\r\n")], { type: "text/csv;charset=utf-8;" });
                     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "valuemap-search-log.csv"; a.click(); URL.revokeObjectURL(a.href);
                   }} style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.8)", padding: "3px 8px", borderRadius: 6, fontSize: 11 }}>⬇ CSV</button>
                   <button type="button" title="Clear all" onClick={() => setRgLog([])} style={{ cursor: "pointer", border: "1px solid rgba(239,68,68,0.35)", background: "rgba(239,68,68,0.12)", color: "rgba(239,68,68,0.85)", padding: "3px 8px", borderRadius: 6, fontSize: 11 }}>Clear</button>

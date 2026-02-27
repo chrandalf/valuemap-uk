@@ -270,6 +270,7 @@ export default function ValueMap({
   easyColours,
   onReverseGeocode,
   onLocationLogged,
+  rgLogCount,
   tapToSearch,
 }: {
   state: MapState;
@@ -293,6 +294,8 @@ export default function ValueMap({
   onReverseGeocode?: (postcode: string) => void;
   /** Called each time a reverse-geocode popup resolves with its full summary data (for the log). */
   onLocationLogged?: (entry: RgLogEntry) => void;
+  /** Current number of entries in the search log — used to show the "Added to log #N" hint in the popup. */
+  rgLogCount?: number;
   /** When true, a single tap/click anywhere on the map triggers the postcode reverse-geocode popup (for mobile users). */
   tapToSearch?: boolean;
 }) {
@@ -308,6 +311,7 @@ export default function ValueMap({
   const onStatsUpdateRef = useRef<typeof onStatsUpdate>(onStatsUpdate);
   const onReverseGeocodeRef = useRef<typeof onReverseGeocode>(onReverseGeocode);
   const onLocationLoggedRef = useRef<typeof onLocationLogged>(onLocationLogged);
+  const rgLogCountRef = useRef<number>(rgLogCount ?? 0);
   const tapToSearchRef = useRef<boolean>(!!tapToSearch);
   const locateMarkerRef = useRef<maplibregl.Marker | null>(null);
 
@@ -356,6 +360,10 @@ export default function ValueMap({
   useEffect(() => {
     onLocationLoggedRef.current = onLocationLogged;
   }, [onLocationLogged]);
+
+  useEffect(() => {
+    rgLogCountRef.current = rgLogCount ?? 0;
+  }, [rgLogCount]);
 
   useEffect(() => {
     tapToSearchRef.current = !!tapToSearch;
@@ -2007,6 +2015,7 @@ export default function ValueMap({
 
         // ── Log this search entry ──
         const stripHtml = (s: string) => s.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+        const countBefore = rgLogCountRef.current;
         onLocationLoggedRef.current?.({
           postcode, lat, lng,
           timestamp: new Date().toISOString(),
@@ -2014,6 +2023,12 @@ export default function ValueMap({
           schoolSummary: stripHtml(schoolHtml),
           stationSummary: stripHtml(stationHtml),
         });
+        const logHintText = countBefore === 0
+          ? "Added to log \u2014 see \u2699 Controls"
+          : countBefore < 10
+            ? `Added to log #${countBefore + 1}`
+            : "Added to log";
+        const logHint = `<div style="margin-top:6px;padding-top:5px;border-top:1px solid #f3f4f6;font-size:10px;color:#6b7280">\u2713 ${logHintText}</div>`;
 
         // ── Position popup away from where the lines go ──
         // Compute centroid of all targets; popup anchor = same quadrant → body extends away.
