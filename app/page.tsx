@@ -92,7 +92,7 @@ const IMP_LEVELS = [
 ] as const;
 
 function snapToLevel(v: number): number {
-  return (IMP_LEVELS as readonly { label: string; value: number }[]).reduce(
+  return IMP_LEVELS.reduce<number>(
     (best, l) => (Math.abs(v - l.value) < Math.abs(v - best) ? l.value : best),
     IMP_LEVELS[0].value
   );
