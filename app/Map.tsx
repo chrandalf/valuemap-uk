@@ -1968,7 +1968,7 @@ export default function ValueMap({
             const label = q >= 0.7 ? "Good" : q >= 0.45 ? "Average" : "Below average";
             const col = q >= 0.7 ? "#16a34a" : q >= 0.45 ? "#d97706" : "#b91c1c";
             const ofstedUrl = nearestSch.urn
-              ? `https://reports.ofsted.gov.uk/provider/21/${nearestSch.urn}`
+              ? `https://reports.ofsted.gov.uk/search?q=${nearestSch.urn}`
               : null;
             const nameHtml = nearestSch.schoolName
               ? (ofstedUrl
