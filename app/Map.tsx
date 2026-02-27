@@ -259,6 +259,7 @@ export default function ValueMap({
   flyToRequest,
   easyColours,
   onReverseGeocode,
+  tapToSearch,
 }: {
   state: MapState;
   onLegendChange?: (legend: LegendData | null) => void;
@@ -279,6 +280,8 @@ export default function ValueMap({
   easyColours?: boolean;
   /** Called when the user right-clicks the map and a postcode is successfully reverse-geocoded. */
   onReverseGeocode?: (postcode: string) => void;
+  /** When true, a single tap/click anywhere on the map triggers the postcode reverse-geocode popup (for mobile users). */
+  tapToSearch?: boolean;
 }) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -291,6 +294,7 @@ export default function ValueMap({
   const onIndexScoringAppliedRef = useRef<typeof onIndexScoringApplied>(onIndexScoringApplied);
   const onStatsUpdateRef = useRef<typeof onStatsUpdate>(onStatsUpdate);
   const onReverseGeocodeRef = useRef<typeof onReverseGeocode>(onReverseGeocode);
+  const tapToSearchRef = useRef<boolean>(!!tapToSearch);
   const locateMarkerRef = useRef<maplibregl.Marker | null>(null);
 
   const [postcodeCell, setPostcodeCell] = useState<string | null>(null);
@@ -334,6 +338,10 @@ export default function ValueMap({
   useEffect(() => {
     onReverseGeocodeRef.current = onReverseGeocode;
   }, [onReverseGeocode]);
+
+  useEffect(() => {
+    tapToSearchRef.current = !!tapToSearch;
+  }, [tapToSearch]);
 
   useEffect(() => {
     onLocateMeResultRef.current = onLocateMeResult;
@@ -1793,17 +1801,13 @@ export default function ValueMap({
     void fetchPostcodesRef.current(gx, gy, 0, false);
   });
 
-  // ── Right-click → reverse postcode lookup ──
-  map.on("contextmenu", (e) => {
-    e.originalEvent.preventDefault();
-    const { lng, lat } = e.lngLat;
+  // ── Right-click → reverse postcode lookup  /  tap-to-search mode ──
+  const doReverseGeocode = (lng: number, lat: number) => {
     let popup = new maplibregl.Popup({ closeButton: true, offset: 8, maxWidth: "260px" })
       .setLngLat([lng, lat])
       .setHTML('<div style="font:13px/1.5 sans-serif;color:#374151;padding:2px 0">📍 Looking up location…</div>')
       .addTo(map);
-    // Accumulate targets (flood/school/station) so we can position popup away from them
     const lineTargets: [number, number][] = [];
-
     // Format metres → "450m" or "3.2km"
     const fmtDist = (m: number) => m < 1000 ? `${Math.round(m)}m` : `${(m / 1000).toFixed(1)}km`;
 
@@ -2042,6 +2046,22 @@ export default function ValueMap({
         setTimeout(() => popup.remove(), 2500);
       }
     })();
+  }; // end doReverseGeocode
+
+  map.on("contextmenu", (e) => {
+    e.originalEvent.preventDefault();
+    const { lng, lat } = e.lngLat;
+    doReverseGeocode(lng, lat);
+  });
+
+  // Tap-to-search: single tap fires the same lookup when the mode is active.
+  // Skip if a cell feature was tapped (let the normal cell-click popup handle it).
+  map.on("click", (e) => {
+    if (!tapToSearchRef.current) return;
+    const features = map.queryRenderedFeatures(e.point, { layers: ["cells-fill"] });
+    if (features.length > 0) return;
+    const { lng, lat } = e.lngLat;
+    doReverseGeocode(lng, lat);
   });
 
   // Initial real data load
