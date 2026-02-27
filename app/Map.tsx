@@ -158,6 +158,51 @@ const STATION_MAX_DISTANCE_METERS = 16_093; // 10 miles
 
 const VOTE_CELLS_DATA_VERSION = process.env.NEXT_PUBLIC_VOTE_CELLS_DATA_VERSION ?? "20260222b";
 
+/** Registers custom raster icons on a map instance. Call before adding icon-dependent layers. */
+function addMapIcons(map: maplibregl.Map): void {
+  if (map.hasImage("train-icon")) return;
+  const SZ = 48; // canvas px; rendered as 24 logical px at pixel-ratio 2
+  const canvas = document.createElement("canvas");
+  canvas.width = SZ;
+  canvas.height = SZ;
+  const ctx = canvas.getContext("2d")!;
+
+  // Helper: manual rounded-rect path (avoids roundRect browser-compat issues)
+  const rr = (x: number, y: number, w: number, h: number, r: number) => {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  };
+
+  // Dark-red circle badge background
+  ctx.beginPath(); ctx.arc(24, 24, 22, 0, Math.PI * 2);
+  ctx.fillStyle = "#991b1b"; ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.88)"; ctx.lineWidth = 2.5; ctx.stroke();
+
+  // Train body (white rounded rect, side-view)
+  rr(7, 19, 34, 14, 3); ctx.fillStyle = "white"; ctx.fill();
+
+  // Chimney (white rounded rect above body, left)
+  rr(11, 12, 5, 8, 1.5); ctx.fillStyle = "rgba(255,255,255,0.85)"; ctx.fill();
+
+  // Windows (blue)
+  ctx.fillStyle = "#60a5fa";
+  rr(10, 22, 9, 6, 1.5); ctx.fill();
+  rr(23, 22, 9, 6, 1.5); ctx.fill();
+
+  // Wheels (dark, white-stroked, peeking below body)
+  ctx.fillStyle = "#1f2937"; ctx.strokeStyle = "rgba(255,255,255,0.65)"; ctx.lineWidth = 1.5;
+  for (const wx of [14, 33]) {
+    ctx.beginPath(); ctx.arc(wx, 35, 4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
+
+  map.addImage("train-icon", ctx.getImageData(0, 0, SZ, SZ), { pixelRatio: 2 });
+}
+
 export type LocateMeResult = {
   status: "success" | "denied" | "unavailable" | "timeout" | "error";
   message: string;
@@ -1106,6 +1151,7 @@ export default function ValueMap({
   });
 
   // ── Train station overlay layers ──
+  addMapIcons(map);
   map.addLayer({
     id: "station-overlay-clusters",
     type: "circle",
@@ -1153,16 +1199,14 @@ export default function ValueMap({
     filter: ["!", ["has", "point_count"]] as any,
     layout: {
       visibility: stateRef.current.stationOverlayMode && stateRef.current.stationOverlayMode !== "off" ? "visible" : "none",
-      "text-field": "🚂",
-      "text-size": ["interpolate", ["linear"], ["zoom"], 4, 10, 6, 13, 8, 17, 10, 22] as any,
-      "text-allow-overlap": false,
-      "text-ignore-placement": false,
-      "text-anchor": "center",
+      "icon-image": "train-icon",
+      "icon-size": ["interpolate", ["linear"], ["zoom"], 4, 0.38, 6, 0.50, 8, 0.65, 10, 0.85, 12, 1.05] as any,
+      "icon-allow-overlap": false,
+      "icon-ignore-placement": false,
+      "icon-anchor": "center",
     },
     paint: {
-      "text-halo-color": "rgba(0,0,0,0.6)",
-      "text-halo-width": 1.2,
-      "text-opacity": 0.97,
+      "icon-opacity": 0.97,
     },
   });
 
