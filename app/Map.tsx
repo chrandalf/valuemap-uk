@@ -270,6 +270,7 @@ export default function ValueMap({
   easyColours,
   onReverseGeocode,
   onLocationLogged,
+  onOpenLog,
   rgLogCount,
   tapToSearch,
 }: {
@@ -294,6 +295,8 @@ export default function ValueMap({
   onReverseGeocode?: (postcode: string) => void;
   /** Called each time a reverse-geocode popup resolves with its full summary data (for the log). */
   onLocationLogged?: (entry: RgLogEntry) => void;
+  /** Called when the user clicks "See log" inside a reverse-geocode popup. */
+  onOpenLog?: () => void;
   /** Current number of entries in the search log — used to show the "Added to log #N" hint in the popup. */
   rgLogCount?: number;
   /** When true, a single tap/click anywhere on the map triggers the postcode reverse-geocode popup (for mobile users). */
@@ -311,6 +314,7 @@ export default function ValueMap({
   const onStatsUpdateRef = useRef<typeof onStatsUpdate>(onStatsUpdate);
   const onReverseGeocodeRef = useRef<typeof onReverseGeocode>(onReverseGeocode);
   const onLocationLoggedRef = useRef<typeof onLocationLogged>(onLocationLogged);
+  const onOpenLogRef = useRef<typeof onOpenLog>(onOpenLog);
   const rgLogCountRef = useRef<number>(rgLogCount ?? 0);
   const tapToSearchRef = useRef<boolean>(!!tapToSearch);
   const locateMarkerRef = useRef<maplibregl.Marker | null>(null);
@@ -360,6 +364,10 @@ export default function ValueMap({
   useEffect(() => {
     onLocationLoggedRef.current = onLocationLogged;
   }, [onLocationLogged]);
+
+  useEffect(() => {
+    onOpenLogRef.current = onOpenLog;
+  }, [onOpenLog]);
 
   useEffect(() => {
     rgLogCountRef.current = rgLogCount ?? 0;
@@ -2015,7 +2023,6 @@ export default function ValueMap({
 
         // ── Log this search entry ──
         const stripHtml = (s: string) => s.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
-        const countBefore = rgLogCountRef.current;
         onLocationLoggedRef.current?.({
           postcode, lat, lng,
           timestamp: new Date().toISOString(),
@@ -2023,12 +2030,6 @@ export default function ValueMap({
           schoolSummary: stripHtml(schoolHtml),
           stationSummary: stripHtml(stationHtml),
         });
-        const logHintText = countBefore === 0
-          ? "Added to log \u2014 see \u2699 Controls"
-          : countBefore < 10
-            ? `Added to log #${countBefore + 1}`
-            : "Added to log";
-        const logHint = `<div style="margin-top:6px;padding-top:5px;border-top:1px solid #f3f4f6;font-size:10px;color:#6b7280">\u2713 ${logHintText}</div>`;
 
         // ── Position popup away from where the lines go ──
         // Compute centroid of all targets; popup anchor = same quadrant → body extends away.
@@ -2061,14 +2062,19 @@ export default function ValueMap({
             <div style="margin-bottom:7px">
               <a href="#" onclick="if(window.__rgCb)window.__rgCb();return false"
                  style="font-weight:700;font-size:14px;color:#1d4ed8;text-decoration:none;letter-spacing:.01em">
-                📍 ${postcode}
+                \uD83D\uDCCD ${postcode}
               </a>
-              <span style="color:#9ca3af;font-size:11px;margin-left:5px">${isOutcode ? "district" : "— click to search"}</span>
+              <span style="color:#9ca3af;font-size:11px;margin-left:5px">${isOutcode ? "district" : "\u2014 click to search"}</span>
             </div>
             <div style="border-top:1px solid #f3f4f6;padding-top:5px">
-              ${row("🌊", "Flood", floodHtml)}
-              ${row("🏫", "Schools", schoolHtml)}
-              ${row("🚂", "Station", stationHtml)}
+              ${row("\uD83C\uDF0A", "Flood", floodHtml)}
+              ${row("\uD83C\uDFEB", "Schools", schoolHtml)}
+              ${row("\uD83D\uDE82", "Station", stationHtml)}
+            </div>
+            <div style="margin-top:6px;padding-top:5px;border-top:1px solid #f3f4f6;display:flex;align-items:center;justify-content:space-between">
+              <span style="font-size:10px;color:#6b7280">\u2713 Added to log</span>
+              <a href="#" onclick="if(window.__rgOpenLog)window.__rgOpenLog();return false"
+                 style="font-size:10px;color:#6366f1;text-decoration:none;font-weight:500">See log \u2192</a>
             </div>
           </div>`;
 
@@ -2086,6 +2092,11 @@ export default function ValueMap({
           onReverseGeocodeRef.current?.(postcode);
         };
 
+        // "See log" link opens the log panel without closing the popup
+        (window as any).__rgOpenLog = () => {
+          onOpenLogRef.current?.();
+        };
+
         // Clear lines when popup is dismissed
         popup.once("close", () => {
           activeRgPopup = null;
@@ -2094,6 +2105,7 @@ export default function ValueMap({
           setSchoolSearchFocus(map, null, null, null);
           setStationSearchFocus(map, null, null);
           delete (window as any).__rgCb;
+          delete (window as any).__rgOpenLog;
         });
         activeRgPopup = popup;
 

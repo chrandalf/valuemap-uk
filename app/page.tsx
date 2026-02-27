@@ -1620,6 +1620,7 @@ export default function Home() {
         }}
         tapToSearch={tapToSearch}
         rgLogCount={rgLog.length}
+        onOpenLog={() => setRgLogOpen(true)}
         onLocationLogged={(entry) => setRgLog((prev) => [entry, ...prev])}
         onPostcodeSearchResult={(result) => {
           const floodLookupActive = result.lookupMode !== "schools" && state.floodOverlayMode !== "off";
