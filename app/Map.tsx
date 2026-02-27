@@ -3224,6 +3224,17 @@ async function applyIndexScoring(
     return nFloodPos > 0 ? lo / nFloodPos : 0;
   };
 
+  // Calibrated score floor: if even the worst 10% of cells in the current view are
+  // objectively low-severity, compress the penalty so they don't score red unfairly.
+  // p90 raw impact reference values (based on severityWeight × proximity²):
+  //   ~0.05  → mostly low-risk zone (e.g. distant low severity points)
+  //   ~0.5   → moderate risk
+  //   ~2.0+  → genuinely high-risk zone (medium/high risk close by)
+  const p90idx = nFloodPos > 0 ? Math.min(nFloodPos - 1, Math.floor(nFloodPos * 0.9)) : 0;
+  const p90raw = nFloodPos > 0 ? floodRawPositive[p90idx] : 0;
+  // floor: worst cell in a low-risk area can score no lower than this
+  const floodScoreFloor = p90raw < 0.05 ? 0.65 : p90raw < 0.5 ? 0.35 : p90raw < 2.0 ? 0.1 : 0.0;
+
   for (let i = 0; i < features.length; i++) {
     // Yield to browser between chunks so UI stays responsive
     if (i > 0 && i % CHUNK === 0) await new Promise<void>((r) => setTimeout(r, 0));
@@ -3303,10 +3314,12 @@ async function applyIndexScoring(
         // Has coverage but no flood zones within 8km → genuinely safe (top score)
         floodScore = 1.0;
       } else {
-        // Percentile rank relative to all flood-impacted cells in the UK
-        // rank 0 = least impacted → score 1.0; rank 1 = most impacted → score 0.0
+        // Percentile rank relative to flood-impacted cells in the current view.
+        // Blended with an absolute severity floor so a uniformly low-risk area
+        // doesn't score red just because it has the "worst" low-grade flood points.
+        // rank 0 = least impacted → score 1.0; rank 1 = most impacted → floor
         const rank = floodPercentileRank(fm.rawImpact);
-        floodScore = Math.max(0, 1 - rank);
+        floodScore = floodScoreFloor + (1 - floodScoreFloor) * Math.max(0, 1 - rank);
       }
       totalScore += prefs.floodWeight * floodScore;
       totalWeight += prefs.floodWeight;
