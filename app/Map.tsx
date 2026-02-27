@@ -1815,6 +1815,7 @@ export default function ValueMap({
   fetchPostcodesRef.current = fetchPostcodes;
 
   map.on("click", "cells-fill", (e) => {
+    if (tapToSearchRef.current) return;  // tap-to-search mode: hand click to the reverse-geocode handler instead
     if (useFloodPopupMode() || useSchoolPopupMode()) {
       return;
     }
@@ -2124,11 +2125,9 @@ export default function ValueMap({
   });
 
   // Tap-to-search: single tap fires the same lookup when the mode is active.
-  // Skip if a cell feature was tapped (let the normal cell-click popup handle it).
+  // Cell clicks are already suppressed above when this mode is on.
   map.on("click", (e) => {
     if (!tapToSearchRef.current) return;
-    const features = map.queryRenderedFeatures(e.point, { layers: ["cells-fill"] });
-    if (features.length > 0) return;
     const { lng, lat } = e.lngLat;
     doReverseGeocode(lng, lat);
   });
