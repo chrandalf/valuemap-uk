@@ -83,6 +83,64 @@ const MOBILE_QUICK_FILTER_ORDER = ["metric", "propertyType", "newBuild", "period
 
 type MobileQuickFilterKey = (typeof MOBILE_QUICK_FILTER_ORDER)[number];
 
+// ── Find My Area: importance picker ─────────────────────────────────────
+const IMP_LEVELS = [
+  { label: "Must",  value: 10 },
+  { label: "Want",  value: 6  },
+  { label: "Nice",  value: 3  },
+  { label: "Off",   value: 0  },
+] as const;
+
+function snapToLevel(v: number): number {
+  return (IMP_LEVELS as readonly { label: string; value: number }[]).reduce(
+    (best, l) => (Math.abs(v - l.value) < Math.abs(v - best) ? l.value : best),
+    IMP_LEVELS[0].value
+  );
+}
+
+function ImportancePicker({
+  emoji, label, value, onChange, color, disabled,
+}: {
+  emoji: string; label: string; value: number;
+  onChange: (v: number) => void; color: string; disabled?: boolean;
+}) {
+  const active = snapToLevel(value);
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      padding: "5px 0", borderBottom: "1px solid rgba(255,255,255,0.06)",
+      opacity: disabled ? 0.38 : 1,
+    }}>
+      <span style={{ fontSize: 11, fontWeight: 600, flex: "0 0 auto", minWidth: 100 }}>
+        {emoji} {label}
+      </span>
+      <div style={{ display: "flex", gap: 3 }}>
+        {IMP_LEVELS.map(({ label: lbl, value: v }) => (
+          <button
+            key={v}
+            type="button"
+            disabled={disabled}
+            onClick={() => onChange(v)}
+            style={{
+              cursor: disabled ? "default" : "pointer",
+              padding: "3px 8px",
+              borderRadius: 6,
+              fontSize: 10,
+              fontWeight: active === v ? 700 : 400,
+              border: active === v ? `1.5px solid ${color}` : "1px solid rgba(255,255,255,0.13)",
+              background: active === v ? `${color}30` : "rgba(255,255,255,0.04)",
+              color: active === v ? "white" : "rgba(255,255,255,0.5)",
+              lineHeight: 1.4, minWidth: 36, textAlign: "center",
+            }}
+          >
+            {lbl}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const [state, setState] = useState<MapState>(() => {
     const defaults: MapState = {
@@ -2127,151 +2185,99 @@ export default function Home() {
               </button>
             </div>
 
-            <div style={{ fontSize: compactIndexUi ? 11 : 12, opacity: 0.7, marginBottom: compactIndexUi ? 9 : 14, lineHeight: compactIndexUi ? 1.35 : 1.5 }}>
-              Tell us what matters to you — we&apos;ll score every cell on the map and colour it green (great match) to red (poor match).
+            <div style={{ fontSize: 11, opacity: 0.65, marginBottom: 10, lineHeight: 1.35 }}>
+              Score every cell <b style={{ color: "#22c55e" }}>green</b> (great match) → <b style={{ color: "#ef4444" }}>red</b> (poor) based on what you care about.
             </div>
 
-            {/* Budget */}
-            <div style={{ marginBottom: compactIndexUi ? 8 : 12 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: compactIndexUi ? 3 : 4 }}>
-                <span style={{ fontWeight: 600, fontSize: compactIndexUi ? 11 : 12 }}>
-                  💰 Budget ({state.metric === "median_ppsf" ? "per ft²" : "price"})
+            {/* Budget + Property type card */}
+            <div style={{
+              background: "rgba(255,255,255,0.04)",
+              borderRadius: 10,
+              border: "1px solid rgba(255,255,255,0.1)",
+              padding: "8px 10px",
+              marginBottom: 10,
+            }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 7 }}>
+                <span style={{ fontSize: 11, fontWeight: 600 }}>
+                  💰 Budget{state.metric === "median_ppsf" ? " (per ft²)" : ""}
                 </span>
-                <span style={{ fontSize: compactIndexUi ? 11 : 12, opacity: 0.8, fontVariantNumeric: "tabular-nums" }}>
-                  £{indexBudget.toLocaleString()}
-                </span>
-              </div>
-              <input
-                type="range"
-                min={state.metric === "median_ppsf" ? 50 : 50000}
-                max={state.metric === "median_ppsf" ? 1000 : 2000000}
-                step={state.metric === "median_ppsf" ? 10 : 10000}
-                value={indexBudget}
-                onChange={(e) => setIndexBudget(Number(e.target.value))}
-                style={{ width: "100%", accentColor: "#facc15" }}
-              />
-            </div>
-
-            {/* Property type */}
-            <div style={{ marginBottom: compactIndexUi ? 8 : 12 }}>
-              <div style={{ fontWeight: 600, fontSize: compactIndexUi ? 11 : 12, marginBottom: compactIndexUi ? 5 : 6 }}>🏠 Property type</div>
-              <div style={{ display: "flex", gap: compactIndexUi ? 3 : 4, flexWrap: "wrap" }}>
-                {(["ALL", "D", "S", "T", "F"] as const).map((pt) => (
-                  <button
-                    key={pt}
-                    type="button"
-                    onClick={() => setIndexPropertyType(pt)}
-                    style={{
-                      cursor: "pointer",
-                      border: indexPropertyType === pt ? "2px solid rgba(250,204,21,0.8)" : "1px solid rgba(255,255,255,0.18)",
-                      background: indexPropertyType === pt ? "rgba(250,204,21,0.2)" : "rgba(255,255,255,0.06)",
-                      color: "white",
-                      padding: compactIndexUi ? "3px 8px" : "4px 10px",
-                      borderRadius: 999,
-                      fontSize: compactIndexUi ? 10 : 11,
-                      fontWeight: indexPropertyType === pt ? 700 : 400,
+                <div style={{ display: "flex", alignItems: "center", gap: 2, background: "rgba(255,255,255,0.08)", borderRadius: 7, padding: "3px 8px", border: "1px solid rgba(255,255,255,0.14)" }}>
+                  <span style={{ fontSize: 12, opacity: 0.7, fontWeight: 600 }}>£</span>
+                  <input
+                    type="number"
+                    className="budget-input"
+                    min={state.metric === "median_ppsf" ? 50 : 50000}
+                    max={state.metric === "median_ppsf" ? 1000 : 2000000}
+                    step={state.metric === "median_ppsf" ? 10 : 5000}
+                    value={indexBudget}
+                    onChange={(e) => { const v = Number(e.target.value); if (v > 0) setIndexBudget(v); }}
+                    onBlur={(e) => {
+                      const min = state.metric === "median_ppsf" ? 50 : 50000;
+                      const max = state.metric === "median_ppsf" ? 1000 : 2000000;
+                      setIndexBudget((v) => Math.max(min, Math.min(max, v)));
+                      void e;
                     }}
-                  >
-                    {PROPERTY_LABEL[pt]}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Affordability weight */}
-            <div style={{ marginBottom: compactIndexUi ? 8 : 12 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: compactIndexUi ? 3 : 4 }}>
-                <span style={{ fontWeight: 600, fontSize: compactIndexUi ? 11 : 12 }}>💰 Affordability importance</span>
-                <span style={{ fontSize: compactIndexUi ? 11 : 12, opacity: 0.8 }}>{indexAffordWeight}/10</span>
-              </div>
-              <input
-                type="range" min={0} max={10} step={1}
-                value={indexAffordWeight}
-                onChange={(e) => setIndexAffordWeight(Number(e.target.value))}
-                style={{ width: "100%", accentColor: "#facc15" }}
-              />
-            </div>
-
-            {/* Flood weight */}
-            <div style={{ marginBottom: compactIndexUi ? 8 : 12 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: compactIndexUi ? 3 : 4 }}>
-                <span style={{ fontWeight: 600, fontSize: compactIndexUi ? 11 : 12 }}>🌊 Flood safety importance</span>
-                <span style={{ fontSize: compactIndexUi ? 11 : 12, opacity: 0.8 }}>{indexFloodWeight}/10</span>
-              </div>
-              <input
-                type="range" min={0} max={10} step={1}
-                value={indexFloodWeight}
-                onChange={(e) => setIndexFloodWeight(Number(e.target.value))}
-                style={{ width: "100%", accentColor: "#60a5fa" }}
-              />
-            </div>
-
-            {/* School weight */}
-            <div style={{ marginBottom: compactIndexUi ? 8 : 12 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: compactIndexUi ? 3 : 4 }}>
-                <span style={{ fontWeight: 600, fontSize: compactIndexUi ? 11 : 12 }}>🏫 School quality importance</span>
-                <span style={{ fontSize: compactIndexUi ? 11 : 12, opacity: 0.8 }}>{indexSchoolWeight}/10</span>
-              </div>
-              <input
-                type="range" min={0} max={10} step={1}
-                value={indexSchoolWeight}
-                onChange={(e) => setIndexSchoolWeight(Number(e.target.value))}
-                style={{ width: "100%", accentColor: "#22c55e" }}
-              />
-            </div>
-
-            {/* Train station weight */}
-            <div style={{ marginBottom: compactIndexUi ? 8 : 12 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: compactIndexUi ? 3 : 4 }}>
-                <span style={{ fontWeight: 600, fontSize: compactIndexUi ? 11 : 12 }}>🚂 Train station proximity</span>
-                <span style={{ fontSize: compactIndexUi ? 11 : 12, opacity: 0.8 }}>{indexTrainWeight}/10</span>
-              </div>
-              <input
-                type="range" min={0} max={10} step={1}
-                value={indexTrainWeight}
-                onChange={(e) => setIndexTrainWeight(Number(e.target.value))}
-                style={{ width: "100%", accentColor: "#f97316" }}
-              />
-              {indexTrainWeight > 0 && (
-                <div style={{ fontSize: compactIndexUi ? 9 : 10, opacity: 0.6, marginTop: 3 }}>
-                  Score 10/10 within 1 mile · fades to 0 beyond 20 miles
+                    style={{ background: "none", border: "none", color: "white", fontSize: 13, fontWeight: 700, width: 95, outline: "none", textAlign: "right" }}
+                  />
                 </div>
-              )}
-            </div>
-
-            <div
-              style={{
-                marginBottom: compactIndexUi ? 8 : 12,
-                padding: compactIndexUi ? "6px 7px" : "7px 9px",
-                borderRadius: 10,
-                background: "rgba(250,204,21,0.12)",
-                border: "1px solid rgba(250,204,21,0.35)",
-                fontSize: compactIndexUi ? 10 : 11,
-                lineHeight: 1.35,
-                opacity: 0.92,
-              }}
-            >
-              <b>Coverage note:</b> Flood and school scoring currently uses England-only datasets. Wales and Scotland support will come later.
-            </div>
-
-            {/* Coast weight – placeholder */}
-            <div style={{ marginBottom: compactIndexUi ? 10 : 16 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: compactIndexUi ? 3 : 4 }}>
-                <span style={{ fontWeight: 600, fontSize: compactIndexUi ? 11 : 12, opacity: 0.5 }}>🏖️ Coast proximity (coming soon)</span>
-                <span style={{ fontSize: compactIndexUi ? 11 : 12, opacity: 0.4 }}>{indexCoastWeight}/10</span>
               </div>
-              <input
-                type="range" min={0} max={10} step={1}
-                value={indexCoastWeight}
-                onChange={(e) => setIndexCoastWeight(Number(e.target.value))}
-                style={{ width: "100%", accentColor: "#94a3b8", opacity: 0.4 }}
-                disabled
-              />
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, flex: "0 0 auto", minWidth: 64 }}>🏠 Type</span>
+                <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
+                  {(["ALL", "D", "S", "T", "F"] as const).map((pt) => (
+                    <button
+                      key={pt}
+                      type="button"
+                      onClick={() => setIndexPropertyType(pt)}
+                      style={{
+                        cursor: "pointer",
+                        border: indexPropertyType === pt ? "1.5px solid rgba(250,204,21,0.85)" : "1px solid rgba(255,255,255,0.15)",
+                        background: indexPropertyType === pt ? "rgba(250,204,21,0.18)" : "rgba(255,255,255,0.05)",
+                        color: "white",
+                        padding: "3px 8px",
+                        borderRadius: 6,
+                        fontSize: 10,
+                        fontWeight: indexPropertyType === pt ? 700 : 400,
+                      }}
+                    >
+                      {PROPERTY_LABEL[pt]}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
-            <div style={{ marginBottom: compactIndexUi ? 9 : 14, fontSize: compactIndexUi ? 10 : 11, opacity: 0.72, lineHeight: 1.35 }}>
-              Suitability filter is available in the right-side panel after scoring.
+            {/* Importance pickers card */}
+            <div style={{
+              background: "rgba(255,255,255,0.04)",
+              borderRadius: 10,
+              border: "1px solid rgba(255,255,255,0.1)",
+              padding: "6px 10px 4px",
+              marginBottom: 10,
+            }}>
+              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", opacity: 0.4, marginBottom: 3 }}>
+                How important?
+              </div>
+              <ImportancePicker emoji="💰" label="Affordability" value={indexAffordWeight} onChange={setIndexAffordWeight} color="#facc15" />
+              <ImportancePicker emoji="🌊" label="Flood safety"  value={indexFloodWeight}  onChange={setIndexFloodWeight}  color="#60a5fa" />
+              <ImportancePicker emoji="🏫" label="Schools"       value={indexSchoolWeight} onChange={setIndexSchoolWeight} color="#22c55e" />
+              <ImportancePicker emoji="🚂" label="Trains"        value={indexTrainWeight}  onChange={setIndexTrainWeight}  color="#f97316" />
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 0", opacity: 0.3 }}>
+                <span style={{ fontSize: 11, fontWeight: 600 }}>🏖️ Coast</span>
+                <span style={{ fontSize: 10, fontStyle: "italic" }}>coming soon</span>
+              </div>
             </div>
+
+            {/* Coverage note */}
+            <div style={{ fontSize: 10, opacity: 0.52, marginBottom: 10, lineHeight: 1.35 }}>
+              ⓘ Flood &amp; school scores use England-only data — Wales &amp; Scotland coming later.
+            </div>
+
+            {indexActive && (
+              <div style={{ fontSize: 10, opacity: 0.6, marginBottom: 8, lineHeight: 1.3, textAlign: "center" }}>
+                🟢 Great match · 🟡 Average · 🔴 Poor match · Suitability filter available after scoring.
+              </div>
+            )}
 
             {/* Score / Clear buttons */}
             <div style={{ display: "flex", gap: 8 }}>
@@ -2292,7 +2298,7 @@ export default function Home() {
                   setIndexScoringPending(true);
                   setIndexActive(true);
                   setIndexToken((t) => t + 1);
-                  setIndexSuitabilityMode("off"); // reset area match filter for fresh run
+                  setIndexSuitabilityMode("off");
                   setIndexOpen(false);
                 }}
                 style={{
@@ -2301,9 +2307,9 @@ export default function Home() {
                   border: "2px solid rgba(26,152,80,0.7)",
                   background: "rgba(26,152,80,0.28)",
                   color: "white",
-                  padding: compactIndexUi ? "8px 10px" : "10px 14px",
+                  padding: "9px 10px",
                   borderRadius: 999,
-                  fontSize: compactIndexUi ? 12 : 13,
+                  fontSize: 13,
                   fontWeight: 700,
                 }}
               >
@@ -2319,9 +2325,9 @@ export default function Home() {
                     border: "1px solid rgba(255,255,255,0.18)",
                     background: "rgba(255,255,255,0.08)",
                     color: "white",
-                    padding: compactIndexUi ? "8px 10px" : "10px 14px",
+                    padding: "9px 10px",
                     borderRadius: 999,
-                    fontSize: compactIndexUi ? 12 : 13,
+                    fontSize: 13,
                     fontWeight: 600,
                   }}
                 >
@@ -2330,25 +2336,19 @@ export default function Home() {
               )}
             </div>
 
-            {indexActive && (
-              <div style={{ marginTop: compactIndexUi ? 8 : 10, fontSize: compactIndexUi ? 10 : 11, opacity: 0.6, lineHeight: 1.35, textAlign: "center" }}>
-                🟢 Great match → 🟡 Average → 🔴 Poor match
-              </div>
-            )}
-
             {!indexActive && (
               <button
                 type="button"
                 onClick={() => setIndexOpen(false)}
                 style={{
-                  marginTop: compactIndexUi ? 8 : 10,
+                  marginTop: 8,
                   width: "100%",
                   cursor: "pointer",
                   border: "none",
                   background: "transparent",
                   color: "rgba(255,255,255,0.45)",
-                  fontSize: compactIndexUi ? 11 : 12,
-                  padding: compactIndexUi ? "5px 0 1px" : "6px 0 2px",
+                  fontSize: 11,
+                  padding: "5px 0 1px",
                   textDecoration: "underline",
                   textUnderlineOffset: 3,
                 }}
@@ -3359,6 +3359,9 @@ function Segment({
 export function Styles() {
   return (
     <style jsx global>{`
+      input.budget-input::-webkit-inner-spin-button,
+      input.budget-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+      input.budget-input { appearance: textfield; -moz-appearance: textfield; }
       @keyframes cleanScreenPulse {
         0% {
           transform: scale(1);
