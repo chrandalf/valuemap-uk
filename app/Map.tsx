@@ -1767,7 +1767,7 @@ export default function ValueMap({
         if (prefs.schoolWeight > 0) html += wRow("🏫 Schools",        prefs.schoolWeight, bar(Number(p.ix_s ?? 0.5), p.ix_sn === 1));
         if (prefs.trainWeight > 0)  html += wRow("🚂 Train station",  prefs.trainWeight,  bar(Number(p.ix_t ?? 0.5), p.ix_tn === 1));
         if (prefs.coastWeight > 0)  html += wRow("🏖️ Coast",          prefs.coastWeight,  bar(0.5, true));
-        if ((prefs.ageWeight ?? 0) > 0) html += wRow("👥 Community age", prefs.ageWeight!, bar(Number(p.ix_ag ?? 0.5), false));
+        if ((prefs.ageWeight ?? 0) > 0) html += wRow(`👥 Community age (${(prefs.ageDirection ?? "young") === "old" ? "older" : "younger"})`, prefs.ageWeight!, bar(Number(p.ix_ag ?? 0.5), false));
         html += `</div>`;
         popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
         return;

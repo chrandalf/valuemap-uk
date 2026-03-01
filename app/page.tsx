@@ -2010,7 +2010,7 @@ export default function Home() {
                     <Segment
                       options={["off", "on"]}
                       value={state.ageOverlayMode}
-                      onChange={(v) => setState((s) => ({ ...s, ageOverlayMode: v as AgeOverlayMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode } : {}) }))}
+                      onChange={(v) => setState((s) => ({ ...s, ageOverlayMode: v as AgeOverlayMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode } : {}) }))}
                       renderOption={(v) => v === "on" ? "On" : "Off"}
                     />
                   </div>
