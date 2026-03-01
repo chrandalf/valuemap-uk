@@ -1862,7 +1862,6 @@ export default function ValueMap({
     setFloodSearchContext(map, null);
     setSchoolSearchFocus(map, null, null, null);
     setStationSearchFocus(map, null, null);
-    delete (window as any).__rgCb;
   };
   const doReverseGeocode = (lng: number, lat: number) => {
     closeActiveRg();
@@ -2096,11 +2095,10 @@ export default function ValueMap({
         const finalHtml =
           `<div style="font:13px/1.5 sans-serif;color:#374151;padding:2px 0;min-width:210px">
             <div style="margin-bottom:7px">
-              <a href="#" onclick="if(window.__rgCb)window.__rgCb();return false"
-                 style="font-weight:700;font-size:14px;color:#1d4ed8;text-decoration:none;letter-spacing:.01em">
+              <span style="font-weight:700;font-size:14px;color:#1d4ed8;letter-spacing:.01em">
                 \uD83D\uDCCD ${postcode}
-              </a>
-              <span style="color:#9ca3af;font-size:11px;margin-left:5px">${isOutcode ? "district" : "\u2014 click to search"}</span>
+              </span>
+              <span style="color:#9ca3af;font-size:11px;margin-left:5px">${isOutcode ? "district" : ""}</span>
             </div>
             <div style="border-top:1px solid #f3f4f6;padding-top:5px">
               ${row("\uD83C\uDF0A", "Flood", floodHtml)}
@@ -2121,13 +2119,6 @@ export default function ValueMap({
           .setHTML(finalHtml)
           .addTo(map);
 
-        // Clicking the postcode fires the area search and closes the popup
-        (window as any).__rgCb = () => {
-          popup.remove();
-          delete (window as any).__rgCb;
-          onReverseGeocodeRef.current?.(postcode);
-        };
-
         // "See log" link opens the log panel without closing the popup
         (window as any).__rgOpenLog = () => {
           onOpenLogRef.current?.();
@@ -2140,12 +2131,12 @@ export default function ValueMap({
           setFloodSearchContext(map, null);
           setSchoolSearchFocus(map, null, null, null);
           setStationSearchFocus(map, null, null);
-          delete (window as any).__rgCb;
           delete (window as any).__rgOpenLog;
         });
         activeRgPopup = popup;
 
-        // (popup HTML already set when popup was recreated above)
+        // Auto-fire the area search immediately — no need to click the postcode
+        if (!isOutcode) onReverseGeocodeRef.current?.(postcode);
       } catch {
         popup.setHTML('<div style="font:13px/1.5 sans-serif;color:#b91c1c">No postcode found here</div>');
         setTimeout(() => popup.remove(), 2500);
