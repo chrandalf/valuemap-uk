@@ -1730,7 +1730,7 @@ export default function Home() {
                 <span data-tour="controls-dropdown" style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, width: 1, height: 1, pointerEvents: "none" }} />
               )}
               {controlsDropOpen && (
-                <div data-tour="controls-menu" style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, width: 210, background: "rgba(8,10,22,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,0.16)", borderRadius: 10, padding: "6px 0", boxShadow: "0 10px 40px rgba(0,0,0,0.65)", zIndex: 200 }}>
+                <div data-tour="controls-menu" style={isMobileViewport ? { position: "fixed", top: topBarHeight + 6, left: 8, right: 8, width: "auto", maxHeight: "calc(100vh - 110px)", overflowY: "auto", background: "rgba(8,10,22,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,0.16)", borderRadius: 10, padding: "6px 0", boxShadow: "0 10px 40px rgba(0,0,0,0.65)", zIndex: 600 } : { position: "absolute", top: "calc(100% + 4px)", left: 0, width: 210, background: "rgba(8,10,22,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,0.16)", borderRadius: 10, padding: "6px 0", boxShadow: "0 10px 40px rgba(0,0,0,0.65)", zIndex: 200 }}>
                   {([
                     { label: filtersOpen ? "🗂 Filters (open)" : "🗂 Filters", action: () => { setFiltersOpen(v => !v); setControlsDropOpen(false); bringToFront("filters"); } },
                     { label: "🔍 Find my area", action: () => { setIndexOpen(v => !v); setControlsDropOpen(false); bringToFront("index"); } },
@@ -1790,7 +1790,7 @@ export default function Home() {
                 <span data-tour="info-dropdown" style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, width: 1, height: 1, pointerEvents: "none" }} />
               )}
               {infoDropOpen && (
-                <div data-tour="info-menu" style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, width: 210, background: "rgba(8,10,22,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,0.16)", borderRadius: 10, padding: "6px 0", boxShadow: "0 10px 40px rgba(0,0,0,0.65)", zIndex: 200 }}>
+                <div data-tour="info-menu" style={isMobileViewport ? { position: "fixed", top: topBarHeight + 6, left: 8, right: 8, width: "auto", maxHeight: "calc(100vh - 110px)", overflowY: "auto", background: "rgba(8,10,22,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,0.16)", borderRadius: 10, padding: "6px 0", boxShadow: "0 10px 40px rgba(0,0,0,0.65)", zIndex: 600 } : { position: "absolute", top: "calc(100% + 4px)", left: 0, width: 210, background: "rgba(8,10,22,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,0.16)", borderRadius: 10, padding: "6px 0", boxShadow: "0 10px 40px rgba(0,0,0,0.65)", zIndex: 200 }}>
                   {([
                     { label: "✨ Show me how",   action: () => { setInfoDropOpen(false); startTour(); } },
                     { label: "📖 Instructions", action: () => { setInstructionsOpen(v => !v); setInfoDropOpen(false); bringToFront("instructions"); } },
@@ -1839,7 +1839,7 @@ export default function Home() {
                 ⊕ Overlays ▾
               </button>
               {overlaysDropOpen && (
-                <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, width: 278, background: "rgba(8,10,22,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,0.16)", borderRadius: 10, padding: "8px 12px 10px", boxShadow: "0 10px 40px rgba(0,0,0,0.65)", zIndex: 200 }}>
+                <div style={isMobileViewport ? { position: "fixed", top: topBarHeight + 6, left: 8, right: 8, width: "auto", maxHeight: "calc(100vh - 110px)", overflowY: "auto", background: "rgba(8,10,22,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,0.16)", borderRadius: 10, padding: "8px 12px 10px", boxShadow: "0 10px 40px rgba(0,0,0,0.65)", zIndex: 600 } : { position: "absolute", top: "calc(100% + 4px)", left: 0, width: 278, background: "rgba(8,10,22,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,0.16)", borderRadius: 10, padding: "8px 12px 10px", boxShadow: "0 10px 40px rgba(0,0,0,0.65)", zIndex: 200 }}>
                   <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.55, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Overlay layers</div>
 
                   {/* Flood */}
