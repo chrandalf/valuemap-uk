@@ -299,6 +299,11 @@ async function getCachedCommuteLookup(env: Env, grid: GridKey): Promise<Map<stri
     lookup.set(`${row.gx}_${row.gy}`, {
       mean_dist_km: Number(row.mean_dist_km ?? 0),
       pct_wfh: Number(row.pct_wfh ?? 0),
+      pct_lt5: Number(row.pct_lt5 ?? 0),
+      pct_5_10: Number(row.pct_5_10 ?? 0),
+      pct_10_20: Number(row.pct_10_20 ?? 0),
+      pct_20_60: Number(row.pct_20_60 ?? 0),
+      pct_60p: Number(row.pct_60p ?? 0),
     });
   }
 
