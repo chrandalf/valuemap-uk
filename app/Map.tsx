@@ -1938,32 +1938,41 @@ export default function ValueMap({
           fetch(`https://api.postcodes.io/postcodes?lon=${lng}&lat=${lat}&limit=1&radius=2000`),
         ]);
 
-        // ── Flood: worst-risk point within 10 km ──
-        let floodHtml = '<span style="color:#16a34a">✓ No flood zone within 10km</span>';
+        // ── Flood: nearest flood point to the click location ──
+        // We look for the NEAREST point (not the worst-risk), matching the cell-scoring
+        // logic which only considers flood dots inside the cell itself.  Looking far away
+        // for a worst-case zone produces misleading arrows pointing to a distant risk
+        // while ignoring whether the clicked spot is actually clean.
+        //
+        // Display bands (based on nearest point distance):
+        //   < 200m  → "In [risk] flood zone"
+        //   < 800m  → "[Risk] zone nearby (Xm)"
+        //   < 2km   → "[Risk] zone Xkm away"
+        //   ≥ 2km   → "✓ No flood zone nearby"    (no arrow drawn)
+        let floodHtml = '<span style="color:#16a34a">✓ No flood zone nearby</span>';
         let worstFloodLon = 0, worstFloodLat = 0;
         if (floodG) {
-          const fps = querySpatialGrid(floodG, lng, lat, 0.09);
-          let worst = 0; let worstD = Infinity;
+          // Query within 0.025° (~2.8km) — just enough for the display bands above
+          const fps = querySpatialGrid(floodG, lng, lat, 0.025);
+          let nearestFp: (typeof fps)[0] | null = null; let nearestD = Infinity;
           for (const fp of fps) {
             const d = haversineDistanceMeters(lat, lng, fp.lat, fp.lon);
-            if (d < 10000 && fp.riskScore > worst) {
-              worst = fp.riskScore; worstD = d;
-              worstFloodLon = fp.lon; worstFloodLat = fp.lat;
-            }
+            if (d < nearestD) { nearestD = d; nearestFp = fp; }
           }
-          if (worst > 0) {
-            const riskLabel = worst >= 4 ? "High" : worst >= 3 ? "Medium" : worst >= 2 ? "Low" : "Very low";
-            const riskCol   = worst >= 4 ? "#b91c1c" : worst >= 3 ? "#ea580c" : worst >= 2 ? "#d97706" : "#84cc16";
-            if (worstD >= 3000) {
-              // Far enough away: no direct risk, but flag the nearest zone
-              floodHtml = `<span style="color:#16a34a">✓ No direct risk</span> <span style="color:#9ca3af">— nearest zone ${fmtDist(worstD)} <span style="color:${riskCol}">(${riskLabel.toLowerCase()} risk)</span></span>`;
-            } else if (worstD >= 800) {
-              floodHtml = `<span style="color:${riskCol};font-weight:600">${riskLabel} risk zone</span> <span style="color:#9ca3af">${fmtDist(worstD)} from here</span>`;
-            } else {
+          if (nearestFp && nearestD < 2000) {
+            const risk = nearestFp.riskScore;
+            const riskLabel = risk >= 4 ? "High" : risk >= 3 ? "Medium" : risk >= 2 ? "Low" : "Very low";
+            const riskCol   = risk >= 4 ? "#b91c1c" : risk >= 3 ? "#ea580c" : risk >= 2 ? "#d97706" : "#84cc16";
+            worstFloodLon = nearestFp.lon; worstFloodLat = nearestFp.lat;
+            if (nearestD < 200) {
               floodHtml = `<span style="color:${riskCol};font-weight:600">⚠ In ${riskLabel.toLowerCase()} risk flood zone</span>`;
+            } else if (nearestD < 800) {
+              floodHtml = `<span style="color:${riskCol};font-weight:600">${riskLabel} risk zone nearby</span> <span style="color:#9ca3af">${fmtDist(nearestD)}</span>`;
+            } else {
+              floodHtml = `<span style="color:#16a34a">✓ No direct risk</span> <span style="color:#9ca3af">— nearest zone ${fmtDist(nearestD)} <span style="color:${riskCol}">(${riskLabel.toLowerCase()} risk)</span></span>`;
             }
-            // Draw line from click point to nearest flood point
-            setFloodSearchFocus(map, { postcode: "", postcodeKey: "", riskScore: worst, lon: worstFloodLon, lat: worstFloodLat });
+            // Draw arrow to the nearest flood point
+            setFloodSearchFocus(map, { postcode: "", postcodeKey: "", riskScore: risk, lon: worstFloodLon, lat: worstFloodLat });
             setFloodSearchContext(map, { requested: { lon: lng, lat: lat }, nearest: { lon: worstFloodLon, lat: worstFloodLat } });
             lineTargets.push([worstFloodLon, worstFloodLat]);
           }
