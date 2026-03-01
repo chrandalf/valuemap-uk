@@ -76,6 +76,11 @@ type ApiRow = {
   constituency?: string;
   mean_dist_km?: number;
   pct_wfh?: number;
+  pct_lt5?: number;
+  pct_5_10?: number;
+  pct_10_20?: number;
+  pct_20_60?: number;
+  pct_60p?: number;
 };
 
 function isDeltaMetric(metric: Metric) {
@@ -1754,6 +1759,65 @@ export default function ValueMap({
         popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
         return;
       }
+    }
+
+    const commuteMode = stateRef.current.commuteOverlayMode ?? "off";
+    if (commuteMode !== "off") {
+      const meanDist = Number(p.mean_dist_km ?? NaN);
+      const wfh     = Number(p.pct_wfh   ?? NaN);
+      const lt5     = Number(p.pct_lt5   ?? NaN);
+      const s5_10   = Number(p.pct_5_10  ?? NaN);
+      const s10_20  = Number(p.pct_10_20 ?? NaN);
+      const s20_60  = Number(p.pct_20_60 ?? NaN);
+      const p60     = Number(p.pct_60p   ?? NaN);
+      const hasCommute = Number.isFinite(meanDist) && Number.isFinite(wfh);
+      const metricTitle = stateRef.current.metric === "median_ppsf"
+        ? `GBP ${Math.round(median).toLocaleString()} / ft²`
+        : `GBP ${median.toLocaleString()}`;
+      const propHtml = Number.isFinite(median) && median > 0
+        ? `<div style="border-top:1px solid rgba(0,0,0,0.1);margin-top:7px;padding-top:6px;font-size:11px;opacity:0.75;">
+             <span style="font-weight:600">${metricTitle}</span>
+             <span style="margin-left:6px;opacity:0.7">${tx} sales</span>
+           </div>`
+        : "";
+
+      if (hasCommute) {
+        // Stacked bar segments: WFH | <5km | 5-10 | 10-20 | 20-60 | 60km+
+        const bands: Array<[string, number, string]> = [
+          ["WFH",    wfh,   "#15803d"],
+          ["<5km",   lt5,   "#86efac"],
+          ["5–10",   s5_10, "#fef08a"],
+          ["10–20",  s10_20,"#fb923c"],
+          ["20–60",  s20_60,"#ef4444"],
+          ["60km+",  p60,   "#7f1d1d"],
+        ];
+        const total = bands.reduce((s, [, v]) => s + (isFinite(v) ? v : 0), 0) || 100;
+        const barSegs = bands
+          .filter(([, v]) => isFinite(v) && v > 0)
+          .map(([, v, col]) =>
+            `<div style="flex:${(v / total * 100).toFixed(1)};background:${col};height:100%;"></div>`
+          ).join("");
+        const statsRows = bands.map(([label, v, col]) =>
+          `<span style="white-space:nowrap;"><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${col};margin-right:3px;vertical-align:-1px;"></span>${label}&nbsp;<b>${Number.isFinite(v) ? v.toFixed(0) : "—"}%</b></span>`
+        ).join("<span style='opacity:0.35'> · </span>");
+        const html = `
+          <div style="font-family:system-ui;font-size:12px;line-height:1.4;min-width:200px;">
+            <div style="font-weight:700;margin-bottom:5px;">🚗 Mean commute: ${meanDist.toFixed(1)} km</div>
+            <div style="display:flex;height:10px;border-radius:4px;overflow:hidden;margin-bottom:6px;">${barSegs}</div>
+            <div style="font-size:10px;line-height:1.8;">${statsRows}</div>
+            ${propHtml}
+          </div>`;
+        popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+      } else {
+        const html = `
+          <div style="font-family:system-ui;font-size:12px;line-height:1.4;">
+            <div style="font-weight:700;margin-bottom:4px;">🚗 No commute data</div>
+            <div style="opacity:0.7;font-size:11px;">Census 2021 – England &amp; Wales only</div>
+            ${propHtml}
+          </div>`;
+        popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+      }
+      return;
     }
 
     if (voteMode !== "off") {

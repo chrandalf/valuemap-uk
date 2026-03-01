@@ -144,6 +144,11 @@ type CommuteCellRow = {
   gy: number;
   mean_dist_km: number;
   pct_wfh: number;
+  pct_lt5: number;
+  pct_5_10: number;
+  pct_10_20: number;
+  pct_20_60: number;
+  pct_60p: number;
 };
 
 type CommuteCellValue = Omit<CommuteCellRow, "gx" | "gy">;
@@ -317,6 +322,11 @@ async function backfillCommute(env: Env, grid: GridKey, rows: CellRow[]): Promis
       ...row,
       mean_dist_km: commute.mean_dist_km,
       pct_wfh: commute.pct_wfh,
+      pct_lt5: commute.pct_lt5,
+      pct_5_10: commute.pct_5_10,
+      pct_10_20: commute.pct_10_20,
+      pct_20_60: commute.pct_20_60,
+      pct_60p: commute.pct_60p,
     };
   });
 }

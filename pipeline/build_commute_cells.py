@@ -98,22 +98,22 @@ def load_onspd_with_lsoa(path: Path) -> pd.DataFrame:
 
 # ── Grid snap + aggregate ────────────────────────────────────────────────────
 
+BAND_COLS = ["mean_dist_km", "pct_wfh", "pct_lt5", "pct_5_10", "pct_10_20", "pct_20_60", "pct_60p"]
+ROUND2 = ["pct_wfh", "pct_lt5", "pct_5_10", "pct_10_20", "pct_20_60", "pct_60p"]
+
+
 def build_cells_for_grid(df_joined: pd.DataFrame, grid_m: int) -> list[dict]:
     """Snap postcodes to grid cells and compute per-cell mean commute stats."""
     df = df_joined.copy()
     df["gx"] = (df["east"]  // grid_m * grid_m).astype(int)
     df["gy"] = (df["north"] // grid_m * grid_m).astype(int)
 
-    agg = (
-        df.groupby(["gx", "gy"], as_index=False)
-        .agg(
-            mean_dist_km=("mean_dist_km", "mean"),
-            pct_wfh=("pct_wfh", "mean"),
-        )
-    )
+    agg_spec = {col: (col, "mean") for col in BAND_COLS}
+    agg = df.groupby(["gx", "gy"], as_index=False).agg(**agg_spec)
 
     agg["mean_dist_km"] = agg["mean_dist_km"].round(3)
-    agg["pct_wfh"]      = agg["pct_wfh"].round(2)
+    for col in ROUND2:
+        agg[col] = agg[col].round(1)
 
     records = agg.to_dict(orient="records")
     return records
@@ -131,11 +131,22 @@ def main(onspd_path: Path) -> None:
             "Run fetch_commute_data.py first."
         )
     print(f"Loading commute data: {RAW_CENSUS_COMMUTE_LSOA}")
-    df_commute = pd.read_csv(
+    raw = pd.read_csv(
         RAW_CENSUS_COMMUTE_LSOA,
-        usecols=["geography_code", "mean_dist_km", "pct_wfh"],
+        usecols=["geography_code", "total", "wfh", "lt_2km", "km2_5",
+                 "km5_10", "km10_20", "km20_30", "km30_40", "km40_60",
+                 "km60_plus", "mean_dist_km", "pct_wfh"],
         dtype={"geography_code": str},
     )
+    # Compute LSOA-level band percentages (each 0-100 scale)
+    tot = raw["total"].replace(0, float("nan"))
+    raw["pct_lt5"]   = (raw["lt_2km"] + raw["km2_5"])                           / tot * 100
+    raw["pct_5_10"]  =  raw["km5_10"]                                            / tot * 100
+    raw["pct_10_20"] =  raw["km10_20"]                                           / tot * 100
+    raw["pct_20_60"] = (raw["km20_30"] + raw["km30_40"] + raw["km40_60"])       / tot * 100
+    raw["pct_60p"]   =  raw["km60_plus"]                                         / tot * 100
+    df_commute = raw[["geography_code", "mean_dist_km", "pct_wfh",
+                      "pct_lt5", "pct_5_10", "pct_10_20", "pct_20_60", "pct_60p"]]
     print(f"  Commute LSOAs: {len(df_commute):,}")
 
     # 2. Load ONSPD
