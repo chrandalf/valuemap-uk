@@ -277,9 +277,9 @@ export default function Home() {
   const [indexToken, setIndexToken] = useState(0);
   const [indexBudget, setIndexBudget] = useState(300000);
   const [indexPropertyType, setIndexPropertyType] = useState<"ALL" | "D" | "S" | "T" | "F">("ALL");
-  const [indexAffordWeight, setIndexAffordWeight] = useState(5);
-  const [indexFloodWeight, setIndexFloodWeight] = useState(5);
-  const [indexSchoolWeight, setIndexSchoolWeight] = useState(5);
+  const [indexAffordWeight, setIndexAffordWeight] = useState(0);
+  const [indexFloodWeight, setIndexFloodWeight] = useState(0);
+  const [indexSchoolWeight, setIndexSchoolWeight] = useState(0);
   const [indexTrainWeight, setIndexTrainWeight] = useState(0);
   const [indexCoastWeight, setIndexCoastWeight] = useState(0);
   const [indexAgeWeight, setIndexAgeWeight] = useState(0);
@@ -287,9 +287,9 @@ export default function Home() {
   const [indexApplied, setIndexApplied] = useState<IndexScoringPrefs>({
     budget: 300000,
     propertyType: "ALL",
-    affordWeight: 5,
-    floodWeight: 5,
-    schoolWeight: 5,
+    affordWeight: 0,
+    floodWeight: 0,
+    schoolWeight: 0,
     trainWeight: 0,
     coastWeight: 0,
   });
@@ -376,9 +376,9 @@ export default function Home() {
     setIndexScoringPending(false);
     setIndexBudget(300000);
     setIndexPropertyType("ALL");
-    setIndexAffordWeight(5);
-    setIndexFloodWeight(5);
-    setIndexSchoolWeight(5);
+    setIndexAffordWeight(0);
+    setIndexFloodWeight(0);
+    setIndexSchoolWeight(0);
     setIndexTrainWeight(0);
     setIndexCoastWeight(0);
     setIndexAgeWeight(0);
@@ -386,9 +386,9 @@ export default function Home() {
     setIndexApplied({
       budget: 300000,
       propertyType: "ALL",
-      affordWeight: 5,
-      floodWeight: 5,
-      schoolWeight: 5,
+      affordWeight: 0,
+      floodWeight: 0,
+      schoolWeight: 0,
       trainWeight: 0,
       coastWeight: 0,
       ageWeight: 0,
