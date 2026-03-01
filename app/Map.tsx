@@ -2935,6 +2935,8 @@ async function ensureAggregatesAndUpdate(
 ) {
   try {
     const voteModeActive = (state.voteOverlayMode ?? "off") !== "off";
+    const commuteModeActive = (state.commuteOverlayMode ?? "off") !== "off";
+    const overlayActive = voteModeActive || commuteModeActive;
     // For delta metrics, apply simple linear color mapping (quantiles can be complex with diverging data)
     const isDelta = isDeltaMetric(state.metric);
     if (isDelta) {
@@ -2948,7 +2950,7 @@ async function ensureAggregatesAndUpdate(
       const colors = easy ? DELTA_COLORS_CBF : DELTA_COLORS;
       const expr = buildDeltaColorExpression(state.metric, stops, colors);
 
-      if (!voteModeActive && map.getLayer("cells-fill")) {
+      if (!overlayActive && map.getLayer("cells-fill")) {
         map.setPaintProperty("cells-fill", "fill-color", expr);
       }
       if (onLegendChange) {
@@ -3072,7 +3074,7 @@ async function ensureAggregatesAndUpdate(
         const colors = makeTailColors(easy);
         const safeBreaks = ensureStrictlyIncreasingBreaks(breaks);
         const expr = buildTailColorExpression(metricPropName(state.metric), safeBreaks, colors, true);
-        if (!voteModeActive && map.getLayer("cells-fill")) {
+        if (!overlayActive && map.getLayer("cells-fill")) {
           map.setPaintProperty("cells-fill", "fill-color", expr);
         }
         if (onLegendChange) {
@@ -3086,14 +3088,14 @@ async function ensureAggregatesAndUpdate(
             buildLinearBreaks(stats.min, stats.max, QUANTILE_PROBS.length)
           );
           const expr = buildTailColorExpression(metricPropName(state.metric), linearBreaks, colors, true);
-          if (!voteModeActive && map.getLayer("cells-fill")) {
+          if (!overlayActive && map.getLayer("cells-fill")) {
             map.setPaintProperty("cells-fill", "fill-color", expr);
           }
           if (onLegendChange) {
             onLegendChange({ kind: "median", breaks: linearBreaks, colors, probs: QUANTILE_PROBS });
           }
         } else {
-          if (!voteModeActive && map.getLayer("cells-fill")) {
+          if (!overlayActive && map.getLayer("cells-fill")) {
             map.setPaintProperty("cells-fill", "fill-color", getFillColorExpression(state.metric, easy));
           }
           if (onLegendChange) {

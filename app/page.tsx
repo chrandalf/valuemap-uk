@@ -1910,14 +1910,18 @@ export default function Home() {
                     />
                   </div>
 
+                  {/* Cell colour overlays sub-group */}
+                  <div style={{ borderTop: "1px solid rgba(255,255,255,0.1)", margin: "8px 0 7px" }} />
+                  <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.45, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 7 }}>Cell colour</div>
+
                   {/* Political votes */}
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 7 }}>
                     <div style={{ fontSize: 11, opacity: 0.8, width: 70, flexShrink: 0, paddingTop: 2 }}>🗳 Politics</div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                       <Segment
                         options={["off", "on"]}
                         value={state.voteOverlayMode}
-                        onChange={(v) => setState((s) => ({ ...s, voteOverlayMode: v as VoteOverlayMode }))}
+                        onChange={(v) => setState((s) => ({ ...s, voteOverlayMode: v as VoteOverlayMode, ...(v === "on" ? { commuteOverlayMode: "off" as CommuteOverlayMode } : {}) }))}
                         renderOption={(v) => v === "on" ? "On" : "Off"}
                       />
                       {state.voteOverlayMode === "on" && (
@@ -1940,7 +1944,7 @@ export default function Home() {
                     <Segment
                       options={["off", "on"]}
                       value={state.commuteOverlayMode}
-                      onChange={(v) => setState((s) => ({ ...s, commuteOverlayMode: v as CommuteOverlayMode }))}
+                      onChange={(v) => setState((s) => ({ ...s, commuteOverlayMode: v as CommuteOverlayMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode } : {}) }))}
                       renderOption={(v) => v === "on" ? "On" : "Off"}
                     />
                   </div>
