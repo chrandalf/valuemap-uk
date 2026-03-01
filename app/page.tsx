@@ -3340,20 +3340,20 @@ export default function Home() {
           {/* Header */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px 8px", borderBottom: "1px solid #f3f4f6" }}>
             <span style={{ fontWeight: 700, fontSize: 14, color: "#1d4ed8" }}>
-              \uD83D\uDCCD {rightClickInfo.stage === "ready" ? rightClickInfo.postcode : "\u2026"}
+              📍 {rightClickInfo.stage === "ready" ? rightClickInfo.postcode : "…"}
               {rightClickInfo.stage === "ready" && rightClickInfo.isOutcode && <span style={{ fontSize: 11, fontWeight: 400, color: "#9ca3af", marginLeft: 5 }}>district</span>}
             </span>
-            <button type="button" onClick={() => { setRightClickInfo(null); setRgDismissToken(v => v + 1); }} style={{ cursor: "pointer", border: "none", background: "transparent", color: "#9ca3af", fontSize: 16, lineHeight: 1, padding: "0 2px" }}>\u2715</button>
+            <button type="button" onClick={() => { setRightClickInfo(null); setRgDismissToken(v => v + 1); }} style={{ cursor: "pointer", border: "none", background: "transparent", color: "#9ca3af", fontSize: 16, lineHeight: 1, padding: "0 2px" }}>✕</button>
           </div>
           {/* Content */}
           {rightClickInfo.stage === "loading" ? (
-            <div style={{ padding: "12px 12px", fontSize: 12, color: "#9ca3af" }}>Looking up location\u2026</div>
+            <div style={{ padding: "12px 12px", fontSize: 12, color: "#9ca3af" }}>Looking up location…</div>
           ) : (
             <div style={{ padding: "8px 12px" }}>
               {([
-                { icon: "\uD83C\uDF0A", label: "Flood",   html: rightClickInfo.floodHtml },
-                { icon: "\uD83C\uDFEB", label: "Schools", html: rightClickInfo.schoolHtml },
-                { icon: "\uD83D\uDE82", label: "Station", html: rightClickInfo.stationHtml },
+                { icon: "🌊", label: "Flood",   html: rightClickInfo.floodHtml },
+                { icon: "🏫", label: "Schools", html: rightClickInfo.schoolHtml },
+                { icon: "🚂", label: "Station", html: rightClickInfo.stationHtml },
               ] as const).map(({ icon, label, html }) => (
                 <div key={label} style={{ display: "flex", gap: 6, alignItems: "flex-start", padding: "4px 0", borderBottom: "1px solid #f9fafb" }}>
                   <span style={{ width: 16, flexShrink: 0, textAlign: "center", paddingTop: 1 }}>{icon}</span>
@@ -3362,8 +3362,8 @@ export default function Home() {
                 </div>
               ))}
               <div style={{ marginTop: 6, paddingTop: 5, borderTop: "1px solid #f3f4f6", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span style={{ fontSize: 10, color: "#6b7280" }}>\u2713 Added to log</span>
-                <a href="#" onClick={(e) => { e.preventDefault(); setRgLogOpen(true); }} style={{ fontSize: 10, color: "#6366f1", textDecoration: "none", fontWeight: 500 }}>See log \u2192</a>
+                <span style={{ fontSize: 10, color: "#6b7280" }}>✓ Added to log</span>
+                <a href="#" onClick={(e) => { e.preventDefault(); setRgLogOpen(true); }} style={{ fontSize: 10, color: "#6366f1", textDecoration: "none", fontWeight: 500 }}>See log →</a>
               </div>
             </div>
           )}
@@ -3377,23 +3377,23 @@ export default function Home() {
         }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px 8px", borderBottom: rgPanelMinimized ? "none" : "1px solid #f3f4f6" }}>
             <span style={{ fontWeight: 700, fontSize: 14, color: "#1d4ed8" }}>
-              \uD83D\uDCCD {rightClickInfo.stage === "ready" ? rightClickInfo.postcode : "Looking up\u2026"}
+              📍 {rightClickInfo.stage === "ready" ? rightClickInfo.postcode : "Looking up…"}
             </span>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <button type="button" title={rgPanelMinimized ? "Expand" : "Minimise"} onClick={() => setRgPanelMinimized(v => !v)} style={{ cursor: "pointer", border: "none", background: "transparent", color: "#9ca3af", fontSize: 13, padding: "0 4px" }}>
-                {rgPanelMinimized ? "\u25B2" : "\u25BC"}
+                {rgPanelMinimized ? "▲" : "▼"}
               </button>
-              <button type="button" onClick={() => { setRightClickInfo(null); setRgDismissToken(v => v + 1); setRgPanelMinimized(false); }} style={{ cursor: "pointer", border: "none", background: "transparent", color: "#9ca3af", fontSize: 16, lineHeight: 1, padding: "0 2px" }}>\u2715</button>
+              <button type="button" onClick={() => { setRightClickInfo(null); setRgDismissToken(v => v + 1); setRgPanelMinimized(false); }} style={{ cursor: "pointer", border: "none", background: "transparent", color: "#9ca3af", fontSize: 16, lineHeight: 1, padding: "0 2px" }}>✕</button>
             </div>
           </div>
           {!rgPanelMinimized && (rightClickInfo.stage === "loading" ? (
-            <div style={{ padding: "12px 14px", fontSize: 12, color: "#9ca3af" }}>Looking up location\u2026</div>
+            <div style={{ padding: "12px 14px", fontSize: 12, color: "#9ca3af" }}>Looking up location…</div>
           ) : (
             <div style={{ padding: "8px 14px 16px" }}>
               {([
-                { icon: "\uD83C\uDF0A", label: "Flood",   html: rightClickInfo.floodHtml },
-                { icon: "\uD83C\uDFEB", label: "Schools", html: rightClickInfo.schoolHtml },
-                { icon: "\uD83D\uDE82", label: "Station", html: rightClickInfo.stationHtml },
+                { icon: "🌊", label: "Flood",   html: rightClickInfo.floodHtml },
+                { icon: "🏫", label: "Schools", html: rightClickInfo.schoolHtml },
+                { icon: "🚂", label: "Station", html: rightClickInfo.stationHtml },
               ] as const).map(({ icon, label, html }) => (
                 <div key={label} style={{ display: "flex", gap: 6, alignItems: "flex-start", padding: "4px 0", borderBottom: "1px solid #f9fafb" }}>
                   <span style={{ width: 16, flexShrink: 0, textAlign: "center", paddingTop: 1 }}>{icon}</span>
@@ -3402,8 +3402,8 @@ export default function Home() {
                 </div>
               ))}
               <div style={{ marginTop: 6, paddingTop: 5, borderTop: "1px solid #f3f4f6", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span style={{ fontSize: 10, color: "#6b7280" }}>\u2713 Added to log</span>
-                <a href="#" onClick={(e) => { e.preventDefault(); setRgLogOpen(true); }} style={{ fontSize: 10, color: "#6366f1", textDecoration: "none", fontWeight: 500 }}>See log \u2192</a>
+                <span style={{ fontSize: 10, color: "#6b7280" }}>✓ Added to log</span>
+                <a href="#" onClick={(e) => { e.preventDefault(); setRgLogOpen(true); }} style={{ fontSize: 10, color: "#6366f1", textDecoration: "none", fontWeight: 500 }}>See log →</a>
               </div>
             </div>
           ))}
