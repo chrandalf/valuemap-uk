@@ -63,7 +63,9 @@ MODEL_FLOOD_OUTCODE_SUMMARY = MODEL_FLOOD_DIR / "flood_outcode_summary.json.gz"
 MODEL_FLOOD_POSTCODE_POINTS = MODEL_FLOOD_DIR / "flood_postcode_points.geojson.gz"
 
 RAW_CENSUS_COMMUTE_LSOA = RAW_CENSUS_DIR / "ts058_commute_lsoa21.csv"
+RAW_CENSUS_AGE_LSOA = RAW_CENSUS_DIR / "ts007a_age_lsoa21.csv"
 MODEL_CENSUS_COMMUTE_CELLS_TEMPLATE = MODEL_CENSUS_DIR / "commute_cells_{grid}.json.gz"
+MODEL_CENSUS_AGE_CELLS_TEMPLATE = MODEL_CENSUS_DIR / "age_cells_{grid}.json.gz"
 
 MODEL_VOTE_BLOCKS_BY_CONSTITUENCY_CSV = MODEL_VOTE_DIR / "ge2024_vote_blocks_by_constituency.csv"
 MODEL_VOTE_BLOCKS_MAP_GEOJSON = MODEL_VOTE_DIR / "ge2024_vote_blocks_map.geojson"

@@ -56,7 +56,8 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     const rows = applyFilters(cached.rows, minTxCount, metric);
     const withVotes = await backfillVotes(env, grid, rows);
     const withCommute = await backfillCommute(env, grid, withVotes);
-    return jsonResponse({ grid, metric, end_month: endMonth, propertyType, newBuild, minTxCount, count: withCommute.length, rows: withCommute });
+    const withAge = await backfillAge(env, grid, withCommute);
+    return jsonResponse({ grid, metric, end_month: endMonth, propertyType, newBuild, minTxCount, count: withAge.length, rows: withAge });
   }
 
   // Fetch from R2
@@ -78,7 +79,8 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   const rows = applyFilters(rawRows, minTxCount, metric);
   const withVotes = await backfillVotes(env, grid, rows);
   const withCommute = await backfillCommute(env, grid, withVotes);
-  return jsonResponse({ grid, metric, end_month: endMonth, propertyType, newBuild, minTxCount, count: withCommute.length, rows: withCommute });
+  const withAge = await backfillAge(env, grid, withCommute);
+  return jsonResponse({ grid, metric, end_month: endMonth, propertyType, newBuild, minTxCount, count: withAge.length, rows: withAge });
 };
 
 /* ---------- types ---------- */
@@ -126,6 +128,13 @@ type CellRow = {
   constituency?: string;
   mean_dist_km?: number;
   pct_wfh?: number;
+  mean_age?: number;
+  age_score?: number;
+  pct_under_15?: number;
+  pct_15_24?: number;
+  pct_25_44?: number;
+  pct_45_64?: number;
+  pct_65_plus?: number;
 };
 
 type VoteCellRow = {
@@ -152,6 +161,20 @@ type CommuteCellRow = {
 };
 
 type CommuteCellValue = Omit<CommuteCellRow, "gx" | "gy">;
+
+type AgeCellRow = {
+  gx: number;
+  gy: number;
+  mean_age: number;
+  age_score: number;
+  pct_under_15: number;
+  pct_15_24: number;
+  pct_25_44: number;
+  pct_45_64: number;
+  pct_65_plus: number;
+};
+
+type AgeCellValue = Omit<AgeCellRow, "gx" | "gy">;
 
 interface Env {
   R2?: R2Bucket;
@@ -337,6 +360,75 @@ async function backfillCommute(env: Env, grid: GridKey, rows: CellRow[]): Promis
   });
 }
 
+/* ---------- age data ---------- */
+
+const AGE_CACHE_BY_GRID: Partial<Record<GridKey, { lookup: Map<string, AgeCellValue>; loadedAtMs: number }>> = {};
+
+function ageKeyForGrid(grid: GridKey) {
+  switch (grid) {
+    case "1km":  return "age_cells_1km.json.gz";
+    case "5km":  return "age_cells_5km.json.gz";
+    case "10km": return "age_cells_10km.json.gz";
+    case "25km": return "age_cells_25km.json.gz";
+  }
+}
+
+async function getCachedAgeLookup(env: Env, grid: GridKey): Promise<Map<string, AgeCellValue> | null> {
+  const now = Date.now();
+  const cached = AGE_CACHE_BY_GRID[grid];
+  if (cached && now - cached.loadedAtMs <= CACHE_TTL_MS) return cached.lookup;
+
+  const bucket = getBucket(env);
+  const key = ageKeyForGrid(grid);
+  const obj = await bucket.get(key);
+  if (!obj) return null;
+
+  const gz = await obj.arrayBuffer();
+  const jsonText = await gunzipToString(gz);
+  const rows = JSON.parse(jsonText) as AgeCellRow[];
+
+  const lookup = new Map<string, AgeCellValue>();
+  for (const row of rows) {
+    lookup.set(`${row.gx}_${row.gy}`, {
+      mean_age:      Number(row.mean_age      ?? 41.5),
+      age_score:     Number(row.age_score     ?? 0.5),
+      pct_under_15:  Number(row.pct_under_15  ?? 0),
+      pct_15_24:     Number(row.pct_15_24     ?? 0),
+      pct_25_44:     Number(row.pct_25_44     ?? 0),
+      pct_45_64:     Number(row.pct_45_64     ?? 0),
+      pct_65_plus:   Number(row.pct_65_plus   ?? 0),
+    });
+  }
+
+  AGE_CACHE_BY_GRID[grid] = { lookup, loadedAtMs: Date.now() };
+  return lookup;
+}
+
+async function backfillAge(env: Env, grid: GridKey, rows: CellRow[]): Promise<CellRow[]> {
+  let ageLookup: Map<string, AgeCellValue> | null = null;
+  try {
+    ageLookup = await getCachedAgeLookup(env, grid);
+  } catch {
+    return rows;
+  }
+  if (!ageLookup) return rows;
+
+  return rows.map((row) => {
+    const age = ageLookup!.get(`${row.gx}_${row.gy}`);
+    if (!age) return row;
+    return {
+      ...row,
+      mean_age:     age.mean_age,
+      age_score:    age.age_score,
+      pct_under_15: age.pct_under_15,
+      pct_15_24:    age.pct_15_24,
+      pct_25_44:    age.pct_25_44,
+      pct_45_64:    age.pct_45_64,
+      pct_65_plus:  age.pct_65_plus,
+    };
+  });
+}
+
 /* ---------- legacy fallback (monolithic files) ---------- */
 
 type LegacyCacheEntry = {
@@ -407,6 +499,7 @@ async function legacyHandler(
 
   const withVotes = await backfillVotes(env, grid, rows);
   const withCommute = await backfillCommute(env, grid, withVotes);
+  const withAge = await backfillAge(env, grid, withCommute);
 
   return jsonResponse({
     grid,
@@ -415,8 +508,8 @@ async function legacyHandler(
     propertyType,
     newBuild,
     minTxCount,
-    count: withCommute.length,
-    rows: withCommute,
+    count: withAge.length,
+    rows: withAge,
   });
 }
 

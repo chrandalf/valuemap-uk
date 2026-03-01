@@ -14,6 +14,7 @@ type SchoolOverlayMode = "off" | "on" | "on_hide_cells";
 type StationOverlayMode = "off" | "on" | "on_hide_cells";
 type VoteOverlayMode = "off" | "on";
 type CommuteOverlayMode = "off" | "on";
+type AgeOverlayMode = "off" | "on";
 type VoteColorScale = "relative" | "absolute";
 type GridMode = "auto" | "manual";
 
@@ -25,6 +26,8 @@ type IndexScoringPrefs = {
   schoolWeight: number;
   trainWeight: number;
   coastWeight: number;
+  ageWeight?: number;
+  ageDirection?: "young" | "old";
 };
 
 type MapState = {
@@ -41,6 +44,7 @@ type MapState = {
   voteOverlayMode: VoteOverlayMode;
   voteColorScale: VoteColorScale;
   commuteOverlayMode: CommuteOverlayMode;
+  ageOverlayMode: AgeOverlayMode;
 };
 
 type OutcodeRank = {
@@ -159,6 +163,7 @@ export default function Home() {
       voteOverlayMode: "off",
       voteColorScale: "relative",
       commuteOverlayMode: "off",
+      ageOverlayMode: "off",
     };
     if (typeof window === "undefined") return defaults;
     try {
@@ -176,6 +181,7 @@ export default function Home() {
       const vote = p.get("vote");
       const voteScale = p.get("voteScale");
       const commute = p.get("commute");
+      const age = p.get("age");
       const GRIDS: GridSize[] = ["1km", "5km", "10km", "25km"];
       const METRICS: Metric[] = ["median", "median_ppsf", "delta_gbp", "delta_pct"];
       const TYPES: PropertyType[] = ["ALL", "D", "S", "T", "F"];
@@ -185,7 +191,7 @@ export default function Home() {
       const SCHOOLS: SchoolOverlayMode[] = ["off", "on", "on_hide_cells"];
       const STATIONS: StationOverlayMode[] = ["off", "on", "on_hide_cells"];
       // Only hydrate if at least one known param is present
-      if (!grid && !metric && !type && !flood && !schools && !vote && !stations && !commute) return defaults;
+      if (!grid && !metric && !type && !flood && !schools && !vote && !stations && !commute && !age) return defaults;
       return {
         grid: GRIDS.includes(grid as GridSize) ? (grid as GridSize) : defaults.grid,
         metric: METRICS.includes(metric as Metric) ? (metric as Metric) : defaults.metric,
@@ -200,6 +206,7 @@ export default function Home() {
         voteOverlayMode: vote === "on" ? "on" : defaults.voteOverlayMode,
         voteColorScale: voteScale === "absolute" ? "absolute" : defaults.voteColorScale,
         commuteOverlayMode: commute === "on" ? "on" : defaults.commuteOverlayMode,
+        ageOverlayMode: age === "on" ? "on" : defaults.ageOverlayMode,
       };
     } catch {
       return defaults;
@@ -275,6 +282,8 @@ export default function Home() {
   const [indexSchoolWeight, setIndexSchoolWeight] = useState(5);
   const [indexTrainWeight, setIndexTrainWeight] = useState(0);
   const [indexCoastWeight, setIndexCoastWeight] = useState(0);
+  const [indexAgeWeight, setIndexAgeWeight] = useState(0);
+  const [indexAgeDirection, setIndexAgeDirection] = useState<"young" | "old">("young");
   const [indexApplied, setIndexApplied] = useState<IndexScoringPrefs>({
     budget: 300000,
     propertyType: "ALL",
@@ -311,6 +320,8 @@ export default function Home() {
       schoolWeight: indexApplied.schoolWeight,
       trainWeight: indexApplied.trainWeight,
       coastWeight: indexApplied.coastWeight,
+      ageWeight: indexApplied.ageWeight ?? 0,
+      ageDirection: indexApplied.ageDirection ?? "young",
       indexFilterMode: indexSuitabilityMode,
       indexFilterThreshold: indexSuitabilityThreshold / 100,
     };
@@ -336,6 +347,7 @@ export default function Home() {
     voteOverlayMode: "off",
     voteColorScale: "relative",
     commuteOverlayMode: "off",
+    ageOverlayMode: "off",
   };
   const closeAllSubpanels = () => {
     setFiltersOpen(false);
@@ -369,6 +381,8 @@ export default function Home() {
     setIndexSchoolWeight(5);
     setIndexTrainWeight(0);
     setIndexCoastWeight(0);
+    setIndexAgeWeight(0);
+    setIndexAgeDirection("young");
     setIndexApplied({
       budget: 300000,
       propertyType: "ALL",
@@ -377,6 +391,7 @@ export default function Home() {
       schoolWeight: 5,
       trainWeight: 0,
       coastWeight: 0,
+      ageWeight: 0,
     });
   };
 
@@ -600,6 +615,7 @@ export default function Home() {
     params.set("vote", state.voteOverlayMode);
     params.set("voteScale", state.voteColorScale);
     params.set("commute", state.commuteOverlayMode);
+    params.set("age", state.ageOverlayMode);
 
     const nextUrl = `${window.location.pathname}?${params.toString()}`;
     window.history.replaceState(null, "", nextUrl);
@@ -695,6 +711,43 @@ export default function Home() {
     </>
   );
 
+  const ageLegendContent = (
+    <>
+      <div className="legend-title" style={{ fontWeight: 600, marginBottom: 10, fontSize: 16, opacity: 0.9 }}>
+        👥 Community age mix (Census 2021)
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "60px 1fr 60px", gap: 8, alignItems: "center" }}>
+        <div style={{ textAlign: "left", fontSize: 11, opacity: 0.85 }}>Older</div>
+        <div style={{ display: "flex", height: 16, borderRadius: 999, overflow: "hidden", border: "1px solid rgba(255,255,255,0.2)" }}>
+          {(easyColours
+            ? ["#762a83", "#af8dc3", "#f7f7f7", "#d9f0a3", "#1a7837"]
+            : ["#1e3a8a", "#60a5fa", "#e5e7eb", "#fbbf24", "#b45309"]
+          ).map((c, i) => (
+            <div key={i} style={{ flex: 1, backgroundColor: c }} />
+          ))}
+        </div>
+        <div style={{ textAlign: "right", fontSize: 11, opacity: 0.85 }}>Younger</div>
+      </div>
+      <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", gap: 4, fontSize: 10 }}>
+        {[
+          ["#60a5fa", "Under 15"],
+          ["#34d399", "15–24"],
+          ["#facc15", "25–44"],
+          ["#fb923c", "45–64"],
+          ["#f87171", "65+"],
+        ].map(([col, lbl]) => (
+          <span key={lbl} style={{ display: "flex", alignItems: "center", gap: 3, opacity: 0.75 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: col, flexShrink: 0, display: "inline-block" }} />
+            {lbl}
+          </span>
+        ))}
+      </div>
+      <div style={{ marginTop: 6, fontSize: 11, opacity: 0.8, lineHeight: 1.35 }}>
+        Mean age and broad band distribution per LSOA. Census 2021, England &amp; Wales only.
+      </div>
+    </>
+  );
+
   const voteLegendContent = (
     <>
       <div className="legend-title" style={{ fontWeight: 600, marginBottom: 10, fontSize: 16, opacity: 0.9 }}>
@@ -782,9 +835,10 @@ export default function Home() {
     <>
       {indexActive && indexLegendContent}
       {state.schoolOverlayMode !== "off" && schoolLegendContent}
-      {!indexActive && state.commuteOverlayMode === "on" && commuteLegendContent}
-      {!indexActive && state.commuteOverlayMode !== "on" && state.voteOverlayMode === "on" && voteLegendContent}
-      {!indexActive && state.commuteOverlayMode !== "on" && state.voteOverlayMode !== "on" && (
+      {!indexActive && state.ageOverlayMode === "on" && ageLegendContent}
+      {!indexActive && state.ageOverlayMode !== "on" && state.commuteOverlayMode === "on" && commuteLegendContent}
+      {!indexActive && state.ageOverlayMode !== "on" && state.commuteOverlayMode !== "on" && state.voteOverlayMode === "on" && voteLegendContent}
+      {!indexActive && state.ageOverlayMode !== "on" && state.commuteOverlayMode !== "on" && state.voteOverlayMode !== "on" && (
       <>
       <div className="legend-title" style={{ fontWeight: 600, marginBottom: 12, fontSize: 16, opacity: 0.9 }}>
         {state.metric === "median"
@@ -934,7 +988,7 @@ export default function Home() {
       ? "Off"
       : "On";
   const voteScaleLabel = state.voteColorScale === "relative" ? "Relative" : "Absolute";
-  const anyOverlayActive = state.floodOverlayMode !== "off" || state.schoolOverlayMode !== "off" || state.stationOverlayMode !== "off" || state.voteOverlayMode !== "off" || state.commuteOverlayMode !== "off";
+  const anyOverlayActive = state.floodOverlayMode !== "off" || state.schoolOverlayMode !== "off" || state.stationOverlayMode !== "off" || state.voteOverlayMode !== "off" || state.commuteOverlayMode !== "off" || state.ageOverlayMode !== "off";
 
   const currentFiltersSummary =
     `Grid: ${state.grid} · Metric: ${METRIC_LABEL[state.metric]} · ` +
@@ -942,7 +996,8 @@ export default function Home() {
     `Period: ${periodLabel} · Flood: ${floodOverlayLabel} · Schools: ${schoolOverlayLabel} · ` +
     `Stations: ${state.stationOverlayMode === "off" ? "Off" : state.stationOverlayMode === "on" ? "On" : "On (hide cells)"} · ` +
     `Vote overlay: ${voteOverlayLabel} (${voteScaleLabel}) · ` +
-    `Commute: ${state.commuteOverlayMode === "on" ? "On" : "Off"}`;
+    `Commute: ${state.commuteOverlayMode === "on" ? "On" : "Off"} · ` +
+    `Age mix: ${state.ageOverlayMode === "on" ? "On" : "Off"}`;
   const headerFilterSummary =
     `${state.grid} · ${METRIC_LABEL[state.metric]} · ${PROPERTY_LABEL[state.propertyType]} · ${NEWBUILD_LABEL[state.newBuild]} · ${periodLabel}`;
   const headerMedianSummary =
@@ -1210,7 +1265,7 @@ export default function Home() {
         setIndexSchoolWeight(6);
         setIndexTrainWeight(0);
         setIndexCoastWeight(0);
-        setIndexApplied({ budget: 350000, propertyType: "ALL", affordWeight: 7, floodWeight: 8, schoolWeight: 6, trainWeight: 0, coastWeight: 0 });
+        setIndexApplied({ budget: 350000, propertyType: "ALL", affordWeight: 7, floodWeight: 8, schoolWeight: 6, trainWeight: 0, coastWeight: 0, ageWeight: 0 });
         setGridMode("manual");
         setState((s) => ({ ...s, grid: "1km" }));
         setIndexScoringPending(true);
@@ -1921,7 +1976,7 @@ export default function Home() {
                       <Segment
                         options={["off", "on"]}
                         value={state.voteOverlayMode}
-                        onChange={(v) => setState((s) => ({ ...s, voteOverlayMode: v as VoteOverlayMode, ...(v === "on" ? { commuteOverlayMode: "off" as CommuteOverlayMode } : {}) }))}
+                        onChange={(v) => setState((s) => ({ ...s, voteOverlayMode: v as VoteOverlayMode, ...(v === "on" ? { commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode } : {}) }))}
                         renderOption={(v) => v === "on" ? "On" : "Off"}
                       />
                       {state.voteOverlayMode === "on" && (
@@ -1939,12 +1994,23 @@ export default function Home() {
                   </div>
 
                   {/* Commute distance */}
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 7 }}>
                     <div style={{ fontSize: 11, opacity: 0.8, width: 70, flexShrink: 0, paddingTop: 2 }}>🚗 Commute</div>
                     <Segment
                       options={["off", "on"]}
                       value={state.commuteOverlayMode}
-                      onChange={(v) => setState((s) => ({ ...s, commuteOverlayMode: v as CommuteOverlayMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode } : {}) }))}
+                      onChange={(v) => setState((s) => ({ ...s, commuteOverlayMode: v as CommuteOverlayMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode } : {}) }))}
+                      renderOption={(v) => v === "on" ? "On" : "Off"}
+                    />
+                  </div>
+
+                  {/* Age mix */}
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                    <div style={{ fontSize: 11, opacity: 0.8, width: 70, flexShrink: 0, paddingTop: 2 }}>👥 Age mix</div>
+                    <Segment
+                      options={["off", "on"]}
+                      value={state.ageOverlayMode}
+                      onChange={(v) => setState((s) => ({ ...s, ageOverlayMode: v as AgeOverlayMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode } : {}) }))}
                       renderOption={(v) => v === "on" ? "On" : "Off"}
                     />
                   </div>
@@ -2441,6 +2507,29 @@ export default function Home() {
               <ImportancePicker emoji="🌊" label="Flood safety"  value={indexFloodWeight}  onChange={setIndexFloodWeight}  color="#60a5fa" />
               <ImportancePicker emoji="🏫" label="Schools"       value={indexSchoolWeight} onChange={setIndexSchoolWeight} color="#22c55e" />
               <ImportancePicker emoji="🚂" label="Trains"        value={indexTrainWeight}  onChange={setIndexTrainWeight}  color="#f97316" />
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                <span style={{ fontSize: 11, fontWeight: 600, flex: "0 0 auto", minWidth: 100 }}>👥 Community age</span>
+                <div style={{ display: "flex", gap: 3, alignItems: "center" }}>
+                  <div style={{ display: "flex", gap: 3 }}>
+                    {([{ label: "Must", value: 10 }, { label: "Want", value: 6 }, { label: "Nice", value: 3 }, { label: "Off", value: 0 }] as const).map(({ label: lbl, value: v }) => {
+                      const active = [0, 3, 6, 10].reduce<number>((best, l) => Math.abs(indexAgeWeight - l) < Math.abs(indexAgeWeight - best) ? l : best, 10);
+                      return (
+                        <button key={v} type="button" onClick={() => setIndexAgeWeight(v)} style={{ cursor: "pointer", padding: "3px 8px", borderRadius: 6, fontSize: 10, fontWeight: active === v ? 700 : 400, border: active === v ? "1.5px solid #a78bfa" : "1px solid rgba(255,255,255,0.13)", background: active === v ? "#a78bfa30" : "rgba(255,255,255,0.04)", color: active === v ? "white" : "rgba(255,255,255,0.5)", lineHeight: 1.4, minWidth: 36, textAlign: "center" }}>{lbl}</button>
+                      );
+                    })}
+                  </div>
+                  {indexAgeWeight > 0 && (
+                    <select
+                      value={indexAgeDirection}
+                      onChange={(e) => setIndexAgeDirection(e.target.value as "young" | "old")}
+                      style={{ marginLeft: 4, fontSize: 10, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)", color: "white", borderRadius: 6, padding: "2px 4px", cursor: "pointer" }}
+                    >
+                      <option value="young">Younger</option>
+                      <option value="old">Older</option>
+                    </select>
+                  )}
+                </div>
+              </div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 0", opacity: 0.3 }}>
                 <span style={{ fontSize: 11, fontWeight: 600 }}>🏖️ Coast</span>
                 <span style={{ fontSize: 10, fontStyle: "italic" }}>coming soon</span>
@@ -2471,6 +2560,8 @@ export default function Home() {
                     schoolWeight: indexSchoolWeight,
                     trainWeight: indexTrainWeight,
                     coastWeight: indexCoastWeight,
+                    ageWeight: indexAgeWeight,
+                    ageDirection: indexAgeDirection,
                   });
                   setGridMode("manual");
                   setState((s) => ({ ...s, grid: "1km" }));

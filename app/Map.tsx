@@ -12,6 +12,7 @@ type SchoolOverlayMode = "off" | "on" | "on_hide_cells";
 type StationOverlayMode = "off" | "on" | "on_hide_cells";
 type VoteOverlayMode = "off" | "on";
 type CommuteOverlayMode = "off" | "on";
+type AgeOverlayMode = "off" | "on";
 type VoteColorScale = "relative" | "absolute";
 
 export type MapState = {
@@ -27,6 +28,7 @@ export type MapState = {
   stationOverlayMode?: StationOverlayMode;
   voteOverlayMode?: VoteOverlayMode;
   commuteOverlayMode?: CommuteOverlayMode;
+  ageOverlayMode?: AgeOverlayMode;
   voteColorScale?: VoteColorScale;
 };
 
@@ -38,6 +40,8 @@ export type IndexPrefs = {
   schoolWeight: number;     // 0-10 importance
   trainWeight: number;      // 0-10 importance (nearest station distance)
   coastWeight: number;      // 0-10 importance (placeholder for now)
+  ageWeight?: number;       // 0-10 importance (community age mix)
+  ageDirection?: "young" | "old"; // prefer younger or older communities
   indexFilterMode?: "off" | "lte" | "gte";
   indexFilterThreshold?: number; // 0..1
 };
@@ -81,6 +85,13 @@ type ApiRow = {
   pct_10_20?: number;
   pct_20_60?: number;
   pct_60p?: number;
+  mean_age?: number;
+  age_score?: number;
+  pct_under_15?: number;
+  pct_15_24?: number;
+  pct_25_44?: number;
+  pct_45_64?: number;
+  pct_65_plus?: number;
 };
 
 function isDeltaMetric(metric: Metric) {
@@ -167,6 +178,7 @@ const STATION_MAX_DISTANCE_METERS = 16_093; // 10 miles
 
 const VOTE_CELLS_DATA_VERSION = process.env.NEXT_PUBLIC_VOTE_CELLS_DATA_VERSION ?? "20260222b";
 const COMMUTE_CELLS_DATA_VERSION = process.env.NEXT_PUBLIC_COMMUTE_CELLS_DATA_VERSION ?? "20260301a";
+const AGE_CELLS_DATA_VERSION = process.env.NEXT_PUBLIC_AGE_CELLS_DATA_VERSION ?? "20260301a";
 
 /** Registers custom raster icons on a map instance. Call before adding icon-dependent layers. */
 function addMapIcons(map: maplibregl.Map): void {
@@ -1755,10 +1767,67 @@ export default function ValueMap({
         if (prefs.schoolWeight > 0) html += wRow("🏫 Schools",        prefs.schoolWeight, bar(Number(p.ix_s ?? 0.5), p.ix_sn === 1));
         if (prefs.trainWeight > 0)  html += wRow("🚂 Train station",  prefs.trainWeight,  bar(Number(p.ix_t ?? 0.5), p.ix_tn === 1));
         if (prefs.coastWeight > 0)  html += wRow("🏖️ Coast",          prefs.coastWeight,  bar(0.5, true));
+        if ((prefs.ageWeight ?? 0) > 0) html += wRow("👥 Community age", prefs.ageWeight!, bar(Number(p.ix_ag ?? 0.5), false));
         html += `</div>`;
         popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
         return;
       }
+    }
+
+    const ageMode = stateRef.current.ageOverlayMode ?? "off";
+    if (ageMode !== "off") {
+      const meanAge   = Number(p.mean_age     ?? NaN);
+      const pUnder15  = Number(p.pct_under_15 ?? NaN);
+      const p15_24    = Number(p.pct_15_24    ?? NaN);
+      const p25_44    = Number(p.pct_25_44    ?? NaN);
+      const p45_64    = Number(p.pct_45_64    ?? NaN);
+      const p65p      = Number(p.pct_65_plus  ?? NaN);
+      const hasAge = Number.isFinite(meanAge);
+      const metricTitle = stateRef.current.metric === "median_ppsf"
+        ? `GBP ${Math.round(median).toLocaleString()} / ft²`
+        : `GBP ${median.toLocaleString()}`;
+      const propHtml = Number.isFinite(median) && median > 0
+        ? `<div style="border-top:1px solid rgba(0,0,0,0.1);margin-top:7px;padding-top:6px;font-size:11px;opacity:0.75;">
+             <span style="font-weight:600">${metricTitle}</span>
+             <span style="margin-left:6px;opacity:0.7">${tx} sales</span>
+           </div>`
+        : "";
+
+      if (hasAge) {
+        const ageBands: Array<[string, number, string]> = [
+          ["Under 15", pUnder15, "#60a5fa"],
+          ["15–24",    p15_24,   "#34d399"],
+          ["25–44",    p25_44,   "#facc15"],
+          ["45–64",    p45_64,   "#fb923c"],
+          ["65+",      p65p,     "#f87171"],
+        ];
+        const total = ageBands.reduce((s, [, v]) => s + (isFinite(v) ? v : 0), 0) || 100;
+        const barSegs = ageBands
+          .filter(([, v]) => isFinite(v) && v > 0)
+          .map(([, v, col]) =>
+            `<div style="flex:${(v / total * 100).toFixed(1)};background:${col};height:100%;"></div>`
+          ).join("");
+        const statsRows = ageBands.map(([label, v, col]) =>
+          `<span style="white-space:nowrap;"><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${col};margin-right:3px;vertical-align:-1px;"></span>${label}&nbsp;<b>${Number.isFinite(v) ? v.toFixed(0) : "—"}%</b></span>`
+        ).join("<span style='opacity:0.35'> · </span>");
+        const html = `
+          <div style="font-family:system-ui;font-size:12px;line-height:1.4;min-width:200px;">
+            <div style="font-weight:700;margin-bottom:5px;">👥 Mean age: ${meanAge.toFixed(1)} yrs</div>
+            <div style="display:flex;height:10px;border-radius:4px;overflow:hidden;margin-bottom:6px;">${barSegs}</div>
+            <div style="font-size:10px;line-height:1.8;">${statsRows}</div>
+            ${propHtml}
+          </div>`;
+        popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+      } else {
+        const html = `
+          <div style="font-family:system-ui;font-size:12px;line-height:1.4;">
+            <div style="font-weight:700;margin-bottom:4px;">👥 No age data</div>
+            <div style="opacity:0.7;font-size:11px;">Census 2021 – England &amp; Wales only</div>
+            ${propHtml}
+          </div>`;
+        popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+      }
+      return;
     }
 
     const commuteMode = stateRef.current.commuteOverlayMode ?? "off";
@@ -2384,13 +2453,14 @@ export default function ValueMap({
     // can cause isStyleLoaded() to return false even on a live map.
     if (!map.getLayer("cells-fill")) return;
 
+    const ageMode = stateRef.current.ageOverlayMode ?? "off";
     const commuteMode = stateRef.current.commuteOverlayMode ?? "off";
     const mode = state.voteOverlayMode ?? "off";
     const scale = state.voteColorScale ?? "relative";
 
     try {
-      if (commuteMode !== "off") {
-        // Commute overlay takes priority — no-op, let the commute effect handle it
+      if (ageMode !== "off" || commuteMode !== "off") {
+        // Age or commute overlay takes priority — no-op, let those effects handle it
       } else if (mode === "off") {
         void ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange, onStatsUpdateRef.current, easyColoursRef.current);
       } else {
@@ -2418,13 +2488,36 @@ export default function ValueMap({
     } catch (e) { /* ignore */ }
   }, [state.commuteOverlayMode, onLegendChange]);
 
+  // Age overlay: apply/remove age distribution colours on cells.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.getLayer("cells-fill")) return;
+    const ageMode = state.ageOverlayMode ?? "off";
+    const commuteMode = stateRef.current.commuteOverlayMode ?? "off";
+    const voteMode = stateRef.current.voteOverlayMode ?? "off";
+    try {
+      if (ageMode !== "off") {
+        applyAgeOverlayColorExpression(map, easyColoursRef.current);
+      } else if (commuteMode !== "off") {
+        applyCommuteOverlayColorExpression(map, easyColoursRef.current);
+      } else if (voteMode !== "off") {
+        applyVoteOverlayColorFromSource(map, stateRef.current.voteColorScale ?? "relative");
+      } else {
+        void ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange, onStatsUpdateRef.current, easyColoursRef.current);
+      }
+    } catch (e) { /* ignore */ }
+  }, [state.ageOverlayMode, onLegendChange]);
+
   // Re-apply colour ramps whenever the easy-colours (colourblind) preference changes.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !map.getLayer("cells-fill")) return;
+    const ageMode = stateRef.current.ageOverlayMode ?? "off";
     const commuteMode = stateRef.current.commuteOverlayMode ?? "off";
     const voteMode = stateRef.current.voteOverlayMode ?? "off";
-    if (commuteMode !== "off") {
+    if (ageMode !== "off") {
+      applyAgeOverlayColorExpression(map, easyColours ?? false);
+    } else if (commuteMode !== "off") {
       applyCommuteOverlayColorExpression(map, easyColours ?? false);
     } else if (voteMode !== "off") {
       return; // vote overlay controls its own fixed colours — no easy-colour variant
@@ -2682,6 +2775,39 @@ function commuteDistanceColorExpression(easy = false): any {
 function applyCommuteOverlayColorExpression(map: maplibregl.Map, easy = false) {
   if (map.getLayer("cells-fill")) {
     map.setPaintProperty("cells-fill", "fill-color", commuteDistanceColorExpression(easy));
+  }
+}
+
+/** Age score colour ramp.
+ * age_score: 0 = oldest community, 1 = youngest community.
+ * Normal  : dark-blue (old) → neutral → amber (young)
+ * Easy/CBF: purple (old) → neutral → orange-red (young)
+ */
+function ageColorExpression(easy = false): any {
+  const score = ["case", ["has", "age_score"], ["to-number", ["get", "age_score"]], -1] as any;
+  if (easy) {
+    return ["interpolate", ["linear"], score,
+      -1,   "#aaaaaa",   // no data
+       0,   "#762a83",   // oldest — purple
+       0.25, "#af8dc3",
+       0.5,  "#f7f7f7",  // national median
+       0.75, "#d9f0a3",
+       1,   "#1a7837",   // youngest — green
+    ];
+  }
+  return ["interpolate", ["linear"], score,
+    -1,   "#aaaaaa",   // no data
+     0,   "#1e3a8a",   // oldest — dark blue
+     0.25, "#60a5fa",
+     0.5,  "#e5e7eb",  // national median
+     0.75, "#fbbf24",
+     1,   "#b45309",   // youngest — amber
+  ];
+}
+
+function applyAgeOverlayColorExpression(map: maplibregl.Map, easy = false) {
+  if (map.getLayer("cells-fill")) {
+    map.setPaintProperty("cells-fill", "fill-color", ageColorExpression(easy));
   }
 }
 
@@ -3000,7 +3126,8 @@ async function ensureAggregatesAndUpdate(
   try {
     const voteModeActive = (state.voteOverlayMode ?? "off") !== "off";
     const commuteModeActive = (state.commuteOverlayMode ?? "off") !== "off";
-    const overlayActive = voteModeActive || commuteModeActive;
+    const ageModeActive = (state.ageOverlayMode ?? "off") !== "off";
+    const overlayActive = voteModeActive || commuteModeActive || ageModeActive;
     // For delta metrics, apply simple linear color mapping (quantiles can be complex with diverging data)
     const isDelta = isDeltaMetric(state.metric);
     if (isDelta) {
@@ -3431,6 +3558,8 @@ function buildIndexScoringSignature(prefs: IndexPrefs) {
     prefs.schoolWeight,
     prefs.trainWeight,
     prefs.coastWeight,
+    prefs.ageWeight ?? 0,
+    prefs.ageDirection ?? "young",
   ].join("|");
 }
 
@@ -3838,7 +3967,22 @@ async function applyIndexScoring(
     props.ix_t = trainScore;
     props.ix_tn = trainNoData ? 1 : 0;
 
-    // 5) Coast proximity (placeholder)
+    // 5) Community age — use age_score from census cell data (already backfilled)
+    let ageScore = 0.5;
+    const ageW = prefs.ageWeight ?? 0;
+    if (ageW > 0) {
+      const rawAgeScore = Number(props.age_score ?? NaN);
+      if (Number.isFinite(rawAgeScore)) {
+        // direction: "young" → high age_score is better; "old" → low age_score is better
+        ageScore = (prefs.ageDirection ?? "young") === "old" ? 1 - rawAgeScore : rawAgeScore;
+      }
+      // If no data: neutral 0.5
+      totalScore += ageW * ageScore;
+      totalWeight += ageW;
+    }
+    props.ix_ag = ageScore;
+
+    // 6) Coast proximity (placeholder)
     if (prefs.coastWeight > 0) {
       totalScore += prefs.coastWeight * 0.5;
       totalWeight += prefs.coastWeight;
