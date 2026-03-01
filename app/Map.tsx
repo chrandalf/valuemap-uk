@@ -4034,17 +4034,17 @@ async function applyIndexScoring(
   if (map.getLayer("cells-fill")) {
     const baseOpacityExpr = [
       "case", ["<", ["get", "index_score"], 0], 0.12,
-      "interpolate", ["linear"], ["get", "index_score"],
-      0, 0.25, 0.3, 0.4, 0.7, 0.65, 1, 0.85,
+      ["interpolate", ["linear"], ["get", "index_score"],
+        0, 0.25, 0.3, 0.4, 0.7, 0.65, 1, 0.85],
     ] as any;
     map.setPaintProperty("cells-fill", "fill-color", [
       "case", ["<", ["get", "index_score"], 0], "#888888",
-      "interpolate", ["linear"], ["get", "index_score"],
-      0,    "#d73027",
-      0.25, "#f46d43",
-      0.5,  "#ffffbf",
-      0.75, "#66bd63",
-      1,    "#1a9850",
+      ["interpolate", ["linear"], ["get", "index_score"],
+        0,    "#d73027",
+        0.25, "#f46d43",
+        0.5,  "#ffffbf",
+        0.75, "#66bd63",
+        1,    "#1a9850"],
     ] as any);
     map.setPaintProperty("cells-fill", "fill-opacity", baseOpacityExpr);
   }
