@@ -22,6 +22,7 @@ class VoteValues:
     pct_conservative: float
     pct_popular_right: float
     constituency: Optional[str]
+    country: Optional[str]  # single char: E/W/S/N (from PCON24CD prefix)
 
 
 @dataclass
@@ -98,6 +99,7 @@ def parse_vote_polygons(vote_geojson: dict) -> List[PolygonRecord]:
             pct_conservative=float(props.get("pct_conservative", 0) or 0),
             pct_popular_right=float(props.get("pct_popular_right", 0) or 0),
             constituency=props.get("constituency") or props.get("PCON24NM"),
+            country=(props.get("ons_id") or props.get("PCON24CD") or "")[:1].upper() or None,
         )
 
         polygon_sets = [coords] if gtype == "Polygon" else coords
@@ -191,6 +193,7 @@ def build_vote_cells(
                 "pct_conservative": poly.values.pct_conservative,
                 "pct_popular_right": poly.values.pct_popular_right,
                 "constituency": poly.values.constituency,
+                "country": poly.values.country,
             }
         )
 

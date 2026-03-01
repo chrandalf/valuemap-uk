@@ -78,6 +78,7 @@ type ApiRow = {
   pct_conservative?: number;
   pct_popular_right?: number;
   constituency?: string;
+  country?: string;   // E/W/S/N from PCON24CD prefix
   mean_dist_km?: number;
   pct_wfh?: number;
   pct_lt5?: number;
@@ -2277,7 +2278,7 @@ export default function ValueMap({
   });
 
   // Initial real data load
-  const initFc = await setRealData(map, state, geoCacheRef.current, undefined, onLegendChange, onStatsUpdateRef.current, easyColoursRef.current);
+  const initFc = await setRealData(map, state, geoCacheRef.current, undefined, onLegendChange, onStatsUpdateRef.current, easyColoursRef.current, !!indexPrefsRef.current);
   if (initFc) cellFcRef.current = initFc;
   if (indexPrefsRef.current) {
     void applyIndexScoring(map, indexPrefsRef.current, stateRef.current, cellFcRef.current ?? undefined).then((ok) => {
@@ -2310,7 +2311,7 @@ export default function ValueMap({
 
     const debounceMs = 200;
     const timeoutId = setTimeout(() => {
-      setRealData(map, state, geoCacheRef.current, abortController.signal, onLegendChange, onStatsUpdateRef.current, easyColoursRef.current)
+      setRealData(map, state, geoCacheRef.current, abortController.signal, onLegendChange, onStatsUpdateRef.current, easyColoursRef.current, !!indexPrefsRef.current)
         .then((fc) => {
           if (fc) cellFcRef.current = fc;
           if (indexPrefsRef.current) {
@@ -2471,7 +2472,7 @@ export default function ValueMap({
       if (ageMode !== "off" || commuteMode !== "off") {
         // Age or commute overlay takes priority — no-op, let those effects handle it
       } else if (mode === "off") {
-        void ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange, onStatsUpdateRef.current, easyColoursRef.current);
+        void ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange, onStatsUpdateRef.current, easyColoursRef.current, !!indexPrefsRef.current);
       } else {
         applyVoteOverlayColorFromSource(map, scale);
       }
@@ -2492,7 +2493,7 @@ export default function ValueMap({
       } else if (voteMode !== "off") {
         applyVoteOverlayColorFromSource(map, stateRef.current.voteColorScale ?? "relative");
       } else {
-        void ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange, onStatsUpdateRef.current, easyColoursRef.current);
+        void ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange, onStatsUpdateRef.current, easyColoursRef.current, !!indexPrefsRef.current);
       }
     } catch (e) { /* ignore */ }
   }, [state.commuteOverlayMode, onLegendChange]);
@@ -2512,7 +2513,7 @@ export default function ValueMap({
       } else if (voteMode !== "off") {
         applyVoteOverlayColorFromSource(map, stateRef.current.voteColorScale ?? "relative");
       } else {
-        void ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange, onStatsUpdateRef.current, easyColoursRef.current);
+        void ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange, onStatsUpdateRef.current, easyColoursRef.current, !!indexPrefsRef.current);
       }
     } catch (e) { /* ignore */ }
   }, [state.ageOverlayMode, onLegendChange]);
@@ -2532,7 +2533,7 @@ export default function ValueMap({
       return; // vote overlay controls its own fixed colours — no easy-colour variant
     } else {
       void ensureAggregatesAndUpdate(
-        map, stateRef.current, geoCacheRef.current, onLegendChange, onStatsUpdateRef.current, easyColours ?? false
+        map, stateRef.current, geoCacheRef.current, onLegendChange, onStatsUpdateRef.current, easyColours ?? false, !!indexPrefsRef.current
       );
     }
     // Also update overlay layer colours that were baked in at init time.
@@ -3024,7 +3025,8 @@ async function setRealData(
   signal?: AbortSignal,
   onLegendChange?: (legend: LegendData | null) => void,
   onStatsUpdate?: ((stats: { label: string; value: string; txCount: number } | null) => void) | null,
-  easy = false
+  easy = false,
+  indexScoringActive = false
 ): Promise<any> {
   // Determine if we're fetching delta or regular data
   const isDelta = isDeltaMetric(state.metric);
@@ -3041,7 +3043,7 @@ async function setRealData(
     } else if ((state.voteOverlayMode ?? "off") !== "off") {
       applyVoteOverlayColorFromSource(map, state.voteColorScale ?? "relative", cached);
     }
-    await ensureAggregatesAndUpdate(map, state, cache, onLegendChange, onStatsUpdate, easy);
+    await ensureAggregatesAndUpdate(map, state, cache, onLegendChange, onStatsUpdate, easy, indexScoringActive);
     return cached;
   }
 
@@ -3094,7 +3096,7 @@ async function setRealData(
   } else if ((state.voteOverlayMode ?? "off") !== "off") {
     applyVoteOverlayColorFromSource(map, state.voteColorScale ?? "relative", fc);
   }
-  await ensureAggregatesAndUpdate(map, state, cache, onLegendChange, onStatsUpdate, easy);
+  await ensureAggregatesAndUpdate(map, state, cache, onLegendChange, onStatsUpdate, easy, indexScoringActive);
   return fc;
 }
 
@@ -3130,13 +3132,14 @@ async function ensureAggregatesAndUpdate(
   cache: Map<string, any>,
   onLegendChange?: (legend: LegendData | null) => void,
   onStatsUpdate?: ((stats: { label: string; value: string; txCount: number } | null) => void) | null,
-  easy = false
+  easy = false,
+  indexScoringActive = false
 ) {
   try {
     const voteModeActive = (state.voteOverlayMode ?? "off") !== "off";
     const commuteModeActive = (state.commuteOverlayMode ?? "off") !== "off";
     const ageModeActive = (state.ageOverlayMode ?? "off") !== "off";
-    const overlayActive = voteModeActive || commuteModeActive || ageModeActive;
+    const overlayActive = voteModeActive || commuteModeActive || ageModeActive || indexScoringActive;
     // For delta metrics, apply simple linear color mapping (quantiles can be complex with diverging data)
     const isDelta = isDeltaMetric(state.metric);
     if (isDelta) {
@@ -3746,8 +3749,6 @@ async function applyIndexScoring(
   const DATA_DEG = 0.45;
   const CHUNK = 300; // yield to browser every N cells
 
-  // Cell-size normalisation: at 5km each flood point covers 25× more area than at 1km,
-  // so raw impact must be scaled down proportionally to avoid unfairly penalising coarse cells.
   const features = fc.features;
 
   // ─── Flood pre-pass: compute worst-case severity score for every cell ───
@@ -3757,6 +3758,12 @@ async function applyIndexScoring(
   // its centre — a flood zone in the next valley simply doesn't count.
   // Score = max severityWeight among all flood points inside the cell (no proximity
   // weighting needed — if it's in the cell, it counts at full strength).
+  //
+  // Country-aware data coverage: cells carry a `country` field (E/W/S/N) from the
+  // Westminster constituency boundaries. EA flood data only covers England, so
+  // cells outside England are marked hasData=false and excluded from flood scoring.
+  // For cells with no constituency match (offshore etc.) we fall back to the 50km
+  // spatial presence check.
   type FloodMeta = { rawImpact: number; hasData: boolean };
   const floodMeta: FloodMeta[] = new Array(features.length);
   for (let i = 0; i < features.length; i++) {
@@ -3770,9 +3777,17 @@ async function applyIndexScoring(
     // Convert to degrees for the spatial-grid query (rough approximation is fine here)
     const cellQueryDeg = Math.max(cellHalfDiagM / 100000, 0.005); // floor 0.005° ≈ 550m
 
-    // First check: any flood dataset coverage at all in this region?
-    if (querySpatialGrid(floodGrid, cLon, cLat, DATA_DEG).length === 0) {
+    // Authoritative country check: if the cell has a known country, use it directly.
+    // EA flood data only covers England (country=="E").
+    const cellCountry: string = features[i].properties?.country ?? "";
+    if (cellCountry === "W" || cellCountry === "S" || cellCountry === "N") {
       floodMeta[i] = { rawImpact: 0, hasData: false }; continue;
+    }
+    if (cellCountry !== "E") {
+      // Country unknown (no constituency match) — fall back to spatial presence check
+      if (querySpatialGrid(floodGrid, cLon, cLat, DATA_DEG).length === 0) {
+        floodMeta[i] = { rawImpact: 0, hasData: false }; continue;
+      }
     }
     // Query only within the cell's own footprint
     const cellFloodPoints = querySpatialGrid(floodGrid, cLon, cLat, cellQueryDeg);
@@ -3875,7 +3890,9 @@ async function applyIndexScoring(
     if (prefs.floodWeight > 0) {
       const fm = floodMeta[i];
       if (!fm || !fm.hasData) {
-        // No dataset coverage (Wales, Scotland, etc.) — neutral
+        // No dataset coverage (Wales, Scotland, etc.) — exclude from scoring entirely.
+        // Don't add to totalWeight so the missing criterion doesn't pull the score
+        // toward neutral; other criteria score the area on its actual merits.
         floodNoData = true;
         floodScore = 0.5;
       } else {
@@ -3905,9 +3922,9 @@ async function applyIndexScoring(
           // Safest above-threshold cell ≈ 0.75, riskiest ≈ 0.03
           floodScore = Math.max(0.03, Math.min(0.75, 0.75 - 0.72 * rank));
         }
+        totalScore += prefs.floodWeight * floodScore;
+        totalWeight += prefs.floodWeight;
       }
-      totalScore += prefs.floodWeight * floodScore;
-      totalWeight += prefs.floodWeight;
     }
     props.ix_f = floodScore;
     props.ix_fn = floodNoData ? 1 : 0;
@@ -3916,10 +3933,19 @@ async function applyIndexScoring(
     let schoolScore = 0.5;
     let schoolNoData = false;
     if (prefs.schoolWeight > 0) {
-      // Wide check: any school data within ~50km?
-      const wideSchool = querySpatialGrid(schoolGrid, cLon, cLat, DATA_DEG);
-      if (wideSchool.length === 0) {
-        // No dataset coverage (Wales/Scotland use different inspectorates) → neutral
+      // Ofsted covers England only. Use country field for authoritative detection;
+      // fall back to spatial presence check for cells with no constituency match.
+      const cellCountry: string = props.country ?? "";
+      const noSchoolCoverage =
+        cellCountry === "W" || cellCountry === "S" || cellCountry === "N"
+          ? true
+          : cellCountry !== "E"
+            ? querySpatialGrid(schoolGrid, cLon, cLat, DATA_DEG).length === 0
+            : false;
+      if (noSchoolCoverage) {
+        // No dataset coverage (Wales/Scotland use different inspectorates).
+        // Exclude from scoring — same principle as flood: don't reward or penalise
+        // areas where we simply have no data.
         schoolNoData = true;
         schoolScore = 0.5;
       } else {
@@ -3937,9 +3963,9 @@ async function applyIndexScoring(
           }
         }
         schoolScore = weightSum > 0 ? (weightedSum / weightSum) : 0.5;
+        totalScore += prefs.schoolWeight * schoolScore;
+        totalWeight += prefs.schoolWeight;
       }
-      totalScore += prefs.schoolWeight * schoolScore;
-      totalWeight += prefs.schoolWeight;
     }
     props.ix_s = schoolScore;
     props.ix_sn = schoolNoData ? 1 : 0;
@@ -3951,7 +3977,8 @@ async function applyIndexScoring(
       // Wide check: any station data within ~80km?
       const wideStation = stationGrid ? querySpatialGrid(stationGrid, cLon, cLat, DATA_DEG * 3) : [];
       if (wideStation.length === 0) {
-        // No dataset coverage (e.g. remote island with no station data) → neutral
+        // No dataset coverage (e.g. remote island with no station data).
+        // Exclude from scoring.
         trainNoData = true;
         trainScore = 0.5;
       } else {
@@ -3969,9 +3996,9 @@ async function applyIndexScoring(
           // Linear decay between 1 mile and 20 miles
           trainScore = 1 - (minDist - STATION_GOOD_DISTANCE_METERS) / (STATION_MAX_DISTANCE_METERS - STATION_GOOD_DISTANCE_METERS);
         }
+        totalScore += prefs.trainWeight * trainScore;
+        totalWeight += prefs.trainWeight;
       }
-      totalScore += prefs.trainWeight * trainScore;
-      totalWeight += prefs.trainWeight;
     }
     props.ix_t = trainScore;
     props.ix_tn = trainNoData ? 1 : 0;

@@ -126,6 +126,7 @@ type CellRow = {
   pct_conservative?: number;
   pct_popular_right?: number;
   constituency?: string;
+  country?: string;
   mean_dist_km?: number;
   pct_wfh?: number;
   mean_age?: number;
@@ -144,6 +145,7 @@ type VoteCellRow = {
   pct_conservative: number;
   pct_popular_right: number;
   constituency?: string;
+  country?: string;
 };
 
 type VoteCellValue = Omit<VoteCellRow, "gx" | "gy">;
@@ -287,6 +289,7 @@ async function backfillVotes(env: Env, grid: GridKey, rows: CellRow[]): Promise<
       pct_conservative: vote.pct_conservative,
       pct_popular_right: vote.pct_popular_right,
       constituency: vote.constituency,
+      country: vote.country,
     };
   });
 }
