@@ -270,7 +270,7 @@ async function backfillVotes(env: Env, grid: GridKey, rows: CellRow[]): Promise<
 
 /* ---------- commute data ---------- */
 
-const COMMUTE_CACHE_BY_GRID: Partial<Record<GridKey, Map<string, CommuteCellValue>>> = {};
+const COMMUTE_CACHE_BY_GRID: Partial<Record<GridKey, { lookup: Map<string, CommuteCellValue>; loadedAtMs: number }>> = {};
 
 function commuteKeyForGrid(grid: GridKey) {
   switch (grid) {
@@ -282,8 +282,9 @@ function commuteKeyForGrid(grid: GridKey) {
 }
 
 async function getCachedCommuteLookup(env: Env, grid: GridKey): Promise<Map<string, CommuteCellValue> | null> {
+  const now = Date.now();
   const cached = COMMUTE_CACHE_BY_GRID[grid];
-  if (cached) return cached;
+  if (cached && now - cached.loadedAtMs <= CACHE_TTL_MS) return cached.lookup;
 
   const bucket = getBucket(env);
   const key = commuteKeyForGrid(grid);
@@ -307,7 +308,7 @@ async function getCachedCommuteLookup(env: Env, grid: GridKey): Promise<Map<stri
     });
   }
 
-  COMMUTE_CACHE_BY_GRID[grid] = lookup;
+  COMMUTE_CACHE_BY_GRID[grid] = { lookup, loadedAtMs: Date.now() };
   return lookup;
 }
 
