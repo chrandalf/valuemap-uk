@@ -669,6 +669,32 @@ export default function Home() {
     return metric === "delta_gbp" ? formatSignedPounds(value) : formatSignedPercent(value);
   };
 
+  const commuteLegendContent = (
+    <>
+      <div className="legend-title" style={{ fontWeight: 600, marginBottom: 10, fontSize: 16, opacity: 0.9 }}>
+        🚗 Commute distance (Census 2021)
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "86px 1fr 86px", gap: 8, alignItems: "center" }}>
+        <div style={{ textAlign: "left", fontSize: 11, opacity: 0.85 }}>WFH / short</div>
+        <div style={{ display: "flex", height: 16, borderRadius: 999, overflow: "hidden", border: "1px solid rgba(255,255,255,0.2)" }}>
+          {(easyColours
+            ? ["#2166ac", "#92c5de", "#f7f7f7", "#f4a582", "#d6604d", "#b2182b"]
+            : ["#15803d", "#86efac", "#fef08a", "#fb923c", "#ef4444", "#7f1d1d"]
+          ).map((c, i) => (
+            <div key={i} style={{ flex: 1, backgroundColor: c }} />
+          ))}
+        </div>
+        <div style={{ textAlign: "right", fontSize: 11, opacity: 0.85 }}>Long (17km+)</div>
+      </div>
+      <div style={{ marginTop: 6, display: "flex", justifyContent: "space-between", fontSize: 10, opacity: 0.6 }}>
+        <span>0 km</span><span>~4 km</span><span>~7 km</span><span>~10 km</span><span>~14 km</span><span>17 km</span>
+      </div>
+      <div style={{ marginTop: 6, fontSize: 11, opacity: 0.8, lineHeight: 1.35 }}>
+        Mean distance travelled to work per 1km² census area (LSOA). Census 2021, England &amp; Wales only.
+      </div>
+    </>
+  );
+
   const voteLegendContent = (
     <>
       <div className="legend-title" style={{ fontWeight: 600, marginBottom: 10, fontSize: 16, opacity: 0.9 }}>
@@ -756,8 +782,9 @@ export default function Home() {
     <>
       {indexActive && indexLegendContent}
       {state.schoolOverlayMode !== "off" && schoolLegendContent}
-      {!indexActive && state.voteOverlayMode === "on" && voteLegendContent}
-      {!indexActive && state.voteOverlayMode !== "on" && (
+      {!indexActive && state.commuteOverlayMode === "on" && commuteLegendContent}
+      {!indexActive && state.commuteOverlayMode !== "on" && state.voteOverlayMode === "on" && voteLegendContent}
+      {!indexActive && state.commuteOverlayMode !== "on" && state.voteOverlayMode !== "on" && (
       <>
       <div className="legend-title" style={{ fontWeight: 600, marginBottom: 12, fontSize: 16, opacity: 0.9 }}>
         {state.metric === "median"
@@ -914,7 +941,8 @@ export default function Home() {
     `Type: ${PROPERTY_LABEL[state.propertyType]} · New build: ${NEWBUILD_LABEL[state.newBuild]} · ` +
     `Period: ${periodLabel} · Flood: ${floodOverlayLabel} · Schools: ${schoolOverlayLabel} · ` +
     `Stations: ${state.stationOverlayMode === "off" ? "Off" : state.stationOverlayMode === "on" ? "On" : "On (hide cells)"} · ` +
-    `Vote overlay: ${voteOverlayLabel} (${voteScaleLabel})`;
+    `Vote overlay: ${voteOverlayLabel} (${voteScaleLabel}) · ` +
+    `Commute: ${state.commuteOverlayMode === "on" ? "On" : "Off"}`;
   const headerFilterSummary =
     `${state.grid} · ${METRIC_LABEL[state.metric]} · ${PROPERTY_LABEL[state.propertyType]} · ${NEWBUILD_LABEL[state.newBuild]} · ${periodLabel}`;
   const headerMedianSummary =

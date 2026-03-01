@@ -2589,7 +2589,9 @@ function voteOverlayFillColorExpression(scale: VoteColorScale = "relative") {
  * Easy/CBF: RdBu reversed — blue (short) → neutral → red-orange (long)
  */
 function commuteDistanceColorExpression(easy = false): any {
-  const dist = ["coalesce", ["to-number", ["get", "mean_dist_km"]], -1] as any;
+  // Use ["case",["has",...]] so missing property → -1 (grey).
+  // ["to-number", null] = 0 in MapLibre, defeating a plain coalesce.
+  const dist = ["case", ["has", "mean_dist_km"], ["to-number", ["get", "mean_dist_km"]], -1] as any;
   if (easy) {
     // RdBu reversed (colour-blind safe)
     return ["interpolate", ["linear"], dist,
