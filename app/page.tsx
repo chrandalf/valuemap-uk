@@ -250,11 +250,13 @@ export default function Home() {
   const [cleanScreenMode, setCleanScreenMode] = useState(false);
   const [controlsDropOpen, setControlsDropOpen] = useState(false);
   const [infoDropOpen, setInfoDropOpen] = useState(false);
+  const [overlaysDropOpen, setOverlaysDropOpen] = useState(false);
   const [docModalSrc, setDocModalSrc] = useState<string | null>(null);
   const [panelFront, setPanelFront] = useState<Record<string, number>>({});
   const zSeqRef = useRef(0);
   const controlsDropRef = useRef<HTMLDivElement | null>(null);
   const infoDropRef = useRef<HTMLDivElement | null>(null);
+  const overlaysDropRef = useRef<HTMLDivElement | null>(null);
   const [mobileOverlayRatio, setMobileOverlayRatio] = useState(0);
   const [mobileQuickFilterKey, setMobileQuickFilterKey] = useState<MobileQuickFilterKey>("grid");
   const [indexOpen, setIndexOpen] = useState(false);
@@ -347,6 +349,7 @@ export default function Home() {
     closeAllSubpanels();
     setControlsDropOpen(false);
     setInfoDropOpen(false);
+    setOverlaysDropOpen(false);
     setActivePostcodeSearch("");
     setPostcodeSearchStatus(null);
     setPostcodeSearchClearToken((v) => v + 1);
@@ -373,7 +376,7 @@ export default function Home() {
 
   // Close dropdowns when clicking outside
   useEffect(() => {
-    if (!controlsDropOpen && !infoDropOpen) return;
+    if (!controlsDropOpen && !infoDropOpen && !overlaysDropOpen) return;
     const handler = (e: MouseEvent) => {
       if (controlsDropOpen && controlsDropRef.current && !controlsDropRef.current.contains(e.target as Node)) {
         setControlsDropOpen(false);
@@ -381,10 +384,13 @@ export default function Home() {
       if (infoDropOpen && infoDropRef.current && !infoDropRef.current.contains(e.target as Node)) {
         setInfoDropOpen(false);
       }
+      if (overlaysDropOpen && overlaysDropRef.current && !overlaysDropRef.current.contains(e.target as Node)) {
+        setOverlaysDropOpen(false);
+      }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [controlsDropOpen, infoDropOpen]);
+  }, [controlsDropOpen, infoDropOpen, overlaysDropOpen]);
 
   useEffect(() => {
     if (!activePostcodeSearch.trim()) return;
@@ -894,6 +900,7 @@ export default function Home() {
       ? "Off"
       : "On";
   const voteScaleLabel = state.voteColorScale === "relative" ? "Relative" : "Absolute";
+  const anyOverlayActive = state.floodOverlayMode !== "off" || state.schoolOverlayMode !== "off" || state.stationOverlayMode !== "off" || state.voteOverlayMode !== "off";
 
   const currentFiltersSummary =
     `Grid: ${state.grid} · Metric: ${METRIC_LABEL[state.metric]} · ` +
@@ -1807,6 +1814,94 @@ export default function Home() {
               )}
             </div>
 
+            {/* ── Overlays dropdown ── */}
+            <div ref={overlaysDropRef} style={{ position: "relative", flexShrink: 0 }}>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setOverlaysDropOpen(v => !v); setControlsDropOpen(false); setInfoDropOpen(false); }}
+                style={{
+                  cursor: "pointer",
+                  border: overlaysDropOpen ? "1px solid rgba(74,222,128,0.7)" : anyOverlayActive ? "1px solid rgba(74,222,128,0.45)" : "1px solid rgba(255,255,255,0.2)",
+                  background: overlaysDropOpen ? "rgba(74,222,128,0.14)" : anyOverlayActive ? "rgba(74,222,128,0.08)" : "rgba(255,255,255,0.08)",
+                  color: "white",
+                  padding: "5px 10px",
+                  borderRadius: 999,
+                  fontSize: 11,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {anyOverlayActive && (
+                  <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "rgba(74,222,128,0.9)", flexShrink: 0 }} />
+                )}
+                ⊕ Overlays ▾
+              </button>
+              {overlaysDropOpen && (
+                <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, width: 278, background: "rgba(8,10,22,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,0.16)", borderRadius: 10, padding: "8px 12px 10px", boxShadow: "0 10px 40px rgba(0,0,0,0.65)", zIndex: 200 }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.55, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Overlay layers</div>
+
+                  {/* Flood */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
+                    <div style={{ fontSize: 11, opacity: 0.8, width: 70, flexShrink: 0 }}>🌊 Flood</div>
+                    <Segment
+                      options={["off", "on", "on_hide_cells"]}
+                      value={state.floodOverlayMode}
+                      onChange={(v) => setState((s) => ({ ...s, floodOverlayMode: v as FloodOverlayMode }))}
+                      renderOption={(v) => v === "on" ? "On" : v === "on_hide_cells" ? "Hide cells" : "Off"}
+                    />
+                  </div>
+
+                  {/* Schools */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
+                    <div style={{ fontSize: 11, opacity: 0.8, width: 70, flexShrink: 0 }}>🏫 Schools</div>
+                    <Segment
+                      options={["off", "on", "on_hide_cells"]}
+                      value={state.schoolOverlayMode}
+                      onChange={(v) => setState((s) => ({ ...s, schoolOverlayMode: v as SchoolOverlayMode }))}
+                      renderOption={(v) => v === "on" ? "On" : v === "on_hide_cells" ? "Hide cells" : "Off"}
+                    />
+                  </div>
+
+                  {/* Train stations */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
+                    <div style={{ fontSize: 11, opacity: 0.8, width: 70, flexShrink: 0 }}>🚂 Stations</div>
+                    <Segment
+                      options={["off", "on", "on_hide_cells"]}
+                      value={state.stationOverlayMode}
+                      onChange={(v) => setState((s) => ({ ...s, stationOverlayMode: v as StationOverlayMode }))}
+                      renderOption={(v) => v === "on" ? "On" : v === "on_hide_cells" ? "Hide cells" : "Off"}
+                    />
+                  </div>
+
+                  {/* Political votes */}
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                    <div style={{ fontSize: 11, opacity: 0.8, width: 70, flexShrink: 0, paddingTop: 2 }}>🗳 Politics</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                      <Segment
+                        options={["off", "on"]}
+                        value={state.voteOverlayMode}
+                        onChange={(v) => setState((s) => ({ ...s, voteOverlayMode: v as VoteOverlayMode }))}
+                        renderOption={(v) => v === "on" ? "On" : "Off"}
+                      />
+                      {state.voteOverlayMode === "on" && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <div style={{ fontSize: 10, opacity: 0.5, flexShrink: 0 }}>Scale:</div>
+                          <Segment
+                            options={["relative", "absolute"]}
+                            value={state.voteColorScale}
+                            onChange={(v) => setState((s) => ({ ...s, voteColorScale: v as VoteColorScale }))}
+                            renderOption={(v) => v === "relative" ? "Relative" : "Absolute"}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* ── Show Me How pill in top bar (desktop only) ── */}
             {!isMobileViewport && !tourActive && (
               <button
@@ -2507,109 +2602,6 @@ export default function Home() {
               </div>
             </div>
           )}
-
-          <div
-            data-tour="overlay-panel"
-            className="overlay-filter-panel mobile-collapsible"
-            data-collapsed={overlayPanelCollapsed ? "true" : "false"}
-            style={{
-              width: "100%",
-              padding: "8px 10px",
-              borderRadius: 12,
-              background: "rgba(10, 12, 20, 0.85)",
-              border: "1px solid rgba(255,255,255,0.12)",
-              backdropFilter: "blur(10px)",
-              color: "white",
-              fontSize: 11,
-            }}
-          >
-            <div className="mobile-collapsible-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, gap: 8 }}>
-              <div style={{ fontWeight: 600 }}>
-                <span className="title-full">Overlay filters</span>
-                <span className="title-mini">Overlay</span>
-              </div>
-              <div className="mobile-header-extra" style={{ fontSize: 10, opacity: 0.7 }}>Flood, schools, stations, votes</div>
-              <button
-                type="button"
-                className="mobile-collapse-toggle"
-                onClick={() => setOverlayPanelCollapsed((v) => !v)}
-                aria-label={overlayPanelCollapsed ? "Expand overlay filters" : "Collapse overlay filters"}
-                style={{
-                  cursor: "pointer",
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  background: "rgba(255,255,255,0.08)",
-                  color: "white",
-                  width: 24,
-                  height: 24,
-                  borderRadius: 999,
-                  fontSize: 14,
-                  lineHeight: 1,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                {overlayPanelCollapsed ? "›" : "‹"}
-              </button>
-            </div>
-            <div className="mobile-collapsible-body" style={{ display: "grid", gridTemplateColumns: "84px 1fr", gap: 8, alignItems: "center" }}>
-              <div style={{ fontSize: 11, opacity: 0.8 }}>Flood</div>
-              <Segment
-                options={["off", "on", "on_hide_cells"]}
-                value={state.floodOverlayMode}
-                onChange={(v) => setState((s) => ({ ...s, floodOverlayMode: v as FloodOverlayMode }))}
-                renderOption={(v) => {
-                  if (v === "on") return "On";
-                  if (v === "on_hide_cells") return "On (hide cells)";
-                  return "Off";
-                }}
-              />
-              <div style={{ fontSize: 11, opacity: 0.8 }}>Schools</div>
-              <Segment
-                options={["off", "on", "on_hide_cells"]}
-                value={state.schoolOverlayMode}
-                onChange={(v) => setState((s) => ({ ...s, schoolOverlayMode: v as SchoolOverlayMode }))}
-                renderOption={(v) => {
-                  if (v === "on") return "On";
-                  if (v === "on_hide_cells") return "On (hide cells)";
-                  return "Off";
-                }}
-              />
-              <div style={{ fontSize: 11, opacity: 0.8 }}>Train stations</div>
-              <Segment
-                options={["off", "on", "on_hide_cells"]}
-                value={state.stationOverlayMode}
-                onChange={(v) => setState((s) => ({ ...s, stationOverlayMode: v as StationOverlayMode }))}
-                renderOption={(v) => {
-                  if (v === "on") return "On";
-                  if (v === "on_hide_cells") return "On (hide cells)";
-                  return "Off";
-                }}
-              />
-              <div style={{ fontSize: 11, opacity: 0.8 }}>Political votes</div>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  flexWrap: "wrap",
-                }}
-              >
-                <Segment
-                  options={["off", "on"]}
-                  value={state.voteOverlayMode}
-                  onChange={(v) => setState((s) => ({ ...s, voteOverlayMode: v as VoteOverlayMode }))}
-                  renderOption={(v) => (v === "on" ? "On" : "Off")}
-                />
-                <Segment
-                  options={["relative", "absolute"]}
-                  value={state.voteColorScale}
-                  onChange={(v) => setState((s) => ({ ...s, voteColorScale: v as VoteColorScale }))}
-                  renderOption={(v) => (v === "relative" ? "Relative" : "Absolute")}
-                />
-              </div>
-            </div>
-          </div>
 
           {!indexActive && (
             state.metric === "median" ||
