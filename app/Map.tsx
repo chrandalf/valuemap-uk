@@ -252,6 +252,11 @@ export type RgLogEntry = {
   stationSummary: string;
 };
 
+/** Data passed to page.tsx for the right-click info panel. */
+export type RightClickInfoData =
+  | { stage: 'loading'; clickLat: number; clickLng: number }
+  | { stage: 'ready'; postcode: string; isOutcode: boolean; floodHtml: string; schoolHtml: string; stationHtml: string; clickLat: number; clickLng: number };
+
 export default function ValueMap({
   state,
   onLegendChange,
@@ -273,6 +278,8 @@ export default function ValueMap({
   onOpenLog,
   rgLogCount,
   tapToSearch,
+  onRightClickInfo,
+  rgDismissToken,
 }: {
   state: MapState;
   onLegendChange?: (legend: LegendData | null) => void;
@@ -301,6 +308,10 @@ export default function ValueMap({
   rgLogCount?: number;
   /** When true, a single tap/click anywhere on the map triggers the postcode reverse-geocode popup (for mobile users). */
   tapToSearch?: boolean;
+  /** Called with info data when a right-click resolves, or null to clear the panel. */
+  onRightClickInfo?: (data: RightClickInfoData | null) => void;
+  /** Incrementing token: when it changes Map.tsx clears the right-click overlay lines/dot (panel dismissed by user). */
+  rgDismissToken?: number;
 }) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -317,6 +328,8 @@ export default function ValueMap({
   const onOpenLogRef = useRef<typeof onOpenLog>(onOpenLog);
   const rgLogCountRef = useRef<number>(rgLogCount ?? 0);
   const tapToSearchRef = useRef<boolean>(!!tapToSearch);
+  const onRightClickInfoRef = useRef<typeof onRightClickInfo>(onRightClickInfo);
+  const clearRgOverlayRef = useRef<(() => void) | null>(null);
   const locateMarkerRef = useRef<maplibregl.Marker | null>(null);
 
   const [postcodeCell, setPostcodeCell] = useState<string | null>(null);
@@ -376,6 +389,16 @@ export default function ValueMap({
   useEffect(() => {
     tapToSearchRef.current = !!tapToSearch;
   }, [tapToSearch]);
+
+  useEffect(() => {
+    onRightClickInfoRef.current = onRightClickInfo;
+  }, [onRightClickInfo]);
+
+  // When page.tsx dismisses the panel (user clicked ✕), clear the map overlay lines+dot.
+  useEffect(() => {
+    if (!rgDismissToken) return;
+    clearRgOverlayRef.current?.();
+  }, [rgDismissToken]);
 
   useEffect(() => {
     onLocateMeResultRef.current = onLocateMeResult;
@@ -1854,22 +1877,32 @@ export default function ValueMap({
   });
 
   // ── Right-click → reverse postcode lookup  /  tap-to-search mode ──
-  // Only one popup open at a time — opening a new one closes the previous.
-  let activeRgPopup: maplibregl.Popup | null = null;
-  const closeActiveRg = () => {
-    if (activeRgPopup) { activeRgPopup.remove(); activeRgPopup = null; }
+  // Info is piped to page.tsx via onRightClickInfo; no MapLibre popup is created.
+  let rgClickMarker: maplibregl.Marker | null = null;
+  const clearRgClickDot = () => { if (rgClickMarker) { rgClickMarker.remove(); rgClickMarker = null; } };
+  const setRgClickDot = (lon: number, lat: number) => {
+    clearRgClickDot();
+    const el = document.createElement('div');
+    el.style.cssText = 'width:14px;height:14px;border-radius:50%;background:#2563eb;border:3px solid white;box-shadow:0 0 0 3px #2563eb55;pointer-events:none;';
+    rgClickMarker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([lon, lat]).addTo(map);
+  };
+  const clearRgOverlay = () => {
+    clearRgClickDot();
     setFloodSearchFocus(map, null);
     setFloodSearchContext(map, null);
     setSchoolSearchFocus(map, null, null, null);
     setStationSearchFocus(map, null, null);
   };
+  clearRgOverlayRef.current = clearRgOverlay;
+  const closeActiveRg = () => {
+    onRightClickInfoRef.current?.(null);
+    clearRgOverlay();
+  };
   const doReverseGeocode = (lng: number, lat: number) => {
     closeActiveRg();
-    let popup = new maplibregl.Popup({ closeButton: true, offset: 8, maxWidth: "260px" })
-      .setLngLat([lng, lat])
-      .setHTML('<div style="font:13px/1.5 sans-serif;color:#374151;padding:2px 0">📍 Looking up location…</div>')
-      .addTo(map);
-    activeRgPopup = popup;
+    // Signal page.tsx to show loading panel immediately
+    onRightClickInfoRef.current?.({ stage: 'loading', clickLat: lat, clickLng: lng });
+    setRgClickDot(lng, lat);
     const lineTargets: [number, number][] = [];
     // Format metres → "450m" or "3.2km"
     const fmtDist = (m: number) => m < 1000 ? `${Math.round(m)}m` : `${(m / 1000).toFixed(1)}km`;
@@ -2066,80 +2099,18 @@ export default function ValueMap({
           stationSummary: stripHtml(stationHtml),
         });
 
-        // ── Position popup away from where the lines go ──
-        // Compute centroid of all targets; popup anchor = same quadrant → body extends away.
-        let anchor: maplibregl.PopupOptions["anchor"] = "bottom";
-        if (lineTargets.length > 0) {
-          const avgLon = lineTargets.reduce((s, t) => s + t[0], 0) / lineTargets.length;
-          const avgLat = lineTargets.reduce((s, t) => s + t[1], 0) / lineTargets.length;
-          const dLon = avgLon - lng; // positive = targets are east (right)
-          const dLat = avgLat - lat; // positive = targets are north (up on screen)
-          // anchor = corner of popup placed at click point; body extends in opposite direction.
-          // Targets NE → anchor top-right → popup body goes SW.
-          // Targets NW → anchor top-left  → popup body goes SE.
-          // Targets SE → anchor bottom-right → popup body goes NW.
-          // Targets SW → anchor bottom-left  → popup body goes NE.
-          if      (dLon >= 0 && dLat >= 0) anchor = "top-right";
-          else if (dLon <  0 && dLat >= 0) anchor = "top-left";
-          else if (dLon >= 0 && dLat <  0) anchor = "bottom-right";
-          else                              anchor = "bottom-left";
-        }
-
-        const row = (icon: string, label: string, content: string) =>
-          `<div style="display:flex;gap:6px;align-items:flex-start;padding:2px 0">
-            <span style="width:16px;flex-shrink:0;text-align:center;padding-top:1px">${icon}</span>
-            <span style="color:#9ca3af;width:48px;flex-shrink:0;font-size:11px;padding-top:2px">${label}</span>
-            <div style="font-size:12px;line-height:1.4;flex:1;min-width:0">${content}</div>
-          </div>`;
-
-        const finalHtml =
-          `<div style="font:13px/1.5 sans-serif;color:#374151;padding:2px 0;min-width:210px">
-            <div style="margin-bottom:7px">
-              <span style="font-weight:700;font-size:14px;color:#1d4ed8;letter-spacing:.01em">
-                \uD83D\uDCCD ${postcode}
-              </span>
-              <span style="color:#9ca3af;font-size:11px;margin-left:5px">${isOutcode ? "district" : ""}</span>
-            </div>
-            <div style="border-top:1px solid #f3f4f6;padding-top:5px">
-              ${row("\uD83C\uDF0A", "Flood", floodHtml)}
-              ${row("\uD83C\uDFEB", "Schools", schoolHtml)}
-              ${row("\uD83D\uDE82", "Station", stationHtml)}
-            </div>
-            <div style="margin-top:6px;padding-top:5px;border-top:1px solid #f3f4f6;display:flex;align-items:center;justify-content:space-between">
-              <span style="font-size:10px;color:#6b7280">\u2713 Added to log</span>
-              <a href="#" onclick="if(window.__rgOpenLog)window.__rgOpenLog();return false"
-                 style="font-size:10px;color:#6366f1;text-decoration:none;font-weight:500">See log \u2192</a>
-            </div>
-          </div>`;
-
-        // Remove the "loading" popup and recreate with the computed anchor
-        popup.remove();
-        popup = new maplibregl.Popup({ closeButton: true, offset: 10, maxWidth: "280px", anchor })
-          .setLngLat([lng, lat])
-          .setHTML(finalHtml)
-          .addTo(map);
-
-        // "See log" link opens the log panel without closing the popup
-        (window as any).__rgOpenLog = () => {
-          onOpenLogRef.current?.();
-        };
-
-        // Clear lines when popup is dismissed
-        popup.once("close", () => {
-          activeRgPopup = null;
-          setFloodSearchFocus(map, null);
-          setFloodSearchContext(map, null);
-          setSchoolSearchFocus(map, null, null, null);
-          setStationSearchFocus(map, null, null);
-          delete (window as any).__rgOpenLog;
+        // Pass all resolved data to page.tsx to render in the fixed left panel
+        onRightClickInfoRef.current?.({
+          stage: 'ready',
+          postcode, isOutcode,
+          floodHtml, schoolHtml, stationHtml,
+          clickLat: lat, clickLng: lng,
         });
-        activeRgPopup = popup;
 
-        // Auto-fire the area search immediately — no need to click the postcode
+        // Auto-fire the area search immediately
         if (!isOutcode) onReverseGeocodeRef.current?.(postcode);
       } catch {
-        popup.setHTML('<div style="font:13px/1.5 sans-serif;color:#b91c1c">No postcode found here</div>');
-        setTimeout(() => popup.remove(), 2500);
+        closeActiveRg();
       }
     })();
   }; // end doReverseGeocode

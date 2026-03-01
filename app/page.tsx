@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import ValueMap, { type LegendData, type LocateMeResult, type IndexPrefs, type RgLogEntry } from "./Map";
+import ValueMap, { type LegendData, type LocateMeResult, type IndexPrefs, type RgLogEntry, type RightClickInfoData } from "./Map";
 import GuidedTour, { type TourStep } from "./components/GuidedTour";
 
 type GridSize = "1km" | "5km" | "10km" | "25km";
@@ -236,6 +236,9 @@ export default function Home() {
   const [tapToSearch, setTapToSearch] = useState(false);
   const [rgLog, setRgLog] = useState<RgLogEntry[]>([]);
   const [rgLogOpen, setRgLogOpen] = useState(false);
+  const [rightClickInfo, setRightClickInfo] = useState<RightClickInfoData | null>(null);
+  const [rgPanelMinimized, setRgPanelMinimized] = useState(false);
+  const [rgDismissToken, setRgDismissToken] = useState(0);
   const [locateMeToken, setLocateMeToken] = useState(0);
   const [locateMeStatus, setLocateMeStatus] = useState<string | null>(null);
   const [locateMeSummary, setLocateMeSummary] = useState<string | null>(null);
@@ -1622,6 +1625,8 @@ export default function Home() {
         rgLogCount={rgLog.length}
         onOpenLog={() => setRgLogOpen(true)}
         onLocationLogged={(entry) => setRgLog((prev) => [entry, ...prev])}
+        onRightClickInfo={(info) => { setRightClickInfo(info); if (info) setRgPanelMinimized(false); }}
+        rgDismissToken={rgDismissToken}
         onPostcodeSearchResult={(result) => {
           const floodLookupActive = result.lookupMode !== "schools" && state.floodOverlayMode !== "off";
           const schoolLookupActive = result.lookupMode !== "flood" && state.schoolOverlayMode !== "off";
@@ -3320,6 +3325,90 @@ export default function Home() {
         stepIndex={tourStep}
         onStepChange={setTourStep}
       />
+
+      {/* ── Right-click info panel — desktop: fixed left column; mobile: bottom sheet ── */}
+      {rightClickInfo && !isMobileViewport && (
+        <div style={{
+          position: "fixed", top: floatingPanelTop, left: 18, zIndex: 9998,
+          width: 288, background: "white", border: "1px solid #e5e7eb",
+          borderRadius: 12, boxShadow: "0 4px 32px rgba(0,0,0,0.18)",
+          overflow: "visible",
+        }}>
+          {/* CSS border-triangle arrow pointing right toward the map */}
+          <div style={{ position: "absolute", right: -11, top: "50%", transform: "translateY(-50%)", width: 0, height: 0, borderTop: "10px solid transparent", borderBottom: "10px solid transparent", borderLeft: "10px solid #e5e7eb" }} />
+          <div style={{ position: "absolute", right: -9, top: "50%", transform: "translateY(-50%)", width: 0, height: 0, borderTop: "10px solid transparent", borderBottom: "10px solid transparent", borderLeft: "10px solid white" }} />
+          {/* Header */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px 8px", borderBottom: "1px solid #f3f4f6" }}>
+            <span style={{ fontWeight: 700, fontSize: 14, color: "#1d4ed8" }}>
+              \uD83D\uDCCD {rightClickInfo.stage === "ready" ? rightClickInfo.postcode : "\u2026"}
+              {rightClickInfo.stage === "ready" && rightClickInfo.isOutcode && <span style={{ fontSize: 11, fontWeight: 400, color: "#9ca3af", marginLeft: 5 }}>district</span>}
+            </span>
+            <button type="button" onClick={() => { setRightClickInfo(null); setRgDismissToken(v => v + 1); }} style={{ cursor: "pointer", border: "none", background: "transparent", color: "#9ca3af", fontSize: 16, lineHeight: 1, padding: "0 2px" }}>\u2715</button>
+          </div>
+          {/* Content */}
+          {rightClickInfo.stage === "loading" ? (
+            <div style={{ padding: "12px 12px", fontSize: 12, color: "#9ca3af" }}>Looking up location\u2026</div>
+          ) : (
+            <div style={{ padding: "8px 12px" }}>
+              {([
+                { icon: "\uD83C\uDF0A", label: "Flood",   html: rightClickInfo.floodHtml },
+                { icon: "\uD83C\uDFEB", label: "Schools", html: rightClickInfo.schoolHtml },
+                { icon: "\uD83D\uDE82", label: "Station", html: rightClickInfo.stationHtml },
+              ] as const).map(({ icon, label, html }) => (
+                <div key={label} style={{ display: "flex", gap: 6, alignItems: "flex-start", padding: "4px 0", borderBottom: "1px solid #f9fafb" }}>
+                  <span style={{ width: 16, flexShrink: 0, textAlign: "center", paddingTop: 1 }}>{icon}</span>
+                  <span style={{ color: "#9ca3af", width: 48, flexShrink: 0, fontSize: 11, paddingTop: 2 }}>{label}</span>
+                  <div style={{ fontSize: 12, lineHeight: 1.4, flex: 1, minWidth: 0 }} dangerouslySetInnerHTML={{ __html: html }} />
+                </div>
+              ))}
+              <div style={{ marginTop: 6, paddingTop: 5, borderTop: "1px solid #f3f4f6", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 10, color: "#6b7280" }}>\u2713 Added to log</span>
+                <a href="#" onClick={(e) => { e.preventDefault(); setRgLogOpen(true); }} style={{ fontSize: 10, color: "#6366f1", textDecoration: "none", fontWeight: 500 }}>See log \u2192</a>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      {rightClickInfo && isMobileViewport && (
+        <div style={{
+          position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9998,
+          background: "white", borderTopLeftRadius: 14, borderTopRightRadius: 14,
+          boxShadow: "0 -4px 24px rgba(0,0,0,0.15)",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px 8px", borderBottom: rgPanelMinimized ? "none" : "1px solid #f3f4f6" }}>
+            <span style={{ fontWeight: 700, fontSize: 14, color: "#1d4ed8" }}>
+              \uD83D\uDCCD {rightClickInfo.stage === "ready" ? rightClickInfo.postcode : "Looking up\u2026"}
+            </span>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <button type="button" title={rgPanelMinimized ? "Expand" : "Minimise"} onClick={() => setRgPanelMinimized(v => !v)} style={{ cursor: "pointer", border: "none", background: "transparent", color: "#9ca3af", fontSize: 13, padding: "0 4px" }}>
+                {rgPanelMinimized ? "\u25B2" : "\u25BC"}
+              </button>
+              <button type="button" onClick={() => { setRightClickInfo(null); setRgDismissToken(v => v + 1); setRgPanelMinimized(false); }} style={{ cursor: "pointer", border: "none", background: "transparent", color: "#9ca3af", fontSize: 16, lineHeight: 1, padding: "0 2px" }}>\u2715</button>
+            </div>
+          </div>
+          {!rgPanelMinimized && (rightClickInfo.stage === "loading" ? (
+            <div style={{ padding: "12px 14px", fontSize: 12, color: "#9ca3af" }}>Looking up location\u2026</div>
+          ) : (
+            <div style={{ padding: "8px 14px 16px" }}>
+              {([
+                { icon: "\uD83C\uDF0A", label: "Flood",   html: rightClickInfo.floodHtml },
+                { icon: "\uD83C\uDFEB", label: "Schools", html: rightClickInfo.schoolHtml },
+                { icon: "\uD83D\uDE82", label: "Station", html: rightClickInfo.stationHtml },
+              ] as const).map(({ icon, label, html }) => (
+                <div key={label} style={{ display: "flex", gap: 6, alignItems: "flex-start", padding: "4px 0", borderBottom: "1px solid #f9fafb" }}>
+                  <span style={{ width: 16, flexShrink: 0, textAlign: "center", paddingTop: 1 }}>{icon}</span>
+                  <span style={{ color: "#9ca3af", width: 48, flexShrink: 0, fontSize: 11, paddingTop: 2 }}>{label}</span>
+                  <div style={{ fontSize: 12, lineHeight: 1.4, flex: 1, minWidth: 0 }} dangerouslySetInnerHTML={{ __html: html }} />
+                </div>
+              ))}
+              <div style={{ marginTop: 6, paddingTop: 5, borderTop: "1px solid #f3f4f6", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 10, color: "#6b7280" }}>\u2713 Added to log</span>
+                <a href="#" onClick={(e) => { e.preventDefault(); setRgLogOpen(true); }} style={{ fontSize: 10, color: "#6366f1", textDecoration: "none", fontWeight: 500 }}>See log \u2192</a>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* ── Search log panel ── */}
       {rgLogOpen && (
