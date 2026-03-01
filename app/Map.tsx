@@ -1710,6 +1710,15 @@ export default function ValueMap({
     // ── Index scoring breakdown popup ──
     if (indexPrefsRef.current) {
       const prefs = indexPrefsRef.current;
+      const totalPrefWeight = (prefs.affordWeight ?? 0) + (prefs.floodWeight ?? 0) + (prefs.schoolWeight ?? 0) + (prefs.trainWeight ?? 0) + (prefs.ageWeight ?? 0);
+      if (totalPrefWeight === 0) {
+        const html = `<div style="font-family:system-ui;font-size:12px;line-height:1.4;min-width:180px;max-width:220px;">
+          <div style="font-weight:700;margin-bottom:6px;font-size:13px;">🗺️ No criteria set</div>
+          <div style="font-size:11px;opacity:0.75;">Open <b>Find My Area</b> and set importance weights to score areas against your priorities.</div>
+        </div>`;
+        popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+        return;
+      }
       const totalScore = Number(p.index_score ?? NaN);
       if (Number.isFinite(totalScore)) {
         const bar = (v: number, noData?: boolean) => {
@@ -4016,18 +4025,20 @@ async function applyIndexScoring(
       vetoMultiplier *= Math.max(0, 1 - Math.min(prefs.trainWeight, VETO_WEIGHT_CAP) * shortfall * 0.5);
     }
 
-    const baseScore = totalWeight > 0 ? totalScore / totalWeight : 0;
-    props.index_score = Math.max(0, baseScore * vetoMultiplier);
+    const baseScore = totalWeight > 0 ? totalScore / totalWeight : 0.5;
+    props.index_score = totalWeight > 0 ? Math.max(0, baseScore * vetoMultiplier) : -1;
   }
 
   src.setData(fc as any);
 
   if (map.getLayer("cells-fill")) {
     const baseOpacityExpr = [
+      "case", ["<", ["get", "index_score"], 0], 0.12,
       "interpolate", ["linear"], ["get", "index_score"],
       0, 0.25, 0.3, 0.4, 0.7, 0.65, 1, 0.85,
     ] as any;
     map.setPaintProperty("cells-fill", "fill-color", [
+      "case", ["<", ["get", "index_score"], 0], "#888888",
       "interpolate", ["linear"], ["get", "index_score"],
       0,    "#d73027",
       0.25, "#f46d43",
