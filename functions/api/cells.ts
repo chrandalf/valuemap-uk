@@ -264,6 +264,7 @@ async function getCachedVoteLookup(env: Env, grid: GridKey): Promise<Map<string,
       pct_conservative: Number(row.pct_conservative ?? 0),
       pct_popular_right: Number(row.pct_popular_right ?? 0),
       constituency: row.constituency,
+      country: row.country,
     });
   }
 
