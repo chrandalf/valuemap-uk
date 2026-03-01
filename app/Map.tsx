@@ -11,6 +11,7 @@ type FloodOverlayMode = "off" | "on" | "on_hide_cells";
 type SchoolOverlayMode = "off" | "on" | "on_hide_cells";
 type StationOverlayMode = "off" | "on" | "on_hide_cells";
 type VoteOverlayMode = "off" | "on";
+type CommuteOverlayMode = "off" | "on";
 type VoteColorScale = "relative" | "absolute";
 
 export type MapState = {
@@ -25,6 +26,7 @@ export type MapState = {
   schoolOverlayMode?: SchoolOverlayMode;
   stationOverlayMode?: StationOverlayMode;
   voteOverlayMode?: VoteOverlayMode;
+  commuteOverlayMode?: CommuteOverlayMode;
   voteColorScale?: VoteColorScale;
 };
 
@@ -72,6 +74,8 @@ type ApiRow = {
   pct_conservative?: number;
   pct_popular_right?: number;
   constituency?: string;
+  mean_dist_km?: number;
+  pct_wfh?: number;
 };
 
 function isDeltaMetric(metric: Metric) {
@@ -157,6 +161,7 @@ const STATION_GOOD_DISTANCE_METERS = 1_609; // 1 mile
 const STATION_MAX_DISTANCE_METERS = 16_093; // 10 miles
 
 const VOTE_CELLS_DATA_VERSION = process.env.NEXT_PUBLIC_VOTE_CELLS_DATA_VERSION ?? "20260222b";
+const COMMUTE_CELLS_DATA_VERSION = process.env.NEXT_PUBLIC_COMMUTE_CELLS_DATA_VERSION ?? "20260301a";
 
 /** Registers custom raster icons on a map instance. Call before adding icon-dependent layers. */
 function addMapIcons(map: maplibregl.Map): void {
@@ -2187,7 +2192,7 @@ export default function ValueMap({
       abortController.abort();
       if (requestSeqRef.current === seq) setIsLoading(false);
     };
-  }, [state.grid, state.propertyType, state.newBuild, state.endMonth, state.metric, state.voteOverlayMode]);
+  }, [state.grid, state.propertyType, state.newBuild, state.endMonth, state.metric, state.voteOverlayMode, state.commuteOverlayMode]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -2315,11 +2320,14 @@ export default function ValueMap({
     // can cause isStyleLoaded() to return false even on a live map.
     if (!map.getLayer("cells-fill")) return;
 
+    const commuteMode = stateRef.current.commuteOverlayMode ?? "off";
     const mode = state.voteOverlayMode ?? "off";
     const scale = state.voteColorScale ?? "relative";
 
     try {
-      if (mode === "off") {
+      if (commuteMode !== "off") {
+        // Commute overlay takes priority — no-op, let the commute effect handle it
+      } else if (mode === "off") {
         void ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange, onStatsUpdateRef.current, easyColoursRef.current);
       } else {
         applyVoteOverlayColorFromSource(map, scale);
@@ -2329,15 +2337,38 @@ export default function ValueMap({
     }
   }, [state.voteOverlayMode, state.voteColorScale, onLegendChange]);
 
+  // Commute overlay: apply/remove commute distance colours on cells.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.getLayer("cells-fill")) return;
+    const commuteMode = state.commuteOverlayMode ?? "off";
+    const voteMode = stateRef.current.voteOverlayMode ?? "off";
+    try {
+      if (commuteMode !== "off") {
+        applyCommuteOverlayColorExpression(map, easyColoursRef.current);
+      } else if (voteMode !== "off") {
+        applyVoteOverlayColorFromSource(map, stateRef.current.voteColorScale ?? "relative");
+      } else {
+        void ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange, onStatsUpdateRef.current, easyColoursRef.current);
+      }
+    } catch (e) { /* ignore */ }
+  }, [state.commuteOverlayMode, onLegendChange]);
+
   // Re-apply colour ramps whenever the easy-colours (colourblind) preference changes.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !map.getLayer("cells-fill")) return;
-    const mode = stateRef.current.voteOverlayMode ?? "off";
-    if (mode !== "off") return; // vote overlay controls its own colours
-    void ensureAggregatesAndUpdate(
-      map, stateRef.current, geoCacheRef.current, onLegendChange, onStatsUpdateRef.current, easyColours ?? false
-    );
+    const commuteMode = stateRef.current.commuteOverlayMode ?? "off";
+    const voteMode = stateRef.current.voteOverlayMode ?? "off";
+    if (commuteMode !== "off") {
+      applyCommuteOverlayColorExpression(map, easyColours ?? false);
+    } else if (voteMode !== "off") {
+      return; // vote overlay controls its own fixed colours — no easy-colour variant
+    } else {
+      void ensureAggregatesAndUpdate(
+        map, stateRef.current, geoCacheRef.current, onLegendChange, onStatsUpdateRef.current, easyColours ?? false
+      );
+    }
     // Also update overlay layer colours that were baked in at init time.
     if (map.getLayer("flood-overlay-fill")) {
       map.setPaintProperty("flood-overlay-fill", "fill-color", floodBandColorExpression(easyColours ?? false));
@@ -2551,6 +2582,41 @@ function voteOverlayFillColorExpression(scale: VoteColorScale = "relative") {
     1,
     "#450a0a",
   ] as any;
+}
+
+/** Commute distance colour ramp.
+ * Normal  : green (WFH/short) → yellow → orange → dark-red (long commute)
+ * Easy/CBF: RdBu reversed — blue (short) → neutral → red-orange (long)
+ */
+function commuteDistanceColorExpression(easy = false): any {
+  const dist = ["coalesce", ["to-number", ["get", "mean_dist_km"]], -1] as any;
+  if (easy) {
+    // RdBu reversed (colour-blind safe)
+    return ["interpolate", ["linear"], dist,
+      -1,   "#aaaaaa",   // no data
+       0,   "#2166ac",
+       4,   "#92c5de",
+       7,   "#f7f7f7",
+      10,   "#f4a582",
+      14,   "#d6604d",
+      17,   "#b2182b",
+    ];
+  }
+  return ["interpolate", ["linear"], dist,
+    -1,   "#aaaaaa",   // no data
+     0,   "#15803d",
+     4,   "#86efac",
+     7,   "#fef08a",
+    10,   "#fb923c",
+    14,   "#ef4444",
+    17,   "#7f1d1d",
+  ];
+}
+
+function applyCommuteOverlayColorExpression(map: maplibregl.Map, easy = false) {
+  if (map.getLayer("cells-fill")) {
+    map.setPaintProperty("cells-fill", "fill-color", commuteDistanceColorExpression(easy));
+  }
 }
 
 function buildVoteScoreExpression(inputExpr: any, breaks: number[] | null) {
@@ -2769,7 +2835,9 @@ async function setRealData(
   if (cached) {
     const src = map.getSource("cells") as maplibregl.GeoJSONSource;
     src.setData(cached);
-    if ((state.voteOverlayMode ?? "off") !== "off") {
+    if ((state.commuteOverlayMode ?? "off") !== "off") {
+      applyCommuteOverlayColorExpression(map, easy);
+    } else if ((state.voteOverlayMode ?? "off") !== "off") {
       applyVoteOverlayColorFromSource(map, state.voteColorScale ?? "relative", cached);
     }
     await ensureAggregatesAndUpdate(map, state, cache, onLegendChange, onStatsUpdate, easy);
@@ -2820,7 +2888,9 @@ async function setRealData(
 
   const src = map.getSource("cells") as maplibregl.GeoJSONSource;
   src.setData(fc as any);
-  if ((state.voteOverlayMode ?? "off") !== "off") {
+  if ((state.commuteOverlayMode ?? "off") !== "off") {
+    applyCommuteOverlayColorExpression(map, easy);
+  } else if ((state.voteOverlayMode ?? "off") !== "off") {
     applyVoteOverlayColorFromSource(map, state.voteColorScale ?? "relative", fc);
   }
   await ensureAggregatesAndUpdate(map, state, cache, onLegendChange, onStatsUpdate, easy);

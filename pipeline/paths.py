@@ -20,6 +20,7 @@ RAW_GEOGRAPHY_DIR = RAW_DIR / "geography"
 RAW_PROPERTY_DIR = RAW_DIR / "property"
 RAW_EPC_DIR = RAW_DIR / "epc"
 RAW_STATIONS_DIR = RAW_DIR / "Stations"
+RAW_CENSUS_DIR = RAW_DIR / "census"
 
 INTERMEDIATE_SCHOOLS_DIR = INTERMEDIATE_DIR / "schools"
 INTERMEDIATE_PROPERTY_DIR = INTERMEDIATE_DIR / "property"
@@ -32,6 +33,7 @@ MODEL_VOTE_DIR = MODEL_DIR / "vote"
 MODEL_EPC_DIR = MODEL_DIR / "epc"
 MODEL_PROPERTY_DIR = MODEL_DIR / "property"
 MODEL_STATIONS_DIR = MODEL_DIR / "stations"
+MODEL_CENSUS_DIR = MODEL_DIR / "census"
 
 PUBLISH_SCHOOLS_DIR = PUBLISH_DIR / "schools"
 PUBLISH_FLOOD_DIR = PUBLISH_DIR / "flood"
@@ -59,6 +61,9 @@ MODEL_STATION_OVERLAY_POINTS = MODEL_STATIONS_DIR / "station_overlay_points.geoj
 MODEL_FLOOD_POSTCODE_LOOKUP = MODEL_FLOOD_DIR / "flood_postcode_lookup.json.gz"
 MODEL_FLOOD_OUTCODE_SUMMARY = MODEL_FLOOD_DIR / "flood_outcode_summary.json.gz"
 MODEL_FLOOD_POSTCODE_POINTS = MODEL_FLOOD_DIR / "flood_postcode_points.geojson.gz"
+
+RAW_CENSUS_COMMUTE_LSOA = RAW_CENSUS_DIR / "ts058_commute_lsoa21.csv"
+MODEL_CENSUS_COMMUTE_CELLS_TEMPLATE = MODEL_CENSUS_DIR / "commute_cells_{grid}.json.gz"
 
 MODEL_VOTE_BLOCKS_BY_CONSTITUENCY_CSV = MODEL_VOTE_DIR / "ge2024_vote_blocks_by_constituency.csv"
 MODEL_VOTE_BLOCKS_MAP_GEOJSON = MODEL_VOTE_DIR / "ge2024_vote_blocks_map.geojson"
@@ -107,5 +112,7 @@ def ensure_pipeline_dirs() -> None:
         R2_ARCHIVE_DIR,
         MODEL_STATIONS_DIR,
         INTERMEDIATE_STATIONS_DIR,
+        RAW_CENSUS_DIR,
+        MODEL_CENSUS_DIR,
     ]:
         p.mkdir(parents=True, exist_ok=True)

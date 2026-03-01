@@ -55,7 +55,8 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   if (cached && now - cached.loadedAtMs <= CACHE_TTL_MS) {
     const rows = applyFilters(cached.rows, minTxCount, metric);
     const withVotes = await backfillVotes(env, grid, rows);
-    return jsonResponse({ grid, metric, end_month: endMonth, propertyType, newBuild, minTxCount, count: withVotes.length, rows: withVotes });
+    const withCommute = await backfillCommute(env, grid, withVotes);
+    return jsonResponse({ grid, metric, end_month: endMonth, propertyType, newBuild, minTxCount, count: withCommute.length, rows: withCommute });
   }
 
   // Fetch from R2
@@ -76,7 +77,8 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
 
   const rows = applyFilters(rawRows, minTxCount, metric);
   const withVotes = await backfillVotes(env, grid, rows);
-  return jsonResponse({ grid, metric, end_month: endMonth, propertyType, newBuild, minTxCount, count: withVotes.length, rows: withVotes });
+  const withCommute = await backfillCommute(env, grid, withVotes);
+  return jsonResponse({ grid, metric, end_month: endMonth, propertyType, newBuild, minTxCount, count: withCommute.length, rows: withCommute });
 };
 
 /* ---------- types ---------- */
@@ -122,6 +124,8 @@ type CellRow = {
   pct_conservative?: number;
   pct_popular_right?: number;
   constituency?: string;
+  mean_dist_km?: number;
+  pct_wfh?: number;
 };
 
 type VoteCellRow = {
@@ -134,6 +138,15 @@ type VoteCellRow = {
 };
 
 type VoteCellValue = Omit<VoteCellRow, "gx" | "gy">;
+
+type CommuteCellRow = {
+  gx: number;
+  gy: number;
+  mean_dist_km: number;
+  pct_wfh: number;
+};
+
+type CommuteCellValue = Omit<CommuteCellRow, "gx" | "gy">;
 
 interface Env {
   R2?: R2Bucket;
@@ -250,6 +263,64 @@ async function backfillVotes(env: Env, grid: GridKey, rows: CellRow[]): Promise<
   });
 }
 
+/* ---------- commute data ---------- */
+
+const COMMUTE_CACHE_BY_GRID: Partial<Record<GridKey, Map<string, CommuteCellValue>>> = {};
+
+function commuteKeyForGrid(grid: GridKey) {
+  switch (grid) {
+    case "1km":  return "commute_cells_1km.json.gz";
+    case "5km":  return "commute_cells_5km.json.gz";
+    case "10km": return "commute_cells_10km.json.gz";
+    case "25km": return "commute_cells_25km.json.gz";
+  }
+}
+
+async function getCachedCommuteLookup(env: Env, grid: GridKey): Promise<Map<string, CommuteCellValue> | null> {
+  const cached = COMMUTE_CACHE_BY_GRID[grid];
+  if (cached) return cached;
+
+  const bucket = getBucket(env);
+  const key = commuteKeyForGrid(grid);
+  const obj = await bucket.get(key);
+  if (!obj) return null;
+
+  const gz = await obj.arrayBuffer();
+  const jsonText = await gunzipToString(gz);
+  const rows = JSON.parse(jsonText) as CommuteCellRow[];
+
+  const lookup = new Map<string, CommuteCellValue>();
+  for (const row of rows) {
+    lookup.set(`${row.gx}_${row.gy}`, {
+      mean_dist_km: Number(row.mean_dist_km ?? 0),
+      pct_wfh: Number(row.pct_wfh ?? 0),
+    });
+  }
+
+  COMMUTE_CACHE_BY_GRID[grid] = lookup;
+  return lookup;
+}
+
+async function backfillCommute(env: Env, grid: GridKey, rows: CellRow[]): Promise<CellRow[]> {
+  let commuteLookup: Map<string, CommuteCellValue> | null = null;
+  try {
+    commuteLookup = await getCachedCommuteLookup(env, grid);
+  } catch {
+    return rows;
+  }
+  if (!commuteLookup) return rows;
+
+  return rows.map((row) => {
+    const commute = commuteLookup!.get(`${row.gx}_${row.gy}`);
+    if (!commute) return row;
+    return {
+      ...row,
+      mean_dist_km: commute.mean_dist_km,
+      pct_wfh: commute.pct_wfh,
+    };
+  });
+}
+
 /* ---------- legacy fallback (monolithic files) ---------- */
 
 type LegacyCacheEntry = {
@@ -319,6 +390,7 @@ async function legacyHandler(
   }));
 
   const withVotes = await backfillVotes(env, grid, rows);
+  const withCommute = await backfillCommute(env, grid, withVotes);
 
   return jsonResponse({
     grid,
@@ -327,8 +399,8 @@ async function legacyHandler(
     propertyType,
     newBuild,
     minTxCount,
-    count: withVotes.length,
-    rows: withVotes,
+    count: withCommute.length,
+    rows: withCommute,
   });
 }
 

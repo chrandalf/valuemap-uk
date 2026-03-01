@@ -13,6 +13,7 @@ type FloodOverlayMode = "off" | "on" | "on_hide_cells";
 type SchoolOverlayMode = "off" | "on" | "on_hide_cells";
 type StationOverlayMode = "off" | "on" | "on_hide_cells";
 type VoteOverlayMode = "off" | "on";
+type CommuteOverlayMode = "off" | "on";
 type VoteColorScale = "relative" | "absolute";
 type GridMode = "auto" | "manual";
 
@@ -39,6 +40,7 @@ type MapState = {
   stationOverlayMode: StationOverlayMode;
   voteOverlayMode: VoteOverlayMode;
   voteColorScale: VoteColorScale;
+  commuteOverlayMode: CommuteOverlayMode;
 };
 
 type OutcodeRank = {
@@ -156,6 +158,7 @@ export default function Home() {
       stationOverlayMode: "off",
       voteOverlayMode: "off",
       voteColorScale: "relative",
+      commuteOverlayMode: "off",
     };
     if (typeof window === "undefined") return defaults;
     try {
@@ -172,6 +175,7 @@ export default function Home() {
       const stations = p.get("stations");
       const vote = p.get("vote");
       const voteScale = p.get("voteScale");
+      const commute = p.get("commute");
       const GRIDS: GridSize[] = ["1km", "5km", "10km", "25km"];
       const METRICS: Metric[] = ["median", "median_ppsf", "delta_gbp", "delta_pct"];
       const TYPES: PropertyType[] = ["ALL", "D", "S", "T", "F"];
@@ -181,7 +185,7 @@ export default function Home() {
       const SCHOOLS: SchoolOverlayMode[] = ["off", "on", "on_hide_cells"];
       const STATIONS: StationOverlayMode[] = ["off", "on", "on_hide_cells"];
       // Only hydrate if at least one known param is present
-      if (!grid && !metric && !type && !flood && !schools && !vote && !stations) return defaults;
+      if (!grid && !metric && !type && !flood && !schools && !vote && !stations && !commute) return defaults;
       return {
         grid: GRIDS.includes(grid as GridSize) ? (grid as GridSize) : defaults.grid,
         metric: METRICS.includes(metric as Metric) ? (metric as Metric) : defaults.metric,
@@ -195,6 +199,7 @@ export default function Home() {
         stationOverlayMode: STATIONS.includes(stations as StationOverlayMode) ? (stations as StationOverlayMode) : defaults.stationOverlayMode,
         voteOverlayMode: vote === "on" ? "on" : defaults.voteOverlayMode,
         voteColorScale: voteScale === "absolute" ? "absolute" : defaults.voteColorScale,
+        commuteOverlayMode: commute === "on" ? "on" : defaults.commuteOverlayMode,
       };
     } catch {
       return defaults;
@@ -330,6 +335,7 @@ export default function Home() {
     stationOverlayMode: "off",
     voteOverlayMode: "off",
     voteColorScale: "relative",
+    commuteOverlayMode: "off",
   };
   const closeAllSubpanels = () => {
     setFiltersOpen(false);
@@ -593,6 +599,7 @@ export default function Home() {
     params.set("stations", state.stationOverlayMode);
     params.set("vote", state.voteOverlayMode);
     params.set("voteScale", state.voteColorScale);
+    params.set("commute", state.commuteOverlayMode);
 
     const nextUrl = `${window.location.pathname}?${params.toString()}`;
     window.history.replaceState(null, "", nextUrl);
@@ -900,7 +907,7 @@ export default function Home() {
       ? "Off"
       : "On";
   const voteScaleLabel = state.voteColorScale === "relative" ? "Relative" : "Absolute";
-  const anyOverlayActive = state.floodOverlayMode !== "off" || state.schoolOverlayMode !== "off" || state.stationOverlayMode !== "off" || state.voteOverlayMode !== "off";
+  const anyOverlayActive = state.floodOverlayMode !== "off" || state.schoolOverlayMode !== "off" || state.stationOverlayMode !== "off" || state.voteOverlayMode !== "off" || state.commuteOverlayMode !== "off";
 
   const currentFiltersSummary =
     `Grid: ${state.grid} · Metric: ${METRIC_LABEL[state.metric]} · ` +
@@ -1073,7 +1080,7 @@ export default function Home() {
     setTourActive(true);
     setShowMePulse(false);
     // Reset map to default view
-    setState((s) => ({ ...s, grid: "5km", metric: "median", propertyType: "ALL", floodOverlayMode: "off", schoolOverlayMode: "off", voteOverlayMode: "off" }));
+    setState((s) => ({ ...s, grid: "5km", metric: "median", propertyType: "ALL", floodOverlayMode: "off", schoolOverlayMode: "off", voteOverlayMode: "off", commuteOverlayMode: "off" }));
     const t = ++flyToSeqRef.current;
     setFlyToRequest({ center: [-1.5, 53.5], zoom: 5, token: t });
   }, []);
@@ -1413,7 +1420,7 @@ export default function Home() {
       enterDelay: 1200,
       onEnter: () => {
         if (isMobileViewport) setCleanScreenMode(true);
-        setState((s) => ({ ...s, floodOverlayMode: "off", schoolOverlayMode: "off", voteOverlayMode: "off" }));
+        setState((s) => ({ ...s, floodOverlayMode: "off", schoolOverlayMode: "off", voteOverlayMode: "off", commuteOverlayMode: "off" }));
         tourFlyTo([-1.08, 53.96], 9);
       },
     },
@@ -1427,7 +1434,7 @@ export default function Home() {
       enterDelay: 1000,
       onEnter: () => {
         if (isMobileViewport) setCleanScreenMode(false);
-        setState((s) => ({ ...s, floodOverlayMode: "on_hide_cells", schoolOverlayMode: "off", voteOverlayMode: "off" }));
+        setState((s) => ({ ...s, floodOverlayMode: "on_hide_cells", schoolOverlayMode: "off", voteOverlayMode: "off", commuteOverlayMode: "off" }));
       },
     },
 
@@ -1493,7 +1500,7 @@ export default function Home() {
       enterDelay: 1200,
       onEnter: () => {
         if (isMobileViewport) setCleanScreenMode(false);
-        setState((s) => ({ ...s, voteOverlayMode: "off", floodOverlayMode: "on_hide_cells", schoolOverlayMode: "on_hide_cells" }));
+        setState((s) => ({ ...s, voteOverlayMode: "off", floodOverlayMode: "on_hide_cells", schoolOverlayMode: "on_hide_cells", commuteOverlayMode: "off" }));
         setTimeout(() => tourFlyTo([-1.08, 53.96], 9), 300);
       },
     },
@@ -1507,7 +1514,7 @@ export default function Home() {
       enterDelay: 600,
       onEnter: () => {
         if (isMobileViewport) setCleanScreenMode(false);
-        setState((s) => ({ ...s, floodOverlayMode: "off", schoolOverlayMode: "off", voteOverlayMode: "off" }));
+        setState((s) => ({ ...s, floodOverlayMode: "off", schoolOverlayMode: "off", voteOverlayMode: "off", commuteOverlayMode: "off" }));
         tourFlyTo([-1.5, 53.5], 5);
       },
     },
@@ -1897,6 +1904,17 @@ export default function Home() {
                         </div>
                       )}
                     </div>
+                  </div>
+
+                  {/* Commute distance */}
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                    <div style={{ fontSize: 11, opacity: 0.8, width: 70, flexShrink: 0, paddingTop: 2 }}>🚗 Commute</div>
+                    <Segment
+                      options={["off", "on"]}
+                      value={state.commuteOverlayMode}
+                      onChange={(v) => setState((s) => ({ ...s, commuteOverlayMode: v as CommuteOverlayMode }))}
+                      renderOption={(v) => v === "on" ? "On" : "Off"}
+                    />
                   </div>
                 </div>
               )}
