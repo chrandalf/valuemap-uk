@@ -2351,6 +2351,41 @@ export default function ValueMap({
     doReverseGeocode(lng, lat);
   });
 
+  // Double-tap on mobile → same as right-click.
+  // Uses native touchend events on the canvas container to detect two taps within 350ms.
+  // Calling preventDefault() stops MapLibre's built-in double-tap zoom from firing.
+  {
+    const canvas = map.getCanvasContainer();
+    let lastTapTime = 0;
+    let lastTapX = 0;
+    let lastTapY = 0;
+    const onTouchEnd = (e: TouchEvent) => {
+      const touch = e.changedTouches[0];
+      if (!touch) return;
+      const now = Date.now();
+      const dx = touch.clientX - lastTapX;
+      const dy = touch.clientY - lastTapY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (now - lastTapTime < 350 && dist < 30) {
+        // Double-tap detected
+        e.preventDefault(); // prevent MapLibre zoom
+        const rect = canvas.getBoundingClientRect();
+        const point = new maplibregl.Point(
+          touch.clientX - rect.left,
+          touch.clientY - rect.top
+        );
+        const { lng, lat } = map.unproject(point);
+        doReverseGeocode(lng, lat);
+        lastTapTime = 0; // reset so a third tap doesn't re-fire
+      } else {
+        lastTapTime = now;
+        lastTapX = touch.clientX;
+        lastTapY = touch.clientY;
+      }
+    };
+    canvas.addEventListener("touchend", onTouchEnd, { passive: false });
+  }
+
   // Tap-to-search: single tap fires the same lookup when the mode is active.
   // Cell clicks are already suppressed above when this mode is on.
   map.on("click", (e) => {
@@ -2676,7 +2711,7 @@ export default function ValueMap({
             boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
           }}
         >
-          Right-click anywhere on the map for full area details →
+          Right-click (or double-tap on mobile) for full area details →
         </div>
       )}
       {postcodeCell && (
