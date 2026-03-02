@@ -1341,6 +1341,28 @@ export default function ValueMap({
   });
 
   map.addLayer({
+    id: "station-search-focus-label",
+    type: "symbol",
+    source: "station-search-focus",
+    filter: ["==", ["geometry-type"], "LineString"] as any,
+    layout: {
+      "symbol-placement": "line-center",
+      "text-field": ["get", "label"] as any,
+      "text-size": 12,
+      "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
+      "text-allow-overlap": true,
+      "text-ignore-placement": true,
+      "text-offset": [0, -1.2] as any,
+    },
+    paint: {
+      "text-color": "#ffffff",
+      "text-halo-color": "#0f172a",
+      "text-halo-width": 2.5,
+      "text-halo-blur": 0.5,
+    },
+  });
+
+  map.addLayer({
     id: "station-search-focus-ring",
     type: "circle",
     source: "station-search-focus",
@@ -1408,6 +1430,28 @@ export default function ValueMap({
   });
 
   map.addLayer({
+    id: "flood-search-context-label",
+    type: "symbol",
+    source: "flood-search-context",
+    filter: ["==", ["geometry-type"], "LineString"] as any,
+    layout: {
+      "symbol-placement": "line-center",
+      "text-field": ["get", "label"] as any,
+      "text-size": 12,
+      "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
+      "text-allow-overlap": true,
+      "text-ignore-placement": true,
+      "text-offset": [0, -1.2] as any,
+    },
+    paint: {
+      "text-color": "#60a5fa",
+      "text-halo-color": "#0f172a",
+      "text-halo-width": 2.5,
+      "text-halo-blur": 0.5,
+    },
+  });
+
+  map.addLayer({
     id: "flood-search-context-requested-ring",
     type: "circle",
     source: "flood-search-context",
@@ -1447,6 +1491,28 @@ export default function ValueMap({
   });
 
   map.addLayer({
+    id: "school-search-focus-nearest-label",
+    type: "symbol",
+    source: "school-search-focus",
+    filter: ["all", ["==", ["geometry-type"], "LineString"], ["==", ["get", "role"], "nearest_link"]] as any,
+    layout: {
+      "symbol-placement": "line-center",
+      "text-field": ["get", "label"] as any,
+      "text-size": 12,
+      "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
+      "text-allow-overlap": true,
+      "text-ignore-placement": true,
+      "text-offset": [0, -1.2] as any,
+    },
+    paint: {
+      "text-color": "#ef4444",
+      "text-halo-color": "#0f172a",
+      "text-halo-width": 2.5,
+      "text-halo-blur": 0.5,
+    },
+  });
+
+  map.addLayer({
     id: "school-search-focus-good-line",
     type: "line",
     source: "school-search-focus",
@@ -1456,6 +1522,28 @@ export default function ValueMap({
       "line-width": 3.5,
       "line-dasharray": [3, 1.5],
       "line-opacity": 0.95,
+    },
+  });
+
+  map.addLayer({
+    id: "school-search-focus-good-label",
+    type: "symbol",
+    source: "school-search-focus",
+    filter: ["all", ["==", ["geometry-type"], "LineString"], ["==", ["get", "role"], "nearest_good_link"]] as any,
+    layout: {
+      "symbol-placement": "line-center",
+      "text-field": ["get", "label"] as any,
+      "text-size": 12,
+      "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
+      "text-allow-overlap": true,
+      "text-ignore-placement": true,
+      "text-offset": [0, -1.2] as any,
+    },
+    paint: {
+      "text-color": "#22c55e",
+      "text-halo-color": "#0f172a",
+      "text-halo-width": 2.5,
+      "text-halo-blur": 0.5,
     },
   });
 
@@ -2246,6 +2334,17 @@ export default function ValueMap({
               { lon: lng, lat: lat }
             );
           }
+        }
+
+        // Auto-fit the map so the click origin and all arrow endpoints are visible
+        if (lineTargets.length > 0) {
+          const allPts: [number, number][] = [[lng, lat], ...lineTargets];
+          const lons = allPts.map(p => p[0]);
+          const lats = allPts.map(p => p[1]);
+          map.fitBounds(
+            [[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]],
+            { padding: 90, maxZoom: 13, duration: 700 }
+          );
         }
 
         // ── Resolve postcode (with outcode fallback) ──
@@ -4562,6 +4661,7 @@ function setSchoolSearchFocus(
         type: "Feature",
         properties: {
           role: "nearest_link",
+          label: "School",
         },
         geometry: {
           type: "LineString",
@@ -4593,6 +4693,7 @@ function setSchoolSearchFocus(
         type: "Feature",
         properties: {
           role: "nearest_good_link",
+          label: "Best school",
         },
         geometry: {
           type: "LineString",
@@ -4673,7 +4774,7 @@ function setFloodSearchContext(
         },
         {
           type: "Feature",
-          properties: { role: "link" },
+          properties: { role: "link", label: "Flood zone" },
           geometry: {
             type: "LineString",
             coordinates: [
@@ -4950,7 +5051,7 @@ function setStationSearchFocus(
     if (requested) {
       features.push({
         type: "Feature",
-        properties: { role: "link" },
+        properties: { role: "link", label: "Station" },
         geometry: {
           type: "LineString",
           coordinates: [
