@@ -20,9 +20,11 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     return Response.json("Invalid metric. Use median|median_ppsf", { status: 400 });
   }
 
-  if (!isPropertyType(propertyType)) {
-    return Response.json("Invalid propertyType. Use ALL|D|S|T|F", { status: 400 });
+  const parsedTypes = parseAndNormalizePropertyTypes(propertyType);
+  if (!parsedTypes) {
+    return Response.json("Invalid propertyType. Use ALL|D|S|T|F or comma-separated e.g. D,S", { status: 400 });
   }
+  const { types: propertyTypes, canonical: canonicalPropertyType } = parsedTypes;
 
   if (!isNewBuild(newBuild)) {
     return Response.json("Invalid newBuild. Use ALL|Y|N", { status: 400 });
@@ -38,7 +40,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     const manifest = await getManifest(env, grid, metric);
     if (!manifest) {
       // Fall back to legacy monolithic path
-      return await legacyHandler(env, grid, metric, propertyType, newBuild, endMonthParam, minTxCount);
+      return await legacyHandler(env, grid, metric, canonicalPropertyType, propertyTypes, newBuild, endMonthParam, minTxCount);
     }
     const months = [...new Set(manifest.partitions.map((p: any) => p.end_month as string))].sort();
     endMonth = months[months.length - 1] as string;
@@ -46,8 +48,43 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     endMonth = endMonthParam;
   }
 
-  // ---- fetch the exact partition ----
-  const partitionKey = `cells/${grid}/${metric}/${endMonth}/${propertyType}_${newBuild}.json.gz`;
+  // ---- fetch partition(s) ----
+  const bucket = getBucket(env);
+
+  if (propertyTypes.length > 1) {
+    // Multi-type: parallel R2 fetch, weighted-mean merge per cell
+    const mergedCacheKey = `cells/${grid}/${metric}/${endMonth}/${canonicalPropertyType}_${newBuild}.json.gz`;
+    const now = Date.now();
+    const cachedMerged = PARTITION_CACHE.get(mergedCacheKey);
+    if (cachedMerged && now - cachedMerged.loadedAtMs <= CACHE_TTL_MS) {
+      const rows = applyFilters(cachedMerged.rows, minTxCount, metric);
+      const withVotes = await backfillVotes(env, grid, rows);
+      const withCommute = await backfillCommute(env, grid, withVotes);
+      const withAge = await backfillAge(env, grid, withCommute);
+      return jsonResponse({ grid, metric, end_month: endMonth, propertyType: canonicalPropertyType, newBuild, minTxCount, count: withAge.length, rows: withAge });
+    }
+
+    const partitionResults = await Promise.all(
+      propertyTypes.map((pt) =>
+        fetchPartitionRows(bucket, `cells/${grid}/${metric}/${endMonth}/${pt}_${newBuild}.json.gz`)
+      )
+    );
+    const validPartitions = partitionResults.filter((p): p is CellRow[] => p !== null);
+    if (validPartitions.length === 0) {
+      return await legacyHandler(env, grid, metric, canonicalPropertyType, propertyTypes, newBuild, endMonth, minTxCount);
+    }
+
+    const rawMerged = mergePartitionRows(validPartitions);
+    PARTITION_CACHE.set(mergedCacheKey, { rows: rawMerged, loadedAtMs: Date.now() });
+    const rows = applyFilters(rawMerged, minTxCount, metric);
+    const withVotes = await backfillVotes(env, grid, rows);
+    const withCommute = await backfillCommute(env, grid, withVotes);
+    const withAge = await backfillAge(env, grid, withCommute);
+    return jsonResponse({ grid, metric, end_month: endMonth, propertyType: canonicalPropertyType, newBuild, minTxCount, count: withAge.length, rows: withAge });
+  }
+
+  // Single type (or ALL): standard single-partition fetch
+  const partitionKey = `cells/${grid}/${metric}/${endMonth}/${canonicalPropertyType}_${newBuild}.json.gz`;
 
   // Check in-memory cache
   const now = Date.now();
@@ -57,16 +94,15 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     const withVotes = await backfillVotes(env, grid, rows);
     const withCommute = await backfillCommute(env, grid, withVotes);
     const withAge = await backfillAge(env, grid, withCommute);
-    return jsonResponse({ grid, metric, end_month: endMonth, propertyType, newBuild, minTxCount, count: withAge.length, rows: withAge });
+    return jsonResponse({ grid, metric, end_month: endMonth, propertyType: canonicalPropertyType, newBuild, minTxCount, count: withAge.length, rows: withAge });
   }
 
   // Fetch from R2
-  const bucket = getBucket(env);
   const obj = await bucket.get(partitionKey);
 
   if (!obj) {
     // Partition not found — try legacy monolithic file as fallback
-    return await legacyHandler(env, grid, metric, propertyType, newBuild, endMonth, minTxCount);
+    return await legacyHandler(env, grid, metric, canonicalPropertyType, propertyTypes, newBuild, endMonth, minTxCount);
   }
 
   const gz = await obj.arrayBuffer();
@@ -80,7 +116,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   const withVotes = await backfillVotes(env, grid, rows);
   const withCommute = await backfillCommute(env, grid, withVotes);
   const withAge = await backfillAge(env, grid, withCommute);
-  return jsonResponse({ grid, metric, end_month: endMonth, propertyType, newBuild, minTxCount, count: withAge.length, rows: withAge });
+  return jsonResponse({ grid, metric, end_month: endMonth, propertyType: canonicalPropertyType, newBuild, minTxCount, count: withAge.length, rows: withAge });
 };
 
 /* ---------- types ---------- */
@@ -201,6 +237,87 @@ function jsonResponse(data: any) {
   return Response.json(data, {
     headers: { "Cache-Control": "public, max-age=1200" },
   });
+}
+
+/* ---------- multi-type helpers ---------- */
+
+/** Parse and normalise a propertyType query param which may be a comma-separated list.
+ *  Returns { types, canonical } where types is the array of single-letter atoms to fetch
+ *  and canonical is the sorted joined string used as the cache/response key.
+ *  Returns null if any atom is invalid.
+ */
+function parseAndNormalizePropertyTypes(raw: string): { types: string[]; canonical: string } | null {
+  const atoms = raw.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean);
+  if (atoms.length === 0) return null;
+  if (atoms.includes("ALL")) return { types: ["ALL"], canonical: "ALL" };
+  const ORDER = ["D", "S", "T", "F"];
+  for (const a of atoms) {
+    if (!ORDER.includes(a)) return null;
+  }
+  const unique = [...new Set(atoms)];
+  unique.sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b));
+  if (unique.length === 4) return { types: ["ALL"], canonical: "ALL" };
+  if (unique.length === 1) return { types: unique, canonical: unique[0] };
+  return { types: unique, canonical: unique.join(",") };
+}
+
+/** Fetch a single partition from R2, using the in-memory cache. */
+async function fetchPartitionRows(bucket: R2Bucket, partitionKey: string): Promise<CellRow[] | null> {
+  const now = Date.now();
+  const cached = PARTITION_CACHE.get(partitionKey);
+  if (cached && now - cached.loadedAtMs <= CACHE_TTL_MS) return cached.rows;
+  const obj = await bucket.get(partitionKey);
+  if (!obj) return null;
+  const gz = await obj.arrayBuffer();
+  const jsonText = await gunzipToString(gz);
+  const rawRows = JSON.parse(jsonText) as CellRow[];
+  PARTITION_CACHE.set(partitionKey, { rows: rawRows, loadedAtMs: Date.now() });
+  return rawRows;
+}
+
+/** Merge rows from multiple partitions by (gx, gy) using tx_count-weighted mean
+ *  for median and median_ppsf.  All partitions are raw (pre-applyFilters) rows.
+ */
+function mergePartitionRows(partitions: CellRow[][]): CellRow[] {
+  type Accum = {
+    gx: number; gy: number;
+    medianWSum: number; medianTx: number;
+    ppsfWSum: number; ppsfTx: number;
+    totalTx: number;
+    endMonth: string; newBuild: string;
+  };
+  const cellMap = new Map<string, Accum>();
+  for (const rows of partitions) {
+    for (const r of rows) {
+      const tx = Number(r.tx_count ?? 0);
+      if (tx <= 0) continue;
+      const key = `${r.gx}_${r.gy}`;
+      let acc = cellMap.get(key);
+      if (!acc) {
+        acc = { gx: r.gx, gy: r.gy, medianWSum: 0, medianTx: 0, ppsfWSum: 0, ppsfTx: 0, totalTx: 0, endMonth: r.end_month, newBuild: r.new_build };
+        cellMap.set(key, acc);
+      }
+      acc.totalTx += tx;
+      const med = Number(r.median ?? NaN);
+      if (Number.isFinite(med)) { acc.medianWSum += med * tx; acc.medianTx += tx; }
+      const ppsf = Number((r as any).median_ppsf ?? NaN);
+      if (Number.isFinite(ppsf)) { acc.ppsfWSum += ppsf * tx; acc.ppsfTx += tx; }
+    }
+  }
+  const merged: CellRow[] = [];
+  for (const acc of cellMap.values()) {
+    const row: CellRow = {
+      gx: acc.gx, gy: acc.gy,
+      end_month: acc.endMonth,
+      property_type: "MULTI",
+      new_build: acc.newBuild,
+      tx_count: acc.totalTx,
+    };
+    if (acc.medianTx > 0) row.median = acc.medianWSum / acc.medianTx;
+    if (acc.ppsfTx > 0) (row as any).median_ppsf = acc.ppsfWSum / acc.ppsfTx;
+    merged.push(row);
+  }
+  return merged;
 }
 
 /* ---------- partition cache ---------- */
@@ -454,7 +571,8 @@ async function legacyHandler(
   env: Env,
   grid: GridKey,
   metric: CellsMetric,
-  propertyType: string,
+  propertyTypeCanonical: string,
+  propertyTypesArr: string[],
   newBuild: string,
   endMonth: string,
   minTxCount: number,
@@ -485,15 +603,25 @@ async function legacyHandler(
 
   const resolvedMonth = endMonth === "LATEST" ? entry.latestEndMonth : endMonth;
 
-  const filtered = entry.rows.filter(
+  // Match by individual type atoms; empty typeSet means "ALL" (accept any)
+  const typeSet = propertyTypesArr.filter((t) => t !== "ALL");
+  const preFiltered = entry.rows.filter(
     (r) =>
       r.end_month === resolvedMonth &&
-      r.property_type === propertyType &&
-      r.new_build === newBuild &&
-      Number(r.tx_count ?? 0) >= minTxCount
+      (typeSet.length === 0 || typeSet.includes(r.property_type)) &&
+      r.new_build === newBuild
   );
 
-  const rows = filtered.map((r) => ({
+  // For multi-type: merge cells first, then apply minTxCount to merged totals
+  let rawRows: CellRow[];
+  if (typeSet.length > 1) {
+    const merged = mergePartitionRows([preFiltered]);
+    rawRows = merged.filter((r) => Number(r.tx_count ?? 0) >= minTxCount);
+  } else {
+    rawRows = preFiltered.filter((r) => Number(r.tx_count ?? 0) >= minTxCount);
+  }
+
+  const rows = rawRows.map((r) => ({
     ...r,
     median:
       metric === "median_ppsf"
@@ -509,7 +637,7 @@ async function legacyHandler(
     grid,
     metric,
     end_month: resolvedMonth,
-    propertyType,
+    propertyType: propertyTypeCanonical,
     newBuild,
     minTxCount,
     count: withAge.length,

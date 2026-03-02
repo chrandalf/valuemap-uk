@@ -20,7 +20,7 @@ type GridMode = "auto" | "manual";
 
 type IndexScoringPrefs = {
   budget: number;
-  propertyType: "ALL" | "D" | "S" | "T" | "F";
+  propertyType: string;
   affordWeight: number;
   floodWeight: number;
   schoolWeight: number;
@@ -33,7 +33,7 @@ type IndexScoringPrefs = {
 type MapState = {
   grid: GridSize;
   metric: Metric;
-  propertyType: PropertyType;
+  propertyType: string;
   newBuild: NewBuild;
   endMonth?: string;
   valueFilterMode: ValueFilterMode;
@@ -69,6 +69,37 @@ const PROPERTY_LABEL: Record<PropertyType, string> = {
   T: "Terraced",
   F: "Flat",
 };
+
+function propertyTypeLabel(v: string): string {
+  if (v === "ALL") return "All";
+  const LABELS: Record<string, string> = { D: "Detached", S: "Semi", T: "Terraced", F: "Flat" };
+  return v.split(",").map((t) => LABELS[t] ?? t).join(" + ");
+}
+
+function togglePropertyType(current: string, toggle: string): string {
+  const ORDER = ["D", "S", "T", "F"];
+  if (toggle === "ALL") return "ALL";
+  const currentTypes = current === "ALL" ? [] : current.split(",");
+  let newTypes: string[];
+  if (currentTypes.includes(toggle)) {
+    newTypes = currentTypes.filter((t) => t !== toggle);
+  } else if (current === "ALL") {
+    newTypes = [toggle];
+  } else {
+    newTypes = [...currentTypes, toggle];
+  }
+  if (newTypes.length === 0 || newTypes.length === 4) return "ALL";
+  newTypes.sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b));
+  return newTypes.join(",");
+}
+
+function isValidPropertyTypeParam(v: string | null): v is string {
+  if (!v) return false;
+  if (v === "ALL") return true;
+  const ORDER = ["D", "S", "T", "F"];
+  const atoms = v.split(",").filter(Boolean);
+  return atoms.length > 0 && atoms.every((a) => ORDER.includes(a));
+}
 
 const NEWBUILD_LABEL: Record<NewBuild, string> = {
   ALL: "All",
@@ -195,7 +226,7 @@ export default function Home() {
       return {
         grid: GRIDS.includes(grid as GridSize) ? (grid as GridSize) : defaults.grid,
         metric: METRICS.includes(metric as Metric) ? (metric as Metric) : defaults.metric,
-        propertyType: TYPES.includes(type as PropertyType) ? (type as PropertyType) : defaults.propertyType,
+        propertyType: isValidPropertyTypeParam(type) ? type : defaults.propertyType,
         newBuild: NEWBUILDS.includes(newBuild as NewBuild) ? (newBuild as NewBuild) : defaults.newBuild,
         endMonth: period ?? defaults.endMonth,
         valueFilterMode: VFMS.includes(vfm as ValueFilterMode) ? (vfm as ValueFilterMode) : defaults.valueFilterMode,
@@ -276,7 +307,7 @@ export default function Home() {
   const [indexScoringPending, setIndexScoringPending] = useState(false);
   const [indexToken, setIndexToken] = useState(0);
   const [indexBudget, setIndexBudget] = useState(300000);
-  const [indexPropertyType, setIndexPropertyType] = useState<"ALL" | "D" | "S" | "T" | "F">("ALL");
+  const [indexPropertyType, setIndexPropertyType] = useState<string>("ALL");
   const [indexAffordWeight, setIndexAffordWeight] = useState(0);
   const [indexFloodWeight, setIndexFloodWeight] = useState(0);
   const [indexSchoolWeight, setIndexSchoolWeight] = useState(0);
@@ -992,19 +1023,19 @@ export default function Home() {
 
   const currentFiltersSummary =
     `Grid: ${state.grid} · Metric: ${METRIC_LABEL[state.metric]} · ` +
-    `Type: ${PROPERTY_LABEL[state.propertyType]} · New build: ${NEWBUILD_LABEL[state.newBuild]} · ` +
+    `Type: ${propertyTypeLabel(state.propertyType)} · New build: ${NEWBUILD_LABEL[state.newBuild]} · ` +
     `Period: ${periodLabel} · Flood: ${floodOverlayLabel} · Schools: ${schoolOverlayLabel} · ` +
     `Stations: ${state.stationOverlayMode === "off" ? "Off" : state.stationOverlayMode === "on" ? "On" : "On (hide cells)"} · ` +
     `Vote overlay: ${voteOverlayLabel} (${voteScaleLabel}) · ` +
     `Commute: ${state.commuteOverlayMode === "on" ? "On" : "Off"} · ` +
     `Age mix: ${state.ageOverlayMode === "on" ? "On" : "Off"}`;
   const headerFilterSummary =
-    `${state.grid} · ${METRIC_LABEL[state.metric]} · ${PROPERTY_LABEL[state.propertyType]} · ${NEWBUILD_LABEL[state.newBuild]} · ${periodLabel}`;
+    `${state.grid} · ${METRIC_LABEL[state.metric]} · ${propertyTypeLabel(state.propertyType)} · ${NEWBUILD_LABEL[state.newBuild]} · ${periodLabel}`;
   const headerMedianSummary =
     !isDeltaMetric(state.metric) && medianLegend
       ? `${formatMetricFilterValue(state.metric, medianLegend.breaks[0])}–${formatMetricFilterValue(state.metric, medianLegend.breaks[medianLegend.breaks.length - 1])}`
       : null;
-  const indexAffordabilitySummary = `Find my area affordability uses ${PROPERTY_LABEL[indexApplied.propertyType]} medians vs max price ${state.metric === "median_ppsf" ? `£${Math.round(indexApplied.budget).toLocaleString()}/ft²` : `£${Math.round(indexApplied.budget).toLocaleString()}`}`;
+  const indexAffordabilitySummary = `Find my area affordability uses ${propertyTypeLabel(indexApplied.propertyType)} medians vs max price ${state.metric === "median_ppsf" ? `£${Math.round(indexApplied.budget).toLocaleString()}/ft²` : `£${Math.round(indexApplied.budget).toLocaleString()}`}`;
   const topBarHeight = isMobileViewport ? 88 : 48;
   const topStripTop = topBarHeight + 4;
   const floatingPanelTop = topBarHeight + 8;
@@ -2244,7 +2275,17 @@ export default function Home() {
               <Segment options={["median", "median_ppsf", "delta_gbp", "delta_pct"]} value={state.metric} onChange={(v) => setState((s) => ({ ...s, metric: v as Metric }))} renderOption={(v) => METRIC_LABEL[v as Metric]} />
             </ControlRow>
             <ControlRow label="Type">
-              <Segment options={["ALL", "D", "S", "T", "F"]} value={state.propertyType} onChange={(v) => setState((s) => ({ ...s, propertyType: v as PropertyType }))} renderOption={(v) => PROPERTY_LABEL[v as PropertyType]} />
+              <div style={{ display: "flex", borderRadius: 999, overflow: "hidden", border: "1px solid rgba(255,255,255,0.14)", background: "rgba(255,255,255,0.06)", width: "fit-content", flexWrap: "wrap" }}>
+                <button type="button" onClick={() => setState((s) => ({ ...s, propertyType: "ALL" }))} className={state.propertyType === "ALL" ? "segment-btn active" : "segment-btn"} style={{ cursor: "pointer", border: "none", padding: "5px 9px", fontSize: 11, color: "white", background: state.propertyType === "ALL" ? "rgba(255,255,255,0.16)" : "transparent" }}>All</button>
+                {(["D", "S", "T", "F"] as const).map((pt) => {
+                  const isActive = state.propertyType !== "ALL" && state.propertyType.split(",").includes(pt);
+                  return (
+                    <button key={pt} type="button" onClick={() => setState((s) => ({ ...s, propertyType: togglePropertyType(s.propertyType, pt) }))} className={isActive ? "segment-btn active" : "segment-btn"} style={{ cursor: "pointer", border: "none", padding: "5px 9px", fontSize: 11, color: "white", background: isActive ? "rgba(255,255,255,0.16)" : "transparent" }}>
+                      {PROPERTY_LABEL[pt]}
+                    </button>
+                  );
+                })}
+              </div>
             </ControlRow>
             <ControlRow label="New build">
               <Segment options={["ALL", "Y", "N"]} value={state.newBuild} onChange={(v) => setState((s) => ({ ...s, newBuild: v as NewBuild }))} renderOption={(v) => NEWBUILD_LABEL[v as NewBuild]} />
@@ -2469,25 +2510,46 @@ export default function Home() {
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <span style={{ fontSize: 11, fontWeight: 600, flex: "0 0 auto", minWidth: 64 }}>🏠 Type</span>
                 <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
-                  {(["ALL", "D", "S", "T", "F"] as const).map((pt) => (
+                  {("ALL" as const) && (
                     <button
-                      key={pt}
                       type="button"
-                      onClick={() => setIndexPropertyType(pt)}
+                      onClick={() => setIndexPropertyType("ALL")}
                       style={{
                         cursor: "pointer",
-                        border: indexPropertyType === pt ? "1.5px solid rgba(250,204,21,0.85)" : "1px solid rgba(255,255,255,0.15)",
-                        background: indexPropertyType === pt ? "rgba(250,204,21,0.18)" : "rgba(255,255,255,0.05)",
+                        border: indexPropertyType === "ALL" ? "1.5px solid rgba(250,204,21,0.85)" : "1px solid rgba(255,255,255,0.15)",
+                        background: indexPropertyType === "ALL" ? "rgba(250,204,21,0.18)" : "rgba(255,255,255,0.05)",
                         color: "white",
                         padding: "3px 8px",
                         borderRadius: 6,
                         fontSize: 10,
-                        fontWeight: indexPropertyType === pt ? 700 : 400,
+                        fontWeight: indexPropertyType === "ALL" ? 700 : 400,
                       }}
                     >
-                      {PROPERTY_LABEL[pt]}
+                      All
                     </button>
-                  ))}
+                  )}
+                  {(["D", "S", "T", "F"] as const).map((pt) => {
+                    const isActive = indexPropertyType !== "ALL" && indexPropertyType.split(",").includes(pt);
+                    return (
+                      <button
+                        key={pt}
+                        type="button"
+                        onClick={() => setIndexPropertyType((prev) => togglePropertyType(prev, pt))}
+                        style={{
+                          cursor: "pointer",
+                          border: isActive ? "1.5px solid rgba(250,204,21,0.85)" : "1px solid rgba(255,255,255,0.15)",
+                          background: isActive ? "rgba(250,204,21,0.18)" : "rgba(255,255,255,0.05)",
+                          color: "white",
+                          padding: "3px 8px",
+                          borderRadius: 6,
+                          fontSize: 10,
+                          fontWeight: isActive ? 700 : 400,
+                        }}
+                      >
+                        {PROPERTY_LABEL[pt]}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -3257,10 +3319,9 @@ export default function Home() {
           {mobileQuickFilterKey === "propertyType" && (
             <>
               <button type="button" className={state.propertyType === "ALL" ? "mobile-grid-btn active" : "mobile-grid-btn"} onClick={() => setState((s) => ({ ...s, propertyType: "ALL" }))}>All</button>
-              <button type="button" className={state.propertyType === "D" ? "mobile-grid-btn active" : "mobile-grid-btn"} onClick={() => setState((s) => ({ ...s, propertyType: "D" }))}>D</button>
-              <button type="button" className={state.propertyType === "S" ? "mobile-grid-btn active" : "mobile-grid-btn"} onClick={() => setState((s) => ({ ...s, propertyType: "S" }))}>S</button>
-              <button type="button" className={state.propertyType === "T" ? "mobile-grid-btn active" : "mobile-grid-btn"} onClick={() => setState((s) => ({ ...s, propertyType: "T" }))}>T</button>
-              <button type="button" className={state.propertyType === "F" ? "mobile-grid-btn active" : "mobile-grid-btn"} onClick={() => setState((s) => ({ ...s, propertyType: "F" }))}>F</button>
+              {(["D", "S", "T", "F"] as const).map((pt) => (
+                <button key={pt} type="button" className={state.propertyType !== "ALL" && state.propertyType.split(",").includes(pt) ? "mobile-grid-btn active" : "mobile-grid-btn"} onClick={() => setState((s) => ({ ...s, propertyType: togglePropertyType(s.propertyType, pt) }))}>{pt}</button>
+              ))}
             </>
           )}
           {mobileQuickFilterKey === "newBuild" && (

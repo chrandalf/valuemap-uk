@@ -34,7 +34,7 @@ export type MapState = {
 
 export type IndexPrefs = {
   budget: number;           // target price (median GBP or PPSF depending on metric)
-  propertyType: "ALL" | "D" | "S" | "T" | "F"; // property type for affordability
+  propertyType: string;     // property type for affordability (ALL|D|S|T|F or comma-joined e.g. D,S)
   affordWeight: number;     // 0-10 importance
   floodWeight: number;      // 0-10 importance
   schoolWeight: number;     // 0-10 importance
@@ -1838,7 +1838,8 @@ export default function ValueMap({
         const totalCol = totalScore < 0.35 ? "#ef4444" : totalScore < 0.55 ? "#fb923c" : totalScore < 0.72 ? "#facc15" : "#4ade80";
         html += `<div style="font-weight:700;margin-bottom:7px;font-size:13px;">🗺️ Match score: <span style="color:${totalCol}">${Math.round(totalScore * 100)}%</span></div>`;
         const ptLabels: Record<string, string> = { ALL: "All types", D: "Detached", S: "Semi", T: "Terraced", F: "Flat" };
-        const ptLabel = ptLabels[prefs.propertyType ?? "ALL"] ?? "";
+        const rawPtKey = prefs.propertyType ?? "ALL";
+        const ptLabel = ptLabels[rawPtKey] ?? rawPtKey.split(",").map((t) => ptLabels[t] ?? t).join(" + ");
         const affordRef = Number(p.ix_av ?? NaN);
         const ixan = Number(p.ix_an ?? 0);
         const affordNoData   = ixan === 1; // truly no data
