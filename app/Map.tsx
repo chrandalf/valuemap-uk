@@ -39,9 +39,10 @@ export type IndexPrefs = {
   propertyType: string;     // property type for affordability (ALL|D|S|T|F or comma-joined e.g. D,S)
   affordWeight: number;     // 0-10 importance
   floodWeight: number;      // 0-10 importance
-  schoolWeight: number;     // 0-10 importance
-  trainWeight: number;      // 0-10 importance (nearest station distance)
-  coastWeight: number;      // 0-10 importance (placeholder for now)
+  schoolWeight: number;        // 0-10 importance (secondary school quality)
+  primarySchoolWeight?: number; // 0-10 importance (nearest primary school walking distance)
+  trainWeight: number;          // 0-10 importance (nearest station distance)
+  coastWeight: number;          // 0-10 importance (placeholder for now)
   ageWeight?: number;       // 0-10 importance (community age mix)
   ageDirection?: "young" | "old"; // prefer younger or older communities
   indexFilterMode?: "off" | "lte" | "gte";
@@ -274,6 +275,7 @@ export type RgLogEntry = {
   timestamp: string;      // ISO-8601
   floodSummary: string;   // plain text
   schoolSummary: string;
+  primarySchoolSummary?: string;
   stationSummary: string;
   cellMedian?: number;    // median house price in the clicked cell
   cellDeltaPct?: number;  // price change % (negative = fallen)
@@ -285,7 +287,7 @@ export type RgLogEntry = {
 /** Data passed to page.tsx for the right-click info panel. */
 export type RightClickInfoData =
   | { stage: 'loading'; clickLat: number; clickLng: number }
-  | { stage: 'ready'; postcode: string; isOutcode: boolean; floodHtml: string; schoolHtml: string; stationHtml: string; clickLat: number; clickLng: number; cellMedian?: number; cellDeltaPct?: number; cellDeltaGbp?: number; cellTxCount?: number; constituency?: string; };
+  | { stage: 'ready'; postcode: string; isOutcode: boolean; floodHtml: string; schoolHtml: string; primarySchoolHtml: string; stationHtml: string; clickLat: number; clickLng: number; cellMedian?: number; cellDeltaPct?: number; cellDeltaGbp?: number; cellTxCount?: number; constituency?: string; };
 
 export default function ValueMap({
   state,
@@ -2113,10 +2115,11 @@ export default function ValueMap({
             html += `<div style="font-size:10px;opacity:0.72;margin:-2px 0 5px 0;">Affordability reference median: <b>£${Math.round(affordRef).toLocaleString()}${unit}</b></div>`;
           }
         }
-        if (prefs.floodWeight > 0)  html += wRow("🌊 Flood safety",   prefs.floodWeight,  bar(Number(p.ix_f ?? 0.5), p.ix_fn === 1));
-        if (prefs.schoolWeight > 0) html += wRow("🏫 Schools",        prefs.schoolWeight, bar(Number(p.ix_s ?? 0.5), p.ix_sn === 1));
-        if (prefs.trainWeight > 0)  html += wRow("🚂 Train station",  prefs.trainWeight,  bar(Number(p.ix_t ?? 0.5), p.ix_tn === 1));
-        if (prefs.coastWeight > 0)  html += wRow("🏖️ Coast",          prefs.coastWeight,  bar(0.5, true));
+        if (prefs.floodWeight > 0)              html += wRow("🌊 Flood safety",          prefs.floodWeight,              bar(Number(p.ix_f  ?? 0.5), p.ix_fn === 1));
+        if (prefs.schoolWeight > 0)             html += wRow("🏫 Schools (secondary)",   prefs.schoolWeight,             bar(Number(p.ix_s  ?? 0.5), p.ix_sn === 1));
+        if ((prefs.primarySchoolWeight ?? 0) > 0) html += wRow("🏫 Primary school nearby", prefs.primarySchoolWeight!,   bar(Number(p.ix_p  ?? 0.5), p.ix_pn === 1));
+        if (prefs.trainWeight > 0)              html += wRow("🚂 Train station",          prefs.trainWeight,              bar(Number(p.ix_t  ?? 0.5), p.ix_tn === 1));
+        if (prefs.coastWeight > 0)              html += wRow("🏖️ Coast",                 prefs.coastWeight,              bar(0.5, true));
         if ((prefs.ageWeight ?? 0) > 0) html += wRow(`👥 Community age (${(prefs.ageDirection ?? "young") === "old" ? "older" : "younger"})`, prefs.ageWeight!, bar(Number(p.ix_ag ?? 0.5), false));
         html += `</div>`;
         popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
@@ -2463,6 +2466,27 @@ export default function ValueMap({
       if (_indexStationGrid === null && _indexStationCache !== null) _indexStationGrid = buildSpatialGrid(_indexStationCache, 0.12);
       return _indexStationGrid;
     };
+    const ensurePrimarySchool = async () => {
+      if (_indexPrimarySchoolCache === null) {
+        try {
+          const r = await fetch("/api/schools?key=primary_school_overlay_points.geojson.gz&plain=1");
+          _indexPrimarySchoolCache = r.ok
+            ? ((await r.json() as any)?.features ?? [])
+                .filter((f: any) => f?.geometry?.type === "Point")
+                .map((f: any) => ({
+                  lon: Number(f.geometry.coordinates[0]),
+                  lat: Number(f.geometry.coordinates[1]),
+                  ofstedGrade: Number(f.properties?.ofsted_grade ?? 0),
+                  name: String(f.properties?.name ?? ""),
+                  urn: String(f.properties?.urn ?? ""),
+                }))
+            : [];
+        } catch { _indexPrimarySchoolCache = []; }
+        _indexPrimarySchoolGrid = null;
+      }
+      if (_indexPrimarySchoolGrid === null) _indexPrimarySchoolGrid = buildSpatialGrid(_indexPrimarySchoolCache!, 0.12);
+      return _indexPrimarySchoolGrid;
+    };
 
     // Clear any previous lines immediately when a new right-click starts
     setFloodSearchFocus(map, null);
@@ -2473,9 +2497,10 @@ export default function ValueMap({
     void (async () => {
       try {
         // Run postcode lookup and dataset loading in parallel
-        const [floodG, schoolG, stationG, pcRes] = await Promise.all([
+        const [floodG, schoolG, primarySchoolG, stationG, pcRes] = await Promise.all([
           ensureFlood(),
           ensureSchool(),
+          ensurePrimarySchool(),
           ensureStation(),
           fetch(`https://api.postcodes.io/postcodes?lon=${lng}&lat=${lat}&limit=1&radius=2000`),
         ]);
@@ -2558,6 +2583,27 @@ export default function ValueMap({
             nearestGoodSch && nearestGoodSch !== nearestSch ? toSchEntry(nearestGoodSch, nearGoodSchD) : null,
             { lon: lng, lat: lat }
           );
+        }
+
+        // ── Nearest primary school within 5 km ──
+        let primarySchoolHtml = '<span style="color:#6b7280">No data here</span>';
+        if (primarySchoolG) {
+          const pss = querySpatialGrid(primarySchoolG, lng, lat, 0.045);
+          let nearestPs: (typeof pss)[0] | null = null; let nearPsD = Infinity;
+          for (const ps of pss) {
+            const d = haversineDistanceMeters(lat, lng, ps.lat, ps.lon);
+            if (d < nearPsD) { nearPsD = d; nearestPs = ps; }
+          }
+          if (nearestPs) {
+            const psGradeLabels: Record<number, string> = { 0: "Not graded", 1: "Outstanding", 2: "Good", 3: "Requires improvement", 4: "Inadequate" };
+            const psGradeColors: Record<number, string> = { 0: "#9ca3af", 1: "#16a34a", 2: "#2563eb", 3: "#f59e0b", 4: "#dc2626" };
+            const psLabel = psGradeLabels[nearestPs.ofstedGrade] ?? "Not graded";
+            const psCol   = psGradeColors[nearestPs.ofstedGrade] ?? "#9ca3af";
+            const psLink  = nearestPs.urn ? `https://reports.ofsted.gov.uk/provider/21/${nearestPs.urn}` : null;
+            const psNameHtml  = nearestPs.name ? `<span style="color:#374151">${nearestPs.name}</span> &mdash; ` : "";
+            const psOfstedLink = psLink ? ` <a href="${psLink}" target="_blank" rel="noreferrer" style="color:#6366f1;font-size:10px;text-decoration:none;white-space:nowrap">Ofsted ↗</a>` : "";
+            primarySchoolHtml = `${psNameHtml}<span style="color:${psCol}">${psLabel}</span> <span style="color:#9ca3af">${fmtDist(nearPsD)} away</span>${psOfstedLink}`;
+          }
         }
 
         // ── Nearest station within 30 km ──
@@ -2679,6 +2725,7 @@ export default function ValueMap({
           timestamp: new Date().toISOString(),
           floodSummary: stripHtml(floodHtml),
           schoolSummary: stripHtml(schoolHtml),
+          primarySchoolSummary: stripHtml(primarySchoolHtml),
           stationSummary: stripHtml(stationHtml),
           cellMedian, cellDeltaPct, cellTxCount, constituency,
           cellDeltaGbp,
@@ -2688,7 +2735,7 @@ export default function ValueMap({
         onRightClickInfoRef.current?.({
           stage: 'ready',
           postcode, isOutcode,
-          floodHtml, schoolHtml, stationHtml,
+          floodHtml, schoolHtml, primarySchoolHtml, stationHtml,
           clickLat: lat, clickLng: lng,
           cellMedian, cellDeltaPct, cellDeltaGbp, cellTxCount, constituency,
         });
@@ -4092,6 +4139,8 @@ type SpatialGrid<T> = { buckets: Map<number, T[]>; cellSize: number };
 let _indexFloodGrid: SpatialGrid<{ lon: number; lat: number; riskScore: number }> | null = null;
 let _indexSchoolGrid: SpatialGrid<{ lon: number; lat: number; qualityScore: number; isGood: boolean; schoolName: string; urn: string }> | null = null;
 let _indexStationGrid: SpatialGrid<{ lon: number; lat: number; name: string; code: string }> | null = null;
+let _indexPrimarySchoolCache: Array<{ lon: number; lat: number; ofstedGrade: number; name: string; urn: string }> | null = null;
+let _indexPrimarySchoolGrid: SpatialGrid<{ lon: number; lat: number; ofstedGrade: number; name: string; urn: string }> | null = null;
 
 function buildSpatialGrid<T extends { lon: number; lat: number }>(points: T[], cellSize: number): SpatialGrid<T> {
   const buckets = new Map<number, T[]>();
@@ -4183,6 +4232,30 @@ async function applyIndexScoring(
     _indexSchoolGrid = null;
   }
 
+  // — Fetch primary school data once, build grid index —
+  if (_indexPrimarySchoolCache === null) {
+    try {
+      const res = await fetch("/api/schools?key=primary_school_overlay_points.geojson.gz&plain=1");
+      if (res.ok) {
+        const payload = (await res.json()) as any;
+        _indexPrimarySchoolCache = (Array.isArray(payload?.features) ? payload.features : [])
+          .filter((f: any) => f?.geometry?.type === "Point")
+          .map((f: any) => ({
+            lon: Number(f.geometry.coordinates[0]),
+            lat: Number(f.geometry.coordinates[1]),
+            ofstedGrade: Number(f.properties?.ofsted_grade ?? 0),
+            name: String(f.properties?.name ?? ""),
+            urn: String(f.properties?.urn ?? ""),
+          }));
+      } else {
+        _indexPrimarySchoolCache = [];
+      }
+    } catch {
+      _indexPrimarySchoolCache = [];
+    }
+    _indexPrimarySchoolGrid = null;
+  }
+
   // — Fetch station data once, build grid index —
   if (_indexStationCache === null) {
     try {
@@ -4210,10 +4283,16 @@ async function applyIndexScoring(
   if (_indexFloodGrid === null) _indexFloodGrid = buildSpatialGrid(_indexFloodCache!, GRID_CELL);
   if (_indexSchoolGrid === null) _indexSchoolGrid = buildSpatialGrid(_indexSchoolCache!, GRID_CELL);
   if (_indexStationGrid === null && _indexStationCache !== null) _indexStationGrid = buildSpatialGrid(_indexStationCache, GRID_CELL);
+  if (_indexPrimarySchoolGrid === null && _indexPrimarySchoolCache !== null) _indexPrimarySchoolGrid = buildSpatialGrid(_indexPrimarySchoolCache, GRID_CELL);
 
   const floodGrid = _indexFloodGrid;
   const schoolGrid = _indexSchoolGrid;
   const stationGrid = _indexStationGrid;
+  const primarySchoolGrid = _indexPrimarySchoolGrid;
+
+  // Walking distance thresholds for primary schools
+  const PRIMARY_WALK_GOOD_METERS = 800;   // ≤800m (10-min walk) = full score
+  const PRIMARY_WALK_MAX_METERS  = 3200;  // >3.2km (2 miles) = zero score
   const metricProp = metricPropName(state.metric);
 
   // — Fetch property-type-specific cell data for affordability reference —
@@ -4475,6 +4554,42 @@ async function applyIndexScoring(
     props.ix_s = schoolScore;
     props.ix_sn = schoolNoData ? 1 : 0;
 
+    // 3b) Primary school walking distance
+    let primarySchoolScore = 0.5;
+    let primarySchoolNoData = false;
+    const primaryW = prefs.primarySchoolWeight ?? 0;
+    if (primaryW > 0) {
+      const cellC: string = props.country ?? "";
+      const noPrimary =
+        cellC === "W" || cellC === "S" || cellC === "N"
+          ? true
+          : cellC !== "E"
+            ? !primarySchoolGrid || querySpatialGrid(primarySchoolGrid, cLon, cLat, DATA_DEG).length === 0
+            : false;
+      if (noPrimary) {
+        primarySchoolNoData = true;
+        primarySchoolScore = 0.5;
+      } else if (primarySchoolGrid) {
+        // Find nearest primary school of any grade
+        let minDist = Infinity;
+        for (const sp of querySpatialGrid(primarySchoolGrid, cLon, cLat, NEAR_DEG)) {
+          const d = haversineDistanceMeters(cLat, cLon, sp.lat, sp.lon);
+          if (d < minDist) minDist = d;
+        }
+        if (minDist <= PRIMARY_WALK_GOOD_METERS) {
+          primarySchoolScore = 1.0;
+        } else if (minDist >= PRIMARY_WALK_MAX_METERS) {
+          primarySchoolScore = 0.0;
+        } else {
+          primarySchoolScore = 1 - (minDist - PRIMARY_WALK_GOOD_METERS) / (PRIMARY_WALK_MAX_METERS - PRIMARY_WALK_GOOD_METERS);
+        }
+      }
+      totalScore += primaryW * primarySchoolScore;
+      totalWeight += primaryW;
+    }
+    props.ix_p  = primarySchoolScore;
+    props.ix_pn = primarySchoolNoData ? 1 : 0;
+
     // 4) Train station proximity — score by distance to nearest station
     let trainScore = 0.5;
     let trainNoData = false;
@@ -4559,6 +4674,10 @@ async function applyIndexScoring(
     if (prefs.schoolWeight > 0 && !schoolNoData && schoolScore < 0.5) {
       const shortfall = (0.5 - schoolScore) / 0.5;
       vetoMultiplier *= Math.max(0, 1 - Math.min(prefs.schoolWeight, VETO_WEIGHT_CAP) * shortfall * 0.5);
+    }
+    if (primaryW > 0 && !primarySchoolNoData && primarySchoolScore < 0.5) {
+      const shortfall = (0.5 - primarySchoolScore) / 0.5;
+      vetoMultiplier *= Math.max(0, 1 - Math.min(primaryW, VETO_WEIGHT_CAP) * shortfall * 0.5);
     }
     if (prefs.trainWeight > 0 && !trainNoData && trainScore < 0.5) {
       const shortfall = (0.5 - trainScore) / 0.5;

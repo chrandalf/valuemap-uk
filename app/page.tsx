@@ -25,6 +25,7 @@ type IndexScoringPrefs = {
   affordWeight: number;
   floodWeight: number;
   schoolWeight: number;
+  primarySchoolWeight?: number;
   trainWeight: number;
   coastWeight: number;
   ageWeight?: number;
@@ -322,6 +323,7 @@ export default function Home() {
   const [indexAffordWeight, setIndexAffordWeight] = useState(0);
   const [indexFloodWeight, setIndexFloodWeight] = useState(0);
   const [indexSchoolWeight, setIndexSchoolWeight] = useState(0);
+  const [indexPrimarySchoolWeight, setIndexPrimarySchoolWeight] = useState(0);
   const [indexTrainWeight, setIndexTrainWeight] = useState(0);
   const [indexCoastWeight, setIndexCoastWeight] = useState(0);
   const [indexAgeWeight, setIndexAgeWeight] = useState(0);
@@ -361,6 +363,7 @@ export default function Home() {
       affordWeight: indexApplied.affordWeight,
       floodWeight: indexApplied.floodWeight,
       schoolWeight: indexApplied.schoolWeight,
+      primarySchoolWeight: indexApplied.primarySchoolWeight ?? 0,
       trainWeight: indexApplied.trainWeight,
       coastWeight: indexApplied.coastWeight,
       ageWeight: indexApplied.ageWeight ?? 0,
@@ -423,6 +426,7 @@ export default function Home() {
     setIndexAffordWeight(0);
     setIndexFloodWeight(0);
     setIndexSchoolWeight(0);
+    setIndexPrimarySchoolWeight(0);
     setIndexTrainWeight(0);
     setIndexCoastWeight(0);
     setIndexAgeWeight(0);
@@ -434,6 +438,7 @@ export default function Home() {
       affordWeight: 0,
       floodWeight: 0,
       schoolWeight: 0,
+      primarySchoolWeight: 0,
       trainWeight: 0,
       coastWeight: 0,
       ageWeight: 0,
@@ -2608,7 +2613,8 @@ export default function Home() {
               </div>
               <ImportancePicker emoji="💰" label="Affordability" value={indexAffordWeight} onChange={setIndexAffordWeight} color="#facc15" />
               <ImportancePicker emoji="🌊" label="Flood safety"  value={indexFloodWeight}  onChange={setIndexFloodWeight}  color="#60a5fa" />
-              <ImportancePicker emoji="🏫" label="Schools"       value={indexSchoolWeight} onChange={setIndexSchoolWeight} color="#22c55e" />
+              <ImportancePicker emoji="🏫" label="Schools (sec.)"  value={indexSchoolWeight}        onChange={setIndexSchoolWeight}        color="#22c55e" />
+              <ImportancePicker emoji="🕋" label="Primary school" value={indexPrimarySchoolWeight} onChange={setIndexPrimarySchoolWeight} color="#86efac" />
               <ImportancePicker emoji="🚂" label="Trains"        value={indexTrainWeight}  onChange={setIndexTrainWeight}  color="#f97316" />
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
                 <span style={{ fontSize: 11, fontWeight: 600, flex: "0 0 auto", minWidth: 100 }}>👥 Community age</span>
@@ -2641,7 +2647,7 @@ export default function Home() {
 
             {/* Coverage note */}
             <div style={{ fontSize: 10, opacity: 0.52, marginBottom: 10, lineHeight: 1.35 }}>
-              ⓘ Flood &amp; school scores use England-only data — Wales &amp; Scotland coming later.
+              ⓘ Flood, secondary &amp; primary school scores use England-only data — Wales &amp; Scotland coming later.
             </div>
 
             {indexActive && (
@@ -2657,7 +2663,7 @@ export default function Home() {
                 onClick={() => {
                   // — Validate before scoring —
                   const totalW = indexAffordWeight + indexFloodWeight + indexSchoolWeight +
-                    indexTrainWeight + indexCoastWeight + indexAgeWeight;
+                    indexPrimarySchoolWeight + indexTrainWeight + indexCoastWeight + indexAgeWeight;
                   if (totalW === 0) {
                     setIndexValidationError("Please set at least one criterion above Off before scoring.");
                     return;
@@ -2674,6 +2680,7 @@ export default function Home() {
                     affordWeight: indexAffordWeight,
                     floodWeight: indexFloodWeight,
                     schoolWeight: indexSchoolWeight,
+                    primarySchoolWeight: indexPrimarySchoolWeight,
                     trainWeight: indexTrainWeight,
                     coastWeight: indexCoastWeight,
                     ageWeight: indexAgeWeight,
@@ -3647,9 +3654,10 @@ export default function Home() {
           ) : (
             <div style={{ padding: "8px 12px" }}>
               {([
-                { icon: "🌊", label: "Flood",   html: rightClickInfo.floodHtml },
-                { icon: "🏫", label: "Schools", html: rightClickInfo.schoolHtml },
-                { icon: "🚂", label: "Station", html: rightClickInfo.stationHtml },
+                { icon: "🌊", label: "Flood",       html: rightClickInfo.floodHtml },
+                { icon: "🏫", label: "Sec. school", html: rightClickInfo.schoolHtml },
+                { icon: "🔑", label: "Pri. school", html: rightClickInfo.primarySchoolHtml },
+                { icon: "🚂", label: "Station",     html: rightClickInfo.stationHtml },
               ] as const).map(({ icon, label, html }) => (
                 <div key={label} style={{ display: "flex", gap: 6, alignItems: "flex-start", padding: "4px 0", borderBottom: "1px solid #f9fafb" }}>
                   <span style={{ width: 16, flexShrink: 0, textAlign: "center", paddingTop: 1 }}>{icon}</span>
@@ -3731,9 +3739,10 @@ export default function Home() {
           ) : (
             <div style={{ padding: "8px 14px 16px" }}>
               {([
-                { icon: "🌊", label: "Flood",   html: rightClickInfo.floodHtml },
-                { icon: "🏫", label: "Schools", html: rightClickInfo.schoolHtml },
-                { icon: "🚂", label: "Station", html: rightClickInfo.stationHtml },
+                { icon: "🌊", label: "Flood",       html: rightClickInfo.floodHtml },
+                { icon: "🏫", label: "Sec. school", html: rightClickInfo.schoolHtml },
+                { icon: "🔑", label: "Pri. school", html: rightClickInfo.primarySchoolHtml },
+                { icon: "🚂", label: "Station",     html: rightClickInfo.stationHtml },
               ] as const).map(({ icon, label, html }) => (
                 <div key={label} style={{ display: "flex", gap: 6, alignItems: "flex-start", padding: "4px 0", borderBottom: "1px solid #f9fafb" }}>
                   <span style={{ width: 16, flexShrink: 0, textAlign: "center", paddingTop: 1 }}>{icon}</span>
