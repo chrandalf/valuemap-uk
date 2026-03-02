@@ -3012,6 +3012,11 @@ export default function Home() {
                   </div>
                   <div style={{ fontSize: 10, opacity: 0.8, marginTop: 4 }}>
                     {`Match filter: ${indexSuitabilityLabel}`}
+                  </div>
+                </div>
+              )}
+
+              {isMobileViewport && (
                 <div style={{ marginTop: 2 }}>
                   <button
                     type="button"
