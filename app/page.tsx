@@ -968,8 +968,8 @@ export default function Home() {
       : `${state.valueFilterMode === "lte" ? "Below" : "Above"} ${formatMetricFilterValue(state.metric, state.valueThreshold)}`;
   const indexSuitabilityLabel =
     indexSuitabilityMode === "off"
-      ? "Off"
-      : `${indexSuitabilityMode === "lte" ? "Below" : "Above"} ${indexSuitabilityThreshold}%`;
+      ? "Off (all areas shown)"
+      : `${indexSuitabilityMode === "lte" ? "Score ≤" : "Score ≥"} ${indexSuitabilityThreshold}%`;
   const compactIndexUi = isMobileViewport;
   const floodOverlayLabel =
     state.floodOverlayMode === "off"
@@ -1319,7 +1319,7 @@ export default function Home() {
     {
       target: "[data-tour='area-match-filter']",
       title: "Step 9 — Filtering: show only good matches",
-      text: "I've set the Area Match Filter to \"Above 65%\". Watch the map — all cells scoring below 65% have just vanished! Only the green and yellow-green areas remain. This instantly narrows your search to areas that genuinely match your criteria.",
+      text: "I've set the match filter to \"Good matches ≥ 65%\". Watch the map — all cells scoring below 65% have just vanished! Only the green and yellow-green areas remain. This instantly narrows your search to areas that genuinely fit your criteria — raise the slider to get an even tighter shortlist.",
       placement: "left" as const,
       enterDelay: 1000,
       onEnter: () => {
@@ -1332,8 +1332,8 @@ export default function Home() {
     /* 11 — Demo: area match filter — switch to Below 65% */
     {
       target: "[data-tour='area-match-filter']",
-      title: "Step 10 — The opposite angle: poor matches",
-      text: "Now I've flipped it to \"Below 65%\". The map shows the reverse — only areas that scored poorly remain visible. This is useful for understanding where NOT to look. You can see which areas fail on affordability, flood risk, or schools.",
+      title: "Step 10 — The other side: weaker areas",
+      text: "Now I've switched to \"Weak areas\". The map flips — only the lower-scoring cells stay visible. Useful for understanding where NOT to look, or for spotting up-and-coming areas that score average on schools but are affordable.",
       placement: "left" as const,
       enterDelay: 1200,
       onEnter: () => {
@@ -1345,7 +1345,7 @@ export default function Home() {
     {
       target: "[data-tour='area-match-filter']",
       title: "Step 11 — Back to the full picture",
-      text: "I've turned the filter off again so all cells are visible. Use \"Above\" to focus on winners, \"Below\" to understand rejects — you can change the threshold from 30% to 90% to be as strict or relaxed as you like.",
+      text: "I've set it back to \"All\" so every cell is visible again. In normal use it'll stay on \"Good matches\" after you score — just slide the threshold between 30–90% to be as relaxed or strict as you like.",
       placement: "left" as const,
       enterDelay: 1000,
       onEnter: () => {
@@ -2543,7 +2543,7 @@ export default function Home() {
 
             {indexActive && (
               <div style={{ fontSize: 10, opacity: 0.6, marginBottom: 8, lineHeight: 1.3, textAlign: "center" }}>
-                🟢 Great match · 🟡 Average · 🔴 Poor match · Suitability filter available after scoring.
+                🟢 Great match · 🟡 Average · 🔴 Poor match · After scoring, the map will hide weaker areas automatically — you can adjust the threshold in the filter below.
               </div>
             )}
 
@@ -2568,7 +2568,8 @@ export default function Home() {
                   setIndexScoringPending(true);
                   setIndexActive(true);
                   setIndexToken((t) => t + 1);
-                  setIndexSuitabilityMode("off");
+                  setIndexSuitabilityMode("gte");
+                  setIndexSuitabilityThreshold(50);
                   setIndexOpen(false);
                 }}
                 style={{
@@ -2950,21 +2951,20 @@ export default function Home() {
               }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                <div style={{ fontWeight: 700, fontSize: 14 }}>Area match filter</div>
-                <div style={{ fontSize: 10, opacity: 0.78 }}>0%–100%</div>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>🎯 Show only good matches</div>
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "84px 1fr", gap: 8, alignItems: "center" }}>
-                <div style={{ fontSize: 11, opacity: 0.8 }}>Mode</div>
+                <div style={{ fontSize: 11, opacity: 0.8 }}>Show</div>
                 <Segment
                   options={["off", "lte", "gte"]}
                   value={indexSuitabilityMode}
                   onChange={(v) => setIndexSuitabilityMode(v as ValueFilterMode)}
                   renderOption={(v) => {
                     const labels: Record<string, string> = {
-                      off: "Off",
-                      lte: "Below",
-                      gte: "Above",
+                      off: "All",
+                      lte: "Weak areas",
+                      gte: "Good matches",
                     };
                     return labels[v] ?? v;
                   }}
@@ -2972,7 +2972,7 @@ export default function Home() {
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "84px 1fr", gap: 8, alignItems: "center" }}>
-                <div style={{ fontSize: 11, opacity: indexSuitabilityMode === "off" ? 0.5 : 0.8 }}>Threshold</div>
+                <div style={{ fontSize: 11, opacity: indexSuitabilityMode === "off" ? 0.5 : 0.8 }}>Min score</div>
                 <div style={{ display: "grid", gap: 6 }}>
                   <input
                     type="range"
@@ -2986,10 +2986,10 @@ export default function Home() {
                   />
                   <div style={{ fontSize: 10, opacity: 0.8 }}>
                     {indexSuitabilityMode === "off"
-                      ? "Showing all suitability levels"
+                      ? "All scored areas visible"
                       : indexSuitabilityMode === "gte"
-                        ? `Above ${indexSuitabilityThreshold}%`
-                        : `Below ${indexSuitabilityThreshold}%`}
+                        ? `Showing areas scoring ≥ ${indexSuitabilityThreshold}% — raise to narrow further`
+                        : `Showing areas scoring ≤ ${indexSuitabilityThreshold}% — lower-scoring areas only`}
                   </div>
                 </div>
               </div>
@@ -3011,12 +3011,7 @@ export default function Home() {
                     {currentFiltersSummary}
                   </div>
                   <div style={{ fontSize: 10, opacity: 0.8, marginTop: 4 }}>
-                    {`Area match filter: ${indexSuitabilityLabel}`}
-                  </div>
-                </div>
-              )}
-
-              {isMobileViewport && (
+                    {`Match filter: ${indexSuitabilityLabel}`}
                 <div style={{ marginTop: 2 }}>
                   <button
                     type="button"
@@ -3051,7 +3046,7 @@ export default function Home() {
                         {currentFiltersSummary}
                       </div>
                       <div style={{ fontSize: 10, opacity: 0.8, marginTop: 4 }}>
-                        {`Area match filter: ${indexSuitabilityLabel}`}
+                        {`Match filter: ${indexSuitabilityLabel}`}
                       </div>
                     </div>
                   )}
@@ -3073,7 +3068,7 @@ export default function Home() {
                     fontWeight: 600,
                   }}
                 >
-                  Edit scoring
+                  Edit criteria
                 </button>
                 <button
                   type="button"
