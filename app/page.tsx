@@ -3494,6 +3494,30 @@ export default function Home() {
                   <div style={{ fontSize: 12, lineHeight: 1.4, flex: 1, minWidth: 0 }} dangerouslySetInnerHTML={{ __html: html }} />
                 </div>
               ))}
+              {rightClickInfo.cellMedian && (
+                <div style={{ display: "flex", gap: 6, alignItems: "flex-start", padding: "4px 0", borderBottom: "1px solid #f9fafb" }}>
+                  <span style={{ width: 16, flexShrink: 0, textAlign: "center", paddingTop: 1 }}>🏠</span>
+                  <span style={{ color: "#9ca3af", width: 48, flexShrink: 0, fontSize: 11, paddingTop: 2 }}>Price</span>
+                  <div style={{ fontSize: 12, lineHeight: 1.4, flex: 1, minWidth: 0 }}>
+                    <span style={{ fontWeight: 600 }}>{rightClickInfo.cellMedian >= 1000000 ? `£${(rightClickInfo.cellMedian / 1000000).toFixed(1)}m` : `£${Math.round(rightClickInfo.cellMedian / 1000)}k`}</span>
+                    {rightClickInfo.cellDeltaPct !== undefined && (
+                      <span style={{ color: rightClickInfo.cellDeltaPct >= 0 ? "#16a34a" : "#dc2626", marginLeft: 6, fontSize: 11 }}>
+                        {rightClickInfo.cellDeltaPct >= 0 ? "▲" : "▼"}{Math.abs(rightClickInfo.cellDeltaPct).toFixed(1)}%
+                      </span>
+                    )}
+                    {rightClickInfo.cellTxCount !== undefined && (
+                      <span style={{ color: "#9ca3af", fontSize: 10, marginLeft: 5 }}>({rightClickInfo.cellTxCount} sales)</span>
+                    )}
+                  </div>
+                </div>
+              )}
+              {rightClickInfo.constituency && (
+                <div style={{ display: "flex", gap: 6, alignItems: "flex-start", padding: "4px 0", borderBottom: "1px solid #f9fafb" }}>
+                  <span style={{ width: 16, flexShrink: 0, textAlign: "center", paddingTop: 1 }}>🗳️</span>
+                  <span style={{ color: "#9ca3af", width: 48, flexShrink: 0, fontSize: 11, paddingTop: 2 }}>Area</span>
+                  <div style={{ fontSize: 12, lineHeight: 1.4, flex: 1, minWidth: 0 }}>{rightClickInfo.constituency}</div>
+                </div>
+              )}
               <div style={{ marginTop: 6, paddingTop: 5, borderTop: "1px solid #f3f4f6", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <span style={{ fontSize: 10, color: "#6b7280" }}>✓ Added to log</span>
                 <a href="#" onClick={(e) => { e.preventDefault(); setRgLogOpen(true); }} style={{ fontSize: 10, color: "#6366f1", textDecoration: "none", fontWeight: 500 }}>See log →</a>
@@ -3534,6 +3558,30 @@ export default function Home() {
                   <div style={{ fontSize: 12, lineHeight: 1.4, flex: 1, minWidth: 0 }} dangerouslySetInnerHTML={{ __html: html }} />
                 </div>
               ))}
+              {rightClickInfo.cellMedian && (
+                <div style={{ display: "flex", gap: 6, alignItems: "flex-start", padding: "4px 0", borderBottom: "1px solid #f9fafb" }}>
+                  <span style={{ width: 16, flexShrink: 0, textAlign: "center", paddingTop: 1 }}>🏠</span>
+                  <span style={{ color: "#9ca3af", width: 48, flexShrink: 0, fontSize: 11, paddingTop: 2 }}>Price</span>
+                  <div style={{ fontSize: 12, lineHeight: 1.4, flex: 1, minWidth: 0 }}>
+                    <span style={{ fontWeight: 600 }}>{rightClickInfo.cellMedian >= 1000000 ? `£${(rightClickInfo.cellMedian / 1000000).toFixed(1)}m` : `£${Math.round(rightClickInfo.cellMedian / 1000)}k`}</span>
+                    {rightClickInfo.cellDeltaPct !== undefined && (
+                      <span style={{ color: rightClickInfo.cellDeltaPct >= 0 ? "#16a34a" : "#dc2626", marginLeft: 6, fontSize: 11 }}>
+                        {rightClickInfo.cellDeltaPct >= 0 ? "▲" : "▼"}{Math.abs(rightClickInfo.cellDeltaPct).toFixed(1)}%
+                      </span>
+                    )}
+                    {rightClickInfo.cellTxCount !== undefined && (
+                      <span style={{ color: "#9ca3af", fontSize: 10, marginLeft: 5 }}>({rightClickInfo.cellTxCount} sales)</span>
+                    )}
+                  </div>
+                </div>
+              )}
+              {rightClickInfo.constituency && (
+                <div style={{ display: "flex", gap: 6, alignItems: "flex-start", padding: "4px 0", borderBottom: "1px solid #f9fafb" }}>
+                  <span style={{ width: 16, flexShrink: 0, textAlign: "center", paddingTop: 1 }}>🗳️</span>
+                  <span style={{ color: "#9ca3af", width: 48, flexShrink: 0, fontSize: 11, paddingTop: 2 }}>Area</span>
+                  <div style={{ fontSize: 12, lineHeight: 1.4, flex: 1, minWidth: 0 }}>{rightClickInfo.constituency}</div>
+                </div>
+              )}
               <div style={{ marginTop: 6, paddingTop: 5, borderTop: "1px solid #f3f4f6", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <span style={{ fontSize: 10, color: "#6b7280" }}>✓ Added to log</span>
                 <a href="#" onClick={(e) => { e.preventDefault(); setRgLogOpen(true); }} style={{ fontSize: 10, color: "#6366f1", textDecoration: "none", fontWeight: 500 }}>See log →</a>
@@ -3564,8 +3612,20 @@ export default function Home() {
                       dc("ValueMap accepts no responsibility or liability for any loss or damage arising from reliance on this data."),
                       dc(""),
                     ];
-                    const header = "Timestamp,Postcode,Lat,Lng,Flood,Schools,Station";
-                    const rows = rgLog.map(e => [e.timestamp, `"${e.postcode}"`, e.lat, e.lng, `"${e.floodSummary.replace(/"/g, '""')}"`, `"${e.schoolSummary.replace(/"/g, '""')}"`, `"${e.stationSummary.replace(/"/g, '""')}"`].join(","));
+                    const header = "Timestamp,Postcode,Lat,Lng,Flood,Schools,Station,Median Price,Price Change %,Tx Count,Constituency";
+                    const rows = rgLog.map(e => [
+                      e.timestamp,
+                      `"${e.postcode}"`,
+                      e.lat,
+                      e.lng,
+                      `"${e.floodSummary.replace(/"/g, '""')}"`,
+                      `"${e.schoolSummary.replace(/"/g, '""')}"`,
+                      `"${e.stationSummary.replace(/"/g, '""')}"`,
+                      e.cellMedian ?? "",
+                      e.cellDeltaPct ?? "",
+                      e.cellTxCount ?? "",
+                      e.constituency ? `"${e.constituency.replace(/"/g, '""')}"` : "",
+                    ].join(","));
                     // \uFEFF = UTF-8 BOM so Excel opens with correct encoding
                     const blob = new Blob(["\uFEFF" + [...disclaimer, header, ...rows].join("\r\n")], { type: "text/csv;charset=utf-8;" });
                     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "valuemap-search-log.csv"; a.click(); URL.revokeObjectURL(a.href);
@@ -3578,7 +3638,7 @@ export default function Home() {
           </div>
           <div style={{ overflowY: "auto", flex: 1, padding: rgLog.length === 0 ? "16px 12px" : "4px 0" }}>
             {rgLog.length === 0 ? (
-              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", margin: 0, textAlign: "center" }}>No searches yet.<br/>Right-click the map to look up a location.</p>
+              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", margin: 0, textAlign: "center" }}>No searches yet.<br/>Click any square on the map to zoom in, then right-click for full area details.</p>
             ) : rgLog.map((entry, i) => (
               <div key={`${entry.timestamp}-${i}`} style={{ padding: "8px 12px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", gap: 8, alignItems: "flex-start" }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -3590,6 +3650,8 @@ export default function Home() {
                     <div>🌊 {entry.floodSummary}</div>
                     <div>🏫 {entry.schoolSummary}</div>
                     <div>🚂 {entry.stationSummary}</div>
+                    {entry.cellMedian && <div>🏠 {entry.cellMedian >= 1000000 ? `£${(entry.cellMedian / 1000000).toFixed(1)}m` : `£${Math.round(entry.cellMedian / 1000)}k`}{entry.cellDeltaPct !== undefined ? ` (${entry.cellDeltaPct >= 0 ? "▲" : "▼"}${Math.abs(entry.cellDeltaPct).toFixed(1)}%)` : ""}</div>}
+                    {entry.constituency && <div>🗳️ {entry.constituency}</div>}
                   </div>
                 </div>
                 <button type="button" onClick={() => setRgLog((prev) => prev.filter((_, j) => j !== i))} title="Remove" style={{ cursor: "pointer", border: "none", background: "transparent", color: "rgba(255,255,255,0.3)", fontSize: 14, padding: "0 2px", alignSelf: "flex-start", flexShrink: 0 }}>✕</button>

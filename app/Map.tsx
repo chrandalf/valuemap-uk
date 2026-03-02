@@ -273,12 +273,16 @@ export type RgLogEntry = {
   floodSummary: string;   // plain text
   schoolSummary: string;
   stationSummary: string;
+  cellMedian?: number;    // median house price in the clicked cell
+  cellDeltaPct?: number;  // price change % (negative = fallen)
+  cellTxCount?: number;   // transaction count in cell
+  constituency?: string;  // Westminster constituency
 };
 
 /** Data passed to page.tsx for the right-click info panel. */
 export type RightClickInfoData =
   | { stage: 'loading'; clickLat: number; clickLng: number }
-  | { stage: 'ready'; postcode: string; isOutcode: boolean; floodHtml: string; schoolHtml: string; stationHtml: string; clickLat: number; clickLng: number };
+  | { stage: 'ready'; postcode: string; isOutcode: boolean; floodHtml: string; schoolHtml: string; stationHtml: string; clickLat: number; clickLng: number; cellMedian?: number; cellDeltaPct?: number; cellTxCount?: number; constituency?: string; };
 
 export default function ValueMap({
   state,
@@ -363,6 +367,8 @@ export default function ValueMap({
   const [postcodeError, setPostcodeError] = useState<string | null>(null);
   const [scotlandNote, setScotlandNote] = useState<string | null>(null);
   const [postcodeMaxPrice, setPostcodeMaxPrice] = useState<number | null>(null);
+  const [cellClickHint, setCellClickHint] = useState(false);
+  const cellClickHintTimerRef = useRef<number | null>(null);
   const fetchPostcodesRef = useRef<(gx: number, gy: number, offset: number, append: boolean) => void>(() => {});
   const floodSearchEntriesRef = useRef<FloodSearchEntry[] | null>(null);
   const floodSearchEntriesPromiseRef = useRef<Promise<FloodSearchEntry[]> | null>(null);
@@ -2021,6 +2027,28 @@ export default function ValueMap({
     } else {
       setScotlandNote(null);
     }
+
+    // Zoom in so overlay data is visible at detail level
+    const coords = f.geometry?.coordinates?.[0];
+    if (coords && coords.length >= 4) {
+      const cLon = (coords[0][0] + coords[2][0]) / 2;
+      const cLat = (coords[0][1] + coords[2][1]) / 2;
+      const currentZoom = map.getZoom();
+      // Zoom thresholds match autoGridForZoom in page.tsx:
+      //   < 5.6 → 25km grid → zoom to 8.0 (lands on 5km)
+      //   < 7.0 → 10km grid → zoom to 8.5 (lands on 5km, approaching 1km)
+      //   < 8.2 → 5km grid  → zoom to 9.5 (lands on 1km)
+      const targetZoom = currentZoom < 5.6 ? 8.0 : currentZoom < 7.0 ? 8.5 : currentZoom < 8.2 ? 9.5 : null;
+      if (targetZoom !== null) {
+        map.flyTo({ center: [cLon, cLat], zoom: targetZoom, duration: 900 });
+      }
+    }
+
+    // Show a brief hint nudging user to right-click for full details
+    setCellClickHint(true);
+    if (cellClickHintTimerRef.current) clearTimeout(cellClickHintTimerRef.current);
+    cellClickHintTimerRef.current = window.setTimeout(() => setCellClickHint(false), 4000);
+
     void fetchPostcodesRef.current(gx, gy, 0, false);
   });
 
@@ -2237,6 +2265,15 @@ export default function ValueMap({
         }
         if (!postcode) throw new Error("no postcode");
 
+        // ── Cell data at the click point (for enriched log + panel) ──
+        const cellPx = map.project([lng, lat]);
+        const cellFeats = map.queryRenderedFeatures(cellPx, { layers: ['cells-fill'] });
+        const cp = (cellFeats?.[0]?.properties ?? {}) as Record<string, unknown>;
+        const cellMedian   = cp.median   !== undefined && cp.median   !== null ? Number(cp.median)    : undefined;
+        const cellDeltaPct = cp.delta_pct !== undefined && cp.delta_pct !== null ? Number(cp.delta_pct) : undefined;
+        const cellTxCount  = cp.tx_count  !== undefined && cp.tx_count  !== null ? Number(cp.tx_count)  : undefined;
+        const constituency = cp.constituency ? String(cp.constituency) : undefined;
+
         // ── Log this search entry ──
         const stripHtml = (s: string) => s.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
         onLocationLoggedRef.current?.({
@@ -2245,6 +2282,7 @@ export default function ValueMap({
           floodSummary: stripHtml(floodHtml),
           schoolSummary: stripHtml(schoolHtml),
           stationSummary: stripHtml(stationHtml),
+          cellMedian, cellDeltaPct, cellTxCount, constituency,
         });
 
         // Pass all resolved data to page.tsx to render in the fixed left panel
@@ -2253,6 +2291,7 @@ export default function ValueMap({
           postcode, isOutcode,
           floodHtml, schoolHtml, stationHtml,
           clickLat: lat, clickLng: lng,
+          cellMedian, cellDeltaPct, cellTxCount, constituency,
         });
 
         // Auto-fire the area search immediately
@@ -2576,6 +2615,27 @@ export default function ValueMap({
         className="median-overlay"
         style={{ display: "none" }}
       />
+      {cellClickHint && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: 64,
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: "rgba(15,15,30,0.92)",
+            color: "white",
+            padding: "8px 16px",
+            borderRadius: 8,
+            fontSize: 12,
+            zIndex: 10,
+            pointerEvents: "none",
+            whiteSpace: "nowrap",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+          }}
+        >
+          Right-click anywhere on the map for full area details →
+        </div>
+      )}
       {postcodeCell && (
         <div
           className="postcode-wrap"
