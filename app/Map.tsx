@@ -1640,6 +1640,8 @@ export default function ValueMap({
     stateRef.current.floodOverlayMode !== "off" && map.getZoom() >= 8;
   const schoolOverlayClickable = () =>
     stateRef.current.schoolOverlayMode !== "off" && map.getZoom() >= 8;
+  const stationOverlayClickable = () =>
+    stateRef.current.stationOverlayMode !== "off" && map.getZoom() >= 7;
 
   const riskLabelFromScore = (score: number) => {
     if (score >= 4) return "High";
@@ -1759,6 +1761,43 @@ export default function ValueMap({
     popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
   };
 
+  const showStationPointPopup = (e: any) => {
+    const f = e.features?.[0] as any;
+    if (!f) return;
+    const p = f.properties || {};
+    const name  = escapeHtml(String(p.name  ?? "Station"));
+    const code  = escapeHtml(String(p.code  ?? ""));
+    const owner = escapeHtml(String(p.owner ?? ""));
+    const link  = String(p.link ?? "");
+    const nrUrl = code ? `https://www.nationalrail.co.uk/stations/${code.toLowerCase()}/` : null;
+    const nameHtml = link
+      ? `<a href="${link}" target="_blank" rel="noreferrer" style="color:#1d4ed8;font-weight:700;font-size:13px;text-decoration:none">${name} ↗</a>`
+      : `<span style="font-weight:700;font-size:13px">${name}</span>`;
+    const html = `
+      <div style="font:12px/1.5 system-ui,sans-serif;color:#374151;min-width:160px">
+        <div style="margin-bottom:4px">${nameHtml}</div>
+        ${code  ? `<div style="font-size:11px;color:#6b7280">CRS: <b style="color:#374151">${code}</b></div>` : ""}
+        ${owner ? `<div style="font-size:11px;color:#6b7280">Operator: <b style="color:#374151">${owner}</b></div>` : ""}
+        ${nrUrl ? `<div style="margin-top:6px"><a href="${nrUrl}" target="_blank" rel="noreferrer" style="font-size:11px;color:#6366f1;text-decoration:underline">National Rail ↗</a></div>` : ""}
+      </div>
+    `;
+    popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+  };
+
+  const showStationClusterPopup = (e: any) => {
+    const f = e.features?.[0] as any;
+    if (!f) return;
+    const count = Number(f.properties?.point_count ?? 0);
+    const html = `
+      <div style="font-family: system-ui; font-size: 12px; line-height: 1.25;">
+        <div style="font-weight: 700; margin-bottom: 4px;">🚂 Station cluster</div>
+        <div>Stations in cluster: <b>${count.toLocaleString()}</b></div>
+        <div style="opacity: 0.8; margin-top: 2px;">Zoom in to see individual stations.</div>
+      </div>
+    `;
+    popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+  };
+
   map.on("click", "flood-overlay-points", (e) => {
     if (!floodOverlayClickable()) return;
     showFloodPointPopup(e);
@@ -1789,10 +1828,26 @@ export default function ValueMap({
     showSchoolClusterPopup(e);
   });
 
+  map.on("click", "station-overlay-points", (e) => {
+    if (!stationOverlayClickable()) return;
+    showStationPointPopup(e);
+  });
+
+  map.on("click", "station-overlay-clusters", (e) => {
+    if (!stationOverlayClickable()) return;
+    showStationClusterPopup(e);
+  });
+
+  map.on("click", "station-overlay-cluster-count", (e) => {
+    if (!stationOverlayClickable()) return;
+    showStationClusterPopup(e);
+  });
+
   // Pointer cursor when hovering clickable overlay features
   const overlayHoverLayers = [
     "flood-overlay-points", "flood-overlay-clusters", "flood-overlay-cluster-count",
     "school-overlay-points", "school-overlay-clusters", "school-overlay-cluster-count",
+    "station-overlay-points", "station-overlay-clusters", "station-overlay-cluster-count",
   ];
   overlayHoverLayers.forEach((id) => {
     map.on("mouseenter", id, () => { map.getCanvas().style.cursor = "pointer"; });
