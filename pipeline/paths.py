@@ -64,6 +64,14 @@ MODEL_FLOOD_POSTCODE_LOOKUP = MODEL_FLOOD_DIR / "flood_postcode_lookup.json.gz"
 MODEL_FLOOD_OUTCODE_SUMMARY = MODEL_FLOOD_DIR / "flood_outcode_summary.json.gz"
 MODEL_FLOOD_POSTCODE_POINTS = MODEL_FLOOD_DIR / "flood_postcode_points.geojson.gz"
 
+RAW_CRIME_DIR = RAW_DIR / "crime"
+RAW_CRIME_LATEST_ZIP = RAW_CRIME_DIR / "latest.zip"
+
+MODEL_CRIME_DIR = MODEL_DIR / "crime"
+MODEL_CRIME_OVERLAY = MODEL_CRIME_DIR / "crime_overlay_lsoa.geojson.gz"
+
+PUBLISH_CRIME_DIR = PUBLISH_DIR / "crime"
+
 RAW_CENSUS_COMMUTE_LSOA = RAW_CENSUS_DIR / "ts058_commute_lsoa21.csv"
 RAW_CENSUS_AGE_LSOA = RAW_CENSUS_DIR / "ts007a_age_lsoa21.csv"
 MODEL_CENSUS_COMMUTE_CELLS_TEMPLATE = MODEL_CENSUS_DIR / "commute_cells_{grid}.json.gz"
@@ -124,5 +132,8 @@ def ensure_pipeline_dirs() -> None:
         INTERMEDIATE_STATIONS_DIR,
         RAW_CENSUS_DIR,
         MODEL_CENSUS_DIR,
+        RAW_CRIME_DIR,
+        MODEL_CRIME_DIR,
+        PUBLISH_CRIME_DIR,
     ]:
         p.mkdir(parents=True, exist_ok=True)

@@ -13,6 +13,7 @@ type FloodOverlayMode = "off" | "on" | "on_hide_cells";
 type SchoolOverlayMode = "off" | "on" | "on_hide_cells";
 type PrimarySchoolOverlayMode = "off" | "on" | "on_hide_cells";
 type StationOverlayMode = "off" | "on" | "on_hide_cells";
+type CrimeOverlayMode = "off" | "on" | "on_hide_cells";
 type VoteOverlayMode = "off" | "on";
 type CommuteOverlayMode = "off" | "on";
 type AgeOverlayMode = "off" | "on";
@@ -44,6 +45,7 @@ type MapState = {
   schoolOverlayMode: SchoolOverlayMode;
   primarySchoolOverlayMode: PrimarySchoolOverlayMode;
   stationOverlayMode: StationOverlayMode;
+  crimeOverlayMode: CrimeOverlayMode;
   voteOverlayMode: VoteOverlayMode;
   voteColorScale: VoteColorScale;
   commuteOverlayMode: CommuteOverlayMode;
@@ -195,6 +197,7 @@ export default function Home() {
       schoolOverlayMode: "off",
       primarySchoolOverlayMode: "off",
       stationOverlayMode: "off",
+      crimeOverlayMode: "off",
       voteOverlayMode: "off",
       voteColorScale: "relative",
       commuteOverlayMode: "off",
@@ -214,6 +217,7 @@ export default function Home() {
       const schools = p.get("schools");
       const pschools = p.get("pschools");
       const stations = p.get("stations");
+      const crime = p.get("crime");
       const vote = p.get("vote");
       const voteScale = p.get("voteScale");
       const commute = p.get("commute");
@@ -227,8 +231,9 @@ export default function Home() {
       const SCHOOLS: SchoolOverlayMode[] = ["off", "on", "on_hide_cells"];
       const PSCHOOLS: PrimarySchoolOverlayMode[] = ["off", "on", "on_hide_cells"];
       const STATIONS: StationOverlayMode[] = ["off", "on", "on_hide_cells"];
+      const CRIMES: CrimeOverlayMode[] = ["off", "on", "on_hide_cells"];
       // Only hydrate if at least one known param is present
-      if (!grid && !metric && !type && !flood && !schools && !pschools && !vote && !stations && !commute && !age) return defaults;
+      if (!grid && !metric && !type && !flood && !schools && !pschools && !vote && !stations && !crime && !commute && !age) return defaults;
       return {
         grid: GRIDS.includes(grid as GridSize) ? (grid as GridSize) : defaults.grid,
         metric: METRICS.includes(metric as Metric) ? (metric as Metric) : defaults.metric,
@@ -241,6 +246,7 @@ export default function Home() {
         schoolOverlayMode: SCHOOLS.includes(schools as SchoolOverlayMode) ? (schools as SchoolOverlayMode) : defaults.schoolOverlayMode,
         primarySchoolOverlayMode: PSCHOOLS.includes(pschools as PrimarySchoolOverlayMode) ? (pschools as PrimarySchoolOverlayMode) : defaults.primarySchoolOverlayMode,
         stationOverlayMode: STATIONS.includes(stations as StationOverlayMode) ? (stations as StationOverlayMode) : defaults.stationOverlayMode,
+        crimeOverlayMode: CRIMES.includes(crime as CrimeOverlayMode) ? (crime as CrimeOverlayMode) : defaults.crimeOverlayMode,
         voteOverlayMode: vote === "on" ? "on" : defaults.voteOverlayMode,
         voteColorScale: voteScale === "absolute" ? "absolute" : defaults.voteColorScale,
         commuteOverlayMode: commute === "on" ? "on" : defaults.commuteOverlayMode,
@@ -391,6 +397,7 @@ export default function Home() {
     schoolOverlayMode: "off",
     primarySchoolOverlayMode: "off",
     stationOverlayMode: "off",
+    crimeOverlayMode: "off",
     voteOverlayMode: "off",
     voteColorScale: "relative",
     commuteOverlayMode: "off",
@@ -466,7 +473,7 @@ export default function Home() {
   useEffect(() => {
     if (!activePostcodeSearch.trim()) return;
     setPostcodeSearchToken((v) => v + 1);
-  }, [state.floodOverlayMode, state.schoolOverlayMode, state.primarySchoolOverlayMode, state.stationOverlayMode, activePostcodeSearch]);
+  }, [state.floodOverlayMode, state.schoolOverlayMode, state.primarySchoolOverlayMode, state.stationOverlayMode, state.crimeOverlayMode, activePostcodeSearch]);
 
   useEffect(() => {
     if (!indexActive) {
@@ -663,6 +670,7 @@ export default function Home() {
     params.set("schools", state.schoolOverlayMode);
     params.set("pschools", state.primarySchoolOverlayMode);
     params.set("stations", state.stationOverlayMode);
+    params.set("crime", state.crimeOverlayMode);
     params.set("vote", state.voteOverlayMode);
     params.set("voteScale", state.voteColorScale);
     params.set("commute", state.commuteOverlayMode);
@@ -1039,7 +1047,7 @@ export default function Home() {
       ? "Off"
       : "On";
   const voteScaleLabel = state.voteColorScale === "relative" ? "Relative" : "Absolute";
-  const anyOverlayActive = state.floodOverlayMode !== "off" || state.schoolOverlayMode !== "off" || state.primarySchoolOverlayMode !== "off" || state.stationOverlayMode !== "off" || state.voteOverlayMode !== "off" || state.commuteOverlayMode !== "off" || state.ageOverlayMode !== "off";
+  const anyOverlayActive = state.floodOverlayMode !== "off" || state.schoolOverlayMode !== "off" || state.primarySchoolOverlayMode !== "off" || state.stationOverlayMode !== "off" || state.crimeOverlayMode !== "off" || state.voteOverlayMode !== "off" || state.commuteOverlayMode !== "off" || state.ageOverlayMode !== "off";
 
   const currentFiltersSummary =
     `Grid: ${state.grid} · Metric: ${METRIC_LABEL[state.metric]} · ` +
@@ -1047,6 +1055,7 @@ export default function Home() {
     `Period: ${periodLabel} · Flood: ${floodOverlayLabel} · Schools: ${schoolOverlayLabel} · ` +
     `Primary schools: ${state.primarySchoolOverlayMode === "off" ? "Off" : state.primarySchoolOverlayMode === "on" ? "On" : "On (hide cells)"} · ` +
     `Stations: ${state.stationOverlayMode === "off" ? "Off" : state.stationOverlayMode === "on" ? "On" : "On (hide cells)"} · ` +
+    `Crime: ${state.crimeOverlayMode === "off" ? "Off" : state.crimeOverlayMode === "on" ? "On" : "On (hide cells)"} · ` +
     `Vote overlay: ${voteOverlayLabel} (${voteScaleLabel}) · ` +
     `Commute: ${state.commuteOverlayMode === "on" ? "On" : "Off"} · ` +
     `Age mix: ${state.ageOverlayMode === "on" ? "On" : "Off"}`;
@@ -2044,7 +2053,16 @@ export default function Home() {
                     />
                   </div>
 
-                  {/* Cell colour overlays sub-group */}
+                  {/* Crime (LSOA) */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
+                    <div style={{ fontSize: 11, opacity: 0.8, width: 70, flexShrink: 0 }}>🔴 Crime</div>
+                    <Segment
+                      options={["off", "on", "on_hide_cells"]}
+                      value={state.crimeOverlayMode}
+                      onChange={(v) => setState((s) => ({ ...s, crimeOverlayMode: v as CrimeOverlayMode }))}
+                      renderOption={(v) => v === "on" ? "On" : v === "on_hide_cells" ? "Hide cells" : "Off"}
+                    />
+                  </div>
                   <div style={{ borderTop: "1px solid rgba(255,255,255,0.1)", margin: "8px 0 7px" }} />
                   <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.45, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 7 }}>Cell colour</div>
 
@@ -3658,6 +3676,7 @@ export default function Home() {
                 { icon: "🏫", label: "Sec. school", html: rightClickInfo.schoolHtml },
                 { icon: "🔑", label: "Pri. school", html: rightClickInfo.primarySchoolHtml },
                 { icon: "🚂", label: "Station",     html: rightClickInfo.stationHtml },
+                { icon: "🔴", label: "Crime",       html: rightClickInfo.crimeHtml },
               ] as const).map(({ icon, label, html }) => (
                 <div key={label} style={{ display: "flex", gap: 6, alignItems: "flex-start", padding: "4px 0", borderBottom: "1px solid #f9fafb" }}>
                   <span style={{ width: 16, flexShrink: 0, textAlign: "center", paddingTop: 1 }}>{icon}</span>
@@ -3743,6 +3762,7 @@ export default function Home() {
                 { icon: "🏫", label: "Sec. school", html: rightClickInfo.schoolHtml },
                 { icon: "🔑", label: "Pri. school", html: rightClickInfo.primarySchoolHtml },
                 { icon: "🚂", label: "Station",     html: rightClickInfo.stationHtml },
+                { icon: "🔴", label: "Crime",       html: rightClickInfo.crimeHtml },
               ] as const).map(({ icon, label, html }) => (
                 <div key={label} style={{ display: "flex", gap: 6, alignItems: "flex-start", padding: "4px 0", borderBottom: "1px solid #f9fafb" }}>
                   <span style={{ width: 16, flexShrink: 0, textAlign: "center", paddingTop: 1 }}>{icon}</span>

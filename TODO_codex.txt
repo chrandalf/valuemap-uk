@@ -276,11 +276,31 @@ TIER 3 — LARGER FEATURES  (L, significant work)
             (coastWeight already exists in IndexScoringPrefs — just needs data)
 
 [ ] [L]   Crime rate overlay / scoring
-          - Data: Police.uk open data API (per-LSOA monthly crime counts)
-          - Pipeline: aggregate LSOA crime rates → grid cells, normalise to 0-1
-          - Overlay: similar pattern to flood/school overlays, toggle in layers
-          - Find My Area: crime weight slider
-          - Important: add disclaimer — crime data has known geographic biases
+          - Data: data.police.uk bulk archive (OGL v3.0 — free, no API key)
+          - Pipeline: ✅ DONE — build_crime_overlay.py
+            • Downloads latest.zip (1.6 GB, 36 months rolling)
+            • Aggregates by LSOA (12 most recent months), 3 tiers:
+                violent (violence/robbery), property (burglary/theft/vehicle/etc),
+                asb (anti-social behaviour)
+            • Joins ONS Census 2021 population → rates per 1,000 residents/yr
+            • Inverse-percentile scores: 100 = safest, 0 = highest crime
+            • Output: crime_overlay_lsoa.geojson.gz (1.42 MB gzipped, 34,356 LSOAs)
+            • Analysis CSV: crime_analysis.csv (for inspection/QA)
+          - Rate distribution: p10=27.6  p25=42.1  p50=68.5  p75=111.8  p90=176.8
+          - Outliers: 406 LSOAs (1.2%) with rate > 500/1k/yr = city centres/transit
+            hubs (footfall >> residents) — score correctly near 0; popup should note
+            "⚠ High footfall area" when rate > p95 (≈245/1k/yr)
+          - NI: 0 LSOAs in data (PSNI uses different geography codes — not critical,
+            NI is outside our map scope)
+          - Scotland: BTP-only in source data → excluded at parse stage (skip S-codes)
+          - Map integration TODO (follow Pattern A checklist):
+            [ ] API: functions/api/crime.ts  (serves crime_overlay_lsoa.geojson.gz)
+            [ ] Map.tsx: source, layers (colour by crime_score), popups, click handlers,
+                search-focus line/ring, clearRgOverlay, doReverseGeocode
+            [ ] page.tsx: crimeMode toggle in Overlays panel, right-click row ×2
+                (desktop + mobile), Find My Area sliders ×3 (violent/property/asb)
+          - UI caveat to show: "⚠ Scotland shows BTP transport crimes only"
+            "City centres may show elevated rates due to footfall vs residents"
 
 [ ] [L]   Public transport proximity (bus, tram, underground — beyond rail)
           - Data: NaPTAN dataset (open gov — bus stops, tram, tube, metro)

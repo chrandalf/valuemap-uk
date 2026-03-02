@@ -14,6 +14,7 @@ type StationOverlayMode = "off" | "on" | "on_hide_cells";
 type VoteOverlayMode = "off" | "on";
 type CommuteOverlayMode = "off" | "on";
 type AgeOverlayMode = "off" | "on";
+type CrimeOverlayMode = "off" | "on" | "on_hide_cells";
 type VoteColorScale = "relative" | "absolute";
 
 export type MapState = {
@@ -31,6 +32,7 @@ export type MapState = {
   voteOverlayMode?: VoteOverlayMode;
   commuteOverlayMode?: CommuteOverlayMode;
   ageOverlayMode?: AgeOverlayMode;
+  crimeOverlayMode?: CrimeOverlayMode;
   voteColorScale?: VoteColorScale;
 };
 
@@ -282,12 +284,13 @@ export type RgLogEntry = {
   cellDeltaGbp?: number;  // price change in £
   cellTxCount?: number;   // transaction count in cell
   constituency?: string;  // Westminster constituency
+  crimeSummary?: string;
 };
 
 /** Data passed to page.tsx for the right-click info panel. */
 export type RightClickInfoData =
   | { stage: 'loading'; clickLat: number; clickLng: number }
-  | { stage: 'ready'; postcode: string; isOutcode: boolean; floodHtml: string; schoolHtml: string; primarySchoolHtml: string; stationHtml: string; clickLat: number; clickLng: number; cellMedian?: number; cellDeltaPct?: number; cellDeltaGbp?: number; cellTxCount?: number; constituency?: string; };
+  | { stage: 'ready'; postcode: string; isOutcode: boolean; floodHtml: string; schoolHtml: string; primarySchoolHtml: string; stationHtml: string; crimeHtml: string; clickLat: number; clickLng: number; cellMedian?: number; cellDeltaPct?: number; cellDeltaGbp?: number; cellTxCount?: number; constituency?: string; };
 
 export default function ValueMap({
   state,
@@ -1094,6 +1097,19 @@ export default function ValueMap({
     data: { type: "FeatureCollection", features: [] },
   });
 
+  map.addSource("crime-overlay", {
+    type: "geojson",
+    data: "/api/crime?plain=1",
+    cluster: true,
+    clusterMaxZoom: 9,
+    clusterRadius: 50,
+  });
+
+  map.addSource("crime-search-focus", {
+    type: "geojson",
+    data: { type: "FeatureCollection", features: [] },
+  });
+
   map.addSource("postcode-search-marker", {
     type: "geojson",
     data: { type: "FeatureCollection", features: [] },
@@ -1409,6 +1425,75 @@ export default function ValueMap({
     },
   });
 
+  // ── Crime (LSOA) overlay layers ──
+  map.addLayer({
+    id: "crime-overlay-clusters",
+    type: "circle",
+    source: "crime-overlay",
+    filter: ["has", "point_count"] as any,
+    layout: {
+      visibility: stateRef.current.crimeOverlayMode && stateRef.current.crimeOverlayMode !== "off" ? "visible" : "none",
+    },
+    paint: {
+      "circle-color": [
+        "step",
+        ["get", "point_count"],
+        "rgba(220,38,38,0.55)",
+        25,
+        "rgba(185,28,28,0.72)",
+        100,
+        "rgba(127,29,29,0.86)",
+      ] as any,
+      "circle-radius": ["step", ["get", "point_count"], 14, 25, 19, 100, 26] as any,
+      "circle-stroke-color": "rgba(255,255,255,0.92)",
+      "circle-stroke-width": 1,
+    },
+  });
+
+  map.addLayer({
+    id: "crime-overlay-cluster-count",
+    type: "symbol",
+    source: "crime-overlay",
+    filter: ["has", "point_count"] as any,
+    layout: {
+      visibility: stateRef.current.crimeOverlayMode && stateRef.current.crimeOverlayMode !== "off" ? "visible" : "none",
+      "text-field": ["get", "point_count_abbreviated"] as any,
+      "text-size": 11,
+      "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
+    },
+    paint: {
+      "text-color": "rgba(255,255,255,0.95)",
+    },
+  });
+
+  map.addLayer({
+    id: "crime-overlay-points",
+    type: "circle",
+    source: "crime-overlay",
+    filter: ["!", ["has", "point_count"]] as any,
+    layout: {
+      visibility: stateRef.current.crimeOverlayMode && stateRef.current.crimeOverlayMode !== "off" ? "visible" : "none",
+    },
+    paint: {
+      // crime_score: 100 = safest (green), 0 = worst (red)
+      "circle-color": [
+        "interpolate",
+        ["linear"],
+        ["get", "crime_score"],
+        0,  "#dc2626",
+        25, "#f97316",
+        50, "#eab308",
+        75, "#84cc16",
+        100,"#16a34a",
+      ] as any,
+      "circle-opacity": 0.82,
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 3, 6, 4.5, 8, 7, 10, 10] as any,
+      "circle-stroke-color": "rgba(255,255,255,0.88)",
+      "circle-stroke-width": 1,
+      "circle-blur": 0.04,
+    },
+  });
+
   // ── Station search focus layers ──
   // Rail casing (wide white base — ballast/sleeper ground)
   map.addLayer({
@@ -1721,6 +1806,56 @@ export default function ValueMap({
     },
   });
 
+  // ── Crime search focus (right-click dashed line + ring) ──
+  map.addLayer({
+    id: "crime-search-focus-line",
+    type: "line",
+    source: "crime-search-focus",
+    filter: ["==", ["geometry-type"], "LineString"] as any,
+    paint: {
+      "line-color": "#dc2626",
+      "line-width": 3.5,
+      "line-dasharray": [3, 1.5],
+      "line-opacity": 0.95,
+    },
+  });
+
+  map.addLayer({
+    id: "crime-search-focus-label",
+    type: "symbol",
+    source: "crime-search-focus",
+    filter: ["==", ["geometry-type"], "LineString"] as any,
+    layout: {
+      "symbol-placement": "line-center",
+      "text-field": "Crime (LSOA)",
+      "text-size": 12,
+      "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
+      "text-allow-overlap": true,
+      "text-ignore-placement": true,
+      "text-offset": [0, -1.2] as any,
+    },
+    paint: {
+      "text-color": "#dc2626",
+      "text-halo-color": "#0f172a",
+      "text-halo-width": 2.5,
+      "text-halo-blur": 0.5,
+    },
+  });
+
+  map.addLayer({
+    id: "crime-search-focus-ring",
+    type: "circle",
+    source: "crime-search-focus",
+    filter: ["==", ["geometry-type"], "Point"] as any,
+    paint: {
+      "circle-color": "rgba(0,0,0,0)",
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 9, 8, 13, 12, 17] as any,
+      "circle-stroke-color": "#dc2626",
+      "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 4, 2.2, 8, 3, 12, 3.8] as any,
+      "circle-stroke-opacity": 0.98,
+    },
+  });
+
   map.addLayer({
     id: "postcode-search-star",
     type: "symbol",
@@ -2011,6 +2146,51 @@ export default function ValueMap({
     popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
   };
 
+  const crimeOverlayClickable = () =>
+    stateRef.current.crimeOverlayMode !== "off" && map.getZoom() >= 8;
+
+  const showCrimePointPopup = (e: any) => {
+    const f = e.features?.[0] as any;
+    if (!f) return;
+    const p = f.properties || {};
+    const lsoaName     = escapeHtml(String(p.lsoa_name ?? p.lsoa_code ?? "LSOA"));
+    const crimeScore   = Number(p.crime_score ?? 50);
+    const violentScore = Number(p.violent_score ?? 50);
+    const propertyScore= Number(p.property_score ?? 50);
+    const asbScore     = Number(p.asb_score ?? 50);
+    const totalRate    = Number(p.total_rate ?? 0);
+    const scoreLabel = (s: number) => s >= 80 ? "Low" : s >= 60 ? "Below avg" : s >= 40 ? "Average" : s >= 20 ? "Above avg" : "High";
+    const scoreCol   = (s: number) => s >= 80 ? "#16a34a" : s >= 60 ? "#84cc16" : s >= 40 ? "#eab308" : s >= 20 ? "#f97316" : "#dc2626";
+    const highFootfall = totalRate > 245;
+    const html = `
+      <div style="font:12px/1.5 system-ui,sans-serif;color:#374151;min-width:200px">
+        <div style="font-weight:700;font-size:13px;margin-bottom:5px">${lsoaName}</div>
+        <div style="border-top:1px solid #f3f4f6;padding-top:5px">
+          <div><span style="color:#6b7280">Overall: </span><span style="color:${scoreCol(crimeScore)};font-weight:600">${scoreLabel(crimeScore)}</span></div>
+          <div><span style="color:#6b7280">Violent: </span><span style="color:${scoreCol(violentScore)}">${scoreLabel(violentScore)}</span></div>
+          <div><span style="color:#6b7280">Property: </span><span style="color:${scoreCol(propertyScore)}">${scoreLabel(propertyScore)}</span></div>
+          <div><span style="color:#6b7280">ASB: </span><span style="color:${scoreCol(asbScore)}">${scoreLabel(asbScore)}</span></div>
+        </div>
+        ${highFootfall ? `<div style="font-size:10px;color:#9ca3af;margin-top:4px;border-top:1px solid #f3f4f6;padding-top:3px">⚠ High footfall area</div>` : ""}
+      </div>
+    `;
+    popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+  };
+
+  const showCrimeClusterPopup = (e: any) => {
+    const f = e.features?.[0] as any;
+    if (!f) return;
+    const count = Number(f.properties?.point_count ?? 0);
+    const html = `
+      <div style="font-family: system-ui; font-size: 12px; line-height: 1.25;">
+        <div style="font-weight: 700; margin-bottom: 4px;">Crime cluster</div>
+        <div>LSOAs in cluster: <b>${count.toLocaleString()}</b></div>
+        <div style="opacity: 0.8; margin-top: 2px;">Zoom in for LSOA-level data.</div>
+      </div>
+    `;
+    popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+  };
+
   map.on("click", "flood-overlay-points", (e) => {
     if (!floodOverlayClickable()) return;
     showFloodPointPopup(e);
@@ -2071,12 +2251,28 @@ export default function ValueMap({
     showStationClusterPopup(e);
   });
 
+  map.on("click", "crime-overlay-points", (e) => {
+    if (!crimeOverlayClickable()) return;
+    showCrimePointPopup(e);
+  });
+
+  map.on("click", "crime-overlay-clusters", (e) => {
+    if (!crimeOverlayClickable()) return;
+    showCrimeClusterPopup(e);
+  });
+
+  map.on("click", "crime-overlay-cluster-count", (e) => {
+    if (!crimeOverlayClickable()) return;
+    showCrimeClusterPopup(e);
+  });
+
   // Pointer cursor when hovering clickable overlay features
   const overlayHoverLayers = [
     "flood-overlay-points", "flood-overlay-clusters", "flood-overlay-cluster-count",
     "school-overlay-points", "school-overlay-clusters", "school-overlay-cluster-count",
     "primary-school-overlay-points", "primary-school-overlay-clusters", "primary-school-overlay-cluster-count",
     "station-overlay-points", "station-overlay-clusters", "station-overlay-cluster-count",
+    "crime-overlay-points", "crime-overlay-clusters", "crime-overlay-cluster-count",
   ];
   overlayHoverLayers.forEach((id) => {
     map.on("mouseenter", id, () => { map.getCanvas().style.cursor = "pointer"; });
@@ -2461,6 +2657,7 @@ export default function ValueMap({
     setSchoolSearchFocus(map, null, null, null);
     setPrimarySchoolSearchFocus(map, null, null);
     setStationSearchFocus(map, null, null);
+    setCrimeSearchFocus(map, null, null);
   };
   clearRgOverlayRef.current = clearRgOverlay;
   const closeActiveRg = () => {
@@ -2544,21 +2741,49 @@ export default function ValueMap({
       return _indexPrimarySchoolGrid;
     };
 
+    const ensureCrime = async () => {
+      if (_indexCrimeCache === null) {
+        try {
+          const r = await fetch("/api/crime?plain=1");
+          _indexCrimeCache = r.ok
+            ? ((await r.json() as any)?.features ?? [])
+                .filter((f: any) => f?.geometry?.type === "Point")
+                .map((f: any) => ({
+                  lon: Number(f.geometry.coordinates[0]),
+                  lat: Number(f.geometry.coordinates[1]),
+                  lsoa_code: String(f.properties?.lsoa_code ?? ""),
+                  lsoa_name: String(f.properties?.lsoa_name ?? ""),
+                  crime_score: Number(f.properties?.crime_score ?? 50),
+                  violent_score: Number(f.properties?.violent_score ?? 50),
+                  property_score: Number(f.properties?.property_score ?? 50),
+                  asb_score: Number(f.properties?.asb_score ?? 50),
+                  total_rate: Number(f.properties?.total_rate ?? 0),
+                }))
+            : [];
+        } catch { _indexCrimeCache = []; }
+        _indexCrimeGrid = null;
+      }
+      if (_indexCrimeGrid === null) _indexCrimeGrid = buildSpatialGrid(_indexCrimeCache!, 0.12);
+      return _indexCrimeGrid;
+    };
+
     // Clear any previous lines immediately when a new right-click starts
     setFloodSearchFocus(map, null);
     setFloodSearchContext(map, null);
     setSchoolSearchFocus(map, null, null, null);
     setPrimarySchoolSearchFocus(map, null, null);
     setStationSearchFocus(map, null, null);
+    setCrimeSearchFocus(map, null, null);
 
     void (async () => {
       try {
         // Run postcode lookup and dataset loading in parallel
-        const [floodG, schoolG, primarySchoolG, stationG, pcRes] = await Promise.all([
+        const [floodG, schoolG, primarySchoolG, stationG, crimeG, pcRes] = await Promise.all([
           ensureFlood(),
           ensureSchool(),
           ensurePrimarySchool(),
           ensureStation(),
+          ensureCrime(),
           fetch(`https://api.postcodes.io/postcodes?lon=${lng}&lat=${lat}&limit=1&radius=2000`),
         ]);
 
@@ -2686,6 +2911,37 @@ export default function ValueMap({
           }
         }
 
+        // ── Nearest crime LSOA within ~10 km ──
+        let crimeHtml = '<span style="color:#6b7280">No crime data here</span>';
+        if (crimeG) {
+          const cps = querySpatialGrid(crimeG, lng, lat, 0.09);
+          let nearestCp: (typeof cps)[0] | null = null; let nearCpD = Infinity;
+          for (const cp of cps) {
+            const d = haversineDistanceMeters(lat, lng, cp.lat, cp.lon);
+            if (d < nearCpD) { nearCpD = d; nearestCp = cp; }
+          }
+          if (nearestCp) {
+            const scoreLabel = (s: number) => s >= 80 ? "Low" : s >= 60 ? "Below avg" : s >= 40 ? "Average" : s >= 20 ? "Above avg" : "High";
+            const scoreCol   = (s: number) => s >= 80 ? "#16a34a" : s >= 60 ? "#84cc16" : s >= 40 ? "#eab308" : s >= 20 ? "#f97316" : "#dc2626";
+            const overall = nearestCp.crime_score;
+            const highFootfall = nearestCp.total_rate > 245;
+            const lsoaName = nearestCp.lsoa_name || nearestCp.lsoa_code;
+            crimeHtml = `<span style="color:#374151">${lsoaName}</span>` +
+              `<div style="margin-top:3px;line-height:1.6">` +
+              `<span style="color:#9ca3af">Overall: </span><span style="color:${scoreCol(overall)};font-weight:600">${scoreLabel(overall)}</span>` +
+              ` &nbsp;` +
+              `<span style="color:#9ca3af">Violent: </span><span style="color:${scoreCol(nearestCp.violent_score)}">${scoreLabel(nearestCp.violent_score)}</span>` +
+              ` &nbsp;` +
+              `<span style="color:#9ca3af">Property: </span><span style="color:${scoreCol(nearestCp.property_score)}">${scoreLabel(nearestCp.property_score)}</span>` +
+              ` &nbsp;` +
+              `<span style="color:#9ca3af">ASB: </span><span style="color:${scoreCol(nearestCp.asb_score)}">${scoreLabel(nearestCp.asb_score)}</span>` +
+              `</div>` +
+              (highFootfall ? `<div style="font-size:10px;color:#9ca3af;margin-top:2px">⚠ High footfall area — rate may reflect visitors, not just residents</div>` : "");
+            lineTargets.push([nearestCp.lon, nearestCp.lat]);
+            setCrimeSearchFocus(map, nearestCp, { lon: lng, lat });
+          }
+        }
+
         // Auto-fit the map so the click origin and all arrow endpoints are visible.
         // Expand the bounding box by 50% of the span on each side so the view sits
         // well clear of the arrow tips, and cap zoom so tightly-clustered arrows
@@ -2786,6 +3042,7 @@ export default function ValueMap({
           schoolSummary: stripHtml(schoolHtml),
           primarySchoolSummary: stripHtml(primarySchoolHtml),
           stationSummary: stripHtml(stationHtml),
+          crimeSummary: stripHtml(crimeHtml),
           cellMedian, cellDeltaPct, cellTxCount, constituency,
           cellDeltaGbp,
         });
@@ -2794,7 +3051,7 @@ export default function ValueMap({
         onRightClickInfoRef.current?.({
           stage: 'ready',
           postcode, isOutcode,
-          floodHtml, schoolHtml, primarySchoolHtml, stationHtml,
+          floodHtml, schoolHtml, primarySchoolHtml, stationHtml, crimeHtml,
           clickLat: lat, clickLng: lng,
           cellMedian, cellDeltaPct, cellDeltaGbp, cellTxCount, constituency,
         });
@@ -2977,11 +3234,13 @@ export default function ValueMap({
     const schoolMode = state.schoolOverlayMode ?? "off";
     const primarySchoolMode = state.primarySchoolOverlayMode ?? "off";
     const stationMode = state.stationOverlayMode ?? "off";
+    const crimeMode = state.crimeOverlayMode ?? "off";
     const floodVisibility = floodMode === "off" ? "none" : "visible";
     const schoolVisibility = schoolMode === "off" ? "none" : "visible";
     const primarySchoolVisibility = primarySchoolMode === "off" ? "none" : "visible";
     const stationVisibility = stationMode === "off" ? "none" : "visible";
-    const hideCellsMode = floodMode === "on_hide_cells" || schoolMode === "on_hide_cells" || primarySchoolMode === "on_hide_cells" || stationMode === "on_hide_cells";
+    const crimeVisibility = crimeMode === "off" ? "none" : "visible";
+    const hideCellsMode = floodMode === "on_hide_cells" || schoolMode === "on_hide_cells" || primarySchoolMode === "on_hide_cells" || stationMode === "on_hide_cells" || crimeMode === "on_hide_cells";
 
     const apply = () => {
       try {
@@ -3008,6 +3267,12 @@ export default function ValueMap({
         if (map.getLayer("station-overlay-clusters")) map.setLayoutProperty("station-overlay-clusters", "visibility", stationVisibility);
         if (map.getLayer("station-overlay-cluster-count")) map.setLayoutProperty("station-overlay-cluster-count", "visibility", stationVisibility);
         if (stationMode === "off") setStationSearchFocus(map, null, null);
+
+        // Crime (LSOA) layer visibility
+        if (map.getLayer("crime-overlay-points")) map.setLayoutProperty("crime-overlay-points", "visibility", crimeVisibility);
+        if (map.getLayer("crime-overlay-clusters")) map.setLayoutProperty("crime-overlay-clusters", "visibility", crimeVisibility);
+        if (map.getLayer("crime-overlay-cluster-count")) map.setLayoutProperty("crime-overlay-cluster-count", "visibility", crimeVisibility);
+        if (crimeMode === "off") setCrimeSearchFocus(map, null, null);
 
         // Cell opacity — applied in the same call so it cannot be skipped by a mid-layout bail
         if (map.getLayer("cells-fill")) {
@@ -3037,7 +3302,7 @@ export default function ValueMap({
     // before we apply paint property updates.
     const raf = requestAnimationFrame(apply);
     return () => { cancelAnimationFrame(raf); };
-  }, [state.floodOverlayMode, state.schoolOverlayMode, state.primarySchoolOverlayMode, state.stationOverlayMode]);
+  }, [state.floodOverlayMode, state.schoolOverlayMode, state.primarySchoolOverlayMode, state.stationOverlayMode, state.crimeOverlayMode]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -4200,6 +4465,8 @@ let _indexSchoolGrid: SpatialGrid<{ lon: number; lat: number; qualityScore: numb
 let _indexStationGrid: SpatialGrid<{ lon: number; lat: number; name: string; code: string }> | null = null;
 let _indexPrimarySchoolCache: Array<{ lon: number; lat: number; ofstedGrade: number; name: string; urn: string }> | null = null;
 let _indexPrimarySchoolGrid: SpatialGrid<{ lon: number; lat: number; ofstedGrade: number; name: string; urn: string }> | null = null;
+let _indexCrimeCache: Array<{ lon: number; lat: number; lsoa_code: string; lsoa_name: string; crime_score: number; violent_score: number; property_score: number; asb_score: number; total_rate: number }> | null = null;
+let _indexCrimeGrid: SpatialGrid<{ lon: number; lat: number; lsoa_code: string; lsoa_name: string; crime_score: number; violent_score: number; property_score: number; asb_score: number; total_rate: number }> | null = null;
 
 function buildSpatialGrid<T extends { lon: number; lat: number }>(points: T[], cellSize: number): SpatialGrid<T> {
   const buckets = new Map<number, T[]>();
@@ -5495,6 +5762,36 @@ function setPrimarySchoolSearchFocus(
     features.push({
       type: "Feature",
       properties: { role: "nearest", name: nearest.name, urn: nearest.urn },
+      geometry: { type: "Point", coordinates: [nearest.lon, nearest.lat] },
+    });
+    if (requested) {
+      features.push({
+        type: "Feature",
+        properties: { role: "link" },
+        geometry: {
+          type: "LineString",
+          coordinates: [[requested.lon, requested.lat], [nearest.lon, nearest.lat]],
+        },
+      });
+    }
+  }
+
+  source.setData({ type: "FeatureCollection", features } as any);
+}
+
+function setCrimeSearchFocus(
+  map: maplibregl.Map,
+  nearest: { lon: number; lat: number; lsoa_name: string; lsoa_code: string } | null,
+  requested: { lon: number; lat: number } | null
+) {
+  const source = map.getSource("crime-search-focus") as maplibregl.GeoJSONSource | undefined;
+  if (!source) return;
+
+  const features: any[] = [];
+  if (nearest) {
+    features.push({
+      type: "Feature",
+      properties: { role: "nearest", lsoa_name: nearest.lsoa_name, lsoa_code: nearest.lsoa_code },
       geometry: { type: "Point", coordinates: [nearest.lon, nearest.lat] },
     });
     if (requested) {
