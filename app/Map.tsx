@@ -275,6 +275,7 @@ export type RgLogEntry = {
   stationSummary: string;
   cellMedian?: number;    // median house price in the clicked cell
   cellDeltaPct?: number;  // price change % (negative = fallen)
+  cellDeltaGbp?: number;  // price change in £
   cellTxCount?: number;   // transaction count in cell
   constituency?: string;  // Westminster constituency
 };
@@ -282,7 +283,7 @@ export type RgLogEntry = {
 /** Data passed to page.tsx for the right-click info panel. */
 export type RightClickInfoData =
   | { stage: 'loading'; clickLat: number; clickLng: number }
-  | { stage: 'ready'; postcode: string; isOutcode: boolean; floodHtml: string; schoolHtml: string; stationHtml: string; clickLat: number; clickLng: number; cellMedian?: number; cellDeltaPct?: number; cellTxCount?: number; constituency?: string; };
+  | { stage: 'ready'; postcode: string; isOutcode: boolean; floodHtml: string; schoolHtml: string; stationHtml: string; clickLat: number; clickLng: number; cellMedian?: number; cellDeltaPct?: number; cellDeltaGbp?: number; cellTxCount?: number; constituency?: string; };
 
 export default function ValueMap({
   state,
@@ -2265,14 +2266,58 @@ export default function ValueMap({
         }
         if (!postcode) throw new Error("no postcode");
 
-        // ── Cell data at the click point (for enriched log + panel) ──
+        // ── Cell data at the click point ──
+        // gx/gy and median/txCount come from whichever partition is currently rendered.
+        // delta_pct is fetched independently from /api/deltas (which is cached per grid)
+        // so it's always accurate regardless of the current metric view.
         const cellPx = map.project([lng, lat]);
         const cellFeats = map.queryRenderedFeatures(cellPx, { layers: ['cells-fill'] });
         const cp = (cellFeats?.[0]?.properties ?? {}) as Record<string, unknown>;
-        const cellMedian   = cp.median   !== undefined && cp.median   !== null ? Number(cp.median)    : undefined;
-        const cellDeltaPct = cp.delta_pct !== undefined && cp.delta_pct !== null ? Number(cp.delta_pct) : undefined;
-        const cellTxCount  = cp.tx_count  !== undefined && cp.tx_count  !== null ? Number(cp.tx_count)  : undefined;
+        const cellMedian  = cp.median   !== undefined && cp.median   !== null ? Number(cp.median)   : undefined;
+        const cellTxCount = cp.tx_count  !== undefined && cp.tx_count  !== null ? Number(cp.tx_count) : undefined;
         const constituency = cp.constituency ? String(cp.constituency) : undefined;
+        const rawGx = cp.gx !== undefined ? Number(cp.gx) : NaN;
+        const rawGy = cp.gy !== undefined ? Number(cp.gy) : NaN;
+
+        // Fetch delta data from the authoritative deltas API (not from rendered features,
+        // which only have delta_pct when the metric is already "delta").
+        let cellDeltaPct: number | undefined;
+        let cellDeltaGbp: number | undefined;
+        if (Number.isFinite(rawGx) && Number.isFinite(rawGy)) {
+          try {
+            const currentGrid = stateRef.current.grid;
+            // Deltas API supports 5km/10km/25km only
+            const deltaGrid = currentGrid === "25km" ? "25km" : currentGrid === "10km" ? "10km" : "5km";
+            const step = deltaGrid === "25km" ? 25000 : deltaGrid === "10km" ? 10000 : 5000;
+            const dGx = Math.floor(rawGx / step) * step;
+            const dGy = Math.floor(rawGy / step) * step;
+            // Bust cache if grid changed
+            if (_deltasCacheGrid !== deltaGrid) { _deltasCache = null; _deltasCacheGrid = null; }
+            if (_deltasCache === null) {
+              const dRes = await fetch(`/api/deltas?grid=${deltaGrid}&propertyType=ALL&newBuild=ALL`);
+              if (dRes.ok) {
+                const dData = (await dRes.json()) as { rows: Array<Record<string, unknown>> };
+                _deltasCache = new Map();
+                for (const row of dData.rows ?? []) {
+                  const gxField = `gx_${step}`; const gyField = `gy_${step}`;
+                  const rgx = Number(row[gxField]); const rgy = Number(row[gyField]);
+                  if (Number.isFinite(rgx) && Number.isFinite(rgy)) {
+                    _deltasCache.set(`${rgx}_${rgy}`, {
+                      delta_pct: Number(row.delta_pct ?? 0),
+                      delta_gbp: Number(row.delta_gbp ?? 0),
+                    });
+                  }
+                }
+                _deltasCacheGrid = deltaGrid;
+              }
+            }
+            const dEntry = _deltasCache?.get(`${dGx}_${dGy}`);
+            if (dEntry) {
+              cellDeltaPct = Number.isFinite(dEntry.delta_pct) ? dEntry.delta_pct : undefined;
+              cellDeltaGbp = Number.isFinite(dEntry.delta_gbp) ? dEntry.delta_gbp : undefined;
+            }
+          } catch { /* use undefined if delta fetch fails */ }
+        }
 
         // ── Log this search entry ──
         const stripHtml = (s: string) => s.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
@@ -2283,6 +2328,7 @@ export default function ValueMap({
           schoolSummary: stripHtml(schoolHtml),
           stationSummary: stripHtml(stationHtml),
           cellMedian, cellDeltaPct, cellTxCount, constituency,
+          cellDeltaGbp,
         });
 
         // Pass all resolved data to page.tsx to render in the fixed left panel
@@ -2291,11 +2337,8 @@ export default function ValueMap({
           postcode, isOutcode,
           floodHtml, schoolHtml, stationHtml,
           clickLat: lat, clickLng: lng,
-          cellMedian, cellDeltaPct, cellTxCount, constituency,
+          cellMedian, cellDeltaPct, cellDeltaGbp, cellTxCount, constituency,
         });
-
-        // Auto-fire the area search immediately
-        if (!isOutcode) onReverseGeocodeRef.current?.(postcode);
       } catch {
         closeActiveRg();
       }
@@ -3642,6 +3685,10 @@ let _indexFloodCache: Array<{ lon: number; lat: number; riskScore: number }> | n
 let _indexSchoolCache: Array<{ lon: number; lat: number; qualityScore: number; isGood: boolean; schoolName: string; urn: string }> | null = null;
 let _indexStationCache: Array<{ lon: number; lat: number; name: string; code: string }> | null = null;
 let _indexCellsCache: { key: string; lookup: Map<string, number> } | null = null;
+
+// Delta data cache — keyed by grid (5km/10km/25km), lazily fetched on first right-click
+let _deltasCache: Map<string, { delta_pct: number; delta_gbp: number }> | null = null;
+let _deltasCacheGrid: string | null = null;
 
 type SpatialGrid<T> = { buckets: Map<number, T[]>; cellSize: number };
 let _indexFloodGrid: SpatialGrid<{ lon: number; lat: number; riskScore: number }> | null = null;

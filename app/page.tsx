@@ -3505,6 +3505,11 @@ export default function Home() {
                         {rightClickInfo.cellDeltaPct >= 0 ? "▲" : "▼"}{Math.abs(rightClickInfo.cellDeltaPct).toFixed(1)}%
                       </span>
                     )}
+                    {(rightClickInfo as any).cellDeltaGbp !== undefined && (
+                      <span style={{ color: "#9ca3af", fontSize: 10, marginLeft: 4 }}>
+                        {((d: number) => `(${d >= 0 ? "+" : "−"}£${Math.round(Math.abs(d) / 1000)}k)`)((rightClickInfo as any).cellDeltaGbp)}
+                      </span>
+                    )}
                     {rightClickInfo.cellTxCount !== undefined && (
                       <span style={{ color: "#9ca3af", fontSize: 10, marginLeft: 5 }}>({rightClickInfo.cellTxCount} sales)</span>
                     )}
@@ -3612,7 +3617,7 @@ export default function Home() {
                       dc("ValueMap accepts no responsibility or liability for any loss or damage arising from reliance on this data."),
                       dc(""),
                     ];
-                    const header = "Timestamp,Postcode,Lat,Lng,Flood,Schools,Station,Median Price,Price Change %,Tx Count,Constituency";
+                    const header = "Timestamp,Postcode,Lat,Lng,Flood,Schools,Station,Median Price,Price Change %,Price Change £,Tx Count,Constituency";
                     const rows = rgLog.map(e => [
                       e.timestamp,
                       `"${e.postcode}"`,
@@ -3623,6 +3628,7 @@ export default function Home() {
                       `"${e.stationSummary.replace(/"/g, '""')}"`,
                       e.cellMedian ?? "",
                       e.cellDeltaPct ?? "",
+                      e.cellDeltaGbp ?? "",
                       e.cellTxCount ?? "",
                       e.constituency ? `"${e.constituency.replace(/"/g, '""')}"` : "",
                     ].join(","));
