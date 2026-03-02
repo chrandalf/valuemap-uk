@@ -3421,33 +3421,66 @@ export default function Home() {
 
       {/* ── Show Me button (mobile, only until tour completed) ── */}
       {!tourActive && !cleanScreenMode && isMobileViewport && showMePulse && (
-        <button
-          data-tour="show-me"
-          type="button"
-          onClick={startTour}
+        <div
           style={{
             position: "fixed",
             bottom: 18,
             left: "50%",
             transform: "translateX(-50%)",
             zIndex: 60,
-            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 0,
             border: "2px solid rgba(250,204,21,0.75)",
             background: "rgba(250,204,21,0.22)",
-            color: "white",
-            padding: "10px 22px",
             borderRadius: 999,
-            fontSize: 13,
-            fontWeight: 700,
             backdropFilter: "blur(10px)",
             boxShadow: "0 4px 24px rgba(0,0,0,0.4)",
-            whiteSpace: "nowrap",
-            letterSpacing: 0.3,
-            ...(showMePulse ? { animation: "tourShowMePulse 1.6s ease-in-out infinite" } : {}),
+            animation: showMePulse ? "tourShowMePulse 1.6s ease-in-out infinite" : undefined,
           }}
         >
-          ✨ Show me how
-        </button>
+          <button
+            data-tour="show-me"
+            type="button"
+            onClick={startTour}
+            style={{
+              cursor: "pointer",
+              border: "none",
+              background: "transparent",
+              color: "white",
+              padding: "10px 16px 10px 22px",
+              borderRadius: "999px 0 0 999px",
+              fontSize: 13,
+              fontWeight: 700,
+              whiteSpace: "nowrap",
+              letterSpacing: 0.3,
+            }}
+          >
+            ✨ Show me how
+          </button>
+          <button
+            type="button"
+            aria-label="Dismiss"
+            onClick={() => {
+              setShowMePulse(false);
+              try { localStorage.setItem("valuemap_tour_done", "1"); } catch { /* ignore */ }
+            }}
+            style={{
+              cursor: "pointer",
+              border: "none",
+              borderLeft: "1px solid rgba(250,204,21,0.35)",
+              background: "transparent",
+              color: "rgba(255,255,255,0.7)",
+              padding: "10px 14px 10px 10px",
+              borderRadius: "0 999px 999px 0",
+              fontSize: 14,
+              lineHeight: 1,
+              fontWeight: 400,
+            }}
+          >
+            ✕
+          </button>
+        </div>
       )}
 
       {/* ── Guided Tour overlay ── */}
