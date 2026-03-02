@@ -603,12 +603,16 @@ async function legacyHandler(
 
   const resolvedMonth = endMonth === "LATEST" ? entry.latestEndMonth : endMonth;
 
-  // Match by individual type atoms; empty typeSet means "ALL" (accept any)
+  // Match by individual type atoms:
+  // - "ALL" in propertyTypesArr means the user wants the pre-aggregated "ALL" rows
+  //   (not a wildcard — the legacy file contains explicit rows with property_type="ALL")
+  // - Any other atoms D/S/T/F mean user wants those specific type rows
   const typeSet = propertyTypesArr.filter((t) => t !== "ALL");
+  const wantsAllAggregate = propertyTypesArr.includes("ALL") && typeSet.length === 0;
   const preFiltered = entry.rows.filter(
     (r) =>
       r.end_month === resolvedMonth &&
-      (typeSet.length === 0 || typeSet.includes(r.property_type)) &&
+      (wantsAllAggregate ? r.property_type === "ALL" : typeSet.includes(r.property_type)) &&
       r.new_build === newBuild
   );
 
