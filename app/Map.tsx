@@ -1867,7 +1867,8 @@ export default function ValueMap({
     const la          = String(p.la ?? "");
     const grade       = Number(p.ofsted_grade ?? 0);
     const label       = String(p.ofsted_label ?? "");
-    const inspDate    = String(p.inspection_date ?? "");
+    const inspDateRaw = String(p.inspection_date ?? "");
+    const inspDate    = inspDateRaw === "NULL" ? "" : inspDateRaw;
     const link        = String(p.link ?? "");
 
     const gradeColors: Record<number, string> = {

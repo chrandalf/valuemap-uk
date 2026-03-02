@@ -263,12 +263,16 @@ def load_rows(path: Path, phases: Optional[set] = None) -> List[dict]:
             postcode_raw = row[col["postcode"]].strip() if col["postcode"] else ""
             la_name = row[col["la_name"]].strip() if col["la_name"] else ""
             # For ungraded-outcome fallbacks, prefer the ungraded inspection date
+            def _date(raw: str) -> str:
+                s = raw.strip()
+                return "" if s.upper() == "NULL" else s
+
             if ungraded_fallback and col["ungraded_date"]:
-                insp_date = row[col["ungraded_date"]].strip()
+                insp_date = _date(row[col["ungraded_date"]])
             elif col["ungraded_date"] and grade == 0:
-                insp_date = row[col["ungraded_date"]].strip()
+                insp_date = _date(row[col["ungraded_date"]])
             else:
-                insp_date = row[col["inspection_date"]].strip() if col["inspection_date"] else ""
+                insp_date = _date(row[col["inspection_date"]]) if col["inspection_date"] else ""
             postcode_key = normalize_postcode_key(postcode_raw)
 
             if not postcode_key:
