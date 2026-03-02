@@ -69,6 +69,7 @@ RAW_CRIME_LATEST_ZIP = RAW_CRIME_DIR / "latest.zip"
 
 MODEL_CRIME_DIR = MODEL_DIR / "crime"
 MODEL_CRIME_OVERLAY = MODEL_CRIME_DIR / "crime_overlay_lsoa.geojson.gz"
+MODEL_CRIME_CELLS_TEMPLATE = MODEL_CRIME_DIR / "crime_cells_{grid}.json.gz"
 
 PUBLISH_CRIME_DIR = PUBLISH_DIR / "crime"
 

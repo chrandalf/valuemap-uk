@@ -15,6 +15,8 @@ type VoteOverlayMode = "off" | "on";
 type CommuteOverlayMode = "off" | "on";
 type AgeOverlayMode = "off" | "on";
 type CrimeOverlayMode = "off" | "on" | "on_hide_cells";
+type CrimeCellMode = "off" | "on";
+type CrimeCellSubMode = "total" | "violent" | "property" | "asb";
 type VoteColorScale = "relative" | "absolute";
 
 export type MapState = {
@@ -33,6 +35,8 @@ export type MapState = {
   commuteOverlayMode?: CommuteOverlayMode;
   ageOverlayMode?: AgeOverlayMode;
   crimeOverlayMode?: CrimeOverlayMode;
+  crimeCellMode?: CrimeCellMode;
+  crimeCellSubMode?: CrimeCellSubMode;
   voteColorScale?: VoteColorScale;
 };
 
@@ -98,6 +102,15 @@ type ApiRow = {
   pct_25_44?: number;
   pct_45_64?: number;
   pct_65_plus?: number;
+  // crime cell overlay
+  violent_rate?: number;
+  property_rate?: number;
+  asb_rate?: number;
+  total_rate?: number;
+  crime_score?: number;
+  violent_score?: number;
+  property_score?: number;
+  asb_score?: number;
 };
 
 function isDeltaMetric(metric: Metric) {
@@ -3316,9 +3329,10 @@ export default function ValueMap({
     const mode = state.voteOverlayMode ?? "off";
     const scale = state.voteColorScale ?? "relative";
 
+    const crimeCellMode = stateRef.current.crimeCellMode ?? "off";
     try {
-      if (ageMode !== "off" || commuteMode !== "off") {
-        // Age or commute overlay takes priority — no-op, let those effects handle it
+      if (crimeCellMode !== "off" || ageMode !== "off" || commuteMode !== "off") {
+        // Crime cell, age, or commute overlay takes priority — no-op, let those effects handle it
       } else if (mode === "off") {
         void ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange, onStatsUpdateRef.current, easyColoursRef.current, !!indexPrefsRef.current);
       } else {
@@ -3335,8 +3349,11 @@ export default function ValueMap({
     if (!map || !map.getLayer("cells-fill")) return;
     const commuteMode = state.commuteOverlayMode ?? "off";
     const voteMode = stateRef.current.voteOverlayMode ?? "off";
+    const crimeCellMode = stateRef.current.crimeCellMode ?? "off";
     try {
-      if (commuteMode !== "off") {
+      if (crimeCellMode !== "off") {
+        // Crime cell overlay takes priority — no-op
+      } else if (commuteMode !== "off") {
         applyCommuteOverlayColorExpression(map, easyColoursRef.current);
       } else if (voteMode !== "off") {
         applyVoteOverlayColorFromSource(map, stateRef.current.voteColorScale ?? "relative");
@@ -3353,8 +3370,11 @@ export default function ValueMap({
     const ageMode = state.ageOverlayMode ?? "off";
     const commuteMode = stateRef.current.commuteOverlayMode ?? "off";
     const voteMode = stateRef.current.voteOverlayMode ?? "off";
+    const crimeCellMode = stateRef.current.crimeCellMode ?? "off";
     try {
-      if (ageMode !== "off") {
+      if (crimeCellMode !== "off") {
+        // Crime cell overlay takes priority — no-op
+      } else if (ageMode !== "off") {
         applyAgeOverlayColorExpression(map, easyColoursRef.current);
       } else if (commuteMode !== "off") {
         applyCommuteOverlayColorExpression(map, easyColoursRef.current);
@@ -3366,14 +3386,40 @@ export default function ValueMap({
     } catch (e) { /* ignore */ }
   }, [state.ageOverlayMode, onLegendChange]);
 
+  // Crime cell overlay: apply/remove crime density colours on cells.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.getLayer("cells-fill")) return;
+    const crimeMode = state.crimeCellMode ?? "off";
+    const ageMode = stateRef.current.ageOverlayMode ?? "off";
+    const commuteMode = stateRef.current.commuteOverlayMode ?? "off";
+    const voteMode = stateRef.current.voteOverlayMode ?? "off";
+    try {
+      if (crimeMode !== "off") {
+        applyCrimeCellOverlayColorExpression(map, state.crimeCellSubMode, easyColoursRef.current);
+      } else if (ageMode !== "off") {
+        applyAgeOverlayColorExpression(map, easyColoursRef.current);
+      } else if (commuteMode !== "off") {
+        applyCommuteOverlayColorExpression(map, easyColoursRef.current);
+      } else if (voteMode !== "off") {
+        applyVoteOverlayColorFromSource(map, stateRef.current.voteColorScale ?? "relative");
+      } else {
+        void ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange, onStatsUpdateRef.current, easyColoursRef.current, !!indexPrefsRef.current);
+      }
+    } catch (e) { /* ignore */ }
+  }, [state.crimeCellMode, state.crimeCellSubMode, onLegendChange]);
+
   // Re-apply colour ramps whenever the easy-colours (colourblind) preference changes.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !map.getLayer("cells-fill")) return;
+    const crimeMode = stateRef.current.crimeCellMode ?? "off";
     const ageMode = stateRef.current.ageOverlayMode ?? "off";
     const commuteMode = stateRef.current.commuteOverlayMode ?? "off";
     const voteMode = stateRef.current.voteOverlayMode ?? "off";
-    if (ageMode !== "off") {
+    if (crimeMode !== "off") {
+      applyCrimeCellOverlayColorExpression(map, stateRef.current.crimeCellSubMode, easyColours ?? false);
+    } else if (ageMode !== "off") {
       applyAgeOverlayColorExpression(map, easyColours ?? false);
     } else if (commuteMode !== "off") {
       applyCommuteOverlayColorExpression(map, easyColours ?? false);
@@ -3690,6 +3736,43 @@ function ageColorExpression(easy = false): any {
 function applyAgeOverlayColorExpression(map: maplibregl.Map, easy = false) {
   if (map.getLayer("cells-fill")) {
     map.setPaintProperty("cells-fill", "fill-color", ageColorExpression(easy));
+  }
+}
+
+/** Crime-cell score colour ramp.
+ * score: 0 = most dangerous, 100 = safest.
+ * Normal  : dark-red (dangerous) → neutral grey → dark-green (safe)
+ * Easy/CBF: purple (dangerous) → neutral → green (safe)
+ */
+function crimeCellColorExpression(subMode: CrimeCellSubMode | undefined, easy = false): any {
+  const field = subMode === "violent"  ? "violent_score"
+              : subMode === "property" ? "property_score"
+              : subMode === "asb"      ? "asb_score"
+              : "crime_score";
+  const score = ["case", ["has", field], ["to-number", ["get", field]], -1] as any;
+  if (easy) {
+    return ["interpolate", ["linear"], score,
+      -1,  "#aaaaaa",  // no data
+       0,  "#762a83",  // most dangerous — purple
+      25,  "#af8dc3",
+      50,  "#f7f7f7",  // national median
+      75,  "#d9f0a3",
+     100,  "#1a7837",  // safest — green
+    ];
+  }
+  return ["interpolate", ["linear"], score,
+    -1,  "#aaaaaa",  // no data
+     0,  "#7f1d1d",  // most dangerous — dark red
+    25,  "#ef4444",
+    50,  "#e5e7eb",  // national median
+    75,  "#86efac",
+   100,  "#15803d",  // safest — dark green
+  ];
+}
+
+function applyCrimeCellOverlayColorExpression(map: maplibregl.Map, subMode: CrimeCellSubMode | undefined, easy = false) {
+  if (map.getLayer("cells-fill")) {
+    map.setPaintProperty("cells-fill", "fill-color", crimeCellColorExpression(subMode, easy));
   }
 }
 

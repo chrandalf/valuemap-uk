@@ -206,6 +206,21 @@ type AgeCellRow = {
 
 type AgeCellValue = Omit<AgeCellRow, "gx" | "gy">;
 
+type CrimeCellRow = {
+  gx: number;
+  gy: number;
+  violent_rate:   number;
+  property_rate:  number;
+  asb_rate:       number;
+  total_rate:     number;
+  crime_score:    number;
+  violent_score:  number;
+  property_score: number;
+  asb_score:      number;
+};
+
+type CrimeCellValue = Omit<CrimeCellRow, "gx" | "gy">;
+
 interface Env {
   R2?: R2Bucket;
   BRICKGRID_BUCKET?: R2Bucket;
@@ -591,6 +606,54 @@ async function backfillAge(env: Env, grid: GridKey, rows: CellRow[]): Promise<Ce
   });
 }
 
+/* ---------- crime cell data ---------- */
+
+const CRIME_CACHE_BY_GRID: Partial<Record<GridKey, { lookup: Map<string, CrimeCellValue>; loadedAtMs: number }>> = {};
+
+function crimeKeyForGrid(grid: GridKey) {
+  switch (grid) {
+    case "1km":  return "crime_cells_1km.json.gz";
+    case "5km":  return "crime_cells_5km.json.gz";
+    case "10km": return "crime_cells_10km.json.gz";
+    case "25km": return "crime_cells_25km.json.gz";
+  }
+}
+
+async function getCachedCrimeLookup(env: Env, grid: GridKey): Promise<Map<string, CrimeCellValue> | null> {
+  const now = Date.now();
+  const cached = CRIME_CACHE_BY_GRID[grid];
+  if (cached && now - cached.loadedAtMs <= CACHE_TTL_MS) return cached.lookup;
+
+  const bucket = getBucket(env);
+  const key = crimeKeyForGrid(grid);
+  const obj = await bucket.get(key);
+  if (!obj) {
+    CRIME_CACHE_BY_GRID[grid] = { lookup: new Map(), loadedAtMs: Date.now() };
+    return null;
+  }
+
+  const gz = await obj.arrayBuffer();
+  const jsonText = await gunzipToString(gz);
+  const rows = JSON.parse(jsonText) as CrimeCellRow[];
+
+  const lookup = new Map<string, CrimeCellValue>();
+  for (const row of rows) {
+    lookup.set(`${row.gx}_${row.gy}`, {
+      violent_rate:   Number(row.violent_rate   ?? 0),
+      property_rate:  Number(row.property_rate  ?? 0),
+      asb_rate:       Number(row.asb_rate       ?? 0),
+      total_rate:     Number(row.total_rate     ?? 0),
+      crime_score:    Number(row.crime_score    ?? 50),
+      violent_score:  Number(row.violent_score  ?? 50),
+      property_score: Number(row.property_score ?? 50),
+      asb_score:      Number(row.asb_score      ?? 50),
+    });
+  }
+
+  CRIME_CACHE_BY_GRID[grid] = { lookup, loadedAtMs: Date.now() };
+  return lookup;
+}
+
 /** Fetch vote/commute/age/country lookups in parallel, then enrich rows in a single pass. */
 async function backfillAll(env: Env, grid: GridKey, rows: CellRow[]): Promise<CellRow[]> {
   // vote_cells_1km.json.gz is ~2 MB compressed / ~20 MB uncompressed — loading it
@@ -603,11 +666,12 @@ async function backfillAll(env: Env, grid: GridKey, rows: CellRow[]): Promise<Ce
     ? Promise.resolve(null)
     : getCachedVoteLookup(env, grid).catch(() => null);
 
-  const [voteLookup, countryLookup, commuteLookup, ageLookup] = await Promise.all([
+  const [voteLookup, countryLookup, commuteLookup, ageLookup, crimeLookup] = await Promise.all([
     votePromise,
     getCachedCountryLookup(env, grid).catch(() => null),
     getCachedCommuteLookup(env, grid).catch(() => null),
     getCachedAgeLookup(env, grid).catch(() => null),
+    getCachedCrimeLookup(env, grid).catch(() => null),
   ]);
 
   return rows.map((row) => {
@@ -647,6 +711,18 @@ async function backfillAll(env: Env, grid: GridKey, rows: CellRow[]): Promise<Ce
       pct_25_44:    age.pct_25_44,
       pct_45_64:    age.pct_45_64,
       pct_65_plus:  age.pct_65_plus,
+    };
+
+    const crime = crimeLookup?.get(key);
+    if (crime) out = { ...out,
+      violent_rate:   crime.violent_rate,
+      property_rate:  crime.property_rate,
+      asb_rate:       crime.asb_rate,
+      total_rate:     crime.total_rate,
+      crime_score:    crime.crime_score,
+      violent_score:  crime.violent_score,
+      property_score: crime.property_score,
+      asb_score:      crime.asb_score,
     };
 
     return out;

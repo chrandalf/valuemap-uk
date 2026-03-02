@@ -98,6 +98,10 @@ def collect_assets(
                 files.append(manifest_file)
     if include_crime:
         files.append(crime_dir / "crime_overlay_lsoa.geojson.gz")
+        for grid in ("1km", "5km", "10km", "25km"):
+            p = crime_dir / f"crime_cells_{grid}.json.gz"
+            if p.exists():
+                files.append(p)
     return files
 
 

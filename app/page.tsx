@@ -14,6 +14,8 @@ type SchoolOverlayMode = "off" | "on" | "on_hide_cells";
 type PrimarySchoolOverlayMode = "off" | "on" | "on_hide_cells";
 type StationOverlayMode = "off" | "on" | "on_hide_cells";
 type CrimeOverlayMode = "off" | "on" | "on_hide_cells";
+type CrimeCellMode = "off" | "on";
+type CrimeCellSubMode = "total" | "violent" | "property" | "asb";
 type VoteOverlayMode = "off" | "on";
 type CommuteOverlayMode = "off" | "on";
 type AgeOverlayMode = "off" | "on";
@@ -46,6 +48,8 @@ type MapState = {
   primarySchoolOverlayMode: PrimarySchoolOverlayMode;
   stationOverlayMode: StationOverlayMode;
   crimeOverlayMode: CrimeOverlayMode;
+  crimeCellMode: CrimeCellMode;
+  crimeCellSubMode: CrimeCellSubMode;
   voteOverlayMode: VoteOverlayMode;
   voteColorScale: VoteColorScale;
   commuteOverlayMode: CommuteOverlayMode;
@@ -198,6 +202,8 @@ export default function Home() {
       primarySchoolOverlayMode: "off",
       stationOverlayMode: "off",
       crimeOverlayMode: "off",
+      crimeCellMode: "off",
+      crimeCellSubMode: "total",
       voteOverlayMode: "off",
       voteColorScale: "relative",
       commuteOverlayMode: "off",
@@ -222,6 +228,8 @@ export default function Home() {
       const voteScale = p.get("voteScale");
       const commute = p.get("commute");
       const age = p.get("age");
+      const crimeCell = p.get("crimeCell");
+      const crimeCellSub = p.get("crimeCellSub");
       const GRIDS: GridSize[] = ["1km", "5km", "10km", "25km"];
       const METRICS: Metric[] = ["median", "median_ppsf", "delta_gbp", "delta_pct"];
       const TYPES: PropertyType[] = ["ALL", "D", "S", "T", "F"];
@@ -233,7 +241,7 @@ export default function Home() {
       const STATIONS: StationOverlayMode[] = ["off", "on", "on_hide_cells"];
       const CRIMES: CrimeOverlayMode[] = ["off", "on", "on_hide_cells"];
       // Only hydrate if at least one known param is present
-      if (!grid && !metric && !type && !flood && !schools && !pschools && !vote && !stations && !crime && !commute && !age) return defaults;
+      if (!grid && !metric && !type && !flood && !schools && !pschools && !vote && !stations && !crime && !commute && !age && !crimeCell) return defaults;
       return {
         grid: GRIDS.includes(grid as GridSize) ? (grid as GridSize) : defaults.grid,
         metric: METRICS.includes(metric as Metric) ? (metric as Metric) : defaults.metric,
@@ -247,6 +255,8 @@ export default function Home() {
         primarySchoolOverlayMode: PSCHOOLS.includes(pschools as PrimarySchoolOverlayMode) ? (pschools as PrimarySchoolOverlayMode) : defaults.primarySchoolOverlayMode,
         stationOverlayMode: STATIONS.includes(stations as StationOverlayMode) ? (stations as StationOverlayMode) : defaults.stationOverlayMode,
         crimeOverlayMode: CRIMES.includes(crime as CrimeOverlayMode) ? (crime as CrimeOverlayMode) : defaults.crimeOverlayMode,
+        crimeCellMode: crimeCell === "on" ? "on" : defaults.crimeCellMode,
+        crimeCellSubMode: (["total", "violent", "property", "asb"] as CrimeCellSubMode[]).includes(crimeCellSub as CrimeCellSubMode) ? (crimeCellSub as CrimeCellSubMode) : defaults.crimeCellSubMode,
         voteOverlayMode: vote === "on" ? "on" : defaults.voteOverlayMode,
         voteColorScale: voteScale === "absolute" ? "absolute" : defaults.voteColorScale,
         commuteOverlayMode: commute === "on" ? "on" : defaults.commuteOverlayMode,
@@ -398,6 +408,8 @@ export default function Home() {
     primarySchoolOverlayMode: "off",
     stationOverlayMode: "off",
     crimeOverlayMode: "off",
+    crimeCellMode: "off",
+    crimeCellSubMode: "total",
     voteOverlayMode: "off",
     voteColorScale: "relative",
     commuteOverlayMode: "off",
@@ -671,6 +683,8 @@ export default function Home() {
     params.set("pschools", state.primarySchoolOverlayMode);
     params.set("stations", state.stationOverlayMode);
     params.set("crime", state.crimeOverlayMode);
+    params.set("crimeCell", state.crimeCellMode);
+    if (state.crimeCellSubMode !== "total") params.set("crimeCellSub", state.crimeCellSubMode);
     params.set("vote", state.voteOverlayMode);
     params.set("voteScale", state.voteColorScale);
     params.set("commute", state.commuteOverlayMode);
@@ -1047,7 +1061,7 @@ export default function Home() {
       ? "Off"
       : "On";
   const voteScaleLabel = state.voteColorScale === "relative" ? "Relative" : "Absolute";
-  const anyOverlayActive = state.floodOverlayMode !== "off" || state.schoolOverlayMode !== "off" || state.primarySchoolOverlayMode !== "off" || state.stationOverlayMode !== "off" || state.crimeOverlayMode !== "off" || state.voteOverlayMode !== "off" || state.commuteOverlayMode !== "off" || state.ageOverlayMode !== "off";
+  const anyOverlayActive = state.floodOverlayMode !== "off" || state.schoolOverlayMode !== "off" || state.primarySchoolOverlayMode !== "off" || state.stationOverlayMode !== "off" || state.crimeOverlayMode !== "off" || state.crimeCellMode !== "off" || state.voteOverlayMode !== "off" || state.commuteOverlayMode !== "off" || state.ageOverlayMode !== "off";
 
   const currentFiltersSummary =
     `Grid: ${state.grid} · Metric: ${METRIC_LABEL[state.metric]} · ` +
@@ -1056,6 +1070,7 @@ export default function Home() {
     `Primary schools: ${state.primarySchoolOverlayMode === "off" ? "Off" : state.primarySchoolOverlayMode === "on" ? "On" : "On (hide cells)"} · ` +
     `Stations: ${state.stationOverlayMode === "off" ? "Off" : state.stationOverlayMode === "on" ? "On" : "On (hide cells)"} · ` +
     `Crime: ${state.crimeOverlayMode === "off" ? "Off" : state.crimeOverlayMode === "on" ? "On" : "On (hide cells)"} · ` +
+    `Crime cells: ${state.crimeCellMode === "on" ? `On (${state.crimeCellSubMode})` : "Off"} · ` +
     `Vote overlay: ${voteOverlayLabel} (${voteScaleLabel}) · ` +
     `Commute: ${state.commuteOverlayMode === "on" ? "On" : "Off"} · ` +
     `Age mix: ${state.ageOverlayMode === "on" ? "On" : "Off"}`;
@@ -2066,14 +2081,38 @@ export default function Home() {
                   <div style={{ borderTop: "1px solid rgba(255,255,255,0.1)", margin: "8px 0 7px" }} />
                   <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.45, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 7 }}>Cell colour</div>
 
-                  {/* Political votes */}
+                  {/* Crime cells */}
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 7 }}>
+                    <div style={{ fontSize: 11, opacity: 0.8, width: 70, flexShrink: 0, paddingTop: 2 }}>🔴 Crime</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                      <Segment
+                        options={["off", "on"] as CrimeCellMode[]}
+                        value={state.crimeCellMode}
+                        onChange={(v) => setState((s) => ({ ...s, crimeCellMode: v as CrimeCellMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode } : {}) }))}
+                        renderOption={(v) => v === "on" ? "On" : "Off"}
+                      />
+                      {state.crimeCellMode === "on" && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <div style={{ fontSize: 10, opacity: 0.5, flexShrink: 0 }}>Type:</div>
+                          <Segment
+                            options={["total", "violent", "property", "asb"] as CrimeCellSubMode[]}
+                            value={state.crimeCellSubMode}
+                            onChange={(v) => setState((s) => ({ ...s, crimeCellSubMode: v as CrimeCellSubMode }))}
+                            renderOption={(v) => v === "total" ? "Total" : v === "violent" ? "Violent" : v === "property" ? "Property" : "ASB"}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Political votes */}}
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 7 }}>
                     <div style={{ fontSize: 11, opacity: 0.8, width: 70, flexShrink: 0, paddingTop: 2 }}>🗳 Politics</div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                       <Segment
                         options={["off", "on"]}
                         value={state.voteOverlayMode}
-                        onChange={(v) => setState((s) => ({ ...s, voteOverlayMode: v as VoteOverlayMode, ...(v === "on" ? { commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode } : {}) }))}
+                        onChange={(v) => setState((s) => ({ ...s, voteOverlayMode: v as VoteOverlayMode, ...(v === "on" ? { commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, crimeCellMode: "off" as CrimeCellMode } : {}) }))}
                         renderOption={(v) => v === "on" ? "On" : "Off"}
                       />
                       {state.voteOverlayMode === "on" && (
@@ -2096,7 +2135,7 @@ export default function Home() {
                     <Segment
                       options={["off", "on"]}
                       value={state.commuteOverlayMode}
-                      onChange={(v) => setState((s) => ({ ...s, commuteOverlayMode: v as CommuteOverlayMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode } : {}) }))}
+                      onChange={(v) => setState((s) => ({ ...s, commuteOverlayMode: v as CommuteOverlayMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, crimeCellMode: "off" as CrimeCellMode } : {}) }))}
                       renderOption={(v) => v === "on" ? "On" : "Off"}
                     />
                   </div>
@@ -2107,7 +2146,7 @@ export default function Home() {
                     <Segment
                       options={["off", "on"]}
                       value={state.ageOverlayMode}
-                      onChange={(v) => setState((s) => ({ ...s, ageOverlayMode: v as AgeOverlayMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode } : {}) }))}
+                      onChange={(v) => setState((s) => ({ ...s, ageOverlayMode: v as AgeOverlayMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, crimeCellMode: "off" as CrimeCellMode } : {}) }))}
                       renderOption={(v) => v === "on" ? "On" : "Off"}
                     />
                   </div>
