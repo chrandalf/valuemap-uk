@@ -1073,6 +1073,17 @@ export default function ValueMap({
   });
 
   map.addLayer({
+    id: "cells-fill",
+    type: "fill",
+    source: "cells",
+    paint: {
+      "fill-color": getFillColorExpression(state.metric, easyColoursRef.current),
+      "fill-opacity": 0.42,
+    },
+  });
+
+  // ── Overlay cluster layers — added AFTER cells-fill so they render on top of cells ──
+  map.addLayer({
     id: "flood-overlay-clusters",
     type: "circle",
     source: "flood-overlay",
@@ -1157,16 +1168,6 @@ export default function ValueMap({
     },
     paint: {
       "text-color": "rgba(255,255,255,0.95)",
-    },
-  });
-
-  map.addLayer({
-    id: "cells-fill",
-    type: "fill",
-    source: "cells",
-    paint: {
-      "fill-color": getFillColorExpression(state.metric, easyColoursRef.current),
-      "fill-opacity": 0.42,
     },
   });
 
@@ -1633,6 +1634,12 @@ export default function ValueMap({
     const current = stateRef.current;
     return current.floodOverlayMode === "on_hide_cells" && map.getZoom() >= 10;
   };
+  // Allow clicking flood/school overlay dots whenever the overlay is active (on OR on_hide_cells).
+  // useFloodPopupMode / useSchoolPopupMode remain restricted to on_hide_cells for cell-hover suppression.
+  const floodOverlayClickable = () =>
+    stateRef.current.floodOverlayMode !== "off" && map.getZoom() >= 8;
+  const schoolOverlayClickable = () =>
+    stateRef.current.schoolOverlayMode !== "off" && map.getZoom() >= 8;
 
   const riskLabelFromScore = (score: number) => {
     if (score >= 4) return "High";
@@ -1753,33 +1760,43 @@ export default function ValueMap({
   };
 
   map.on("click", "flood-overlay-points", (e) => {
-    if (!useFloodPopupMode()) return;
+    if (!floodOverlayClickable()) return;
     showFloodPointPopup(e);
   });
 
   map.on("click", "flood-overlay-clusters", (e) => {
-    if (!useFloodPopupMode()) return;
+    if (!floodOverlayClickable()) return;
     showFloodClusterPopup(e);
   });
 
   map.on("click", "flood-overlay-cluster-count", (e) => {
-    if (!useFloodPopupMode()) return;
+    if (!floodOverlayClickable()) return;
     showFloodClusterPopup(e);
   });
 
   map.on("click", "school-overlay-points", (e) => {
-    if (!useSchoolPopupMode()) return;
+    if (!schoolOverlayClickable()) return;
     showSchoolPointPopup(e);
   });
 
   map.on("click", "school-overlay-clusters", (e) => {
-    if (!useSchoolPopupMode()) return;
+    if (!schoolOverlayClickable()) return;
     showSchoolClusterPopup(e);
   });
 
   map.on("click", "school-overlay-cluster-count", (e) => {
-    if (!useSchoolPopupMode()) return;
+    if (!schoolOverlayClickable()) return;
     showSchoolClusterPopup(e);
+  });
+
+  // Pointer cursor when hovering clickable overlay features
+  const overlayHoverLayers = [
+    "flood-overlay-points", "flood-overlay-clusters", "flood-overlay-cluster-count",
+    "school-overlay-points", "school-overlay-clusters", "school-overlay-cluster-count",
+  ];
+  overlayHoverLayers.forEach((id) => {
+    map.on("mouseenter", id, () => { map.getCanvas().style.cursor = "pointer"; });
+    map.on("mouseleave", id, () => { map.getCanvas().style.cursor = ""; });
   });
 
   map.on("mousemove", "cells-fill", (e) => {
