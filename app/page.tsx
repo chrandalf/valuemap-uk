@@ -2078,13 +2078,13 @@ export default function Home() {
                       setPostcodeSearchClearToken((v) => v + 1);
                     }
                   }}
-                  onKeyDown={(e) => { if (e.key === "Enter") { const q = postcodeSearch.trim(); if (q) { setActivePostcodeSearch(q); setPostcodeSearchToken(v => v + 1); } } }}
+                  onKeyDown={(e) => { if (e.key === "Enter") { const q = postcodeSearch.trim(); if (q) { setState(s => ({ ...s, floodOverlayMode: "off", schoolOverlayMode: "off", stationOverlayMode: "off", voteOverlayMode: "off", commuteOverlayMode: "off", ageOverlayMode: "off" })); setActivePostcodeSearch(q); setPostcodeSearchToken(v => v + 1); } } }}
                   placeholder="Search postcode…"
                   aria-label="Search postcode"
                   style={{ width: 155, borderRadius: 7, border: "1px solid rgba(255,255,255,0.22)", background: "rgba(255,255,255,0.1)", color: "white", padding: "5px 8px", fontSize: 11 }}
                 />
                 <button type="button"
-                  onClick={() => { const q = postcodeSearch.trim(); if (!q) { setPostcodeSearchStatus("Enter a postcode"); return; } setActivePostcodeSearch(q); setPostcodeSearchToken(v => v + 1); }}
+                  onClick={() => { const q = postcodeSearch.trim(); if (!q) { setPostcodeSearchStatus("Enter a postcode"); return; } setState(s => ({ ...s, floodOverlayMode: "off", schoolOverlayMode: "off", stationOverlayMode: "off", voteOverlayMode: "off", commuteOverlayMode: "off", ageOverlayMode: "off" })); setActivePostcodeSearch(q); setPostcodeSearchToken(v => v + 1); }}
                   style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.22)", background: "rgba(255,255,255,0.1)", color: "white", padding: "5px 9px", borderRadius: 7, fontSize: 11 }}
                 >
                   Go
@@ -2131,7 +2131,7 @@ export default function Home() {
                     setPostcodeSearchClearToken((v) => v + 1);
                   }
                 }}
-                onKeyDown={(e) => { if (e.key === "Enter") { const q = postcodeSearch.trim(); if (q) { setActivePostcodeSearch(q); setPostcodeSearchToken(v => v + 1); } } }}
+                onKeyDown={(e) => { if (e.key === "Enter") { const q = postcodeSearch.trim(); if (q) { setState(s => ({ ...s, floodOverlayMode: "off", schoolOverlayMode: "off", stationOverlayMode: "off", voteOverlayMode: "off", commuteOverlayMode: "off", ageOverlayMode: "off" })); setActivePostcodeSearch(q); setPostcodeSearchToken(v => v + 1); } } }}
                 placeholder="Postcode…"
                 aria-label="Search postcode"
                 style={{ width: 90, minWidth: 0, flexShrink: 0, borderRadius: 7, border: "1px solid rgba(255,255,255,0.22)", background: "rgba(255,255,255,0.1)", color: "white", padding: "5px 8px", fontSize: 11 }}
@@ -2181,7 +2181,7 @@ export default function Home() {
               )}
               <button
                 type="button"
-                onClick={() => { const q = postcodeSearch.trim(); if (!q) { setPostcodeSearchStatus("Enter a postcode"); return; } setActivePostcodeSearch(q); setPostcodeSearchToken(v => v + 1); }}
+                onClick={() => { const q = postcodeSearch.trim(); if (!q) { setPostcodeSearchStatus("Enter a postcode"); return; } setState(s => ({ ...s, floodOverlayMode: "off", schoolOverlayMode: "off", stationOverlayMode: "off", voteOverlayMode: "off", commuteOverlayMode: "off", ageOverlayMode: "off" })); setActivePostcodeSearch(q); setPostcodeSearchToken(v => v + 1); }}
                 style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.22)", background: "rgba(255,255,255,0.1)", color: "white", padding: "5px 9px", borderRadius: 7, fontSize: 11, flexShrink: 0 }}
               >
                 Go
