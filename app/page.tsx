@@ -270,6 +270,8 @@ export default function Home() {
   const [easyColours, setEasyColours] = useState(() => {
     try { return localStorage.getItem("valuemap_easy_colours") === "1"; } catch { return false; }
   });
+  // NOTE: any new help nudges/hints rendered in page.tsx must be gated on {hintsEnabled && ...}
+  // Nudges currently gated: desktop "or right-click map" text, 💡 overlay hint in both right-click panels.
   const [hintsEnabled, setHintsEnabled] = useState(() => {
     try { const v = localStorage.getItem("valuemap_hints_enabled"); return v === null ? true : v === "1"; } catch { return true; }
   });

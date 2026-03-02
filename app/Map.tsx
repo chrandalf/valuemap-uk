@@ -385,6 +385,8 @@ export default function ValueMap({
   const prevIndexScoringSignatureRef = useRef<string | null>(null);
   const cellFcRef = useRef<any>(null);
   const easyColoursRef = useRef(easyColours ?? false);
+  // NOTE: any new help nudges/hints rendered inside Map.tsx must check hintsEnabledRef.current before showing.
+  // Nudges currently gated: cellClickHint bubble (cell-click → "double-tap for details").
   const hintsEnabledRef = useRef<boolean>(hintsEnabled ?? true);
 
 
