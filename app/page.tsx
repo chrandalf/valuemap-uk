@@ -270,6 +270,9 @@ export default function Home() {
   const [easyColours, setEasyColours] = useState(() => {
     try { return localStorage.getItem("valuemap_easy_colours") === "1"; } catch { return false; }
   });
+  const [hintsEnabled, setHintsEnabled] = useState(() => {
+    try { const v = localStorage.getItem("valuemap_hints_enabled"); return v === null ? true : v === "1"; } catch { return true; }
+  });
   const [mobileFiltersActiveOpen, setMobileFiltersActiveOpen] = useState(false);
   const [postcodeSearch, setPostcodeSearch] = useState("");
   const [activePostcodeSearch, setActivePostcodeSearch] = useState("");
@@ -1746,6 +1749,7 @@ export default function Home() {
         onStatsUpdate={setMapStats}
         flyToRequest={flyToRequest}
         easyColours={easyColours}
+        hintsEnabled={hintsEnabled}
         onReverseGeocode={(postcode) => {
           setPostcodeSearch(postcode);
           setActivePostcodeSearch(postcode);
@@ -1881,6 +1885,21 @@ export default function Home() {
                     <span>🎨 Easy colours</span>
                     <span style={{ fontSize: 10, opacity: 0.7, background: easyColours ? "rgba(250,204,21,0.22)" : "rgba(255,255,255,0.1)", border: easyColours ? "1px solid rgba(250,204,21,0.5)" : "1px solid rgba(255,255,255,0.2)", borderRadius: 999, padding: "1px 7px" }}>
                       {easyColours ? "On" : "Off"}
+                    </span>
+                  </button>
+                  <button type="button"
+                    onClick={() => {
+                      const next = !hintsEnabled;
+                      setHintsEnabled(next);
+                      try { localStorage.setItem("valuemap_hints_enabled", next ? "1" : "0"); } catch { /* ignore */ }
+                    }}
+                    style={{ display: "flex", width: "100%", alignItems: "center", justifyContent: "space-between", background: "none", border: "none", color: "white", cursor: "pointer", padding: "8px 14px", fontSize: 11 }}
+                    onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
+                    onMouseLeave={e => (e.currentTarget.style.background = "none")}
+                  >
+                    <span>💬 Help hints</span>
+                    <span style={{ fontSize: 10, opacity: 0.7, background: hintsEnabled ? "rgba(250,204,21,0.22)" : "rgba(255,255,255,0.1)", border: hintsEnabled ? "1px solid rgba(250,204,21,0.5)" : "1px solid rgba(255,255,255,0.2)", borderRadius: 999, padding: "1px 7px" }}>
+                      {hintsEnabled ? "On" : "Off"}
                     </span>
                   </button>
                   <div style={{ height: 1, background: "rgba(255,255,255,0.1)", margin: "4px 0" }} />
@@ -3645,7 +3664,7 @@ export default function Home() {
                   <div style={{ fontSize: 12, lineHeight: 1.4, flex: 1, minWidth: 0 }}>{rightClickInfo.constituency}</div>
                 </div>
               )}
-              {(() => {
+              {hintsEnabled && (() => {
                 const offLayers = [
                   state.floodOverlayMode === "off" && "Flood",
                   state.schoolOverlayMode === "off" && "Schools",
@@ -3724,7 +3743,7 @@ export default function Home() {
                   <div style={{ fontSize: 12, lineHeight: 1.4, flex: 1, minWidth: 0 }}>{rightClickInfo.constituency}</div>
                 </div>
               )}
-              {(() => {
+              {hintsEnabled && (() => {
                 const offLayers = [
                   state.floodOverlayMode === "off" && "Flood",
                   state.schoolOverlayMode === "off" && "Schools",

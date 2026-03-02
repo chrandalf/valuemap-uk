@@ -308,6 +308,7 @@ export default function ValueMap({
   tapToSearch,
   onRightClickInfo,
   rgDismissToken,
+  hintsEnabled,
 }: {
   state: MapState;
   onLegendChange?: (legend: LegendData | null) => void;
@@ -340,6 +341,8 @@ export default function ValueMap({
   onRightClickInfo?: (data: RightClickInfoData | null) => void;
   /** Incrementing token: when it changes Map.tsx clears the right-click overlay lines/dot (panel dismissed by user). */
   rgDismissToken?: number;
+  /** When false, suppresses on-map hint bubbles (cell-click nudge etc.). User can toggle in Controls. */
+  hintsEnabled?: boolean;
 }) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -382,6 +385,7 @@ export default function ValueMap({
   const prevIndexScoringSignatureRef = useRef<string | null>(null);
   const cellFcRef = useRef<any>(null);
   const easyColoursRef = useRef(easyColours ?? false);
+  const hintsEnabledRef = useRef<boolean>(hintsEnabled ?? true);
 
 
   useEffect(() => {
@@ -391,6 +395,10 @@ export default function ValueMap({
   useEffect(() => {
     easyColoursRef.current = easyColours ?? false;
   }, [easyColours]);
+
+  useEffect(() => {
+    hintsEnabledRef.current = hintsEnabled ?? true;
+  }, [hintsEnabled]);
 
   useEffect(() => {
     onZoomChangeRef.current = onZoomChange;
@@ -2207,7 +2215,7 @@ export default function ValueMap({
     }
 
     // Show a brief hint nudging user to right-click for full details, anchored to the tap/click point
-    setCellClickHint({ x: e.point.x, y: e.point.y });
+    if (hintsEnabledRef.current) setCellClickHint({ x: e.point.x, y: e.point.y });
     if (cellClickHintTimerRef.current) clearTimeout(cellClickHintTimerRef.current);
     cellClickHintTimerRef.current = window.setTimeout(() => setCellClickHint(null), 4000);
 
