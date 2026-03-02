@@ -1391,7 +1391,8 @@ export default function ValueMap({
         2, "#2563eb",
         3, "#f59e0b",
         4, "#dc2626",
-        "#6366f1",
+        0, "#9ca3af",
+        "#9ca3af",
       ] as any,
       "circle-opacity": 0.92,
       "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 3.2, 6, 5, 8, 7.5, 10, 11] as any,
@@ -1874,8 +1875,11 @@ export default function ValueMap({
       2: "#2563eb",
       3: "#f59e0b",
       4: "#dc2626",
+      0: "#9ca3af",
     };
-    const col = gradeColors[grade] ?? "#6366f1";
+    const col = gradeColors[grade] ?? "#9ca3af";
+    const displayLabel = label || "Not graded";
+    const ratingNote = grade === 0 ? "No Ofsted grade available" : "Ofsted rating";
 
     const nameHtml = link
       ? `<a href="${escapeHtml(link)}" target="_blank" rel="noreferrer"
@@ -1888,8 +1892,8 @@ export default function ValueMap({
         <div style="margin-bottom:5px">${nameHtml}</div>
         ${metaHtml ? `<div style="font-size:11px;color:#6b7280;margin-bottom:5px">${metaHtml}</div>` : ""}
         <div style="border-top:1px solid #f3f4f6;padding-top:5px;margin-bottom:2px">
-          <span style="color:${col};font-weight:600">${escapeHtml(label)}</span>
-          <span style="color:#9ca3af;font-size:11px"> Ofsted rating</span>
+          <span style="color:${col};font-weight:600">${escapeHtml(displayLabel)}</span>
+          <span style="color:#9ca3af;font-size:11px"> ${ratingNote}</span>
         </div>
         ${inspDate ? `<div style="font-size:10px;color:#9ca3af;margin-top:3px">Inspected: ${escapeHtml(inspDate)}</div>` : ""}
       </div>

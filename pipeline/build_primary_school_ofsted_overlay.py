@@ -49,6 +49,7 @@ OFSTED_MI_URL = (
 PRIMARY_PHASES = {"Primary", "Middle deemed primary"}
 
 GRADE_LABELS: Dict[int, str] = {
+    0: "Not graded",
     1: "Outstanding",
     2: "Good",
     3: "Requires improvement",
@@ -87,6 +88,10 @@ _COL_ALIASES: Dict[str, List[str]] = {
     ],
     "postcode":       ["Postcode", "POSTCODE", "Post code"],
     "la_name":        ["LA name", "Local authority", "LA Name", "LANAME"],
+    # Ungraded (monitoring) inspection — used as a fallback when no OEIF grade exists.
+    # Schools with 'School remains Good/Outstanding' have a clear implied grade.
+    "ungraded_outcome": ["Ungraded inspection overall outcome"],
+    "ungraded_date":   ["Date of latest ungraded inspection"],
 }
 
 
@@ -123,6 +128,26 @@ def parse_grade(raw: str) -> Optional[int]:
     if "requires" in lower:
         return 3
     if "inadequate" in lower:
+        return 4
+    return None
+
+
+def parse_ungraded_outcome(raw: str) -> Optional[int]:
+    """Infer a 1-4 grade from an ungraded inspection outcome.
+
+    Only returns a grade for unambiguous outcomes ('School remains Good/Outstanding').
+    Returns None for ambiguous outcomes like 'Standards maintained' or 'Improved significantly'.
+    """
+    cleaned = raw.strip().lower()
+    if not cleaned or cleaned in ("null", ""):
+        return None
+    if "remains outstanding" in cleaned:
+        return 1
+    if "remains good" in cleaned:
+        return 2
+    if "remains requires improvement" in cleaned:
+        return 3
+    if "remains inadequate" in cleaned:
         return 4
     return None
 
@@ -216,11 +241,18 @@ def load_rows(path: Path, phases: Optional[set] = None) -> List[dict]:
                 # No phase column — include everything (all-phase file fallback)
                 phase = "Primary"
 
-            # Parse grade
+            # Parse grade — try OEIF graded inspection first, fall back to ungraded outcome
             eff_raw = row[col["effectiveness"]].strip() if col["effectiveness"] else ""
             grade = parse_grade(eff_raw)
+            ungraded_fallback = False
             if grade is None:
-                continue  # skip unrated / exempt schools
+                outcome_raw = row[col["ungraded_outcome"]].strip() if col["ungraded_outcome"] else ""
+                grade = parse_ungraded_outcome(outcome_raw)
+                if grade is not None:
+                    ungraded_fallback = True
+            # grade 0 = no formal Ofsted grade available (include on map as grey point)
+            if grade is None:
+                grade = 0
 
             # Extract fields
             urn = row[col["urn"]].strip() if col["urn"] else ""
@@ -230,7 +262,13 @@ def load_rows(path: Path, phases: Optional[set] = None) -> List[dict]:
             school_name = row[col["school_name"]].strip() if col["school_name"] else ""
             postcode_raw = row[col["postcode"]].strip() if col["postcode"] else ""
             la_name = row[col["la_name"]].strip() if col["la_name"] else ""
-            insp_date = row[col["inspection_date"]].strip() if col["inspection_date"] else ""
+            # For ungraded-outcome fallbacks, prefer the ungraded inspection date
+            if ungraded_fallback and col["ungraded_date"]:
+                insp_date = row[col["ungraded_date"]].strip()
+            elif col["ungraded_date"] and grade == 0:
+                insp_date = row[col["ungraded_date"]].strip()
+            else:
+                insp_date = row[col["inspection_date"]].strip() if col["inspection_date"] else ""
             postcode_key = normalize_postcode_key(postcode_raw)
 
             if not postcode_key:
