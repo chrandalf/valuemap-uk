@@ -552,8 +552,16 @@ async function backfillAge(env: Env, grid: GridKey, rows: CellRow[]): Promise<Ce
 
 /** Fetch vote/commute/age lookups in parallel, then enrich rows in a single pass. */
 async function backfillAll(env: Env, grid: GridKey, rows: CellRow[]): Promise<CellRow[]> {
+  // vote_cells_1km.json.gz is ~2 MB compressed / ~20 MB uncompressed — loading it
+  // alongside a large 1km partition on a cold isolate reliably hits the Worker CPU
+  // time limit.  Vote overlay at 1km resolution adds no real value (constituency
+  // fractions per 1km square are meaningless), so skip it for this grid.
+  const votePromise = grid === "1km"
+    ? Promise.resolve(null)
+    : getCachedVoteLookup(env, grid).catch(() => null);
+
   const [voteLookup, commuteLookup, ageLookup] = await Promise.all([
-    getCachedVoteLookup(env, grid).catch(() => null),
+    votePromise,
     getCachedCommuteLookup(env, grid).catch(() => null),
     getCachedAgeLookup(env, grid).catch(() => null),
   ]);
