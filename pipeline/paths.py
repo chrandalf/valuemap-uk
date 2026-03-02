@@ -88,6 +88,9 @@ REQUIRED_PROPERTY_ASSET_NAMES = [
     "postcode_outcode_index_25km.json.gz",
     # Slim country lookup assets (built by build_country_lookup_assets.py)
     "country_cells_1km.json.gz",
+    "country_cells_5km.json.gz",
+    "country_cells_10km.json.gz",
+    "country_cells_25km.json.gz",
     "country_by_outward.json.gz",
 ]
 

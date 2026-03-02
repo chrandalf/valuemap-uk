@@ -1,19 +1,21 @@
 """
-Build two slim country-lookup assets:
+Build slim country-lookup assets for all grid sizes plus an outward-code table:
 
-1. country_cells_1km.json.gz
+1. country_cells_{grid}.json.gz  (grid = 1km / 5km / 10km / 25km)
    Nested dict {str(gx_km): {str(gy_km): country_char}}
-   Derived from vote_cells_1km.json.gz which already has country on every row.
-   ~44 KB compressed — safe to load in a Worker cold-start alongside any partition.
+   Derived from vote_cells_{grid}.json.gz which has country on every row.
+   Sizes: ~44 KB / 5 KB / 1.3 KB / 0.4 KB compressed.
 
 2. country_by_outward.json.gz
    Dict {outward_code: country_char}  e.g. {"SW1A": "E", "EH1": "S", "CF10": "W"}
-   Derived from ONSPD via easting/northing → 1km grid lookup first, then
-   country_cells_1km as the source of truth.
-   ~50 KB compressed — useful for any future postcode-based verification.
+   Derived from ONSPD active postcodes; 25 border-straddling outward codes resolved
+   by majority count.  ~6 KB compressed.
 
 Writes outputs to:
   pipeline/data/publish/property/country_cells_1km.json.gz
+  pipeline/data/publish/property/country_cells_5km.json.gz
+  pipeline/data/publish/property/country_cells_10km.json.gz
+  pipeline/data/publish/property/country_cells_25km.json.gz
   pipeline/data/publish/property/country_by_outward.json.gz
 """
 
@@ -28,13 +30,12 @@ import sys
 from paths import RAW_DIR, PUBLISH_DIR
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
-VOTE_1KM = PUBLISH_DIR / "vote" / "vote_cells_1km.json.gz"
+VOTE_DIR = PUBLISH_DIR / "vote"
 ONSPD_CSV = RAW_DIR / "property" / "ONSPD_Online_latest_Postcode_Centroids_.csv"
 OUT_DIR = PUBLISH_DIR / "property"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-OUT_CELLS = OUT_DIR / "country_cells_1km.json.gz"
-OUT_OUTWARD = OUT_DIR / "country_by_outward.json.gz"
+GRIDS = ["1km", "5km", "10km", "25km"]
 
 # ── Country code normalisation ─────────────────────────────────────────────────
 # CTRY25CD values in ONSPD → single-char country used throughout the codebase
@@ -56,45 +57,50 @@ def gzip_json(obj) -> bytes:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 1 — Build country_cells_1km from vote_cells_1km
+# STEP 1 — Build country_cells_{grid} for all grids from vote_cells_{grid}
 # ══════════════════════════════════════════════════════════════════════════════
-print("Loading vote_cells_1km.json.gz …")
-with gzip.open(VOTE_1KM) as f:
-    vote_rows = json.load(f)
+for grid in GRIDS:
+    src = VOTE_DIR / f"vote_cells_{grid}.json.gz"
+    out = OUT_DIR / f"country_cells_{grid}.json.gz"
 
-print(f"  {len(vote_rows):,} rows loaded")
+    print(f"Building country_cells_{grid}.json.gz …")
+    with gzip.open(src) as f:
+        vote_rows = json.load(f)
 
-# Validate country coverage
-missing = [r for r in vote_rows if not r.get("country")]
-if missing:
-    print(f"  WARNING: {len(missing)} rows missing country — will be omitted")
+    print(f"  {len(vote_rows):,} rows loaded")
 
-country_dist = collections.Counter(r["country"] for r in vote_rows if r.get("country"))
-print("  Country distribution:", dict(country_dist))
+    missing = [r for r in vote_rows if not r.get("country")]
+    if missing:
+        print(f"  WARNING: {len(missing)} rows missing country — will be omitted")
 
-# Build nested dict: gx_km → gy_km → country_char
-# Using str keys so JSON serialisation produces a plain object (fast Map lookup in JS)
-nested: dict[str, dict[str, str]] = {}
-for r in vote_rows:
-    c = r.get("country")
-    if not c:
-        continue
-    gx_k = str(r["gx"] // 1000)
-    gy_k = str(r["gy"] // 1000)
-    if gx_k not in nested:
-        nested[gx_k] = {}
-    nested[gx_k][gy_k] = c
+    country_dist = collections.Counter(r["country"] for r in vote_rows if r.get("country"))
+    print("  Country distribution:", dict(country_dist))
 
-print(f"  Nested dict: {len(nested)} gx buckets, {sum(len(v) for v in nested.values()):,} cells")
+    # Build nested dict: gx_km → gy_km → country_char
+    nested: dict[str, dict[str, str]] = {}
+    for r in vote_rows:
+        c = r.get("country")
+        if not c:
+            continue
+        gx_k = str(r["gx"] // 1000)
+        gy_k = str(r["gy"] // 1000)
+        if gx_k not in nested:
+            nested[gx_k] = {}
+        nested[gx_k][gy_k] = c
 
-data = gzip_json(nested)
-OUT_CELLS.write_bytes(data)
-print(f"  Written {OUT_CELLS}  ({len(data)/1024:.1f} KB compressed)")
+    print(f"  Nested dict: {len(nested)} gx buckets, {sum(len(v) for v in nested.values()):,} cells")
+
+    data = gzip_json(nested)
+    out.write_bytes(data)
+    print(f"  Written {out}  ({len(data)/1024:.1f} KB compressed)")
+    print()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # STEP 2 — Build outward-code → country from ONSPD
 # ══════════════════════════════════════════════════════════════════════════════
+OUT_OUTWARD = OUT_DIR / "country_by_outward.json.gz"
+
 print()
 print("Building outward-code → country from ONSPD …")
 

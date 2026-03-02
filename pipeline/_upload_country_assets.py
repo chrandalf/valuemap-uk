@@ -8,6 +8,9 @@ PUBLISH_PROPERTY_DIR = Path(__file__).parent / "data" / "publish" / "property"
 
 FILES = [
     PUBLISH_PROPERTY_DIR / "country_cells_1km.json.gz",
+    PUBLISH_PROPERTY_DIR / "country_cells_5km.json.gz",
+    PUBLISH_PROPERTY_DIR / "country_cells_10km.json.gz",
+    PUBLISH_PROPERTY_DIR / "country_cells_25km.json.gz",
     PUBLISH_PROPERTY_DIR / "country_by_outward.json.gz",
 ]
 
