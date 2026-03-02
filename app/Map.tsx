@@ -4289,6 +4289,14 @@ async function applyIndexScoring(
     //   vetoW=2, score=0.4: multiplier = 0.8  (20% drag)
     const VETO_WEIGHT_CAP = 2.0;
     let vetoMultiplier = 1.0;
+    // Affordability: if the area is over budget and affordability matters, apply
+    // a hard drag proportional to how far over budget it is.  Using a higher cap
+    // (4.0 vs 2.0 for other criteria) means any weight ≥ 2 with affordScore = 0
+    // (area ≥ 160% of budget) drives the total to zero regardless of other scores.
+    if (prefs.affordWeight > 0 && affordScore < 0.5) {
+      const shortfall = (0.5 - affordScore) / 0.5;
+      vetoMultiplier *= Math.max(0, 1 - Math.min(prefs.affordWeight, 4.0) * shortfall * 0.5);
+    }
     if (prefs.floodWeight > 0 && !floodNoData && floodScore < 0.5) {
       const shortfall = (0.5 - floodScore) / 0.5;
       vetoMultiplier *= Math.max(0, 1 - Math.min(prefs.floodWeight, VETO_WEIGHT_CAP) * shortfall * 0.5);

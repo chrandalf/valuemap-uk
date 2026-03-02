@@ -826,7 +826,7 @@ export default function Home() {
         <div style={{ textAlign: "right", fontSize: 12, opacity: 0.75 }}>Great match</div>
       </div>
       <div style={{ marginTop: 8, fontSize: 10, opacity: 0.6, lineHeight: 1.35 }}>
-        Based on your preferences: budget, flood safety, school quality. Greener cells are a better fit.
+        Based on your preferences: max price, flood safety, school quality. Greener cells are a better fit.
       </div>
     </>
   );
@@ -1004,7 +1004,7 @@ export default function Home() {
     !isDeltaMetric(state.metric) && medianLegend
       ? `${formatMetricFilterValue(state.metric, medianLegend.breaks[0])}–${formatMetricFilterValue(state.metric, medianLegend.breaks[medianLegend.breaks.length - 1])}`
       : null;
-  const indexAffordabilitySummary = `Find my area affordability uses ${PROPERTY_LABEL[indexApplied.propertyType]} medians vs budget ${state.metric === "median_ppsf" ? `£${Math.round(indexApplied.budget).toLocaleString()}/ft²` : `£${Math.round(indexApplied.budget).toLocaleString()}`}`;
+  const indexAffordabilitySummary = `Find my area affordability uses ${PROPERTY_LABEL[indexApplied.propertyType]} medians vs max price ${state.metric === "median_ppsf" ? `£${Math.round(indexApplied.budget).toLocaleString()}/ft²` : `£${Math.round(indexApplied.budget).toLocaleString()}`}`;
   const topBarHeight = isMobileViewport ? 88 : 48;
   const topStripTop = topBarHeight + 4;
   const floatingPanelTop = topBarHeight + 8;
@@ -1195,7 +1195,7 @@ export default function Home() {
     {
       target: null,
       title: "🔍 Finding Your Perfect Area",
-      text: "Find My Area scores the entire map based on your budget and what matters to you. Areas light up green (great match) to red (poor match). Want to see how it works?",
+      text: "Find My Area scores the entire map based on your max price and what matters to you. Areas light up green (great match) to red (poor match). Want to see how it works?",
       placement: "center" as const,
       isSectionIntro: true,
       nextSectionIndex: 15,
@@ -1216,7 +1216,7 @@ export default function Home() {
     {
       target: "[data-tour='index-modal']",
       title: "Step 2 — The Find My Area panel",
-      text: "This panel is where you set up your search. At the top is your budget slider — I'm about to move it. Below that are importance sliders for affordability, flood safety, and school quality. Watch as I set them up…",
+      text: "This panel is where you set up your search. At the top is your max price — I'm about to set it. Below that are importance sliders for affordability, flood safety, and school quality. Watch as I set them up…",
       placement: "left" as const,
       enterDelay: 600,
       onEnter: () => { setControlsDropOpen(false); setIndexOpen(true); },
@@ -1225,8 +1225,8 @@ export default function Home() {
     /* 4 — Demo: set budget */
     {
       target: "[data-tour='index-modal']",
-      title: "Step 3 — Setting the budget",
-      text: "I've dragged the budget slider to £350,000. In real use, you'd drag this to match your spending power. The map will only score areas where homes fit this budget.",
+      title: "Step 3 — Setting your max price",
+      text: "I've set the max price to £350,000. In real use, you'd enter the typical price you expect to pay in the areas you're considering. Areas with medians well above this will score near-zero on affordability.",
       placement: "left" as const,
       enterDelay: 500,
       onEnter: () => { setIndexBudget(350000); },
@@ -2444,7 +2444,7 @@ export default function Home() {
             }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 7 }}>
                 <span style={{ fontSize: 11, fontWeight: 600 }}>
-                  💰 Budget{state.metric === "median_ppsf" ? " (per ft²)" : ""}
+                  💰 Max price{state.metric === "median_ppsf" ? " (per ft²)" : ""}
                 </span>
                 <div style={{ display: "flex", alignItems: "center", gap: 2, background: "rgba(255,255,255,0.08)", borderRadius: 7, padding: "3px 8px", border: "1px solid rgba(255,255,255,0.14)" }}>
                   <span style={{ fontSize: 12, opacity: 0.7, fontWeight: 600 }}>£</span>
