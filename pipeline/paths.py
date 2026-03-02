@@ -46,6 +46,7 @@ PUBLIC_DATA_DIR = ROOT / "public" / "data"
 
 RAW_SCHOOL_KS4 = RAW_SCHOOLS_DIR / "england_ks4revised.csv"
 RAW_SCHOOL_PERF = RAW_SCHOOLS_DIR / "202425_performance_tables_schools_revised.csv"
+RAW_OFSTED_MI = RAW_SCHOOLS_DIR / "ofsted_mi_state_schools.csv"
 RAW_FLOOD_POSTCODE_CSV = RAW_FLOOD_DIR / "open_flood_risk_by_postcode.csv"
 RAW_ELECTION_CANDIDATE_CSV = RAW_ELECTIONS_DIR / "HoC-GE2024-results-by-candidate.csv"
 RAW_WESTMINSTER_BOUNDARY_GEOJSON = RAW_GEOGRAPHY_DIR / "Westminster_Parliamentary_Constituencies_July_2024_Boundaries_UK_BFE_2463071003872310654.geojson"
@@ -57,6 +58,7 @@ INTERMEDIATE_SCHOOL_SCORES_MAINSTREAM = INTERMEDIATE_SCHOOLS_DIR / "school_score
 INTERMEDIATE_SCHOOL_POSTCODE_CACHE = INTERMEDIATE_SCHOOLS_DIR / "school_postcode_coords_cache.json"
 
 MODEL_SCHOOL_OVERLAY_POINTS = MODEL_SCHOOLS_DIR / "school_overlay_points.geojson.gz"
+MODEL_PRIMARY_SCHOOL_OVERLAY_POINTS = MODEL_SCHOOLS_DIR / "primary_school_overlay_points.geojson.gz"
 MODEL_STATION_OVERLAY_POINTS = MODEL_STATIONS_DIR / "station_overlay_points.geojson.gz"
 MODEL_FLOOD_POSTCODE_LOOKUP = MODEL_FLOOD_DIR / "flood_postcode_lookup.json.gz"
 MODEL_FLOOD_OUTCODE_SUMMARY = MODEL_FLOOD_DIR / "flood_outcode_summary.json.gz"

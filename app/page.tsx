@@ -11,6 +11,7 @@ type NewBuild = "ALL" | "Y" | "N";
 type ValueFilterMode = "off" | "lte" | "gte";
 type FloodOverlayMode = "off" | "on" | "on_hide_cells";
 type SchoolOverlayMode = "off" | "on" | "on_hide_cells";
+type PrimarySchoolOverlayMode = "off" | "on" | "on_hide_cells";
 type StationOverlayMode = "off" | "on" | "on_hide_cells";
 type VoteOverlayMode = "off" | "on";
 type CommuteOverlayMode = "off" | "on";
@@ -40,6 +41,7 @@ type MapState = {
   valueThreshold: number;
   floodOverlayMode: FloodOverlayMode;
   schoolOverlayMode: SchoolOverlayMode;
+  primarySchoolOverlayMode: PrimarySchoolOverlayMode;
   stationOverlayMode: StationOverlayMode;
   voteOverlayMode: VoteOverlayMode;
   voteColorScale: VoteColorScale;
@@ -190,6 +192,7 @@ export default function Home() {
       valueThreshold: 300000,
       floodOverlayMode: "off",
       schoolOverlayMode: "off",
+      primarySchoolOverlayMode: "off",
       stationOverlayMode: "off",
       voteOverlayMode: "off",
       voteColorScale: "relative",
@@ -208,6 +211,7 @@ export default function Home() {
       const vth = p.get("vth");
       const flood = p.get("flood");
       const schools = p.get("schools");
+      const pschools = p.get("pschools");
       const stations = p.get("stations");
       const vote = p.get("vote");
       const voteScale = p.get("voteScale");
@@ -220,9 +224,10 @@ export default function Home() {
       const VFMS: ValueFilterMode[] = ["off", "lte", "gte"];
       const FLOODS: FloodOverlayMode[] = ["off", "on", "on_hide_cells"];
       const SCHOOLS: SchoolOverlayMode[] = ["off", "on", "on_hide_cells"];
+      const PSCHOOLS: PrimarySchoolOverlayMode[] = ["off", "on", "on_hide_cells"];
       const STATIONS: StationOverlayMode[] = ["off", "on", "on_hide_cells"];
       // Only hydrate if at least one known param is present
-      if (!grid && !metric && !type && !flood && !schools && !vote && !stations && !commute && !age) return defaults;
+      if (!grid && !metric && !type && !flood && !schools && !pschools && !vote && !stations && !commute && !age) return defaults;
       return {
         grid: GRIDS.includes(grid as GridSize) ? (grid as GridSize) : defaults.grid,
         metric: METRICS.includes(metric as Metric) ? (metric as Metric) : defaults.metric,
@@ -233,6 +238,7 @@ export default function Home() {
         valueThreshold: vth ? parseFloat(vth) : defaults.valueThreshold,
         floodOverlayMode: FLOODS.includes(flood as FloodOverlayMode) ? (flood as FloodOverlayMode) : defaults.floodOverlayMode,
         schoolOverlayMode: SCHOOLS.includes(schools as SchoolOverlayMode) ? (schools as SchoolOverlayMode) : defaults.schoolOverlayMode,
+        primarySchoolOverlayMode: PSCHOOLS.includes(pschools as PrimarySchoolOverlayMode) ? (pschools as PrimarySchoolOverlayMode) : defaults.primarySchoolOverlayMode,
         stationOverlayMode: STATIONS.includes(stations as StationOverlayMode) ? (stations as StationOverlayMode) : defaults.stationOverlayMode,
         voteOverlayMode: vote === "on" ? "on" : defaults.voteOverlayMode,
         voteColorScale: voteScale === "absolute" ? "absolute" : defaults.voteColorScale,
@@ -380,6 +386,7 @@ export default function Home() {
     valueThreshold: 300000,
     floodOverlayMode: "off",
     schoolOverlayMode: "off",
+    primarySchoolOverlayMode: "off",
     stationOverlayMode: "off",
     voteOverlayMode: "off",
     voteColorScale: "relative",
@@ -454,7 +461,7 @@ export default function Home() {
   useEffect(() => {
     if (!activePostcodeSearch.trim()) return;
     setPostcodeSearchToken((v) => v + 1);
-  }, [state.floodOverlayMode, state.schoolOverlayMode, state.stationOverlayMode, activePostcodeSearch]);
+  }, [state.floodOverlayMode, state.schoolOverlayMode, state.primarySchoolOverlayMode, state.stationOverlayMode, activePostcodeSearch]);
 
   useEffect(() => {
     if (!indexActive) {
@@ -649,6 +656,7 @@ export default function Home() {
     params.set("vth", String(Math.round(state.valueThreshold * 10) / 10));
     params.set("flood", state.floodOverlayMode);
     params.set("schools", state.schoolOverlayMode);
+    params.set("pschools", state.primarySchoolOverlayMode);
     params.set("stations", state.stationOverlayMode);
     params.set("vote", state.voteOverlayMode);
     params.set("voteScale", state.voteColorScale);
@@ -1026,12 +1034,13 @@ export default function Home() {
       ? "Off"
       : "On";
   const voteScaleLabel = state.voteColorScale === "relative" ? "Relative" : "Absolute";
-  const anyOverlayActive = state.floodOverlayMode !== "off" || state.schoolOverlayMode !== "off" || state.stationOverlayMode !== "off" || state.voteOverlayMode !== "off" || state.commuteOverlayMode !== "off" || state.ageOverlayMode !== "off";
+  const anyOverlayActive = state.floodOverlayMode !== "off" || state.schoolOverlayMode !== "off" || state.primarySchoolOverlayMode !== "off" || state.stationOverlayMode !== "off" || state.voteOverlayMode !== "off" || state.commuteOverlayMode !== "off" || state.ageOverlayMode !== "off";
 
   const currentFiltersSummary =
     `Grid: ${state.grid} · Metric: ${METRIC_LABEL[state.metric]} · ` +
     `Type: ${propertyTypeLabel(state.propertyType)} · New build: ${NEWBUILD_LABEL[state.newBuild]} · ` +
     `Period: ${periodLabel} · Flood: ${floodOverlayLabel} · Schools: ${schoolOverlayLabel} · ` +
+    `Primary schools: ${state.primarySchoolOverlayMode === "off" ? "Off" : state.primarySchoolOverlayMode === "on" ? "On" : "On (hide cells)"} · ` +
     `Stations: ${state.stationOverlayMode === "off" ? "Off" : state.stationOverlayMode === "on" ? "On" : "On (hide cells)"} · ` +
     `Vote overlay: ${voteOverlayLabel} (${voteScaleLabel}) · ` +
     `Commute: ${state.commuteOverlayMode === "on" ? "On" : "Off"} · ` +
@@ -2004,6 +2013,17 @@ export default function Home() {
                       options={["off", "on", "on_hide_cells"]}
                       value={state.schoolOverlayMode}
                       onChange={(v) => setState((s) => ({ ...s, schoolOverlayMode: v as SchoolOverlayMode }))}
+                      renderOption={(v) => v === "on" ? "On" : v === "on_hide_cells" ? "Hide cells" : "Off"}
+                    />
+                  </div>
+
+                  {/* Primary schools (Ofsted) */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
+                    <div style={{ fontSize: 11, opacity: 0.8, width: 70, flexShrink: 0 }}>🏫 Primary</div>
+                    <Segment
+                      options={["off", "on", "on_hide_cells"]}
+                      value={state.primarySchoolOverlayMode}
+                      onChange={(v) => setState((s) => ({ ...s, primarySchoolOverlayMode: v as PrimarySchoolOverlayMode }))}
                       renderOption={(v) => v === "on" ? "On" : v === "on_hide_cells" ? "Hide cells" : "Off"}
                     />
                   </div>

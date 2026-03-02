@@ -9,6 +9,7 @@ type Metric = "median" | "median_ppsf" | "delta_gbp" | "delta_pct";
 type ValueFilterMode = "off" | "lte" | "gte";
 type FloodOverlayMode = "off" | "on" | "on_hide_cells";
 type SchoolOverlayMode = "off" | "on" | "on_hide_cells";
+type PrimarySchoolOverlayMode = "off" | "on" | "on_hide_cells";
 type StationOverlayMode = "off" | "on" | "on_hide_cells";
 type VoteOverlayMode = "off" | "on";
 type CommuteOverlayMode = "off" | "on";
@@ -25,6 +26,7 @@ export type MapState = {
   valueThreshold?: number;
   floodOverlayMode?: FloodOverlayMode;
   schoolOverlayMode?: SchoolOverlayMode;
+  primarySchoolOverlayMode?: PrimarySchoolOverlayMode;
   stationOverlayMode?: StationOverlayMode;
   voteOverlayMode?: VoteOverlayMode;
   commuteOverlayMode?: CommuteOverlayMode;
@@ -1072,6 +1074,14 @@ export default function ValueMap({
     clusterRadius: 40,
   });
 
+  map.addSource("primary-school-overlay", {
+    type: "geojson",
+    data: "/api/schools?key=primary_school_overlay_points.geojson.gz&plain=1",
+    cluster: true,
+    clusterMaxZoom: 10,
+    clusterRadius: 46,
+  });
+
   map.addSource("station-search-focus", {
     type: "geojson",
     data: { type: "FeatureCollection", features: [] },
@@ -1321,6 +1331,73 @@ export default function ValueMap({
     },
     paint: {
       "icon-opacity": 0.97,
+    },
+  });
+
+  // ── Primary school (Ofsted) overlay layers ──
+  map.addLayer({
+    id: "primary-school-overlay-clusters",
+    type: "circle",
+    source: "primary-school-overlay",
+    filter: ["has", "point_count"] as any,
+    layout: {
+      visibility: stateRef.current.primarySchoolOverlayMode && stateRef.current.primarySchoolOverlayMode !== "off" ? "visible" : "none",
+    },
+    paint: {
+      "circle-color": [
+        "step",
+        ["get", "point_count"],
+        "rgba(99,102,241,0.55)",
+        25,
+        "rgba(79,70,229,0.72)",
+        100,
+        "rgba(55,48,163,0.86)",
+      ] as any,
+      "circle-radius": ["step", ["get", "point_count"], 14, 25, 19, 100, 26] as any,
+      "circle-stroke-color": "rgba(255,255,255,0.92)",
+      "circle-stroke-width": 1,
+    },
+  });
+
+  map.addLayer({
+    id: "primary-school-overlay-cluster-count",
+    type: "symbol",
+    source: "primary-school-overlay",
+    filter: ["has", "point_count"] as any,
+    layout: {
+      visibility: stateRef.current.primarySchoolOverlayMode && stateRef.current.primarySchoolOverlayMode !== "off" ? "visible" : "none",
+      "text-field": ["get", "point_count_abbreviated"] as any,
+      "text-size": 11,
+      "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
+    },
+    paint: {
+      "text-color": "rgba(255,255,255,0.95)",
+    },
+  });
+
+  map.addLayer({
+    id: "primary-school-overlay-points",
+    type: "circle",
+    source: "primary-school-overlay",
+    filter: ["!", ["has", "point_count"]] as any,
+    layout: {
+      visibility: stateRef.current.primarySchoolOverlayMode && stateRef.current.primarySchoolOverlayMode !== "off" ? "visible" : "none",
+    },
+    paint: {
+      "circle-color": [
+        "match",
+        ["get", "ofsted_grade"],
+        1, "#16a34a",
+        2, "#2563eb",
+        3, "#f59e0b",
+        4, "#dc2626",
+        "#6366f1",
+      ] as any,
+      "circle-opacity": 0.92,
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 3.2, 6, 5, 8, 7.5, 10, 11] as any,
+      "circle-stroke-color": "rgba(255,255,255,0.94)",
+      "circle-stroke-width": 1,
+      "circle-blur": 0.02,
     },
   });
 
@@ -1715,6 +1792,11 @@ export default function ValueMap({
     return current.schoolOverlayMode === "on_hide_cells" && map.getZoom() >= 10;
   };
 
+  const usePrimarySchoolPopupMode = () => {
+    const current = stateRef.current;
+    return current.primarySchoolOverlayMode === "on_hide_cells" && map.getZoom() >= 10;
+  };
+
   const showSchoolPointPopup = (e: any) => {
     const f = e.features?.[0] as any;
     if (!f) return;
@@ -1764,6 +1846,65 @@ export default function ValueMap({
     const html = `
       <div style="font-family: system-ui; font-size: 12px; line-height: 1.25;">
         <div style="font-weight: 700; margin-bottom: 4px;">School cluster</div>
+        <div>Schools in cluster: <b>${count.toLocaleString()}</b></div>
+        <div style="opacity: 0.8; margin-top: 2px;">Zoom in for school-level points.</div>
+      </div>
+    `;
+    popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+  };
+
+  const primarySchoolOverlayClickable = () =>
+    stateRef.current.primarySchoolOverlayMode !== "off" && map.getZoom() >= 8;
+
+  const showPrimarySchoolPointPopup = (e: any) => {
+    const f = e.features?.[0] as any;
+    if (!f) return;
+
+    const p = f.properties || {};
+    const schoolName  = String(p.name ?? "School");
+    const postcode    = String(p.postcode ?? "");
+    const la          = String(p.la ?? "");
+    const grade       = Number(p.ofsted_grade ?? 0);
+    const label       = String(p.ofsted_label ?? "");
+    const inspDate    = String(p.inspection_date ?? "");
+    const link        = String(p.link ?? "");
+
+    const gradeColors: Record<number, string> = {
+      1: "#16a34a",
+      2: "#2563eb",
+      3: "#f59e0b",
+      4: "#dc2626",
+    };
+    const col = gradeColors[grade] ?? "#6366f1";
+
+    const nameHtml = link
+      ? `<a href="${escapeHtml(link)}" target="_blank" rel="noreferrer"
+           style="color:#1d4ed8;font-weight:700;font-size:13px;text-decoration:none">${escapeHtml(schoolName)} ↗</a>`
+      : `<span style="font-weight:700;font-size:13px">${escapeHtml(schoolName)}</span>`;
+    const metaHtml = [la, postcode].filter(Boolean).map(escapeHtml).join(", ");
+
+    const html = `
+      <div style="font:12px/1.5 system-ui,sans-serif;color:#374151;min-width:190px">
+        <div style="margin-bottom:5px">${nameHtml}</div>
+        ${metaHtml ? `<div style="font-size:11px;color:#6b7280;margin-bottom:5px">${metaHtml}</div>` : ""}
+        <div style="border-top:1px solid #f3f4f6;padding-top:5px;margin-bottom:2px">
+          <span style="color:${col};font-weight:600">${escapeHtml(label)}</span>
+          <span style="color:#9ca3af;font-size:11px"> Ofsted rating</span>
+        </div>
+        ${inspDate ? `<div style="font-size:10px;color:#9ca3af;margin-top:3px">Inspected: ${escapeHtml(inspDate)}</div>` : ""}
+      </div>
+    `;
+
+    popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+  };
+
+  const showPrimarySchoolClusterPopup = (e: any) => {
+    const f = e.features?.[0] as any;
+    if (!f) return;
+    const count = Number(f.properties?.point_count ?? 0);
+    const html = `
+      <div style="font-family: system-ui; font-size: 12px; line-height: 1.25;">
+        <div style="font-weight: 700; margin-bottom: 4px;">Primary school cluster</div>
         <div>Schools in cluster: <b>${count.toLocaleString()}</b></div>
         <div style="opacity: 0.8; margin-top: 2px;">Zoom in for school-level points.</div>
       </div>
@@ -1838,6 +1979,21 @@ export default function ValueMap({
     showSchoolClusterPopup(e);
   });
 
+  map.on("click", "primary-school-overlay-points", (e) => {
+    if (!primarySchoolOverlayClickable()) return;
+    showPrimarySchoolPointPopup(e);
+  });
+
+  map.on("click", "primary-school-overlay-clusters", (e) => {
+    if (!primarySchoolOverlayClickable()) return;
+    showPrimarySchoolClusterPopup(e);
+  });
+
+  map.on("click", "primary-school-overlay-cluster-count", (e) => {
+    if (!primarySchoolOverlayClickable()) return;
+    showPrimarySchoolClusterPopup(e);
+  });
+
   map.on("click", "station-overlay-points", (e) => {
     if (!stationOverlayClickable()) return;
     showStationPointPopup(e);
@@ -1857,6 +2013,7 @@ export default function ValueMap({
   const overlayHoverLayers = [
     "flood-overlay-points", "flood-overlay-clusters", "flood-overlay-cluster-count",
     "school-overlay-points", "school-overlay-clusters", "school-overlay-cluster-count",
+    "primary-school-overlay-points", "primary-school-overlay-clusters", "primary-school-overlay-cluster-count",
     "station-overlay-points", "station-overlay-clusters", "station-overlay-cluster-count",
   ];
   overlayHoverLayers.forEach((id) => {
@@ -1866,7 +2023,7 @@ export default function ValueMap({
 
   map.on("mousemove", "cells-fill", (e) => {
     const voteMode = stateRef.current.voteOverlayMode ?? "off";
-    if (useFloodPopupMode() || useSchoolPopupMode()) {
+    if (useFloodPopupMode() || useSchoolPopupMode() || usePrimarySchoolPopupMode()) {
       popup.remove();
       return;
     }
@@ -2182,7 +2339,7 @@ export default function ValueMap({
 
   map.on("click", "cells-fill", (e) => {
     if (tapToSearchRef.current) return;  // tap-to-search mode: hand click to the reverse-geocode handler instead
-    if (useFloodPopupMode() || useSchoolPopupMode()) {
+    if (useFloodPopupMode() || useSchoolPopupMode() || usePrimarySchoolPopupMode()) {
       return;
     }
 
@@ -2707,11 +2864,13 @@ export default function ValueMap({
 
     const floodMode = state.floodOverlayMode ?? "off";
     const schoolMode = state.schoolOverlayMode ?? "off";
+    const primarySchoolMode = state.primarySchoolOverlayMode ?? "off";
     const stationMode = state.stationOverlayMode ?? "off";
     const floodVisibility = floodMode === "off" ? "none" : "visible";
     const schoolVisibility = schoolMode === "off" ? "none" : "visible";
+    const primarySchoolVisibility = primarySchoolMode === "off" ? "none" : "visible";
     const stationVisibility = stationMode === "off" ? "none" : "visible";
-    const hideCellsMode = floodMode === "on_hide_cells" || schoolMode === "on_hide_cells" || stationMode === "on_hide_cells";
+    const hideCellsMode = floodMode === "on_hide_cells" || schoolMode === "on_hide_cells" || primarySchoolMode === "on_hide_cells" || stationMode === "on_hide_cells";
 
     const apply = () => {
       try {
@@ -2727,6 +2886,11 @@ export default function ValueMap({
         if (map.getLayer("school-overlay-clusters")) map.setLayoutProperty("school-overlay-clusters", "visibility", schoolVisibility);
         if (map.getLayer("school-overlay-cluster-count")) map.setLayoutProperty("school-overlay-cluster-count", "visibility", schoolVisibility);
         if (schoolMode === "off") setSchoolSearchFocus(map, null, null, null);
+
+        // Primary school (Ofsted) layer visibility
+        if (map.getLayer("primary-school-overlay-points")) map.setLayoutProperty("primary-school-overlay-points", "visibility", primarySchoolVisibility);
+        if (map.getLayer("primary-school-overlay-clusters")) map.setLayoutProperty("primary-school-overlay-clusters", "visibility", primarySchoolVisibility);
+        if (map.getLayer("primary-school-overlay-cluster-count")) map.setLayoutProperty("primary-school-overlay-cluster-count", "visibility", primarySchoolVisibility);
 
         // Station layer visibility
         if (map.getLayer("station-overlay-points")) map.setLayoutProperty("station-overlay-points", "visibility", stationVisibility);
@@ -2762,7 +2926,7 @@ export default function ValueMap({
     // before we apply paint property updates.
     const raf = requestAnimationFrame(apply);
     return () => { cancelAnimationFrame(raf); };
-  }, [state.floodOverlayMode, state.schoolOverlayMode, state.stationOverlayMode]);
+  }, [state.floodOverlayMode, state.schoolOverlayMode, state.primarySchoolOverlayMode, state.stationOverlayMode]);
 
   useEffect(() => {
     const map = mapRef.current;

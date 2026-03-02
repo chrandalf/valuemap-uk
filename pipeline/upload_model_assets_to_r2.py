@@ -72,6 +72,7 @@ def collect_assets(
         )
     if include_schools:
         files.append(schools_dir / "school_overlay_points.geojson.gz")
+        files.append(schools_dir / "primary_school_overlay_points.geojson.gz")
     if include_stations:
         files.append(stations_dir / "station_overlay_points.geojson.gz")
     if include_flood:
