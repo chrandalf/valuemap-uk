@@ -1068,6 +1068,11 @@ export default function ValueMap({
     data: { type: "FeatureCollection", features: [] },
   });
 
+  map.addSource("primary-school-search-focus", {
+    type: "geojson",
+    data: { type: "FeatureCollection", features: [] },
+  });
+
   map.addSource("station-overlay", {
     type: "geojson",
     data: "/api/stations?plain=1",
@@ -1662,6 +1667,56 @@ export default function ValueMap({
       "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 10, 8, 14, 12, 18] as any,
       "circle-stroke-color": "#22c55e",
       "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 4, 2.3, 8, 3.2, 12, 4] as any,
+      "circle-stroke-opacity": 0.98,
+    },
+  });
+
+  // ── Primary school search focus (right-click dashed line + ring) ──
+  map.addLayer({
+    id: "primary-school-search-focus-line",
+    type: "line",
+    source: "primary-school-search-focus",
+    filter: ["==", ["geometry-type"], "LineString"] as any,
+    paint: {
+      "line-color": "#7c3aed",
+      "line-width": 3.5,
+      "line-dasharray": [3, 1.5],
+      "line-opacity": 0.95,
+    },
+  });
+
+  map.addLayer({
+    id: "primary-school-search-focus-label",
+    type: "symbol",
+    source: "primary-school-search-focus",
+    filter: ["==", ["geometry-type"], "LineString"] as any,
+    layout: {
+      "symbol-placement": "line-center",
+      "text-field": "Primary school",
+      "text-size": 12,
+      "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
+      "text-allow-overlap": true,
+      "text-ignore-placement": true,
+      "text-offset": [0, -1.2] as any,
+    },
+    paint: {
+      "text-color": "#7c3aed",
+      "text-halo-color": "#0f172a",
+      "text-halo-width": 2.5,
+      "text-halo-blur": 0.5,
+    },
+  });
+
+  map.addLayer({
+    id: "primary-school-search-focus-ring",
+    type: "circle",
+    source: "primary-school-search-focus",
+    filter: ["==", ["geometry-type"], "Point"] as any,
+    paint: {
+      "circle-color": "rgba(0,0,0,0)",
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 9, 8, 13, 12, 17] as any,
+      "circle-stroke-color": "#7c3aed",
+      "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 4, 2.2, 8, 3, 12, 3.8] as any,
       "circle-stroke-opacity": 0.98,
     },
   });
@@ -2404,6 +2459,7 @@ export default function ValueMap({
     setFloodSearchFocus(map, null);
     setFloodSearchContext(map, null);
     setSchoolSearchFocus(map, null, null, null);
+    setPrimarySchoolSearchFocus(map, null, null);
     setStationSearchFocus(map, null, null);
   };
   clearRgOverlayRef.current = clearRgOverlay;
@@ -2492,6 +2548,7 @@ export default function ValueMap({
     setFloodSearchFocus(map, null);
     setFloodSearchContext(map, null);
     setSchoolSearchFocus(map, null, null, null);
+    setPrimarySchoolSearchFocus(map, null, null);
     setStationSearchFocus(map, null, null);
 
     void (async () => {
@@ -2603,6 +2660,8 @@ export default function ValueMap({
             const psNameHtml  = nearestPs.name ? `<span style="color:#374151">${nearestPs.name}</span> &mdash; ` : "";
             const psOfstedLink = psLink ? ` <a href="${psLink}" target="_blank" rel="noreferrer" style="color:#6366f1;font-size:10px;text-decoration:none;white-space:nowrap">Ofsted ↗</a>` : "";
             primarySchoolHtml = `${psNameHtml}<span style="color:${psCol}">${psLabel}</span> <span style="color:#9ca3af">${fmtDist(nearPsD)} away</span>${psOfstedLink}`;
+            lineTargets.push([nearestPs.lon, nearestPs.lat]);
+            setPrimarySchoolSearchFocus(map, nearestPs, { lon: lng, lat });
           }
         }
 
@@ -5421,6 +5480,36 @@ async function getStationSearchEntries(
   } finally {
     promiseRef.current = null;
   }
+}
+
+function setPrimarySchoolSearchFocus(
+  map: maplibregl.Map,
+  nearest: { lon: number; lat: number; name: string; urn: string } | null,
+  requested: { lon: number; lat: number } | null
+) {
+  const source = map.getSource("primary-school-search-focus") as maplibregl.GeoJSONSource | undefined;
+  if (!source) return;
+
+  const features: any[] = [];
+  if (nearest) {
+    features.push({
+      type: "Feature",
+      properties: { role: "nearest", name: nearest.name, urn: nearest.urn },
+      geometry: { type: "Point", coordinates: [nearest.lon, nearest.lat] },
+    });
+    if (requested) {
+      features.push({
+        type: "Feature",
+        properties: { role: "link" },
+        geometry: {
+          type: "LineString",
+          coordinates: [[requested.lon, requested.lat], [nearest.lon, nearest.lat]],
+        },
+      });
+    }
+  }
+
+  source.setData({ type: "FeatureCollection", features } as any);
 }
 
 function setStationSearchFocus(

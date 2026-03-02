@@ -6,6 +6,123 @@
 ================================================================================
 
 
+================================================================================
+  BUILD PATTERNS — CHECKLISTS FOR COMMON CHANGE TYPES
+  Use these when adding new features so nothing gets missed.
+================================================================================
+
+────────────────────────────────────────────────────────────────────────────────
+PATTERN A — NEW POINT OVERLAY  (e.g. flood, schools, stations, primary schools)
+────────────────────────────────────────────────────────────────────────────────
+
+  PIPELINE (pipeline/)
+  [ ] Build script: raw data → GeoJSON with standard properties
+  [ ] Output: data/model/<category>/<name>.geojson
+  [ ] Publish copy: data/publish/<category>/<name>.geojson.gz  (gzipped)
+  [ ] Upload script: upload_model_assets_to_r2.py entry with --skip-<X> flag
+  [ ] Smoke-check: verify R2 file exists (r2_compare.py or manual)
+
+  API (functions/api/)
+  [ ] Endpoint or shared endpoint param (e.g. schools.ts ?key=... pattern)
+  [ ] Returns plain GeoJSON when ?plain=1 (for right-click + scoring fetch)
+
+  MAP.TSX — SOURCES
+  [ ] map.addSource("<name>-overlay", { type:"geojson", data:"/api/...", cluster:true })
+  [ ] map.addSource("<name>-search-focus", { type:"geojson", data:{features:[]} })
+
+  MAP.TSX — OVERLAY LAYERS  (add in render order — below cells-fill or above?)
+  [ ] Cluster circle layer     id: "<name>-overlay-clusters"
+  [ ] Cluster count label      id: "<name>-overlay-cluster-count"
+  [ ] Individual point layer   id: "<name>-overlay-points"
+  [ ] Click handler on points + clusters (popup with key fields)
+  [ ] Cursor pointer on hover (mousemove / mouseleave)
+  [ ] Add all 3 layer IDs to the cell-hover suppression list
+  [ ] Visibility useEffect: read <name>Mode from state, setLayoutProperty all 3 layers
+
+  MAP.TSX — SEARCH-FOCUS LAYERS  (right-click dashed line + highlight ring)
+  [ ] Line layer     id: "<name>-search-focus-line"
+  [ ] Label layer    id: "<name>-search-focus-label"   (symbol on line-center)
+  [ ] Ring layer     id: "<name>-search-focus-ring"    (circle on point)
+  [ ] set<Name>SearchFocus() function (point + LineString into the source)
+  [ ] Call set<Name>SearchFocus(map, null, null) in clearRgOverlay()
+  [ ] Call set<Name>SearchFocus(map, null, null) in the inline pre-fetch reset
+      inside doReverseGeocode void(async...)
+
+  MAP.TSX — MODULE-LEVEL CACHE
+  [ ] let _index<Name>Cache: Array<{lon,lat,...}> | null = null
+  [ ] let _indexNameGrid: SpatialGrid<...> | null = null
+
+  MAP.TSX — doReverseGeocode RIGHT-CLICK LOOKUP
+  [ ] ensureName() lazy-load helper (populates cache + grid, returns grid)
+  [ ] Add ensureName() to the Promise.all([...]) parallel fetch
+  [ ] Build <name>Html string after the await (nearest point, distance, label)
+  [ ] lineTargets.push([nearest.lon, nearest.lat])
+  [ ] set<Name>SearchFocus(map, nearest, { lon: lng, lat }) to draw the line
+  [ ] Add <name>Html to onRightClickInfoRef.current?.({ ... }) call
+  [ ] Add <name>Summary to onLocationLoggedRef.current?.({ ... }) call
+
+  MAP.TSX — TYPES
+  [ ] RightClickInfoData ready stage: add <name>Html: string field
+  [ ] RgLogEntry: add <name>Summary?: string field
+
+  PAGE.TSX
+  [ ] MapState / MapProps: add <name>Mode: OverlayMode and setter
+  [ ] URL param: e.g. ?<n>=on  (read in useState initialiser, write in toggles)
+  [ ] Overlays panel toggle button in Controls
+  [ ] Desktop right-click panel: add { icon, label, html } row
+  [ ] Mobile right-click panel:  add { icon, label, html } row  (separate array)
+
+────────────────────────────────────────────────────────────────────────────────
+PATTERN B — NEW FIND MY AREA SCORING FACTOR
+────────────────────────────────────────────────────────────────────────────────
+
+  MAP.TSX
+  [ ] Add field to IndexPrefs type: <name>Weight: number
+  [ ] Module-level cache (if data source is new — see Pattern A cache steps)
+  [ ] Fetch data in applyIndexScoring (parallel with other fetches)
+  [ ] Build spatial grid for nearest-point lookup
+  [ ] Scoring section: compute raw score (0-100), apply weight, accumulate total
+  [ ] Veto / drag logic if the factor can hard-block a cell (e.g. affordability cap)
+  [ ] Add row to the per-cell score breakdown popup HTML
+
+  PAGE.TSX
+  [ ] Add IndexScoringPrefs field: index<Name>Weight: number  (default 0)
+  [ ] State: const [index<Name>Weight, setIndex<Name>Weight] = useState(0)
+  [ ] ImportancePicker row in the Find My Area panel (emoji + label + slider)
+  [ ] Include in reset handler (back to 0)
+  [ ] Include in total validation (weights must sum ≥ 1 check or similar)
+  [ ] Pass to setIndexApplied({ ..., <name>Weight: index<Name>Weight })
+
+────────────────────────────────────────────────────────────────────────────────
+PATTERN C — NEW RIGHT-CLICK INFO ROW  (no new overlay, just data in the panel)
+────────────────────────────────────────────────────────────────────────────────
+
+  MAP.TSX
+  [ ] RightClickInfoData ready stage: add <name>Html: string
+  [ ] RgLogEntry: add <name>Summary?: string
+  [ ] Lazy-load data in doReverseGeocode (cache if reusable, fetch fresh if cheap)
+  [ ] Build <name>Html string
+  [ ] Pass in onRightClickInfoRef.current?.({ ..., <name>Html })
+  [ ] Pass in onLocationLoggedRef.current?.({ ..., <name>Summary })
+
+  PAGE.TSX
+  [ ] Desktop right-click panel array: { icon, label, html: rightClickInfo.<name>Html }
+  [ ] Mobile right-click panel array:  same  (it's a separate literal — don't miss it)
+
+────────────────────────────────────────────────────────────────────────────────
+NAMING CONVENTIONS
+────────────────────────────────────────────────────────────────────────────────
+
+  MapLibre source/layer IDs  → kebab-case   "<noun>-overlay", "<noun>-search-focus"
+  TypeScript variables        → camelCase    _index<Noun>Cache, ensure<Noun>()
+  React state                 → camelCase    <noun>Mode, index<Noun>Weight
+  R2 / API key                → snake_case   <noun>_overlay_points.geojson.gz
+  CSS: line colour per type   → flood #3b82f6 | sec-school #ef4444/#22c55e |
+                                 pri-school #7c3aed | station #0ea5e9
+
+================================================================================
+
+
 ────────────────────────────────────────────────────────────────────────────────
 INFRASTRUCTURE / OUTSTANDING CARRY-OVER
 ────────────────────────────────────────────────────────────────────────────────
