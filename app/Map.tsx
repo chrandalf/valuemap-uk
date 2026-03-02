@@ -368,7 +368,7 @@ export default function ValueMap({
   const [postcodeError, setPostcodeError] = useState<string | null>(null);
   const [scotlandNote, setScotlandNote] = useState<string | null>(null);
   const [postcodeMaxPrice, setPostcodeMaxPrice] = useState<number | null>(null);
-  const [cellClickHint, setCellClickHint] = useState(false);
+  const [cellClickHint, setCellClickHint] = useState<{ x: number; y: number } | null>(null);
   const cellClickHintTimerRef = useRef<number | null>(null);
   const fetchPostcodesRef = useRef<(gx: number, gy: number, offset: number, append: boolean) => void>(() => {});
   const floodSearchEntriesRef = useRef<FloodSearchEntry[] | null>(null);
@@ -2206,10 +2206,10 @@ export default function ValueMap({
       }
     }
 
-    // Show a brief hint nudging user to right-click for full details
-    setCellClickHint(true);
+    // Show a brief hint nudging user to right-click for full details, anchored to the tap/click point
+    setCellClickHint({ x: e.point.x, y: e.point.y });
     if (cellClickHintTimerRef.current) clearTimeout(cellClickHintTimerRef.current);
-    cellClickHintTimerRef.current = window.setTimeout(() => setCellClickHint(false), 4000);
+    cellClickHintTimerRef.current = window.setTimeout(() => setCellClickHint(null), 4000);
 
     void fetchPostcodesRef.current(gx, gy, 0, false);
   });
@@ -2878,21 +2878,24 @@ export default function ValueMap({
         <div
           style={{
             position: "absolute",
-            bottom: 64,
-            left: "50%",
+            top: cellClickHint.y + 14,
+            left: cellClickHint.x,
             transform: "translateX(-50%)",
             background: "rgba(15,15,30,0.92)",
             color: "white",
-            padding: "8px 16px",
+            padding: "7px 13px",
             borderRadius: 8,
             fontSize: 12,
+            lineHeight: 1.4,
             zIndex: 10,
             pointerEvents: "none",
-            whiteSpace: "nowrap",
+            whiteSpace: "normal",
+            maxWidth: 190,
+            textAlign: "center",
             boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
           }}
         >
-          Right-click (or double-tap on mobile) for full area details →
+          Right-click (or double-tap) for full area details
         </div>
       )}
       {postcodeCell && (
