@@ -404,6 +404,42 @@ async function backfillVotes(env: Env, grid: GridKey, rows: CellRow[]): Promise<
   });
 }
 
+/* ---------- slim 1km country lookup ---------- */
+
+// country_cells_1km.json.gz is a nested dict {gx_km: {gy_km: country_char}}
+// built from vote_cells_1km by build_country_lookup_assets.py.  Only ~44 KB
+// compressed — safe to load cold alongside any 1km partition.
+let COUNTRY_1KM_CACHE: Map<string, string> | null | undefined = undefined; // undefined = not yet attempted
+
+async function getCachedCountry1kmLookup(env: Env): Promise<Map<string, string> | null> {
+  // undefined = never loaded yet; null = loaded but file not found
+  if (COUNTRY_1KM_CACHE !== undefined) return COUNTRY_1KM_CACHE;
+
+  const bucket = getBucket(env);
+  const obj = await bucket.get("country_cells_1km.json.gz");
+  if (!obj) {
+    COUNTRY_1KM_CACHE = null; // cache miss so we don't retry every request
+    return null;
+  }
+
+  const gz = await obj.arrayBuffer();
+  const jsonText = await gunzipToString(gz);
+  // nested {gx_km_str: {gy_km_str: country_char}}
+  const nested = JSON.parse(jsonText) as Record<string, Record<string, string>>;
+
+  const lookup = new Map<string, string>();
+  for (const [gxKm, ys] of Object.entries(nested)) {
+    const gx = String(Number(gxKm) * 1000);
+    for (const [gyKm, country] of Object.entries(ys)) {
+      const gy = String(Number(gyKm) * 1000);
+      lookup.set(`${gx}_${gy}`, country);
+    }
+  }
+
+  COUNTRY_1KM_CACHE = lookup;
+  return lookup;
+}
+
 /* ---------- commute data ---------- */
 
 const COMMUTE_CACHE_BY_GRID: Partial<Record<GridKey, { lookup: Map<string, CommuteCellValue>; loadedAtMs: number }>> = {};
@@ -554,14 +590,19 @@ async function backfillAge(env: Env, grid: GridKey, rows: CellRow[]): Promise<Ce
 async function backfillAll(env: Env, grid: GridKey, rows: CellRow[]): Promise<CellRow[]> {
   // vote_cells_1km.json.gz is ~2 MB compressed / ~20 MB uncompressed — loading it
   // alongside a large 1km partition on a cold isolate reliably hits the Worker CPU
-  // time limit.  Vote overlay at 1km resolution adds no real value (constituency
-  // fractions per 1km square are meaningless), so skip it for this grid.
+  // time limit.  Instead, for 1km we load the slim country_cells_1km.json.gz
+  // (44 KB) which gives us just the `country` field needed for flood/school scoring.
   const votePromise = grid === "1km"
     ? Promise.resolve(null)
     : getCachedVoteLookup(env, grid).catch(() => null);
 
-  const [voteLookup, commuteLookup, ageLookup] = await Promise.all([
+  const country1kmPromise = grid === "1km"
+    ? getCachedCountry1kmLookup(env).catch(() => null)
+    : Promise.resolve(null);
+
+  const [voteLookup, country1kmLookup, commuteLookup, ageLookup] = await Promise.all([
     votePromise,
+    country1kmPromise,
     getCachedCommuteLookup(env, grid).catch(() => null),
     getCachedAgeLookup(env, grid).catch(() => null),
   ]);
@@ -569,6 +610,13 @@ async function backfillAll(env: Env, grid: GridKey, rows: CellRow[]): Promise<Ce
   return rows.map((row) => {
     let out: any = row;
     const key = `${row.gx}_${row.gy}`;
+
+    // For 1km we only get country from the slim lookup; for other grids we get
+    // the full vote fields (including country) from the vote lookup.
+    if (grid === "1km" && country1kmLookup) {
+      const country = country1kmLookup.get(key);
+      if (country) out = { ...out, country };
+    }
 
     const vote = voteLookup?.get(key);
     if (vote) out = { ...out,
