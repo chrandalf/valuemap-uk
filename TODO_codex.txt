@@ -1,6 +1,6 @@
 ================================================================================
   VALUEMAP — PRODUCT BACKLOG
-  Updated: 2026-03-02
+  Updated: 2026-03-02 (audited — stale items cleared)
   Effort key:  [XS] < 1 hr  [S] ~half day  [M] 1-2 days  [L] 3-5 days  [XL] week+
   Status:      [x] done   [-] in progress   [ ] not started
 ================================================================================
@@ -10,10 +10,18 @@
 INFRASTRUCTURE / OUTSTANDING CARRY-OVER
 ────────────────────────────────────────────────────────────────────────────────
 
-[ ] [XS]  Upload `postcode_grid_outcode_lookup.json.gz` to R2
-[ ] [XS]  Update `functions/api/postcodes.ts` default key to new outcode filename
-[ ] [XS]  Confirm R2 binding name in Pages Functions (R2 vs BRICKGRID_BUCKET)
-[ ] [XS]  Verify map click shows outcode list; adjust UI if needed
+[x] [XS]  Upload `postcode_grid_outcode_lookup.json.gz` to R2
+          — confirmed present in r2_compare_report.json
+[x] [XS]  Update `functions/api/postcodes.ts` default key to new outcode filename
+          — already defaults to postcode_grid_outcode_lookup.json.gz
+[x] [XS]  Confirm R2 binding name in Pages Functions (R2 vs BRICKGRID_BUCKET)
+          — postcodes.ts already tries BRICKGRID_BUCKET then R2 (both handled)
+[x] [XS]  All 4 postcode outcode index files uploaded to R2
+          — postcode_outcode_index_{1km/5km/10km/25km}.json.gz confirmed in R2
+
+[ ] [XS]  Smoke-test postcode cell-click at each grid size (1km/5km/10km/25km)
+          — the code is complete; just needs a manual verify that postcodes appear
+          — low risk: mark done after one manual test session
 
 
 ────────────────────────────────────────────────────────────────────────────────
@@ -45,14 +53,28 @@ TIER 1 — QUICK WINS  (XS / S, low risk)
 [x] [XS]  Affordability veto multiplier: areas well above max price score near-zero
           regardless of flood/school scores (cap=4 so weight≥2 hard-zeros at ratio≥1.6×)
 [x] [XS]  Wales/Scotland flood fix: country field added to vote lookup Map
+[x] [XS]  Slim country lookup generalised to all 4 grid sizes (1km/5km/10km/25km)
+          — R2 assets built; cells.ts COUNTRY_CACHE_BY_GRID + getCachedCountryLookup
+[x] [XS]  Overlay nudge hint in right-click panel (💡 row) — both desktop + mobile
+          — gated on hintsEnabled toggle
+[x] [XS]  Overlay cluster layers rendered above cells-fill (layer order fix)
+[x] [XS]  Flood/school overlay clicks work in "on" mode, not just "on_hide_cells"
+          — floodOverlayClickable() / schoolOverlayClickable() helpers
+[x] [XS]  Station click popups: name (linked), CRS code, operator, National Rail link
+          — stationOverlayClickable(), cluster count popup
+[x] [XS]  Cell-click hint bubble positioned below the actual tap point (word-wrap)
+[x] [XS]  Help hints On/Off toggle in Controls menu (persisted to localStorage)
+          — gates: cell-click bubble, 💡 overlay nudge, "or right-click map" text
 
 [ ] [XS]  Change all "UK" labels/copy to "Great Britain" (NI not covered)
-          - Search for "UK" in page.tsx, Map.tsx, README, description page
-          - Update page <title>, meta description, og:title
+          - layout.tsx title + meta description (3 places, all say "UK House Price Map")
+          - page.tsx: brand name in top bar, tour text, flood disclaimer, data sources
+          - README if public-facing
 
-[ ] [XS]  Purge stale cache / fix users still seeing the removed tour button
-          - Add cache-busting header or increment service-worker version
-          - Check whether tour state is persisted in localStorage — add reset path
+[x] [XS]  Purge stale cache / fix users still seeing the removed tour button
+          — NOT NEEDED: no service worker exists; Cloudflare Pages serves new hashes
+            on every deploy so browser cache self-invalidates. The mobile "Show me how"
+            pill was re-added and is still live (gated on showMePulse / localStorage).
 
 [ ] [S]   Add minimum price floor to Find My Area
           - Extend IndexScoringPrefs: add `budgetMin?: number`
@@ -61,8 +83,8 @@ TIER 1 — QUICK WINS  (XS / S, low risk)
           - From mate feedback: "why is it showing me £80k areas when I want £300k+"
 
 [ ] [S]   Clearer explanation of what "Affordability importance" means
-          - Current label is ambiguous — users set it to 0 then wonder why budget does nothing
-          - Rename to "Affordability must-have" or add inline explainer
+          - slider defaults to 0 — users set budget then wonder why it does nothing
+          - Rename label or add an inline "(set to 0 = ignored)" note beside the slider
           - Consider defaulting affordWeight to 5 instead of 0
           - From mate feedback: "Affordability was set to off — didn't realise I needed it"
 
