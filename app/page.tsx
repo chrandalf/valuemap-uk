@@ -3645,6 +3645,21 @@ export default function Home() {
                   <div style={{ fontSize: 12, lineHeight: 1.4, flex: 1, minWidth: 0 }}>{rightClickInfo.constituency}</div>
                 </div>
               )}
+              {(() => {
+                const offLayers = [
+                  state.floodOverlayMode === "off" && "Flood",
+                  state.schoolOverlayMode === "off" && "Schools",
+                ].filter(Boolean) as string[];
+                if (offLayers.length === 0) return null;
+                return (
+                  <div style={{ display: "flex", gap: 6, alignItems: "flex-start", padding: "5px 0 3px", borderBottom: "1px solid #f9fafb" }}>
+                    <span style={{ width: 16, flexShrink: 0, textAlign: "center", paddingTop: 1, fontSize: 11 }}>💡</span>
+                    <div style={{ fontSize: 10, color: "#9ca3af", lineHeight: 1.45, flex: 1 }}>
+                      Turn on the <span style={{ color: "#6366f1", fontWeight: 500 }}>{offLayers.join(" & ")}</span> overlay{offLayers.length > 1 ? "s" : ""} in the layers panel to see {offLayers.length > 1 ? "these" : "this"} on the map.
+                    </div>
+                  </div>
+                );
+              })()}
               <div style={{ marginTop: 6, paddingTop: 5, borderTop: "1px solid #f3f4f6", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <span style={{ fontSize: 10, color: "#6b7280" }}>✓ Added to log</span>
                 <a href="#" onClick={(e) => { e.preventDefault(); setRgLogOpen(true); }} style={{ fontSize: 10, color: "#6366f1", textDecoration: "none", fontWeight: 500 }}>See log →</a>
@@ -3709,6 +3724,21 @@ export default function Home() {
                   <div style={{ fontSize: 12, lineHeight: 1.4, flex: 1, minWidth: 0 }}>{rightClickInfo.constituency}</div>
                 </div>
               )}
+              {(() => {
+                const offLayers = [
+                  state.floodOverlayMode === "off" && "Flood",
+                  state.schoolOverlayMode === "off" && "Schools",
+                ].filter(Boolean) as string[];
+                if (offLayers.length === 0) return null;
+                return (
+                  <div style={{ display: "flex", gap: 6, alignItems: "flex-start", padding: "5px 0 3px", borderBottom: "1px solid #f9fafb" }}>
+                    <span style={{ width: 16, flexShrink: 0, textAlign: "center", paddingTop: 1, fontSize: 11 }}>💡</span>
+                    <div style={{ fontSize: 10, color: "#9ca3af", lineHeight: 1.45, flex: 1 }}>
+                      Turn on the <span style={{ color: "#6366f1", fontWeight: 500 }}>{offLayers.join(" & ")}</span> overlay{offLayers.length > 1 ? "s" : ""} in the layers panel to see {offLayers.length > 1 ? "these" : "this"} on the map.
+                    </div>
+                  </div>
+                );
+              })()}
               <div style={{ marginTop: 6, paddingTop: 5, borderTop: "1px solid #f3f4f6", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <span style={{ fontSize: 10, color: "#6b7280" }}>✓ Added to log</span>
                 <a href="#" onClick={(e) => { e.preventDefault(); setRgLogOpen(true); }} style={{ fontSize: 10, color: "#6366f1", textDecoration: "none", fontWeight: 500 }}>See log →</a>
