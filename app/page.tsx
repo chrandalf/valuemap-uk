@@ -2105,7 +2105,7 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* Political votes */}}
+                  {/* Political votes */}
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 7 }}>
                     <div style={{ fontSize: 11, opacity: 0.8, width: 70, flexShrink: 0, paddingTop: 2 }}>🗳 Politics</div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
