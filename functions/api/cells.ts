@@ -58,10 +58,8 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     const cachedMerged = PARTITION_CACHE.get(mergedCacheKey);
     if (cachedMerged && now - cachedMerged.loadedAtMs <= CACHE_TTL_MS) {
       const rows = applyFilters(cachedMerged.rows, minTxCount, metric);
-      const withVotes = await backfillVotes(env, grid, rows);
-      const withCommute = await backfillCommute(env, grid, withVotes);
-      const withAge = await backfillAge(env, grid, withCommute);
-      return jsonResponse({ grid, metric, end_month: endMonth, propertyType: canonicalPropertyType, newBuild, minTxCount, count: withAge.length, rows: withAge });
+      const enriched = await backfillAll(env, grid, rows);
+      return jsonResponse({ grid, metric, end_month: endMonth, propertyType: canonicalPropertyType, newBuild, minTxCount, count: enriched.length, rows: enriched });
     }
 
     const partitionResults = await Promise.all(
@@ -77,10 +75,8 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     const rawMerged = mergePartitionRows(validPartitions);
     PARTITION_CACHE.set(mergedCacheKey, { rows: rawMerged, loadedAtMs: Date.now() });
     const rows = applyFilters(rawMerged, minTxCount, metric);
-    const withVotes = await backfillVotes(env, grid, rows);
-    const withCommute = await backfillCommute(env, grid, withVotes);
-    const withAge = await backfillAge(env, grid, withCommute);
-    return jsonResponse({ grid, metric, end_month: endMonth, propertyType: canonicalPropertyType, newBuild, minTxCount, count: withAge.length, rows: withAge });
+    const enriched = await backfillAll(env, grid, rows);
+    return jsonResponse({ grid, metric, end_month: endMonth, propertyType: canonicalPropertyType, newBuild, minTxCount, count: enriched.length, rows: enriched });
   }
 
   // Single type (or ALL): standard single-partition fetch
@@ -91,10 +87,8 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   const cached = PARTITION_CACHE.get(partitionKey);
   if (cached && now - cached.loadedAtMs <= CACHE_TTL_MS) {
     const rows = applyFilters(cached.rows, minTxCount, metric);
-    const withVotes = await backfillVotes(env, grid, rows);
-    const withCommute = await backfillCommute(env, grid, withVotes);
-    const withAge = await backfillAge(env, grid, withCommute);
-    return jsonResponse({ grid, metric, end_month: endMonth, propertyType: canonicalPropertyType, newBuild, minTxCount, count: withAge.length, rows: withAge });
+    const enriched = await backfillAll(env, grid, rows);
+    return jsonResponse({ grid, metric, end_month: endMonth, propertyType: canonicalPropertyType, newBuild, minTxCount, count: enriched.length, rows: enriched });
   }
 
   // Fetch from R2
@@ -113,10 +107,8 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   PARTITION_CACHE.set(partitionKey, { rows: rawRows, loadedAtMs: Date.now() });
 
   const rows = applyFilters(rawRows, minTxCount, metric);
-  const withVotes = await backfillVotes(env, grid, rows);
-  const withCommute = await backfillCommute(env, grid, withVotes);
-  const withAge = await backfillAge(env, grid, withCommute);
-  return jsonResponse({ grid, metric, end_month: endMonth, propertyType: canonicalPropertyType, newBuild, minTxCount, count: withAge.length, rows: withAge });
+  const enriched = await backfillAll(env, grid, rows);
+  return jsonResponse({ grid, metric, end_month: endMonth, propertyType: canonicalPropertyType, newBuild, minTxCount, count: enriched.length, rows: enriched });
 };
 
 /* ---------- types ---------- */
@@ -433,7 +425,11 @@ async function getCachedCommuteLookup(env: Env, grid: GridKey): Promise<Map<stri
   const bucket = getBucket(env);
   const key = commuteKeyForGrid(grid);
   const obj = await bucket.get(key);
-  if (!obj) return null;
+  if (!obj) {
+    // Cache the miss so we don't re-hit R2 on every request when the file doesn't exist
+    COMMUTE_CACHE_BY_GRID[grid] = { lookup: new Map(), loadedAtMs: Date.now() };
+    return null;
+  }
 
   const gz = await obj.arrayBuffer();
   const jsonText = await gunzipToString(gz);
@@ -502,7 +498,11 @@ async function getCachedAgeLookup(env: Env, grid: GridKey): Promise<Map<string, 
   const bucket = getBucket(env);
   const key = ageKeyForGrid(grid);
   const obj = await bucket.get(key);
-  if (!obj) return null;
+  if (!obj) {
+    // Cache the miss so we don't re-hit R2 on every request when the file doesn't exist
+    AGE_CACHE_BY_GRID[grid] = { lookup: new Map(), loadedAtMs: Date.now() };
+    return null;
+  }
 
   const gz = await obj.arrayBuffer();
   const jsonText = await gunzipToString(gz);
@@ -547,6 +547,53 @@ async function backfillAge(env: Env, grid: GridKey, rows: CellRow[]): Promise<Ce
       pct_45_64:    age.pct_45_64,
       pct_65_plus:  age.pct_65_plus,
     };
+  });
+}
+
+/** Fetch vote/commute/age lookups in parallel, then enrich rows in a single pass. */
+async function backfillAll(env: Env, grid: GridKey, rows: CellRow[]): Promise<CellRow[]> {
+  const [voteLookup, commuteLookup, ageLookup] = await Promise.all([
+    getCachedVoteLookup(env, grid).catch(() => null),
+    getCachedCommuteLookup(env, grid).catch(() => null),
+    getCachedAgeLookup(env, grid).catch(() => null),
+  ]);
+
+  return rows.map((row) => {
+    let out: any = row;
+    const key = `${row.gx}_${row.gy}`;
+
+    const vote = voteLookup?.get(key);
+    if (vote) out = { ...out,
+      pct_progressive: vote.pct_progressive,
+      pct_conservative: vote.pct_conservative,
+      pct_popular_right: vote.pct_popular_right,
+      constituency: vote.constituency,
+      country: vote.country,
+    };
+
+    const commute = commuteLookup?.get(key);
+    if (commute) out = { ...out,
+      mean_dist_km: commute.mean_dist_km,
+      pct_wfh: commute.pct_wfh,
+      pct_lt5: commute.pct_lt5,
+      pct_5_10: commute.pct_5_10,
+      pct_10_20: commute.pct_10_20,
+      pct_20_60: commute.pct_20_60,
+      pct_60p: commute.pct_60p,
+    };
+
+    const age = ageLookup?.get(key);
+    if (age) out = { ...out,
+      mean_age:     age.mean_age,
+      age_score:    age.age_score,
+      pct_under_15: age.pct_under_15,
+      pct_15_24:    age.pct_15_24,
+      pct_25_44:    age.pct_25_44,
+      pct_45_64:    age.pct_45_64,
+      pct_65_plus:  age.pct_65_plus,
+    };
+
+    return out;
   });
 }
 
@@ -633,9 +680,7 @@ async function legacyHandler(
         : Number(r.median ?? NaN),
   }));
 
-  const withVotes = await backfillVotes(env, grid, rows);
-  const withCommute = await backfillCommute(env, grid, withVotes);
-  const withAge = await backfillAge(env, grid, withCommute);
+  const enriched = await backfillAll(env, grid, rows);
 
   return jsonResponse({
     grid,
@@ -644,8 +689,8 @@ async function legacyHandler(
     propertyType: propertyTypeCanonical,
     newBuild,
     minTxCount,
-    count: withAge.length,
-    rows: withAge,
+    count: enriched.length,
+    rows: enriched,
   });
 }
 
