@@ -2336,14 +2336,23 @@ export default function ValueMap({
           }
         }
 
-        // Auto-fit the map so the click origin and all arrow endpoints are visible
+        // Auto-fit the map so the click origin and all arrow endpoints are visible.
+        // Expand the bounding box by 50% of the span on each side so the view sits
+        // well clear of the arrow tips, and cap zoom so tightly-clustered arrows
+        // don't send the camera in too far.
         if (lineTargets.length > 0) {
           const allPts: [number, number][] = [[lng, lat], ...lineTargets];
           const lons = allPts.map(p => p[0]);
           const lats = allPts.map(p => p[1]);
+          const minLon = Math.min(...lons); const maxLon = Math.max(...lons);
+          const minLat = Math.min(...lats); const maxLat = Math.max(...lats);
+          const lonSpan = Math.max(maxLon - minLon, 0.01); // at least ~1km
+          const latSpan = Math.max(maxLat - minLat, 0.01);
+          const padLon = lonSpan * 0.5;
+          const padLat = latSpan * 0.5;
           map.fitBounds(
-            [[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]],
-            { padding: 90, maxZoom: 13, duration: 700 }
+            [[minLon - padLon, minLat - padLat], [maxLon + padLon, maxLat + padLat]],
+            { maxZoom: 11, duration: 700 }
           );
         }
 
