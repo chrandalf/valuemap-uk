@@ -1,6 +1,6 @@
 ================================================================================
   VALUEMAP — PRODUCT BACKLOG
-  Updated: 2026-02-27
+  Updated: 2026-03-02
   Effort key:  [XS] < 1 hr  [S] ~half day  [M] 1-2 days  [L] 3-5 days  [XL] week+
   Status:      [x] done   [-] in progress   [ ] not started
 ================================================================================
@@ -27,6 +27,25 @@ TIER 1 — QUICK WINS  (XS / S, low risk)
 [x] [S]   Flood scoring overhaul — absolute thresholds replacing percentile model
 [x] [S]   Right-click / tap popup: postcode + flood / school / station + map lines
 
+[x] [XS]  Left-click zooms map in toward clicked cell (with hint toast)
+          — zoom level based on current grid: 25km→8, 10km→8.5, 5km→9.5
+[x] [XS]  Right-click hint toast: "Right-click (or double-tap on mobile) for details"
+[x] [XS]  Double-tap mobile = right-click (touchend listener, 350ms/30px window)
+[x] [XS]  Fix: overlay arrows cleared after right-click (removed onReverseGeocode auto-fire)
+[x] [XS]  Fix: delta% was 0 on right-click (now fetches from /api/deltas, not rendered features)
+[x] [XS]  Right-click panel enriched: 🏠 Price row + 🗳️ Constituency row
+[x] [XS]  Arrow labels: "Flood zone", "School", "Best school", "Station" along dashed lines
+[x] [XS]  Auto-fit bounds after arrows drawn (50% padding, maxZoom 11)
+[x] [XS]  Mobile "Show me how" pill: add ✕ dismiss button (writes tour_done to localStorage)
+          — documented why clearing cache doesn't clear localStorage
+[x] [XS]  Overlay layers reset to off when postcode search is submitted
+[x] [XS]  Match filter rewording: "Show only good matches", Off/Weak areas/Good matches
+[x] [XS]  Match filter auto-enabled at ≥50% after "Score areas" is pressed
+[x] [XS]  Rename "Budget" → "Max price" throughout Find My Area UI and tour
+[x] [XS]  Affordability veto multiplier: areas well above max price score near-zero
+          regardless of flood/school scores (cap=4 so weight≥2 hard-zeros at ratio≥1.6×)
+[x] [XS]  Wales/Scotland flood fix: country field added to vote lookup Map
+
 [ ] [XS]  Change all "UK" labels/copy to "Great Britain" (NI not covered)
           - Search for "UK" in page.tsx, Map.tsx, README, description page
           - Update page <title>, meta description, og:title
@@ -35,15 +54,17 @@ TIER 1 — QUICK WINS  (XS / S, low risk)
           - Add cache-busting header or increment service-worker version
           - Check whether tour state is persisted in localStorage — add reset path
 
-[ ] [S]   Budget: typed number input alongside / replacing slider
-          - Replace or augment the budget slider with <input type="number">
-          - Keep slider for coarse drag, input for precise entry
-          - Validate and clamp to min/max on blur
-
-[ ] [S]   Add minimum budget (floor as well as ceiling)
+[ ] [S]   Add minimum price floor to Find My Area
           - Extend IndexScoringPrefs: add `budgetMin?: number`
-          - Pipeline: filter/score cells where median < budgetMin
-          - UI: second handle on budget slider OR separate min input
+          - Score/filter cells where median < budgetMin (too cheap = may signal issues)
+          - UI: second input for min price below the max price input
+          - From mate feedback: "why is it showing me £80k areas when I want £300k+"
+
+[ ] [S]   Clearer explanation of what "Affordability importance" means
+          - Current label is ambiguous — users set it to 0 then wonder why budget does nothing
+          - Rename to "Affordability must-have" or add inline explainer
+          - Consider defaulting affordWeight to 5 instead of 0
+          - From mate feedback: "Affordability was set to off — didn't realise I needed it"
 
 
 ────────────────────────────────────────────────────────────────────────────────
@@ -56,11 +77,6 @@ TIER 2 — MEDIUM EFFORT  (M, moderate complexity)
           - Extend PropertyType from single value to Set<PropertyType>
           - Update cell fetch params and pipeline aggregation query
           - UI: replace Segment with multi-toggle chip group
-
-[ ] [M]   Clarify "Affordability" slider purpose
-          - Rename label to "Affordability weight" with tooltip explainer
-          - Add inline copy: "How much to weight price vs your budget ceiling"
-          - Make visually distinct from the budget input
 
 [ ] [M]   Improve school score display and calculation
           a) Map qualityScore bands → Ofsted wording (Outstanding / Good /
@@ -87,6 +103,12 @@ TIER 2 — MEDIUM EFFORT  (M, moderate complexity)
 [ ] [M]   m² / ft² unit toggle (once floor-area data wired in from EPC pipeline)
           - Store preference in localStorage
           - All size displays respect the toggle
+
+[ ] [M]   First-run overlay suggestion after search
+          - After postcode search lands, show a subtle prompt:
+            "Tap Overlays to layer flood risk, schools or stations on top"
+          - One-shot, dismissible, saved to localStorage
+          - From mate feedback: "didn't know overlays existed until I found them"
 
 
 ────────────────────────────────────────────────────────────────────────────────
