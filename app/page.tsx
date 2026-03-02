@@ -315,6 +315,7 @@ export default function Home() {
   const [indexCoastWeight, setIndexCoastWeight] = useState(0);
   const [indexAgeWeight, setIndexAgeWeight] = useState(0);
   const [indexAgeDirection, setIndexAgeDirection] = useState<"young" | "old">("young");
+  const [indexValidationError, setIndexValidationError] = useState<string | null>(null);
   const [indexApplied, setIndexApplied] = useState<IndexScoringPrefs>({
     budget: 300000,
     propertyType: "ALL",
@@ -414,6 +415,7 @@ export default function Home() {
     setIndexCoastWeight(0);
     setIndexAgeWeight(0);
     setIndexAgeDirection("young");
+    setIndexValidationError(null);
     setIndexApplied({
       budget: 300000,
       propertyType: "ALL",
@@ -2612,6 +2614,19 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => {
+                  // — Validate before scoring —
+                  const totalW = indexAffordWeight + indexFloodWeight + indexSchoolWeight +
+                    indexTrainWeight + indexCoastWeight + indexAgeWeight;
+                  if (totalW === 0) {
+                    setIndexValidationError("Please set at least one criterion above Off before scoring.");
+                    return;
+                  }
+                  if (indexAffordWeight > 0 && (!(indexBudget > 0) || !Number.isFinite(indexBudget))) {
+                    setIndexValidationError("Please enter a valid budget above £0 to use the affordability criterion.");
+                    return;
+                  }
+                  setIndexValidationError(null);
+
                   setIndexApplied({
                     budget: indexBudget,
                     propertyType: indexPropertyType,
@@ -2666,6 +2681,21 @@ export default function Home() {
                 </button>
               )}
             </div>
+
+            {indexValidationError && (
+              <div style={{
+                marginTop: 8,
+                padding: "7px 10px",
+                borderRadius: 8,
+                background: "rgba(220,60,60,0.22)",
+                border: "1px solid rgba(220,60,60,0.55)",
+                color: "#ffb3b3",
+                fontSize: 11,
+                lineHeight: 1.4,
+              }}>
+                ⚠️ {indexValidationError}
+              </div>
+            )}
 
             {!indexActive && (
               <button

@@ -4122,7 +4122,7 @@ async function applyIndexScoring(
       }
       props.ix_av = cellValue > 0 ? cellValue : null;
       props.ix_an = affordDataQuality;
-      if (cellValue > 0 && prefs.budget > 0) {
+      if (cellValue > 0 && Number.isFinite(prefs.budget) && prefs.budget > 0) {
         const ratio = cellValue / prefs.budget;
         affordScore = Math.max(0, Math.min(1, (1.6 - ratio) / 0.9));
       } else {
