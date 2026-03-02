@@ -2510,24 +2510,22 @@ export default function Home() {
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <span style={{ fontSize: 11, fontWeight: 600, flex: "0 0 auto", minWidth: 64 }}>🏠 Type</span>
                 <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
-                  {("ALL" as const) && (
-                    <button
-                      type="button"
-                      onClick={() => setIndexPropertyType("ALL")}
-                      style={{
-                        cursor: "pointer",
-                        border: indexPropertyType === "ALL" ? "1.5px solid rgba(250,204,21,0.85)" : "1px solid rgba(255,255,255,0.15)",
-                        background: indexPropertyType === "ALL" ? "rgba(250,204,21,0.18)" : "rgba(255,255,255,0.05)",
-                        color: "white",
-                        padding: "3px 8px",
-                        borderRadius: 6,
-                        fontSize: 10,
-                        fontWeight: indexPropertyType === "ALL" ? 700 : 400,
-                      }}
-                    >
-                      All
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIndexPropertyType("ALL")}
+                    style={{
+                      cursor: "pointer",
+                      border: indexPropertyType === "ALL" ? "1.5px solid rgba(250,204,21,0.85)" : "1px solid rgba(255,255,255,0.15)",
+                      background: indexPropertyType === "ALL" ? "rgba(250,204,21,0.18)" : "rgba(255,255,255,0.05)",
+                      color: "white",
+                      padding: "3px 8px",
+                      borderRadius: 6,
+                      fontSize: 10,
+                      fontWeight: indexPropertyType === "ALL" ? 700 : 400,
+                    }}
+                  >
+                    All
+                  </button>
                   {(["D", "S", "T", "F"] as const).map((pt) => {
                     const isActive = indexPropertyType !== "ALL" && indexPropertyType.split(",").includes(pt);
                     return (
