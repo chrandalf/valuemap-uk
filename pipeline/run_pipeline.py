@@ -138,6 +138,21 @@ def run_stations() -> None:
     )
 
 
+def run_crime() -> None:
+    """
+    Build LSOA crime overlay, then snap to all 4 grid sizes.
+    Requires: raw crime CSVs in pipeline/data/raw/crime/ and ONSPD in raw/property/.
+    """
+    run_step(
+        "crime-overlay",
+        [str(SCRIPT_DIR / "build_crime_overlay.py")],
+    )
+    run_step(
+        "crime-cells",
+        [str(SCRIPT_DIR / "build_crime_cells.py")],
+    )
+
+
 def run_vote() -> None:
     run_step(
         "vote-blocks",
@@ -178,6 +193,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-flood", action="store_true", help="Skip flood asset generation")
     parser.add_argument("--skip-stations", action="store_true", help="Skip train station overlay generation")
     parser.add_argument("--skip-vote", action="store_true", help="Skip vote artifact generation")
+    parser.add_argument("--skip-crime", action="store_true", help="Skip crime overlay and cell generation")
     parser.add_argument(
         "--mainstream-only",
         action="store_true",
@@ -214,6 +230,9 @@ def main() -> None:
 
     if not args.skip_vote:
         run_vote()
+
+    if not args.skip_crime:
+        run_crime()
 
     if not args.no_publish_r2_staging:
         copy_model_to_publish()

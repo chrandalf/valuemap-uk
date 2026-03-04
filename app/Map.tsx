@@ -2531,6 +2531,45 @@ export default function ValueMap({
       return;
     }
 
+    const crimeCellMode = stateRef.current.crimeCellMode ?? "off";
+    if (crimeCellMode !== "off") {
+      const scale = stateRef.current.crimeCellScale ?? "absolute";
+      const isLocal = scale === "relative";
+      const totalRate    = Number(p.total_rate    ?? 0);
+      const violentRate  = Number(p.violent_rate  ?? 0);
+      const propertyRate = Number(p.property_rate ?? 0);
+      const asbRate      = Number(p.asb_rate      ?? 0);
+      const crimeScore    = Number(isLocal ? (p.crime_local_score    ?? p.crime_score    ?? 50) : (p.crime_score    ?? 50));
+      const violentScore  = Number(isLocal ? (p.violent_local_score  ?? p.violent_score  ?? 50) : (p.violent_score  ?? 50));
+      const propertyScore = Number(isLocal ? (p.property_local_score ?? p.property_score ?? 50) : (p.property_score ?? 50));
+      const asbScore      = Number(isLocal ? (p.asb_local_score      ?? p.asb_score      ?? 50) : (p.asb_score      ?? 50));
+      const sLabel = (s: number) => s >= 80 ? "Low" : s >= 60 ? "Below avg" : s >= 40 ? "Average" : s >= 20 ? "Above avg" : "High";
+      const sCol   = (s: number) => s >= 80 ? "#16a34a" : s >= 60 ? "#84cc16" : s >= 40 ? "#eab308" : s >= 20 ? "#f97316" : "#dc2626";
+      const oneInX = (rate: number) => rate > 0 ? Math.min(9999, Math.round(1000 / rate)) : null;
+      const rStr   = (rate: number) => { const x = oneInX(rate); return x ? `1 in ${x.toLocaleString()}/yr` : "No data"; };
+      const context = isLocal ? "vs. local area" : "vs. UK national";
+      const metricTitle = stateRef.current.metric === "median_ppsf"
+        ? `GBP ${Math.round(median).toLocaleString()} / ft²`
+        : `GBP ${median.toLocaleString()}`;
+      const propHtml = Number.isFinite(median) && median > 0
+        ? `<div style="border-top:1px solid rgba(0,0,0,0.1);margin-top:6px;padding-top:5px;font-size:11px;opacity:0.65;">${metricTitle} · ${tx} sales</div>`
+        : "";
+      const row = (label: string, score: number, rate: number) =>
+        `<div style="display:flex;justify-content:space-between;gap:10px;"><span style="color:#6b7280">${label}</span><span><span style="color:${sCol(score)};font-weight:${label === "Overall" ? 600 : 400}">${sLabel(score)}</span>&nbsp;<span style="color:#9ca3af;font-size:10px">${rStr(rate)}</span></span></div>`;
+      const crimeHtml = `
+        <div style="font:12px/1.5 system-ui,sans-serif;min-width:200px">
+          <div style="font-weight:700;font-size:13px;margin-bottom:2px">🔴 Crime</div>
+          <div style="font-size:10px;color:#9ca3af;margin-bottom:5px">${context}</div>
+          ${row("Overall", crimeScore, totalRate)}
+          ${row("Violent", violentScore, violentRate)}
+          ${row("Property", propertyScore, propertyRate)}
+          ${row("ASB", asbScore, asbRate)}
+          ${propHtml}
+        </div>`;
+      popup.setLngLat(e.lngLat).setHTML(crimeHtml).addTo(map);
+      return;
+    }
+
     if (voteMode !== "off") {
       const constituency = String(p.constituency ?? "Cell vote estimate");
       const constituencyHtml = escapeHtml(constituency);
@@ -3190,6 +3229,10 @@ export default function ValueMap({
               if (ok) { prevIndexActiveRef.current = true; onIndexScoringAppliedRef.current?.(); }
             });
           }
+          // If crime cells are active, the data reload must not restore the house price legend
+          if ((stateRef.current.crimeCellMode ?? "off") !== "off") {
+            onLegendChange?.(null);
+          }
           if (requestSeqRef.current === seq) setIsLoading(false);
         })
         .catch((e) => {
@@ -3422,6 +3465,7 @@ export default function ValueMap({
     try {
       if (crimeMode !== "off") {
         applyCrimeCellOverlayColorExpression(map, state.crimeCellSubMode, state.crimeCellScale, easyColoursRef.current);
+        onLegendChange?.(null); // hide house price legend while crime overlay is active
       } else if (ageMode !== "off") {
         applyAgeOverlayColorExpression(map, easyColoursRef.current);
       } else if (commuteMode !== "off") {
