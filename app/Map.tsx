@@ -53,6 +53,7 @@ export type IndexPrefs = {
   coastWeight: number;          // 0-10 importance (placeholder for now)
   ageWeight?: number;       // 0-10 importance (community age mix)
   ageDirection?: "young" | "old"; // prefer younger or older communities
+  crimeWeight?: number;     // 0-10 importance (local crime safety)
   indexFilterMode?: "off" | "lte" | "gte";
   indexFilterThreshold?: number; // 0..1
 };
@@ -3247,8 +3248,13 @@ export default function ValueMap({
             });
           }
           // If crime cells are active, the data reload must not restore the house price legend
+          // and must re-apply the crime colour expression (ensureAggregatesAndUpdate always
+          // resets to house-price colours, so we need to re-paint immediately after).
           if ((stateRef.current.crimeCellMode ?? "off") !== "off") {
             onLegendChange?.(null);
+            if (map.getLayer("cells-fill")) {
+              applyCrimeCellOverlayColorExpression(map, stateRef.current.crimeCellSubMode, stateRef.current.crimeCellScale, easyColoursRef.current);
+            }
           }
           if (requestSeqRef.current === seq) setIsLoading(false);
         })
@@ -5134,7 +5140,20 @@ async function applyIndexScoring(
     }
     props.ix_ag = ageScore;
 
-    // 6) Coast proximity (placeholder)
+    // 6) Crime safety — use crime_local_score (relative to local area, 0-100, higher=safer)
+    let crimeScore = 0.5;
+    const crimeW = prefs.crimeWeight ?? 0;
+    if (crimeW > 0) {
+      const rawCrimeScore = Number(props.crime_local_score ?? NaN);
+      if (Number.isFinite(rawCrimeScore)) {
+        crimeScore = Math.max(0, Math.min(1, rawCrimeScore / 100));
+      }
+      totalScore += crimeW * crimeScore;
+      totalWeight += crimeW;
+    }
+    props.ix_cr = crimeScore;
+
+    // 7) Coast proximity (placeholder)
     if (prefs.coastWeight > 0) {
       totalScore += prefs.coastWeight * 0.5;
       totalWeight += prefs.coastWeight;
@@ -5178,6 +5197,10 @@ async function applyIndexScoring(
     if (prefs.trainWeight > 0 && !trainNoData && trainScore < 0.5) {
       const shortfall = (0.5 - trainScore) / 0.5;
       vetoMultiplier *= Math.max(0, 1 - Math.min(prefs.trainWeight, VETO_WEIGHT_CAP) * shortfall * 0.5);
+    }
+    if (crimeW > 0 && crimeScore < 0.5) {
+      const shortfall = (0.5 - crimeScore) / 0.5;
+      vetoMultiplier *= Math.max(0, 1 - Math.min(crimeW, VETO_WEIGHT_CAP) * shortfall * 0.5);
     }
 
     const baseScore = totalWeight > 0 ? totalScore / totalWeight : 0.5;

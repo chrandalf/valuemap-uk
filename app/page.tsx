@@ -34,6 +34,7 @@ type IndexScoringPrefs = {
   coastWeight: number;
   ageWeight?: number;
   ageDirection?: "young" | "old";
+  crimeWeight?: number;
 };
 
 type MapState = {
@@ -349,6 +350,7 @@ export default function Home() {
   const [indexCoastWeight, setIndexCoastWeight] = useState(0);
   const [indexAgeWeight, setIndexAgeWeight] = useState(0);
   const [indexAgeDirection, setIndexAgeDirection] = useState<"young" | "old">("young");
+  const [indexCrimeWeight, setIndexCrimeWeight] = useState(0);
   const [indexValidationError, setIndexValidationError] = useState<string | null>(null);
   const [indexApplied, setIndexApplied] = useState<IndexScoringPrefs>({
     budget: 300000,
@@ -358,6 +360,7 @@ export default function Home() {
     schoolWeight: 0,
     trainWeight: 0,
     coastWeight: 0,
+    crimeWeight: 0,
   });
   const [indexSuitabilityMode, setIndexSuitabilityMode] = useState<ValueFilterMode>("off");
   const [indexSuitabilityThreshold, setIndexSuitabilityThreshold] = useState(65);
@@ -389,6 +392,7 @@ export default function Home() {
       coastWeight: indexApplied.coastWeight,
       ageWeight: indexApplied.ageWeight ?? 0,
       ageDirection: indexApplied.ageDirection ?? "young",
+      crimeWeight: indexApplied.crimeWeight ?? 0,
       indexFilterMode: indexSuitabilityMode,
       indexFilterThreshold: indexSuitabilityThreshold / 100,
     };
@@ -459,6 +463,7 @@ export default function Home() {
     setIndexCoastWeight(0);
     setIndexAgeWeight(0);
     setIndexAgeDirection("young");
+    setIndexCrimeWeight(0);
     setIndexValidationError(null);
     setIndexApplied({
       budget: 300000,
@@ -470,6 +475,7 @@ export default function Home() {
       trainWeight: 0,
       coastWeight: 0,
       ageWeight: 0,
+      crimeWeight: 0,
     });
   };
 
@@ -1384,7 +1390,7 @@ export default function Home() {
         setIndexSchoolWeight(6);
         setIndexTrainWeight(0);
         setIndexCoastWeight(0);
-        setIndexApplied({ budget: 350000, propertyType: "ALL", affordWeight: 7, floodWeight: 8, schoolWeight: 6, trainWeight: 0, coastWeight: 0, ageWeight: 0 });
+        setIndexApplied({ budget: 350000, propertyType: "ALL", affordWeight: 7, floodWeight: 8, schoolWeight: 6, trainWeight: 0, coastWeight: 0, ageWeight: 0, crimeWeight: 0 });
         setGridMode("manual");
         setState((s) => ({ ...s, grid: "1km" }));
         setIndexScoringPending(true);
@@ -2765,6 +2771,17 @@ export default function Home() {
                   )}
                 </div>
               </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                <span style={{ fontSize: 11, fontWeight: 600, flex: "0 0 auto", minWidth: 100 }}>🚔 Crime safety</span>
+                <div style={{ display: "flex", gap: 3 }}>
+                  {([{ label: "Must", value: 10 }, { label: "Want", value: 6 }, { label: "Nice", value: 3 }, { label: "Off", value: 0 }] as const).map(({ label: lbl, value: v }) => {
+                    const active = [0, 3, 6, 10].reduce<number>((best, l) => Math.abs(indexCrimeWeight - l) < Math.abs(indexCrimeWeight - best) ? l : best, 10);
+                    return (
+                      <button key={v} type="button" onClick={() => setIndexCrimeWeight(v)} style={{ cursor: "pointer", padding: "3px 8px", borderRadius: 6, fontSize: 10, fontWeight: active === v ? 700 : 400, border: active === v ? "1.5px solid #f97316" : "1px solid rgba(255,255,255,0.13)", background: active === v ? "#f9731630" : "rgba(255,255,255,0.04)", color: active === v ? "white" : "rgba(255,255,255,0.5)", lineHeight: 1.4, minWidth: 36, textAlign: "center" }}>{lbl}</button>
+                    );
+                  })}
+                </div>
+              </div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 0", opacity: 0.3 }}>
                 <span style={{ fontSize: 11, fontWeight: 600 }}>🏖️ Coast</span>
                 <span style={{ fontSize: 10, fontStyle: "italic" }}>coming soon</span>
@@ -2789,7 +2806,7 @@ export default function Home() {
                 onClick={() => {
                   // — Validate before scoring —
                   const totalW = indexAffordWeight + indexFloodWeight + indexSchoolWeight +
-                    indexPrimarySchoolWeight + indexTrainWeight + indexCoastWeight + indexAgeWeight;
+                    indexPrimarySchoolWeight + indexTrainWeight + indexCoastWeight + indexAgeWeight + indexCrimeWeight;
                   if (totalW === 0) {
                     setIndexValidationError("Please set at least one criterion above Off before scoring.");
                     return;
@@ -2811,6 +2828,7 @@ export default function Home() {
                     coastWeight: indexCoastWeight,
                     ageWeight: indexAgeWeight,
                     ageDirection: indexAgeDirection,
+                    crimeWeight: indexCrimeWeight,
                   });
                   setGridMode("manual");
                   setState((s) => ({ ...s, grid: "1km" }));
