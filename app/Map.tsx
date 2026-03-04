@@ -3306,7 +3306,9 @@ export default function ValueMap({
           if (ok) onIndexScoringAppliedRef.current?.();
         })();
       } else {
+        // Criteria unchanged — just re-apply filters and clear the pending spinner
         applyCombinedCellFilters(map, stateRef.current, indexPrefs);
+        onIndexScoringAppliedRef.current?.();
       }
     } else if (prevIndexActiveRef.current) {
       // Restore opacity then re-apply quantile colour mapping (NOT static getFillColorExpression)
@@ -4617,10 +4619,12 @@ function buildIndexScoringSignature(prefs: IndexPrefs) {
     prefs.affordWeight,
     prefs.floodWeight,
     prefs.schoolWeight,
+    prefs.primarySchoolWeight ?? 0,
     prefs.trainWeight,
     prefs.coastWeight,
     prefs.ageWeight ?? 0,
     prefs.ageDirection ?? "young",
+    prefs.crimeWeight ?? 0,
   ].join("|");
 }
 
