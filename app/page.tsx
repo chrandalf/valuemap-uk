@@ -435,6 +435,9 @@ export default function Home() {
   const frontZ = (id: string, base: number) => base + (panelFront[id] ?? 0);
   const resetAll = () => {
     setState(DEFAULT_STATE);
+    if (typeof window !== "undefined") {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
     setLegendOpen(true);
     closeAllSubpanels();
     setControlsDropOpen(false);
@@ -2208,6 +2211,18 @@ export default function Home() {
               )}
             </div>
 
+            {/* ── Reset button in top bar (desktop only) ── */}
+            {!isMobileViewport && (
+              <button
+                type="button"
+                onClick={resetAll}
+                title="Reset all settings to defaults"
+                style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.7)", padding: "5px 10px", borderRadius: 999, fontSize: 11, whiteSpace: "nowrap", flexShrink: 0 }}
+              >
+                ↺ Reset
+              </button>
+            )}
+
             {/* ── Show Me How pill in top bar (desktop only) ── */}
             {!isMobileViewport && !tourActive && (
               <button
@@ -3459,6 +3474,16 @@ export default function Home() {
         !anySubpanelOpen &&
         (
         <div data-tour="quick-dock" className="mobile-grid-dock" aria-label="Map grid controls">
+          <button
+            type="button"
+            className="mobile-grid-btn"
+            onClick={resetAll}
+            title="Reset all settings to defaults"
+            aria-label="Reset all settings"
+            style={{ opacity: 0.75 }}
+          >
+            ↺
+          </button>
           <button
             type="button"
             className="mobile-grid-btn"
