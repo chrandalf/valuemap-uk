@@ -117,6 +117,10 @@ type ApiRow = {
   violent_local_score?: number;
   property_local_score?: number;
   asb_local_score?: number;
+  violent_count?: number;
+  property_count?: number;
+  asb_count?: number;
+  total_count?: number;
 };
 
 function isDeltaMetric(metric: Metric) {
@@ -2181,32 +2185,38 @@ export default function ValueMap({
     const violentRate   = Number(p.violent_rate ?? 0);
     const propertyRate  = Number(p.property_rate ?? 0);
     const asbRate       = Number(p.asb_rate ?? 0);
+    // LSOA overlay has exact recorded annual crime counts (12-month window)
+    const totalCount    = p.total_crimes    != null ? Number(p.total_crimes)    : null;
+    const violentCount  = p.violent_crimes  != null ? Number(p.violent_crimes)  : null;
+    const propertyCount = p.property_crimes != null ? Number(p.property_crimes) : null;
+    const asbCount      = p.asb_crimes      != null ? Number(p.asb_crimes)      : null;
     const scoreLabel = (s: number) => s >= 80 ? "Low" : s >= 60 ? "Below avg" : s >= 40 ? "Average" : s >= 20 ? "Above avg" : "High";
     const scoreCol   = (s: number) => s >= 80 ? "#16a34a" : s >= 60 ? "#84cc16" : s >= 40 ? "#eab308" : s >= 20 ? "#f97316" : "#dc2626";
     // 1-in-X: rate is per 1,000/yr so X = 1000/rate; cap at 9999 for display
     const oneInX = (rate: number) => rate > 0 ? Math.max(1, Math.round(1000 / rate)) : null;
     const rateStr = (rate: number) => { const x = oneInX(rate); return x !== null ? `1 in ${x.toLocaleString()}/yr` : "No data"; };
+    const cntStr  = (n: number | null) => n !== null ? `&nbsp;<span style="color:#c0c0c0;font-size:10px">${n.toLocaleString()} crimes/yr</span>` : "";
     const highFootfall = totalRate > 245;
     const html = `
-      <div style="font:12px/1.5 system-ui,sans-serif;color:#374151;min-width:210px">
+      <div style="font:12px/1.5 system-ui,sans-serif;color:#374151;min-width:230px">
         <div style="font-weight:700;font-size:13px;margin-bottom:5px">${lsoaName}</div>
         <div style="font-size:10px;color:#9ca3af;margin-bottom:4px">vs. UK national</div>
         <div style="border-top:1px solid #f3f4f6;padding-top:5px">
-          <div style="display:flex;justify-content:space-between;gap:10px">
+          <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:2px">
             <span style="color:#6b7280">Overall</span>
-            <span><span style="color:${scoreCol(crimeScore)};font-weight:600">${scoreLabel(crimeScore)}</span>&nbsp;<span style="color:#9ca3af;font-size:10px">${rateStr(totalRate)}</span></span>
+            <span style="text-align:right"><span style="color:${scoreCol(crimeScore)};font-weight:600">${scoreLabel(crimeScore)}</span>&nbsp;<span style="color:#9ca3af;font-size:10px">${rateStr(totalRate)}</span>${cntStr(totalCount)}</span>
           </div>
-          <div style="display:flex;justify-content:space-between;gap:10px">
+          <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:2px">
             <span style="color:#6b7280">Violent</span>
-            <span><span style="color:${scoreCol(violentScore)}">${scoreLabel(violentScore)}</span>&nbsp;<span style="color:#9ca3af;font-size:10px">${rateStr(violentRate)}</span></span>
+            <span style="text-align:right"><span style="color:${scoreCol(violentScore)}">${scoreLabel(violentScore)}</span>&nbsp;<span style="color:#9ca3af;font-size:10px">${rateStr(violentRate)}</span>${cntStr(violentCount)}</span>
           </div>
-          <div style="display:flex;justify-content:space-between;gap:10px">
+          <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:2px">
             <span style="color:#6b7280">Property</span>
-            <span><span style="color:${scoreCol(propertyScore)}">${scoreLabel(propertyScore)}</span>&nbsp;<span style="color:#9ca3af;font-size:10px">${rateStr(propertyRate)}</span></span>
+            <span style="text-align:right"><span style="color:${scoreCol(propertyScore)}">${scoreLabel(propertyScore)}</span>&nbsp;<span style="color:#9ca3af;font-size:10px">${rateStr(propertyRate)}</span>${cntStr(propertyCount)}</span>
           </div>
-          <div style="display:flex;justify-content:space-between;gap:10px">
+          <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:2px">
             <span style="color:#6b7280">ASB</span>
-            <span><span style="color:${scoreCol(asbScore)}">${scoreLabel(asbScore)}</span>&nbsp;<span style="color:#9ca3af;font-size:10px">${rateStr(asbRate)}</span></span>
+            <span style="text-align:right"><span style="color:${scoreCol(asbScore)}">${scoreLabel(asbScore)}</span>&nbsp;<span style="color:#9ca3af;font-size:10px">${rateStr(asbRate)}</span>${cntStr(asbCount)}</span>
           </div>
         </div>
         ${highFootfall ? `<div style="font-size:10px;color:#9ca3af;margin-top:4px;border-top:1px solid #f3f4f6;padding-top:3px">⚠ High footfall area — resident-based rates may be elevated</div>` : ""}
@@ -2539,6 +2549,11 @@ export default function ValueMap({
       const violentRate  = Number(p.violent_rate  ?? 0);
       const propertyRate = Number(p.property_rate ?? 0);
       const asbRate      = Number(p.asb_rate      ?? 0);
+      // Cell estimated annual counts (fractional share from pipeline, rounded)
+      const totalCount    = p.total_count    != null ? Number(p.total_count)    : null;
+      const violentCount  = p.violent_count  != null ? Number(p.violent_count)  : null;
+      const propertyCount = p.property_count != null ? Number(p.property_count) : null;
+      const asbCount      = p.asb_count      != null ? Number(p.asb_count)      : null;
       const crimeScore    = Number(isLocal ? (p.crime_local_score    ?? p.crime_score    ?? 50) : (p.crime_score    ?? 50));
       const violentScore  = Number(isLocal ? (p.violent_local_score  ?? p.violent_score  ?? 50) : (p.violent_score  ?? 50));
       const propertyScore = Number(isLocal ? (p.property_local_score ?? p.property_score ?? 50) : (p.property_score ?? 50));
@@ -2554,17 +2569,17 @@ export default function ValueMap({
       const propHtml = Number.isFinite(median) && median > 0
         ? `<div style="border-top:1px solid rgba(0,0,0,0.1);margin-top:6px;padding-top:5px;font-size:11px;opacity:0.65;">${metricTitle} · ${tx} sales</div>`
         : "";
-      const row = (label: string, score: number, rate: number) =>
-        `<div style="display:flex;justify-content:space-between;gap:10px;"><span style="color:#6b7280">${label}</span><span><span style="color:${sCol(score)};font-weight:${label === "Overall" ? 600 : 400}">${sLabel(score)}</span>&nbsp;<span style="color:#9ca3af;font-size:10px">${rStr(rate)}</span></span></div>`;
+      const row = (label: string, score: number, rate: number, count: number | null) =>
+        `<div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:2px"><span style="color:#6b7280">${label}</span><span style="text-align:right"><span style="color:${sCol(score)};font-weight:${label === "Overall" ? 600 : 400}">${sLabel(score)}</span>&nbsp;<span style="color:#9ca3af;font-size:10px">${rStr(rate)}</span>${count !== null ? `&nbsp;<span style="color:#c0c0c0;font-size:10px">~${count.toLocaleString()} crimes/yr</span>` : ""}</span></div>`;
       const highFootfall = totalRate > 500;
       const crimeHtml = `
-        <div style="font:12px/1.5 system-ui,sans-serif;min-width:200px">
+        <div style="font:12px/1.5 system-ui,sans-serif;min-width:220px">
           <div style="font-weight:700;font-size:13px;margin-bottom:2px">🔴 Crime</div>
           <div style="font-size:10px;color:#9ca3af;margin-bottom:5px">${context}</div>
-          ${row("Overall", crimeScore, totalRate)}
-          ${row("Violent", violentScore, violentRate)}
-          ${row("Property", propertyScore, propertyRate)}
-          ${row("ASB", asbScore, asbRate)}
+          ${row("Overall", crimeScore, totalRate, totalCount)}
+          ${row("Violent", violentScore, violentRate, violentCount)}
+          ${row("Property", propertyScore, propertyRate, propertyCount)}
+          ${row("ASB", asbScore, asbRate, asbCount)}
           ${highFootfall ? `<div style="font-size:10px;color:#9ca3af;margin-top:4px;border-top:1px solid rgba(0,0,0,0.08);padding-top:3px">⚠ High footfall area — rates vs. residents may be elevated</div>` : ""}
           ${propHtml}
         </div>`;

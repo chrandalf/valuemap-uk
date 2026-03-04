@@ -294,6 +294,12 @@ def build_cells_for_grid(
     agg["asb_rate"]      = (agg["asb_sum"]      / pop * 1000).round(1)
     agg["total_rate"]    = (agg["total_sum"]     / pop * 1000).round(1)
 
+    # Annual crime counts (fractional share estimate, rounded to nearest integer)
+    agg["violent_count"]  = agg["violent_sum"].round().astype(int)
+    agg["property_count"] = agg["property_sum"].round().astype(int)
+    agg["asb_count"]      = agg["asb_sum"].round().astype(int)
+    agg["total_count"]    = agg["total_sum"].round().astype(int)
+
     # Weighted composite for overall score
     agg["weighted_rate"] = (
         agg["violent_rate"]  * W_VIOLENT +
@@ -339,6 +345,7 @@ def build_cells_for_grid(
     keep = [
         "gx", "gy",
         "violent_rate", "property_rate", "asb_rate", "total_rate",
+        "violent_count", "property_count", "asb_count", "total_count",
         "crime_score",       "violent_score",       "property_score",       "asb_score",
         "crime_local_score", "violent_local_score", "property_local_score", "asb_local_score",
     ]

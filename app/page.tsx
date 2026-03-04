@@ -911,6 +911,38 @@ export default function Home() {
     </>
   );
 
+  const CRIME_SUBMODE_LABEL: Record<string, string> = {
+    total: "Overall crime",
+    violent: "Violent crime",
+    property: "Property crime",
+    asb: "Anti-social behaviour",
+  };
+
+  const crimeCellLegendContent = (
+    <>
+      <div className="legend-title" style={{ fontWeight: 600, marginBottom: 10, fontSize: 16, opacity: 0.9 }}>
+        🔴 {CRIME_SUBMODE_LABEL[state.crimeCellSubMode] ?? "Crime"}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "86px 1fr 86px", gap: 8, alignItems: "center" }}>
+        <div style={{ textAlign: "left", fontSize: 11, opacity: 0.85 }}>High crime</div>
+        <div style={{ display: "flex", height: 16, borderRadius: 999, overflow: "hidden", border: "1px solid rgba(255,255,255,0.2)" }}>
+          {["#dc2626", "#f97316", "#eab308", "#84cc16", "#16a34a"].map((c, i) => (
+            <div key={i} style={{ flex: 1, backgroundColor: c }} />
+          ))}
+        </div>
+        <div style={{ textAlign: "right", fontSize: 11, opacity: 0.85 }}>Low crime</div>
+      </div>
+      <div style={{ marginTop: 8, fontSize: 11, opacity: 0.8, lineHeight: 1.35 }}>
+        {state.crimeCellScale === "relative"
+          ? "Relative: colours compare each cell against surrounding local areas."
+          : "Absolute: colours compare each cell against all UK areas."}
+      </div>
+      <div style={{ marginTop: 4, fontSize: 11, opacity: 0.65, lineHeight: 1.35 }}>
+        Hover over a cell for rates and estimated crime counts. Click an LSOA dot for exact data.
+      </div>
+    </>
+  );
+
   const legendContent = (
     <>
       {indexActive && indexLegendContent}
@@ -918,7 +950,8 @@ export default function Home() {
       {!indexActive && state.ageOverlayMode === "on" && ageLegendContent}
       {!indexActive && state.ageOverlayMode !== "on" && state.commuteOverlayMode === "on" && commuteLegendContent}
       {!indexActive && state.ageOverlayMode !== "on" && state.commuteOverlayMode !== "on" && state.voteOverlayMode === "on" && voteLegendContent}
-      {!indexActive && state.ageOverlayMode !== "on" && state.commuteOverlayMode !== "on" && state.voteOverlayMode !== "on" && (
+      {!indexActive && state.ageOverlayMode !== "on" && state.commuteOverlayMode !== "on" && state.voteOverlayMode !== "on" && state.crimeCellMode === "on" && crimeCellLegendContent}
+      {!indexActive && state.ageOverlayMode !== "on" && state.commuteOverlayMode !== "on" && state.voteOverlayMode !== "on" && state.crimeCellMode !== "on" && (
       <>
       <div className="legend-title" style={{ fontWeight: 600, marginBottom: 12, fontSize: 16, opacity: 0.9 }}>
         {state.metric === "median"

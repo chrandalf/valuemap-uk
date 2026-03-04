@@ -213,6 +213,10 @@ type CrimeCellRow = {
   property_rate:        number;
   asb_rate:             number;
   total_rate:           number;
+  violent_count:        number;
+  property_count:       number;
+  asb_count:            number;
+  total_count:          number;
   crime_score:          number;
   violent_score:        number;
   property_score:       number;
@@ -647,6 +651,10 @@ async function getCachedCrimeLookup(env: Env, grid: GridKey): Promise<Map<string
       property_rate:        Number(row.property_rate        ?? 0),
       asb_rate:             Number(row.asb_rate             ?? 0),
       total_rate:           Number(row.total_rate           ?? 0),
+      violent_count:        Number(row.violent_count        ?? 0),
+      property_count:       Number(row.property_count       ?? 0),
+      asb_count:            Number(row.asb_count            ?? 0),
+      total_count:          Number(row.total_count          ?? 0),
       crime_score:          Number(row.crime_score          ?? 50),
       violent_score:        Number(row.violent_score        ?? 50),
       property_score:       Number(row.property_score       ?? 50),
@@ -727,6 +735,10 @@ async function backfillAll(env: Env, grid: GridKey, rows: CellRow[]): Promise<Ce
       property_rate:        crime.property_rate,
       asb_rate:             crime.asb_rate,
       total_rate:           crime.total_rate,
+      violent_count:        crime.violent_count,
+      property_count:       crime.property_count,
+      asb_count:            crime.asb_count,
+      total_count:          crime.total_count,
       crime_score:          crime.crime_score,
       violent_score:        crime.violent_score,
       property_score:       crime.property_score,
