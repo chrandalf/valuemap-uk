@@ -5,176 +5,126 @@ import BackToMapChip from "../components/BackToMapChip";
 export default function DescriptionPage() {
   return (
     <main style={{ minHeight: "100vh", background: "#0a0c14", color: "white", padding: "24px 16px" }}>
-      <div style={{ width: "100%", maxWidth: 900, margin: "0 auto" }}>
+      <div style={{ width: "100%", maxWidth: 760, margin: "0 auto" }}>
 
         <div style={{ marginBottom: 28 }}>
-          <h1 style={{ margin: 0, fontSize: 30, lineHeight: 1.2 }}>Feature reference</h1>
+          <h1 style={{ margin: 0, fontSize: 30, lineHeight: 1.2 }}>ValueMap UK, what it does and how to use it</h1>
           <p style={{ marginTop: 8, opacity: 0.72, fontSize: 14, lineHeight: 1.5 }}>
-            A complete audit of everything ValueMap UK does — what each feature is, how it works, and where the data comes from.
+            ValueMap UK helps you spot house price patterns across the whole country, then narrow down to the exact areas worth viewing. It combines sold price data with useful overlays like flood risk, schools, crime, demographics, and more.
           </p>
         </div>
 
-        {/* ── SECTION 1: PRICE GRID ── */}
-        <GroupHeading title="1. Price grid" />
+        {/* ── SECTION 1: PRICE MAP ── */}
+        <GroupHeading title="1. Price map, grid based, not postcode based" />
 
-        <Section title="Why grid-based?">
-          <p>The map divides the UK into equal-sized square cells (1 km, 5 km, 10 km, or 25 km) rather than using postcode or local authority boundaries. Fixed-size cells have two key advantages:</p>
+        <Section title="Why a grid helps">
+          <p>The map divides the UK into equal-sized square cells rather than using postcode or local authority boundaries. Grid cells make price patterns directly comparable across the country — a cell in Cornwall covers exactly the same area as a cell in Yorkshire. Boundaries don&apos;t follow postcodes or council borders, so you can see price gradients without administrative lines getting in the way.</p>
+        </Section>
+
+        <Section title="Choose your grid size">
           <ul>
-            <li>Price gradients are directly comparable across the country \u2014 a 5 km cell in Cornwall covers the same area as a 5 km cell in Yorkshire.</li>
-            <li>Cell edges do not align with administrative boundaries, so urban/rural transitions and catchment-area effects are easier to spot visually.</li>
+            <li><strong>25 km</strong> — national overview. Good for spotting broad regional price divides and the London premium.</li>
+            <li><strong>10 km</strong> — regional. City hinterlands, satellite towns, and commuter belts.</li>
+            <li><strong>5 km</strong> — local. Individual towns and their variation. The smallest size that shows price change over time.</li>
+            <li><strong>1 km</strong> — neighbourhood detail. Use this to narrow down specific streets once you&apos;ve shortlisted an area.</li>
           </ul>
         </Section>
 
-        <Section title="Grid sizes">
+        <Section title="Price views">
           <ul>
-            <li><strong>25 km</strong> \u2014 national overview. Identifies broad macro-regions and price divides (e.g. London premium, north/south gradient).</li>
-            <li><strong>10 km</strong> \u2014 regional. City hinterlands, satellite towns, and commuter belts become visible.</li>
-            <li><strong>5 km</strong> \u2014 local. Individual towns and their neighbourhood variation. The smallest grid that supports Change (delta) metrics.</li>
-            <li><strong>1 km</strong> \u2014 neighbourhood. Street-level detail. Best for narrowing down specific postcodes within a shortlisted area.</li>
+            <li><strong>Median price</strong> — the middle sold price for all transactions in a cell. Reliable and outlier-resistant.</li>
+            <li><strong>£/ft²</strong> — price per square foot using EPC-registered floor areas. Lets you compare flat-heavy areas with house-dominated ones on a like-for-like basis. England only.</li>
+            <li><strong>Change £</strong> — absolute price movement over the selected period. Shows where prices have moved most in cash terms.</li>
+            <li><strong>Change %</strong> — percentage price movement. Normalises for price level, so a 20% rise in a £150k area is directly comparable to 20% in a £500k area. Available at 5 km and above only.</li>
           </ul>
         </Section>
 
-        <Section title="Metrics">
+        <Section title="Filters to keep comparisons fair">
           <ul>
-            <li><strong>Median price</strong> \u2014 the middle sold price across all transactions in a cell. Robust against outlier sales. The most reliable general indicator.</li>
-            <li><strong>Price per ft\u00b2 (\u00a3/ft\u00b2)</strong> \u2014 median \u00a3/ft\u00b2 using registered floor areas from EPC records. Normalises for property size, allowing fairer like-for-like comparisons between flat-heavy city centres and house-dominated suburbs. <em>England only.</em></li>
-            <li><strong>Change GBP</strong> \u2014 absolute price change (latest minus earliest) across the selected period. Shows which areas have moved the most in monetary terms.</li>
-            <li><strong>Change %</strong> \u2014 percentage price change across the selected period. Normalises for absolute price level, so a 20% rise in a \u00a3150k area is directly comparable with a 20% rise in a \u00a3500k area. <em>Available at 5 km+ only.</em></li>
-          </ul>
-        </Section>
-
-        <Section title="Filters">
-          <ul>
-            <li><strong>Property type</strong> \u2014 All, Detached (D), Semi-detached (S), Terraced (T), Flat (F), or a custom multi-select combination. Essential for fair comparisons: a cell with mostly flats will appear cheap if you are looking at mixed-type medians.</li>
-            <li><strong>New build</strong> \u2014 All transactions, New build only, or Existing properties only. New builds in the UK typically carry a 5\u201320% premium; use Existing to strip this out.</li>
-            <li><strong>Period</strong> \u2014 the date window for transactions. Narrowing the window reduces sample size but gives a more current picture; widening it improves statistical stability.</li>
-            <li><strong>Value filter</strong> \u2014 hides cells above or below a price threshold. Quickly removes unaffordable areas from the visual field so you can focus attention on realistic zones.</li>
+            <li><strong>Property type</strong> — filter by Detached, Semi-detached, Terraced, Flat, or any combination. Mixing types distorts medians, so filter when comparing like with like.</li>
+            <li><strong>New build</strong> — new builds typically carry a 5–20% premium. Switch to Existing only to strip that out.</li>
+            <li><strong>Period</strong> — narrow the date window for a more current picture, widen it for a larger sample.</li>
+            <li><strong>Threshold</strong> — hide cells above or below a price. Removes unaffordable areas from view so you can focus on realistic zones.</li>
           </ul>
         </Section>
 
         {/* ── SECTION 2: FIND MY AREA ── */}
-        <GroupHeading title="2. Find My Area \u2014 weighted preference scoring" />
+        <GroupHeading title="2. Find My Area, your priorities turned into a match score" />
 
-        <p style={{ fontSize: 14, opacity: 0.82, lineHeight: 1.6, marginTop: 8, marginBottom: 4 }}>
-          Find My Area converts your personal priorities into a single 0\u2013100% match score for every 1 km cell in the UK.
-          It is the fastest way to identify candidate regions without prior knowledge of where to look.
-        </p>
-
-        <Section title="How the scoring works">
+        <Section title="How it works">
+          <p>Find My Area converts your personal priorities into a single match score for every 1 km cell in the UK. Tell it what matters to you — affordability, flood safety, schools, transport, crime, community age — and it colours the whole map by how well each area fits. Green is a good match, red is a poor one.</p>
           <ul>
-            <li>Each active criterion contributes a <strong>0\u20131 component score</strong> (0 = worst, 1 = best for that factor).</li>
-            <li>Component scores are combined as a <strong>weighted average</strong> using the importance weights you set (Off = 0, Nice = 3, Want = 6, Must = 10).</li>
-            <li>A <strong>veto multiplier</strong> applies a drag when a criterion you care about scores badly. A factor at weight=10 with a score of 0 (absolute worst) can drive the overall score to zero regardless of how well other criteria perform. This prevents a great school from masking an unaffordable or flood-prone area.</li>
-            <li>The final score (0\u20131) is painted onto the 1 km cell grid as a colour from dark green (\u226580%) through amber (\u224850%) to red (\u226430%).</li>
+            <li>Each criterion you activate contributes a 0–1 component score.</li>
+            <li>Scores are combined as a weighted average using the importance level you set: Off, Nice to have, Want, or Must have.</li>
+            <li>A veto effect applies when a criterion you care strongly about scores very badly — a flood-prone or unaffordable area won&apos;t be rescued by great schools.</li>
           </ul>
         </Section>
 
-        <Section title="Scoring criteria">
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-            <thead>
-              <tr style={{ opacity: 0.5 }}>
-                <th style={{ textAlign: "left", paddingBottom: 6 }}>Criterion</th>
-                <th style={{ textAlign: "left", paddingBottom: 6 }}>Data source</th>
-                <th style={{ textAlign: "left", paddingBottom: 6 }}>How scored</th>
-                <th style={{ textAlign: "left", paddingBottom: 6 }}>Coverage</th>
-              </tr>
-            </thead>
-            <tbody>
-              {([
-                ["\ud83d\udcb0 Affordability", "Land Registry sold prices", "Budget vs cell median. 0 = 60%+ over budget, 1 = 40%+ under budget. Hard veto above budget.", "UK-wide"],
-                ["\ud83c\udf0a Flood safety", "Environment Agency", "Proportion of flood-risk points in cell. 0 = high risk, 1 = no risk.", "England only"],
-                ["\ud83c\udfeb Schools (secondary)", "Ofsted ratings", "Average inspection score of secondary schools within reach. 0 = poor, 1 = outstanding.", "England only"],
-                ["\ud83c\udfeb Primary school nearby", "Ofsted + walking distance", "Proximity to nearest primary. Scored by distance \u2014 shorter = higher score.", "England only"],
-                ["\ud83d\ude82 Train station", "National Rail station data", "Distance to nearest station. Scored continuously by km. No-data = neutral.", "Great Britain"],
-                ["\ud83d\udc65 Community age", "Census 2021 age scores", "Age distribution of residents in the cell. Choose Younger or Older to say which direction suits you.", "UK-wide"],
-                ["\ud83d\ude94 Crime safety", "Police-recorded crime (LSOA)", "Crime rate relative to the surrounding local area. Highest score = lowest crime relative to local surroundings.", "England & Wales"],
-              ] as [string, string, string, string][]).map(([c, s, h, cv]) => (
-                <tr key={c} style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
-                  <td style={{ padding: "6px 8px 6px 0", fontWeight: 600 }}>{c}</td>
-                  <td style={{ padding: "6px 8px", opacity: 0.7, fontSize: 12 }}>{s}</td>
-                  <td style={{ padding: "6px 8px", opacity: 0.82, fontSize: 12 }}>{h}</td>
-                  <td style={{ padding: "6px 0 6px 8px", opacity: 0.6, fontSize: 12 }}>{cv}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <Section title="What you can score on">
+          <ul>
+            <li><strong>💰 Affordability</strong> — set your budget. Cells near or over budget score lower; cells well within budget score higher. Hard veto if a cell is significantly over budget.</li>
+            <li><strong>🌊 Flood safety</strong> — proportion of flood-risk points in the cell. England only.</li>
+            <li><strong>🏫 Secondary school</strong> — average Ofsted rating of secondary schools within reach. England only.</li>
+            <li><strong>🏫 Primary school nearby</strong> — proximity to the nearest primary school. England only.</li>
+            <li><strong>🚂 Train station</strong> — distance to nearest station. Great Britain.</li>
+            <li><strong>👥 Community age</strong> — resident age profile. Choose Younger or Older to indicate which suits you. UK-wide.</li>
+            <li><strong>🚔 Crime safety</strong> — crime rate relative to the surrounding area. England and Wales.</li>
+          </ul>
         </Section>
 
-        <Section title="Score popup">
-          <p>Hovering or tapping any scored cell shows a <strong>per-criterion breakdown popup</strong> with:</p>
-          <ul>
-            <li>A colour-coded progress bar showing the component score for each active criterion.</li>
-            <li>The importance weight (×3, ×6, ×10) shown next to each row.</li>
-            <li>A percentage score so you can see exactly why an area is dragging down the total.</li>
-            <li>A no-data indicator (\u274c) where the scoring dataset does not cover that cell.</li>
-          </ul>
+        <Section title="Score popup breakdown">
+          <p>Hover or tap any scored cell to see a breakdown of what&apos;s driving the score — a bar for each active criterion, its importance weight, and a flag where data isn&apos;t available for that cell.</p>
         </Section>
 
         <Section title="Area match filter">
-          <ul>
-            <li>After scoring, an <strong>Area match</strong> slider appears in the right panel. Drag it to set a threshold (e.g. 60%).</li>
-            <li><strong>\u2265 threshold mode</strong> \u2014 hides cells below the threshold; only good matches remain visible.</li>
-            <li><strong>\u2264 threshold mode</strong> \u2014 hides cells above the threshold; shows only poor matches (useful for ruling out zones).</li>
-          </ul>
+          <p>Once Find My Area is running, an Area match slider appears. Drag it to show only cells above (or below) a threshold — 60% and above shows only good matches, below 40% reveals areas that score poorly on your criteria.</p>
         </Section>
 
         {/* ── SECTION 3: OVERLAYS ── */}
-        <GroupHeading title="3. Overlay layers" />
+        <GroupHeading title="3. Overlays, add context on top of prices" />
 
-        <Section title="\ud83c\udf0a Flood risk">
+        <Section title="🌊 Flood risk">
           <ul>
-            <li>Source: Environment Agency Flood Risk Register (England).</li>
-            <li>Each dot represents a property-level flood risk point. Colour indicates severity band.</li>
-            <li><strong>On mode</strong> \u2014 dots overlay the price grid for cross-reference.</li>
-            <li><strong>On (hide cells) mode</strong> \u2014 price cells are hidden so flood risk geography is the primary focus.</li>
-            <li>Coverage: England only. Not available for Wales or Scotland in this build.</li>
+            <li>Source: Environment Agency Flood Risk Register.</li>
+            <li>Each dot is a property-level flood risk point, coloured by severity.</li>
+            <li>Turn on alongside the price grid to cross-reference, or use hide-cells mode to focus on flood geography alone.</li>
+            <li>England only.</li>
           </ul>
         </Section>
 
-        <Section title="\ud83c\udfeb Schools (secondary &amp; primary)">
+        <Section title="🏫 Schools">
           <ul>
-            <li>Source: Ofsted inspection data (England).</li>
-            <li>School dots are coloured by inspection rating band: Outstanding (dark green), Good (green), Requires Improvement (amber), Inadequate (red).</li>
-            <li>Toggle secondary and primary layers independently from the Overlay filters panel.</li>
-            <li>Coverage: England only.</li>
+            <li>Source: Ofsted inspection data.</li>
+            <li>Dots coloured by rating: Outstanding (dark green), Good (green), Requires Improvement (amber), Inadequate (red).</li>
+            <li>Secondary and primary layers can be toggled independently.</li>
+            <li>England only.</li>
           </ul>
         </Section>
 
-        <Section title="\ud83d\udd34 Crime overlay">
+        <Section title="🔴 Crime">
           <ul>
             <li>Source: Police UK open crime data, aggregated to LSOA level.</li>
-            <li>Each dot represents one LSOA (Lower Super Output Area). Colour and intensity indicate crime density.</li>
-            <li>
-              <strong>Absolute mode</strong> \u2014 colour based on national crime rate per 1,000 residents. Comparable city to city.
-            </li>
-            <li>
-              <strong>Relative mode</strong> \u2014 colour normalised against the current map viewport. Highlights safer and less-safe pockets relative to the visible area. Useful when zoomed into a single city.
-            </li>
-            <li>Hovering or tapping a dot shows a breakdown by crime type: <strong>violent</strong>, <strong>property</strong>, <strong>anti-social behaviour (ASB)</strong>, and <strong>other</strong>, plus a total count.</li>
-            <li>Coverage: England and Wales.</li>
+            <li><strong>Absolute mode</strong> — colour based on national crime rate per 1,000 residents. Comparable city to city.</li>
+            <li><strong>Relative mode</strong> — colour normalised to the current map view. Highlights safer and less-safe pockets within the visible area. Useful when zoomed into one city.</li>
+            <li>Tap a dot for a breakdown by crime type: violent, property, anti-social behaviour, and other.</li>
+            <li>England and Wales.</li>
           </ul>
         </Section>
 
-        <Section title="\ud83d\udc65 Community age overlay">
+        <Section title="👥 Community age">
           <ul>
             <li>Source: Census 2021.</li>
-            <li>Each cell is coloured by mean resident age, from younger (blue-toned) to older (warm-toned).</li>
-            <li>Useful for understanding the demographic character of an area — whether it feels more like a young professional neighbourhood or an established family / retirement community.</li>
-            <li>Coverage: UK-wide.</li>
+            <li>Cells coloured by mean resident age. Useful for understanding whether an area skews young, family, or retired.</li>
+            <li>UK-wide.</li>
           </ul>
         </Section>
 
-        <Section title="\ud83d\uddf3\ufe0f GE2024 Vote overlay">
+        <Section title="🗳️ GE2024 votes">
           <ul>
-            <li>Source: Electoral Commission \u2014 General Election 2024 constituency results.</li>
-            <li>Colour scale: red tones = stronger Labour/left vote share. Blue/teal tones = stronger Conservative/Reform vote share. Swing seats appear neutral/purple.</li>
-            <li>
-              <strong>Relative mode</strong> \u2014 colour normalised to the current viewport. Emphasises local political variation within a region.
-            </li>
-            <li>
-              <strong>Absolute mode</strong> \u2014 raw vote-share percentages. Better for comparing constituencies at a national level.
-            </li>
-            <li>Data is at constituency level (not ward or LSOA), so cells near constituency boundaries will reflect the same shade across a wide area.</li>
+            <li>Source: Electoral Commission, General Election 2024.</li>
+            <li>Red tones indicate stronger Labour/left vote share; blue/teal tones indicate stronger Conservative/Reform vote share.</li>
+            <li>Relative mode normalises to the current viewport; absolute mode shows raw vote-share percentages.</li>
+            <li>Data is at constituency level, so cells near boundaries share the same colour across a wide area.</li>
           </ul>
         </Section>
 
@@ -182,77 +132,52 @@ export default function DescriptionPage() {
         <GroupHeading title="4. Search and navigation" />
 
         <Section title="Postcode search">
-          <ul>
-            <li>Type any full or partial UK postcode and press <strong>Go</strong>.</li>
-            <li>The map flies to that location. A popup appears showing the cell\u2019s price data, any active overlay values (flood risk, school, crime), and \u2014 if Find My Area is running \u2014 the cell\u2019s match score and per-criterion breakdown.</li>
-          </ul>
+          <p>Type any full or partial UK postcode and press Go. The map flies to that location and shows the cell&apos;s price data, any active overlay values, and — if Find My Area is running — the match score and criterion breakdown.</p>
         </Section>
 
-        <Section title="\ud83d\udccd Locate me">
-          <ul>
-            <li>Uses your device&apos;s GPS to fly to your current location.</li>
-            <li>Shows the same context popup as Postcode search: nearby flood risk, school, crime, and score.</li>
-            <li>Particularly useful when visiting a candidate area in person \u2014 get an instant read of what the data says about where you&apos;re standing.</li>
-          </ul>
+        <Section title="Right-click area lookup">
+          <p>Right-click (or long-press on mobile) anywhere on the map to look up that exact location — useful for checking a specific street or address without knowing the postcode.</p>
+        </Section>
+
+        <Section title="📍 Locate me">
+          <p>Uses your device&apos;s GPS to fly to your current location and show the same context popup. Handy when visiting a candidate area in person — get an instant read on what the data says about where you&apos;re standing.</p>
         </Section>
 
         <Section title="Zoopla links">
+          <p>Click or tap any coloured cell to open a postcode list for that cell. Each postcode links directly to Zoopla so you can cross-reference map patterns with live asking prices and available stock.</p>
+        </Section>
+
+        {/* ── SECTION 5: DATA & CAVEATS ── */}
+        <GroupHeading title="5. Data sources, coverage, and important caveats" />
+
+        <Section title="Sold price data">
           <ul>
-            <li>Clicking or tapping any coloured cell opens a <strong>postcode list</strong> for that cell.</li>
-            <li>Each postcode links directly to Zoopla so you can immediately cross-reference map patterns with live asking prices and available stock.</li>
+            <li>Source: HM Land Registry Price Paid data (England &amp; Wales) and Registers of Scotland.</li>
+            <li>These are completed sale prices, not asking prices or valuations.</li>
+            <li>Cells with very few transactions are suppressed to avoid misleading results from single sales.</li>
+            <li>Scotland coverage is partial and may lag England &amp; Wales by several months. Northern Ireland is not included.</li>
           </ul>
         </Section>
 
-        <GroupHeading title="5. Data, coverage, and caveats" />
-
-        <Section title="Price data">
+        <Section title="Coverage by feature">
           <ul>
-            <li>Source: HM Land Registry Price Paid data (England &amp; Wales) and Registers of Scotland (Scotland).</li>
-            <li>Prices are <em>completed sale</em> prices, not asking prices or valuations.</li>
-            <li>Medians are calculated per cell per period. Cells with fewer than ~5 transactions are suppressed to avoid misleading single-sale cells.</li>
-            <li>Scotland coverage is partial and may lag England &amp; Wales by several months.</li>
-            <li>Northern Ireland is not currently included.</li>
+            <li><strong>Price grid (median, change)</strong> — England ✅, Wales ✅, Scotland ✅ (partial)</li>
+            <li><strong>Price per ft²</strong> — England ✅, Wales ❌, Scotland ❌</li>
+            <li><strong>Flood risk</strong> — England ✅, Wales ❌, Scotland ❌</li>
+            <li><strong>Schools</strong> — England ✅, Wales ❌, Scotland ❌</li>
+            <li><strong>Crime overlay</strong> — England ✅, Wales ✅, Scotland ❌</li>
+            <li><strong>Community age</strong> — England ✅, Wales ✅, Scotland ✅</li>
+            <li><strong>GE2024 votes</strong> — England ✅, Wales ✅, Scotland ✅</li>
+            <li><strong>Train stations</strong> — England ✅, Wales ✅, Scotland ✅</li>
           </ul>
-        </Section>
-
-        <Section title="Coverage summary">
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-            <thead>
-              <tr style={{ opacity: 0.5 }}>
-                <th style={{ textAlign: "left", paddingBottom: 6 }}>Layer</th>
-                <th style={{ textAlign: "left", paddingBottom: 6 }}>England</th>
-                <th style={{ textAlign: "left", paddingBottom: 6 }}>Wales</th>
-                <th style={{ textAlign: "left", paddingBottom: 6 }}>Scotland</th>
-              </tr>
-            </thead>
-            <tbody>
-              {([
-                ["Price grid (median, change)", "\u2705", "\u2705", "\u2705 (partial)"],
-                ["Price per ft\u00b2", "\u2705", "\u274c", "\u274c"],
-                ["Flood risk", "\u2705", "\u274c", "\u274c"],
-                ["Schools (secondary & primary)", "\u2705", "\u274c", "\u274c"],
-                ["Crime overlay", "\u2705", "\u2705", "\u274c"],
-                ["Community age", "\u2705", "\u2705", "\u2705"],
-                ["GE2024 votes", "\u2705", "\u2705", "\u2705"],
-                ["Train stations", "\u2705", "\u2705", "\u2705"],
-              ] as [string, string, string, string][]).map(([layer, en, wa, sc]) => (
-                <tr key={layer} style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
-                  <td style={{ padding: "5px 8px 5px 0", fontWeight: 500 }}>{layer}</td>
-                  <td style={{ padding: "5px 8px", opacity: 0.82 }}>{en}</td>
-                  <td style={{ padding: "5px 8px", opacity: 0.82 }}>{wa}</td>
-                  <td style={{ padding: "5px 8px", opacity: 0.82 }}>{sc}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </Section>
 
         <Section title="Important limitations">
           <ul>
-            <li>This is an <strong>exploratory analysis tool</strong>, not a valuation or professional advice service. Use it to identify patterns and shortlist areas, then verify everything with official and professional sources before making decisions.</li>
-            <li>Grid-cell medians are aggregate statistics. A single 1 km cell may contain varied micromarkets; always click through to postcodes and individual listings for ground truth.</li>
-            <li>Flood, school, and crime scoring is designed to highlight patterns \u2014 not to substitute for an Environmental Search, school ofsted report, or police crime statistics lookup.</li>
-            <li>Election data reflects GE2024 results, which will age as political conditions change.</li>
+            <li>This is an exploratory tool, not a valuation or professional advice service. Use it to identify patterns and shortlist areas, then verify with official and professional sources before making any decisions.</li>
+            <li>Grid-cell medians are aggregate statistics — a single 1 km cell may contain varied micromarkets. Always click through to postcodes and individual listings for ground truth.</li>
+            <li>Flood, school, and crime scoring highlights patterns; it does not replace an Environmental Search, an Ofsted report, or a detailed police crime lookup.</li>
+            <li>Election data reflects GE2024 results and will age as political conditions change.</li>
           </ul>
         </Section>
 
