@@ -2421,6 +2421,7 @@ export default function ValueMap({
         if (prefs.trainWeight > 0)              html += wRow("🚂 Train station",          prefs.trainWeight,              bar(Number(p.ix_t  ?? 0.5), p.ix_tn === 1));
         if (prefs.coastWeight > 0)              html += wRow("🏖️ Coast",                 prefs.coastWeight,              bar(0.5, true));
         if ((prefs.ageWeight ?? 0) > 0) html += wRow(`👥 Community age (${(prefs.ageDirection ?? "young") === "old" ? "older" : "younger"})`, prefs.ageWeight!, bar(Number(p.ix_ag ?? 0.5), false));
+        if ((prefs.crimeWeight ?? 0) > 0) html += wRow("🚔 Crime safety", prefs.crimeWeight!, bar(Number(p.ix_cr ?? 0.5), !Number.isFinite(Number(p.crime_local_score))));
         html += `</div>`;
         popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
         return;
