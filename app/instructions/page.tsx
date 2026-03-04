@@ -52,12 +52,11 @@ export default function InstructionsPage() {
               {([
                 ["💰 Affordability", "How the cell's typical price compares to your budget", "Scored 0 (way over budget) → 1 (well under). Budget-busting areas get a hard veto drag."],
                 ["🌊 Flood safety", "Proportion of flood-risk properties in the cell", "England only. Cells with no flood data are treated as neutral."],
-                ["🏫 Schools (secondary)", "Ofsted-equivalent score of secondary schools within reach", "England only, based on inspection ratings."],
+                ["🏫 Schools (secondary)", "Average GCSE grade score of secondary schools within reach", "England only. Ofsted ratings also linked."],
                 ["🏫 Primary school nearby", "Walking distance to the nearest primary school", "England only. Closer = higher score."],
                 ["🚂 Train station", "Distance to the nearest rail station", "Covers GB mainline and commuter rail. Closer = higher score."],
                 ["👥 Community age", "Census age-mix of residents in the cell", "Use the Younger / Older dropdown to say which direction you prefer."],
                 ["🚔 Crime safety", "Crime rate relative to the surrounding local area", "Police-recorded data. Relative scoring — a low-crime street in a higher-crime borough can still score well."],
-                ["🏖️ Coast", "Proximity to the coast", "Coming soon."],
               ] as [string, string, string][]).map(([criterion, what, notes]) => (
                 <tr key={criterion} style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
                   <td style={{ padding: "6px 8px 6px 0", fontWeight: 600, whiteSpace: "nowrap" }}>{criterion}</td>
@@ -164,7 +163,7 @@ export default function InstructionsPage() {
               <strong>🔴 Crime</strong> — LSOA-level police-recorded crime density. Two sub-modes:
               <ul style={{ marginTop: 4 }}>
                 <li><em>Absolute</em> — raw crime rate per 1,000 residents nationally.</li>
-                <li><em>Relative</em> — normalised against the current map view. Useful for spotting safer pockets within a higher-crime region.</li>
+                <li><em>Relative</em> — normalised against the local area. Useful for spotting safer pockets relative to surrounding areas rather than national averages.</li>
               </ul>
               Hover a dot for a breakdown by type: violent, property, ASB, and other.
             </li>
@@ -174,7 +173,7 @@ export default function InstructionsPage() {
             <li style={{ marginTop: 6 }}>
               <strong>🗳️ GE2024 Vote overlay</strong> — constituency-level General Election 2024 vote shares. Colour scale: Labour red → swing seats → Conservative/Reform blue.
               <ul style={{ marginTop: 4 }}>
-                <li><em>Relative mode</em> — colour normalised to the current view. Emphasises local political variation.</li>
+                <li><em>Relative mode</em> — colour normalised against the whole country. Emphasises regional variation nationally.</li>
                 <li><em>Absolute mode</em> — raw vote share percentages for national comparisons.</li>
               </ul>
             </li>

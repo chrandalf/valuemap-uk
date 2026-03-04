@@ -48,44 +48,68 @@ export default function LegalPage() {
           transaction timing. They should not be treated as a formal valuation.
         </Section>
 
-        <Section title="4) Coverage and timeliness">
+        <Section title="4) Crime data limitations">
+          Crime information comes from Police UK open data and is aggregated to LSOA level.
+          Police-recorded crime may not reflect all crime. Figures can be influenced by reporting
+          rates, recording practices, and data release timing. The data should not be used as the
+          sole basis for assessing the safety of any area.
+        </Section>
+
+        <Section title="5) School data limitations">
+          School scores are derived from DfE KS4 GCSE results and Ofsted inspection data. Past
+          performance is not a guarantee of future quality. Inspection ratings and exam results can
+          change. Always check the latest information directly with the school or Ofsted.
+        </Section>
+
+        <Section title="6) Election data">
+          Election overlay data is sourced from the Electoral Commission and is provided for
+          exploratory information only. It does not constitute political commentary, endorsement,
+          or advice of any kind.
+        </Section>
+
+        <Section title="7) Census data">
+          Community age and commute overlays are based on the 2021 Census (ONS). Demographics
+          change over time and the data may not reflect the current composition of an area.
+        </Section>
+
+        <Section title="8) Coverage and timeliness">
           Coverage can vary by region and period. Some areas (including parts of Scotland) may be
           partial or less current. Always verify with official and up-to-date sources.
         </Section>
 
-        <Section title="5) No warranties">
+        <Section title="9) No warranties">
           To the fullest extent permitted by law, we make no warranties (express or implied)
           regarding accuracy, completeness, fitness for purpose, availability, or non-infringement.
         </Section>
 
-        <Section title="6) Limitation of liability">
+        <Section title="10) Limitation of liability">
           To the fullest extent permitted by law, we are not liable for any loss or damage
           (including direct, indirect, consequential, or financial loss) arising from use of, or
           reliance on, this app.
         </Section>
 
-        <Section title="7) Third-party data and links">
+        <Section title="11) Third-party data and links">
           This app uses third-party data and may link to third-party services. Their terms,
           licences, and privacy policies apply separately.
         </Section>
 
-        <Section title="8) Free access and voluntary support">
+        <Section title="12) Free access and voluntary support">
           This app and its data are provided free of charge. “Buy me a coffee” is optional support
           only. Donations do not purchase advice, enhanced accuracy, priority support, or special
           access.
         </Section>
 
-        <Section title="9) User responsibility">
+        <Section title="13) User responsibility">
           You are responsible for independently verifying all material facts before making any
           property, insurance, or financial decision.
         </Section>
 
-        <Section title="10) Privacy (location)">
+        <Section title="14) Privacy (location)">
           If you use location features, your device will request permission. Location is used to
           provide map context. See the Privacy Notice for details on processing and retention.
         </Section>
 
-        <Section title="11) Contact">
+        <Section title="15) Contact">
           For legal/privacy/data enquiries:{" "}
           <a href="mailto:chris.randallse@gmail.com" style={{ color: "#93c5fd" }}>
             chris.randallse@gmail.com

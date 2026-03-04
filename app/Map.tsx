@@ -2352,7 +2352,7 @@ export default function ValueMap({
     // ── Index scoring breakdown popup ──
     if (indexPrefsRef.current) {
       const prefs = indexPrefsRef.current;
-      const totalPrefWeight = (prefs.affordWeight ?? 0) + (prefs.floodWeight ?? 0) + (prefs.schoolWeight ?? 0) + (prefs.trainWeight ?? 0) + (prefs.ageWeight ?? 0);
+      const totalPrefWeight = (prefs.affordWeight ?? 0) + (prefs.floodWeight ?? 0) + (prefs.schoolWeight ?? 0) + (prefs.primarySchoolWeight ?? 0) + (prefs.trainWeight ?? 0) + (prefs.ageWeight ?? 0) + (prefs.crimeWeight ?? 0);
       if (totalPrefWeight === 0) {
         const html = `<div style="font-family:system-ui;font-size:12px;line-height:1.4;min-width:180px;max-width:220px;">
           <div style="font-weight:700;margin-bottom:6px;font-size:13px;">🗺️ No criteria set</div>

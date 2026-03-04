@@ -30,14 +30,35 @@ export default function DataSourcesPage() {
 
         <ol start={1} style={{ margin: 0, padding: "0 0 0 18px", fontSize: 14, opacity: 0.92 }}>
           <li style={{ marginBottom: 8 }}>
-            UK Land Registry Price Paid Data (sold price transactions).
+            HM Land Registry Price Paid Data (sold price transactions, England &amp; Wales).
           </li>
           <li style={{ marginBottom: 8 }}>
-            Office for National Statistics: ONSPD_Online_latest_Postcode_Centroids.
+            Registers of Scotland (sold price transactions, Scotland).
           </li>
-          <li>
+          <li style={{ marginBottom: 8 }}>
+            Office for National Statistics: ONSPD postcode centroids.
+          </li>
+          <li style={{ marginBottom: 8 }}>
             Energy Performance of Buildings Register (Domestic EPC data) — Department for
             Levelling Up, Housing and Communities.
+          </li>
+          <li style={{ marginBottom: 8 }}>
+            Environment Agency Flood Risk Register (flood monitoring points, England).
+          </li>
+          <li style={{ marginBottom: 8 }}>
+            Department for Education / Ofsted inspection data and KS4 GCSE results (school quality, England).
+          </li>
+          <li style={{ marginBottom: 8 }}>
+            Police UK open crime data, aggregated to LSOA level (England &amp; Wales).
+          </li>
+          <li style={{ marginBottom: 8 }}>
+            ONS Census 2021 (community age profiles and commute distance, Great Britain).
+          </li>
+          <li style={{ marginBottom: 8 }}>
+            Office of Rail and Road / National Rail (station locations, Great Britain).
+          </li>
+          <li>
+            Electoral Commission — General Election 2024 results (constituency-level vote shares, Great Britain).
           </li>
         </ol>
 

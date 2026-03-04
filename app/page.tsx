@@ -832,7 +832,7 @@ export default function Home() {
         ))}
       </div>
       <div style={{ marginTop: 6, fontSize: 11, opacity: 0.8, lineHeight: 1.35 }}>
-        Mean age and broad band distribution per LSOA. Census 2021, England &amp; Wales only.
+        Mean age and broad band distribution per LSOA. Census 2021, Great Britain.
       </div>
     </>
   );
@@ -915,7 +915,7 @@ export default function Home() {
         <div style={{ textAlign: "right", fontSize: 12, opacity: 0.75 }}>Great match</div>
       </div>
       <div style={{ marginTop: 8, fontSize: 10, opacity: 0.6, lineHeight: 1.35 }}>
-        Based on your preferences: max price, flood safety, school quality. Greener cells are a better fit.
+        Based on your active criteria. Greener cells are a better fit.
       </div>
     </>
   );
@@ -1288,7 +1288,7 @@ export default function Home() {
     setTourActive(true);
     setShowMePulse(false);
     // Reset map to default view
-    setState((s) => ({ ...s, grid: "5km", metric: "median", propertyType: "ALL", floodOverlayMode: "off", schoolOverlayMode: "off", voteOverlayMode: "off", commuteOverlayMode: "off" }));
+    setState((s) => ({ ...s, grid: "5km", metric: "median", propertyType: "ALL", floodOverlayMode: "off", schoolOverlayMode: "off", primarySchoolOverlayMode: "off", stationOverlayMode: "off", crimeOverlayMode: "off", crimeCellMode: "off", voteOverlayMode: "off", commuteOverlayMode: "off", ageOverlayMode: "off" }));
     const t = ++flyToSeqRef.current;
     setFlyToRequest({ center: [-1.5, 53.5], zoom: 5, token: t });
   }, []);
@@ -1341,7 +1341,7 @@ export default function Home() {
     {
       target: "[data-tour='index-modal']",
       title: "Step 2 — The Find My Area panel",
-      text: "This panel is where you set up your search. At the top is your max price — I'm about to set it. Below that are importance sliders for affordability, flood safety, and school quality. Watch as I set them up…",
+      text: "This panel is where you set up your search. At the top is your max price — I'm about to set it. Below that are importance sliders for each criterion — affordability, flood safety, schools, train access, community age, and crime. Watch as I set them up…",
       placement: "left" as const,
       enterDelay: 600,
       onEnter: () => { setControlsDropOpen(false); setIndexOpen(true); },
@@ -1361,7 +1361,7 @@ export default function Home() {
     {
       target: "[data-tour='index-modal']",
       title: "Step 4 — Adjusting importance sliders",
-      text: "Now I've moved the importance sliders: Affordability → 7, Flood safety → 8, School quality → 6. Higher numbers = matters more. These are personal to you — drag them to match your priorities.",
+      text: "Now I've moved the importance sliders: Affordability → 7, Flood safety → 8, School quality → 6. Higher numbers = matters more. You can also set Train station, Community age, and Crime safety. These are personal to you — drag them to match your priorities.",
       placement: "left" as const,
       enterDelay: 500,
       onEnter: () => {
@@ -1487,7 +1487,7 @@ export default function Home() {
       enterDelay: 1000,
       onEnter: () => {
         if (isMobileViewport) setCleanScreenMode(false);
-        setState((s) => ({ ...s, floodOverlayMode: "on_hide_cells", schoolOverlayMode: "on_hide_cells" }));
+        setState((s) => ({ ...s, floodOverlayMode: "on_hide_cells", schoolOverlayMode: "on_hide_cells", crimeOverlayMode: "off" }));
       },
     },
 
@@ -1504,7 +1504,7 @@ export default function Home() {
         setIndexActive(false);
         setIndexOpen(false);
         setIndexSuitabilityMode("off");
-        setState((s) => ({ ...s, grid: "5km", floodOverlayMode: "off", schoolOverlayMode: "off" }));
+        setState((s) => ({ ...s, grid: "5km", floodOverlayMode: "off", schoolOverlayMode: "off", crimeOverlayMode: "off" }));
         tourFlyTo([-1.5, 53.5], 5);
       },
     },
@@ -1612,10 +1612,10 @@ export default function Home() {
     {
       target: null,
       title: "📊 Data Overlay Layers",
-      text: "You can layer extra data on top of the price map — flood risk zones, school performance ratings, and election results. These help you understand what makes each area tick. Want me to show you?",
+      text: "You can layer extra data on top of the price map — flood risk zones, school performance dots, crime density, and election results. These help you understand what makes each area tick. Want me to show you?",
       placement: "center" as const,
       isSectionIntro: true,
-      nextSectionIndex: 32,
+      nextSectionIndex: 33,
       enterDelay: 600,
     },
 
@@ -1628,7 +1628,7 @@ export default function Home() {
       enterDelay: 1200,
       onEnter: () => {
         if (isMobileViewport) setCleanScreenMode(true);
-        setState((s) => ({ ...s, floodOverlayMode: "off", schoolOverlayMode: "off", voteOverlayMode: "off", commuteOverlayMode: "off" }));
+        setState((s) => ({ ...s, floodOverlayMode: "off", schoolOverlayMode: "off", crimeOverlayMode: "off", voteOverlayMode: "off", commuteOverlayMode: "off" }));
         tourFlyTo([-1.08, 53.96], 9);
       },
     },
@@ -1642,7 +1642,7 @@ export default function Home() {
       enterDelay: 1000,
       onEnter: () => {
         if (isMobileViewport) setCleanScreenMode(false);
-        setState((s) => ({ ...s, floodOverlayMode: "on_hide_cells", schoolOverlayMode: "off", voteOverlayMode: "off", commuteOverlayMode: "off" }));
+        setState((s) => ({ ...s, floodOverlayMode: "on_hide_cells", schoolOverlayMode: "off", crimeOverlayMode: "off", voteOverlayMode: "off", commuteOverlayMode: "off" }));
       },
     },
 
@@ -1668,7 +1668,7 @@ export default function Home() {
       enterDelay: 1200,
       onEnter: () => {
         if (isMobileViewport) setCleanScreenMode(false);
-        setState((s) => ({ ...s, floodOverlayMode: "off", schoolOverlayMode: "on_hide_cells" }));
+        setState((s) => ({ ...s, floodOverlayMode: "off", schoolOverlayMode: "on_hide_cells", crimeOverlayMode: "off" }));
       },
     },
 
@@ -1685,60 +1685,73 @@ export default function Home() {
       },
     },
 
-    /* 29 — Demo: vote overlay — zoom out to show England */
+    /* 29 — Demo: crime overlay */
     {
       target: "[data-tour='overlay-panel']",
-      title: "Step 6 — Election results layer",
-      text: "I've turned off schools and turned on the election overlay. The map is zooming out so you can see England's constituency patterns — coloured shading shows General Election 2024 results by party.",
+      title: "Step 6 — Crime overlay",
+      text: "Schools off, crime overlay on. Each dot is an LSOA area — blue/green for low crime, amber/red for higher crime. Tap a dot to see a breakdown: violent, property, anti-social behaviour, and other. The scoring uses relative mode so a quiet street in a busy borough can still score well.",
       placement: "left" as const,
       enterDelay: 1200,
       onEnter: () => {
         if (isMobileViewport) setCleanScreenMode(false);
-        setState((s) => ({ ...s, schoolOverlayMode: "off", voteOverlayMode: "on" }));
+        setState((s) => ({ ...s, schoolOverlayMode: "off", crimeOverlayMode: "on_hide_cells", voteOverlayMode: "off", floodOverlayMode: "off" }));
+      },
+    },
+
+    /* 30 — Demo: vote overlay — zoom out to show England */
+    {
+      target: "[data-tour='overlay-panel']",
+      title: "Step 7 — Election results layer",
+      text: "I've turned off crime and switched to the election overlay. The map is zooming out so you can see England's constituency patterns — coloured shading shows General Election 2024 results by party.",
+      placement: "left" as const,
+      enterDelay: 1200,
+      onEnter: () => {
+        if (isMobileViewport) setCleanScreenMode(false);
+        setState((s) => ({ ...s, schoolOverlayMode: "off", crimeOverlayMode: "off", voteOverlayMode: "on" }));
         setTimeout(() => tourFlyTo([-1.4, 52.6], 6.5), 300);
       },
     },
 
-    /* 30 — Demo: combining overlays — back to York/Humber */
+    /* 31 — Demo: combining overlays — back to York/Humber */
     {
       target: "[data-tour='overlay-panel']",
-      title: "Step 7 — Combining data layers",
+      title: "Step 8 — Combining data layers",
       text: "You can stack multiple overlays — here I've turned on both flood and school dots together with cells hidden. Use \"Hide cells\" when you want to click on overlay dots; use \"On\" for a quick visual glance with the price grid still visible.",
       placement: "left" as const,
       enterDelay: 1200,
       onEnter: () => {
         if (isMobileViewport) setCleanScreenMode(false);
-        setState((s) => ({ ...s, voteOverlayMode: "off", floodOverlayMode: "on_hide_cells", schoolOverlayMode: "on_hide_cells", commuteOverlayMode: "off" }));
+        setState((s) => ({ ...s, voteOverlayMode: "off", crimeOverlayMode: "off", floodOverlayMode: "on_hide_cells", schoolOverlayMode: "on_hide_cells", commuteOverlayMode: "off" }));
         setTimeout(() => tourFlyTo([-1.08, 53.96], 9), 300);
       },
     },
 
-    /* 31 — Demo: cleanup overlays */
+    /* 32 — Demo: cleanup overlays */
     {
       target: null,
       title: "That's overlays!",
-      text: "Toggle flood, schools, and vote overlays on and off whenever you need extra context. Stack them together, or use hide-cells to focus on one. Next up: postcode search.",
+      text: "Toggle flood, schools, crime, and vote overlays on and off whenever you need extra context. Stack them together, or use hide-cells to focus on one. Next up: postcode search.",
       placement: "center" as const,
       enterDelay: 600,
       onEnter: () => {
         if (isMobileViewport) setCleanScreenMode(false);
-        setState((s) => ({ ...s, floodOverlayMode: "off", schoolOverlayMode: "off", voteOverlayMode: "off", commuteOverlayMode: "off" }));
+        setState((s) => ({ ...s, floodOverlayMode: "off", schoolOverlayMode: "off", crimeOverlayMode: "off", voteOverlayMode: "off", commuteOverlayMode: "off" }));
         tourFlyTo([-1.5, 53.5], 5);
       },
     },
 
-    /* ═══ 32 — Section intro: Postcode Search ═══ */
+    /* ═══ 33 — Section intro: Postcode Search ═══ */
     {
       target: null,
       title: "🔎 Searching for a Postcode",
       text: "Got a specific area in mind? Type any UK postcode and the map flies straight there. You can also press Locate to use your current GPS position. Want me to show you?",
       placement: "center" as const,
       isSectionIntro: true,
-      nextSectionIndex: 36,
+      nextSectionIndex: 37,
       enterDelay: 1000,
     },
 
-    /* 33 — Demo: type postcode */
+    /* 34 — Demo: type postcode */
     {
       target: isMobileViewport ? null : "[data-tour='postcode-search']",
       title: "Step 1 — Type a postcode",
@@ -1748,7 +1761,7 @@ export default function Home() {
       onEnter: () => { if (isMobileViewport) setCleanScreenMode(false); setPostcodeSearch("SW1A 1AA"); },
     },
 
-    /* 34 — Demo: press Go — tooltip at TOP so map result is visible underneath */
+    /* 35 — Demo: press Go — tooltip at TOP so map result is visible underneath */
     {
       target: null,
       title: "Step 2 — The map flies there!",
@@ -1762,7 +1775,7 @@ export default function Home() {
       },
     },
 
-    /* 35 — Demo: cleanup */
+    /* 36 — Demo: cleanup */
     {
       target: null,
       title: "That's postcode search!",
@@ -1779,18 +1792,18 @@ export default function Home() {
       },
     },
 
-    /* ═══ 36 — Section intro: Info & Help ═══ */
+    /* ═══ 37 — Section intro: Info & Help ═══ */
     {
       target: null,
       title: "ℹ️ Getting Help & Information",
       text: "All the reference pages — Instructions, Data Sources, Election Info, and legal / privacy pages — are in one place. Want me to show you where?",
       placement: "center" as const,
       isSectionIntro: true,
-      nextSectionIndex: 39,
+      nextSectionIndex: 40,
       enterDelay: 1000,
     },
 
-    /* 37 — Demo: open Info menu */
+    /* 38 — Demo: open Info menu */
     {
       target: "[data-tour='info-menu']",
       title: "Step 1 — The Info menu",
@@ -1801,7 +1814,7 @@ export default function Home() {
       onEnter: () => { if (isMobileViewport) setCleanScreenMode(false); setControlsDropOpen(false); setInfoDropOpen(true); },
     },
 
-    /* 38 — Demo: close Info */
+    /* 39 — Demo: close Info */
     {
       target: null,
       title: "Remember this!",
@@ -1811,7 +1824,7 @@ export default function Home() {
       onEnter: () => { setInfoDropOpen(false); },
     },
 
-    /* ═══ 39 — Finish ═══ */
+    /* ═══ 40 — Finish ═══ */
     {
       target: null,
       title: "You're all set! 🎉",

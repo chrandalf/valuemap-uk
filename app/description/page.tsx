@@ -64,7 +64,7 @@ export default function DescriptionPage() {
           <ul>
             <li><strong>💰 Affordability</strong> — set your budget. Cells near or over budget score lower; cells well within budget score higher. Hard veto if a cell is significantly over budget.</li>
             <li><strong>🌊 Flood safety</strong> — proportion of flood-risk points in the cell. England only.</li>
-            <li><strong>🏫 Secondary school</strong> — average Ofsted rating of secondary schools within reach. England only.</li>
+            <li><strong>🏫 Secondary school</strong> — average GCSE grade score of secondary schools within reach (Ofsted ratings also linked). England only.</li>
             <li><strong>🏫 Primary school nearby</strong> — proximity to the nearest primary school. England only.</li>
             <li><strong>🚂 Train station</strong> — distance to nearest station. Great Britain.</li>
             <li><strong>👥 Community age</strong> — resident age profile. Choose Younger or Older to indicate which suits you. UK-wide.</li>
@@ -86,7 +86,7 @@ export default function DescriptionPage() {
         <Section title="🌊 Flood risk">
           <ul>
             <li>Source: Environment Agency Flood Risk Register.</li>
-            <li>Each dot is a property-level flood risk point, coloured by severity.</li>
+            <li>Each dot represents a postcode-level flood risk point, coloured by severity.</li>
             <li>Turn on alongside the price grid to cross-reference, or use hide-cells mode to focus on flood geography alone.</li>
             <li>England only.</li>
           </ul>
@@ -105,7 +105,7 @@ export default function DescriptionPage() {
           <ul>
             <li>Source: Police UK open crime data, aggregated to LSOA level.</li>
             <li><strong>Absolute mode</strong> — colour based on national crime rate per 1,000 residents. Comparable city to city.</li>
-            <li><strong>Relative mode</strong> — colour normalised to the current map view. Highlights safer and less-safe pockets within the visible area. Useful when zoomed into one city.</li>
+            <li><strong>Relative mode</strong> — colour normalised against the local area. Highlights safer and less-safe pockets relative to nearby areas rather than national averages.</li>
             <li>Tap a dot for a breakdown by crime type: violent, property, anti-social behaviour, and other.</li>
             <li>England and Wales.</li>
           </ul>
@@ -123,7 +123,7 @@ export default function DescriptionPage() {
           <ul>
             <li>Source: Electoral Commission, General Election 2024.</li>
             <li>Red tones indicate stronger Labour/left vote share; blue/teal tones indicate stronger Conservative/Reform vote share.</li>
-            <li>Relative mode normalises to the current viewport; absolute mode shows raw vote-share percentages.</li>
+            <li>Relative mode normalises against the whole country; absolute mode shows raw vote-share percentages.</li>
             <li>Data is at constituency level, so cells near boundaries share the same colour across a wide area.</li>
           </ul>
         </Section>
@@ -136,7 +136,7 @@ export default function DescriptionPage() {
         </Section>
 
         <Section title="Right-click area lookup">
-          <p>Right-click (or long-press on mobile) anywhere on the map to look up that exact location — useful for checking a specific street or address without knowing the postcode.</p>
+          <p>Right-click (or double-click on mobile) anywhere on the map to look up that exact location — useful for checking a specific street or address without knowing the postcode.</p>
         </Section>
 
         <Section title="📍 Locate me">
