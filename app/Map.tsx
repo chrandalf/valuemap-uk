@@ -16,6 +16,7 @@ type CommuteOverlayMode = "off" | "on";
 type AgeOverlayMode = "off" | "on";
 type CrimeOverlayMode = "off" | "on" | "on_hide_cells";
 type CrimeCellMode = "off" | "on";
+type CrimeCellScale = "absolute" | "relative";
 type CrimeCellSubMode = "total" | "violent" | "property" | "asb";
 type VoteColorScale = "relative" | "absolute";
 
@@ -36,6 +37,7 @@ export type MapState = {
   ageOverlayMode?: AgeOverlayMode;
   crimeOverlayMode?: CrimeOverlayMode;
   crimeCellMode?: CrimeCellMode;
+  crimeCellScale?: CrimeCellScale;
   crimeCellSubMode?: CrimeCellSubMode;
   voteColorScale?: VoteColorScale;
 };
@@ -111,6 +113,10 @@ type ApiRow = {
   violent_score?: number;
   property_score?: number;
   asb_score?: number;
+  crime_local_score?: number;
+  violent_local_score?: number;
+  property_local_score?: number;
+  asb_local_score?: number;
 };
 
 function isDeltaMetric(metric: Metric) {
@@ -2166,25 +2172,44 @@ export default function ValueMap({
     const f = e.features?.[0] as any;
     if (!f) return;
     const p = f.properties || {};
-    const lsoaName     = escapeHtml(String(p.lsoa_name ?? p.lsoa_code ?? "LSOA"));
-    const crimeScore   = Number(p.crime_score ?? 50);
-    const violentScore = Number(p.violent_score ?? 50);
-    const propertyScore= Number(p.property_score ?? 50);
-    const asbScore     = Number(p.asb_score ?? 50);
-    const totalRate    = Number(p.total_rate ?? 0);
+    const lsoaName      = escapeHtml(String(p.lsoa_name ?? p.lsoa_code ?? "LSOA"));
+    const crimeScore    = Number(p.crime_score ?? 50);
+    const violentScore  = Number(p.violent_score ?? 50);
+    const propertyScore = Number(p.property_score ?? 50);
+    const asbScore      = Number(p.asb_score ?? 50);
+    const totalRate     = Number(p.total_rate ?? 0);
+    const violentRate   = Number(p.violent_rate ?? 0);
+    const propertyRate  = Number(p.property_rate ?? 0);
+    const asbRate       = Number(p.asb_rate ?? 0);
     const scoreLabel = (s: number) => s >= 80 ? "Low" : s >= 60 ? "Below avg" : s >= 40 ? "Average" : s >= 20 ? "Above avg" : "High";
     const scoreCol   = (s: number) => s >= 80 ? "#16a34a" : s >= 60 ? "#84cc16" : s >= 40 ? "#eab308" : s >= 20 ? "#f97316" : "#dc2626";
+    // 1-in-X: rate is per 1,000/yr so X = 1000/rate; cap at 9999 for display
+    const oneInX = (rate: number) => rate > 0 ? Math.min(9999, Math.round(1000 / rate)) : null;
+    const rateStr = (rate: number) => { const x = oneInX(rate); return x ? `1 in ${x.toLocaleString()}/yr` : "No data"; };
     const highFootfall = totalRate > 245;
     const html = `
-      <div style="font:12px/1.5 system-ui,sans-serif;color:#374151;min-width:200px">
+      <div style="font:12px/1.5 system-ui,sans-serif;color:#374151;min-width:210px">
         <div style="font-weight:700;font-size:13px;margin-bottom:5px">${lsoaName}</div>
+        <div style="font-size:10px;color:#9ca3af;margin-bottom:4px">vs. UK national</div>
         <div style="border-top:1px solid #f3f4f6;padding-top:5px">
-          <div><span style="color:#6b7280">Overall: </span><span style="color:${scoreCol(crimeScore)};font-weight:600">${scoreLabel(crimeScore)}</span></div>
-          <div><span style="color:#6b7280">Violent: </span><span style="color:${scoreCol(violentScore)}">${scoreLabel(violentScore)}</span></div>
-          <div><span style="color:#6b7280">Property: </span><span style="color:${scoreCol(propertyScore)}">${scoreLabel(propertyScore)}</span></div>
-          <div><span style="color:#6b7280">ASB: </span><span style="color:${scoreCol(asbScore)}">${scoreLabel(asbScore)}</span></div>
+          <div style="display:flex;justify-content:space-between;gap:10px">
+            <span style="color:#6b7280">Overall</span>
+            <span><span style="color:${scoreCol(crimeScore)};font-weight:600">${scoreLabel(crimeScore)}</span>&nbsp;<span style="color:#9ca3af;font-size:10px">${rateStr(totalRate)}</span></span>
+          </div>
+          <div style="display:flex;justify-content:space-between;gap:10px">
+            <span style="color:#6b7280">Violent</span>
+            <span><span style="color:${scoreCol(violentScore)}">${scoreLabel(violentScore)}</span>&nbsp;<span style="color:#9ca3af;font-size:10px">${rateStr(violentRate)}</span></span>
+          </div>
+          <div style="display:flex;justify-content:space-between;gap:10px">
+            <span style="color:#6b7280">Property</span>
+            <span><span style="color:${scoreCol(propertyScore)}">${scoreLabel(propertyScore)}</span>&nbsp;<span style="color:#9ca3af;font-size:10px">${rateStr(propertyRate)}</span></span>
+          </div>
+          <div style="display:flex;justify-content:space-between;gap:10px">
+            <span style="color:#6b7280">ASB</span>
+            <span><span style="color:${scoreCol(asbScore)}">${scoreLabel(asbScore)}</span>&nbsp;<span style="color:#9ca3af;font-size:10px">${rateStr(asbRate)}</span></span>
+          </div>
         </div>
-        ${highFootfall ? `<div style="font-size:10px;color:#9ca3af;margin-top:4px;border-top:1px solid #f3f4f6;padding-top:3px">⚠ High footfall area</div>` : ""}
+        ${highFootfall ? `<div style="font-size:10px;color:#9ca3af;margin-top:4px;border-top:1px solid #f3f4f6;padding-top:3px">⚠ High footfall area — resident-based rates may be elevated</div>` : ""}
       </div>
     `;
     popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
@@ -3396,7 +3421,7 @@ export default function ValueMap({
     const voteMode = stateRef.current.voteOverlayMode ?? "off";
     try {
       if (crimeMode !== "off") {
-        applyCrimeCellOverlayColorExpression(map, state.crimeCellSubMode, easyColoursRef.current);
+        applyCrimeCellOverlayColorExpression(map, state.crimeCellSubMode, state.crimeCellScale, easyColoursRef.current);
       } else if (ageMode !== "off") {
         applyAgeOverlayColorExpression(map, easyColoursRef.current);
       } else if (commuteMode !== "off") {
@@ -3407,7 +3432,7 @@ export default function ValueMap({
         void ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange, onStatsUpdateRef.current, easyColoursRef.current, !!indexPrefsRef.current);
       }
     } catch (e) { /* ignore */ }
-  }, [state.crimeCellMode, state.crimeCellSubMode, onLegendChange]);
+  }, [state.crimeCellMode, state.crimeCellSubMode, state.crimeCellScale, onLegendChange]);
 
   // Re-apply colour ramps whenever the easy-colours (colourblind) preference changes.
   useEffect(() => {
@@ -3418,7 +3443,7 @@ export default function ValueMap({
     const commuteMode = stateRef.current.commuteOverlayMode ?? "off";
     const voteMode = stateRef.current.voteOverlayMode ?? "off";
     if (crimeMode !== "off") {
-      applyCrimeCellOverlayColorExpression(map, stateRef.current.crimeCellSubMode, easyColours ?? false);
+      applyCrimeCellOverlayColorExpression(map, stateRef.current.crimeCellSubMode, stateRef.current.crimeCellScale, easyColours ?? false);
     } else if (ageMode !== "off") {
       applyAgeOverlayColorExpression(map, easyColours ?? false);
     } else if (commuteMode !== "off") {
@@ -3744,11 +3769,12 @@ function applyAgeOverlayColorExpression(map: maplibregl.Map, easy = false) {
  * Normal  : dark-red (dangerous) → neutral grey → dark-green (safe)
  * Easy/CBF: purple (dangerous) → neutral → green (safe)
  */
-function crimeCellColorExpression(subMode: CrimeCellSubMode | undefined, easy = false): any {
-  const field = subMode === "violent"  ? "violent_score"
-              : subMode === "property" ? "property_score"
-              : subMode === "asb"      ? "asb_score"
-              : "crime_score";
+function crimeCellColorExpression(subMode: CrimeCellSubMode | undefined, scale: CrimeCellScale | undefined, easy = false): any {
+  const isLocal = scale === "relative";
+  const field = subMode === "violent"  ? (isLocal ? "violent_local_score"  : "violent_score")
+              : subMode === "property" ? (isLocal ? "property_local_score" : "property_score")
+              : subMode === "asb"      ? (isLocal ? "asb_local_score"      : "asb_score")
+              : (isLocal ? "crime_local_score" : "crime_score");
   const score = ["case", ["has", field], ["to-number", ["get", field]], -1] as any;
   if (easy) {
     return ["interpolate", ["linear"], score,
@@ -3770,9 +3796,9 @@ function crimeCellColorExpression(subMode: CrimeCellSubMode | undefined, easy = 
   ];
 }
 
-function applyCrimeCellOverlayColorExpression(map: maplibregl.Map, subMode: CrimeCellSubMode | undefined, easy = false) {
+function applyCrimeCellOverlayColorExpression(map: maplibregl.Map, subMode: CrimeCellSubMode | undefined, scale: CrimeCellScale | undefined, easy = false) {
   if (map.getLayer("cells-fill")) {
-    map.setPaintProperty("cells-fill", "fill-color", crimeCellColorExpression(subMode, easy));
+    map.setPaintProperty("cells-fill", "fill-color", crimeCellColorExpression(subMode, scale, easy));
   }
 }
 

@@ -1,9 +1,9 @@
-"""
+﻿"""
 Build crime-rate grid cells from the LSOA crime overlay.
 
 Reads:
-  MODEL_CRIME_OVERLAY  – crime_overlay_lsoa.geojson.gz
-  ONSPD                – postcode → LSOA21CD + BNG eastings/northings
+  MODEL_CRIME_OVERLAY  â€“ crime_overlay_lsoa.geojson.gz
+  ONSPD                â€“ postcode â†’ LSOA21CD + BNG eastings/northings
 
 Joins every postcode to its LSOA crime stats, snaps to 4 grid sizes, and
 writes one gzipped JSON file per grid into MODEL_CRIME_DIR:
@@ -15,18 +15,26 @@ writes one gzipped JSON file per grid into MODEL_CRIME_DIR:
 Each file is a JSON array of objects:
   {
     "gx": <int>, "gy": <int>,
-    "violent_rate":  <float>,   # annualised crimes per 1 000 residents
+    "violent_rate":  <float>,   # annualised crimes per 1,000 residents
     "property_rate": <float>,
     "asb_rate":      <float>,
     "total_rate":    <float>,
-    "crime_score":   <int>,     # 0-100, 100 = safest  (from weighted composite)
-    "violent_score": <int>,
-    "property_score":<int>,
-    "asb_score":     <int>,
+    # Absolute scores: national inverse-percentile (100 = safest in UK)
+    "crime_score":    <int>,
+    "violent_score":  <int>,
+    "property_score": <int>,
+    "asb_score":      <int>,
+    # Relative (local-area blended) scores â€” weight shifts from national
+    # to local neighbourhood as grid size shrinks (100 = safest locally)
+    "crime_local_score":    <int>,
+    "violent_local_score":  <int>,
+    "property_local_score": <int>,
+    "asb_local_score":      <int>,
   }
 
-Composite weight: violent×4 + property×1 + asb×0.3 (normalised by 5.3).
-Scoring: inverse national percentile — cells with the LOWEST rate score 100.
+Composite weight: violentÃ—4 + propertyÃ—1 + asbÃ—0.3 (normalised by 5.3).
+Absolute scoring: inverse national percentile â€” cells with the LOWEST rate score 100.
+Local scoring: cells ranked within a spatial neighbourhood, blended with national score.
 """
 
 from __future__ import annotations
@@ -64,8 +72,18 @@ W_PROPERTY = 1.0
 W_ASB      = 0.3
 W_TOTAL    = W_VIOLENT + W_PROPERTY + W_ASB  # 5.3
 
+# Per-grid local-score config: how large a BNG window to use, and how much
+# weight to give the local rank vs the national rank.
+# At 25km, pure national (local adds no meaningful context over that scale).
+LOCAL_CONFIG: dict[str, dict] = {
+    "1km":  {"radius_m": 15_000, "local_weight": 0.85},
+    "5km":  {"radius_m": 30_000, "local_weight": 0.60},
+    "10km": {"radius_m": 60_000, "local_weight": 0.30},
+    "25km": {"radius_m":       0, "local_weight": 0.00},
+}
 
-# ── LSOA crime loader ─────────────────────────────────────────────────────────
+
+# â”€â”€ LSOA crime loader â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def load_lsoa_crime(path: Path) -> pd.DataFrame:
     """
@@ -114,7 +132,7 @@ def load_lsoa_crime(path: Path) -> pd.DataFrame:
     return df
 
 
-# ── ONSPD loader ─────────────────────────────────────────────────────────────
+# â”€â”€ ONSPD loader â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def load_onspd_with_lsoa(path: Path) -> pd.DataFrame:
     """Return DataFrame with columns: pcds, lsoa21cd, east, north.
@@ -165,39 +183,96 @@ def load_onspd_with_lsoa(path: Path) -> pd.DataFrame:
     return df
 
 
-# ── Percentile scoring ────────────────────────────────────────────────────────
+# â”€â”€ Percentile scoring â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def invert_score_pct(series: pd.Series) -> pd.Series:
     """
-    Rank-based inverse percentile: safest cell → 100, most dangerous → 0.
+    Rank-based inverse percentile: safest cell â†’ 100, most dangerous â†’ 0.
     Ties receive the same score (average rank).
     """
     ranks = series.rank(method="average")
     n = len(series)
-    # pct rank 0→1 where 1 = highest rate (most dangerous)
     pct = (ranks - 1) / max(n - 1, 1)
     return ((1 - pct) * 100).round(1)
 
 
-# ── Grid snap + aggregate ────────────────────────────────────────────────────
-
-def build_cells_for_grid(df_joined: pd.DataFrame, grid_m: int) -> list[dict]:
+def compute_local_pct(
+    gx_arr: np.ndarray,
+    gy_arr: np.ndarray,
+    rate_arr: np.ndarray,
+    radius_m: int,
+) -> np.ndarray:
     """
-    Snap postcode points to a grid and compute per-cell crime rates + scores.
+    For each cell, compute its inverse-percentile rank within its spatial
+    neighbourhood (a square window of side 2*radius_m centred on the cell).
 
-    df_joined must contain: east, north, population, violent_annual,
-    property_annual, asb_annual, total_annual (one row per postcode).
-    The crime columns are LSOA totals (same value for every postcode in the LSOA).
-    We weight by the number of postcodes per LSOA to avoid double-counting —
-    we do this by working with per-postcode fractional crime shares:
-    each postcode carries (1 / n_postcodes_in_lsoa) of the LSOA's annual crimes.
+    Returns an array of values 0â€“100 where 100 = safest in the local area.
+
+    Uses sorted binary-search so the overall complexity is O(n log n + n*k)
+    where k is the average neighbourhood size. No scipy required.
+    """
+    n = len(rate_arr)
+    if radius_m <= 0 or n == 0:
+        return np.full(n, 50.0)
+
+    # Sort by gx for efficient range queries
+    sorted_idx  = np.argsort(gx_arr, kind="stable")
+    sorted_gx   = gx_arr[sorted_idx]
+    sorted_gy   = gy_arr[sorted_idx]
+    sorted_rate = rate_arr[sorted_idx]
+
+    local_pct = np.empty(n, dtype=np.float64)
+
+    for i in range(n):
+        cx = gx_arr[i]
+        cy = gy_arr[i]
+        ri = rate_arr[i]
+
+        # Slice cells within x-range using binary search
+        lo = int(np.searchsorted(sorted_gx, cx - radius_m, side="left"))
+        hi = int(np.searchsorted(sorted_gx, cx + radius_m, side="right"))
+
+        if hi <= lo:
+            local_pct[i] = 50.0
+            continue
+
+        # Filter by y-distance (square window)
+        win_gy   = sorted_gy[lo:hi]
+        win_rate = sorted_rate[lo:hi]
+        mask     = np.abs(win_gy - cy) <= radius_m
+        nbr_rates = win_rate[mask]
+        k = len(nbr_rates)
+
+        if k <= 1:
+            local_pct[i] = 50.0
+            continue
+
+        # Fraction of neighbours with LOWER rate â†’ inverse rank (0 = best)
+        lower = float(np.sum(nbr_rates < ri))
+        equal = float(np.sum(nbr_rates == ri))
+        rank  = lower + 0.5 * equal          # average-rank tie-breaking
+        # Invert: low rate = high safety score
+        local_pct[i] = (1.0 - rank / (k - 1)) * 100.0
+
+    return local_pct
+
+
+# â”€â”€ Grid snap + aggregate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+def build_cells_for_grid(
+    df_joined: pd.DataFrame,
+    grid_m: int,
+    grid_label: str,
+) -> list[dict]:
+    """
+    Snap postcode points to a grid and compute per-cell crime rates, national
+    scores, and blended local scores.
     """
     # Fractional share: weight each postcode by 1/n_postcodes in its LSOA
     df = df_joined.copy()
     pc_per_lsoa = df.groupby("lsoa21cd")["pcds"].transform("count")
     df["frac"]  = 1.0 / pc_per_lsoa
 
-    # Each postcode contributes a fraction of the LSOA's annual crimes
     for col in ("violent_annual", "property_annual", "asb_annual", "total_annual", "population"):
         df[f"{col}_frac"] = df[col] * df["frac"]
 
@@ -212,34 +287,65 @@ def build_cells_for_grid(df_joined: pd.DataFrame, grid_m: int) -> list[dict]:
         population   =("population_frac",       "sum"),
     )
 
-    # Rates per 1 000 residents
-    pop = agg["population"].clip(lower=1)  # avoid div/0
+    # Rates per 1,000 residents (annualised)
+    pop = agg["population"].clip(lower=1)
     agg["violent_rate"]  = (agg["violent_sum"]  / pop * 1000).round(1)
     agg["property_rate"] = (agg["property_sum"] / pop * 1000).round(1)
     agg["asb_rate"]      = (agg["asb_sum"]      / pop * 1000).round(1)
     agg["total_rate"]    = (agg["total_sum"]     / pop * 1000).round(1)
 
-    # Weighted composite rate (for overall crime_score)
+    # Weighted composite for overall score
     agg["weighted_rate"] = (
         agg["violent_rate"]  * W_VIOLENT +
         agg["property_rate"] * W_PROPERTY +
         agg["asb_rate"]      * W_ASB
     ) / W_TOTAL
 
-    # Inverse-percentile scores
+    # â”€â”€ National (absolute) scores â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     agg["crime_score"]    = invert_score_pct(agg["weighted_rate"]).astype(int)
     agg["violent_score"]  = invert_score_pct(agg["violent_rate"]).astype(int)
     agg["property_score"] = invert_score_pct(agg["property_rate"]).astype(int)
     agg["asb_score"]      = invert_score_pct(agg["asb_rate"]).astype(int)
 
-    keep = ["gx", "gy",
-            "violent_rate", "property_rate", "asb_rate", "total_rate",
-            "crime_score", "violent_score", "property_score", "asb_score"]
-    records = agg[keep].to_dict(orient="records")
-    return records
+    # â”€â”€ Local (relative) scores â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    cfg = LOCAL_CONFIG[grid_label]
+    radius_m     = cfg["radius_m"]
+    local_weight = cfg["local_weight"]
+    nat_weight   = 1.0 - local_weight
+
+    if local_weight > 0.0:
+        gx_arr = agg["gx"].values.astype(np.float64)
+        gy_arr = agg["gy"].values.astype(np.float64)
+
+        rate_cols = [
+            ("weighted_rate", "crime_score",    "crime_local_score"),
+            ("violent_rate",  "violent_score",  "violent_local_score"),
+            ("property_rate", "property_score", "property_local_score"),
+            ("asb_rate",      "asb_score",      "asb_local_score"),
+        ]
+        for rate_col, nat_col, local_col in rate_cols:
+            local_pct = compute_local_pct(
+                gx_arr, gy_arr, agg[rate_col].values.astype(np.float64), radius_m
+            )
+            blended = local_pct * local_weight + agg[nat_col].values * nat_weight
+            agg[local_col] = np.round(blended).astype(int)
+    else:
+        # At 25km local == national
+        agg["crime_local_score"]    = agg["crime_score"]
+        agg["violent_local_score"]  = agg["violent_score"]
+        agg["property_local_score"] = agg["property_score"]
+        agg["asb_local_score"]      = agg["asb_score"]
+
+    keep = [
+        "gx", "gy",
+        "violent_rate", "property_rate", "asb_rate", "total_rate",
+        "crime_score",       "violent_score",       "property_score",       "asb_score",
+        "crime_local_score", "violent_local_score", "property_local_score", "asb_local_score",
+    ]
+    return agg[keep].to_dict(orient="records")
 
 
-# ── Main ─────────────────────────────────────────────────────────────────────
+# â”€â”€ Main â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def main(onspd_path: Path) -> None:
     ensure_pipeline_dirs()
@@ -247,7 +353,7 @@ def main(onspd_path: Path) -> None:
     # 1. Load LSOA crime data
     df_crime = load_lsoa_crime(MODEL_CRIME_OVERLAY)
 
-    # 2. Load ONSPD (postcode → lsoa21cd + BNG coords)
+    # 2. Load ONSPD (postcode â†’ lsoa21cd + BNG coords)
     print(f"Loading ONSPD: {onspd_path}")
     df_onspd = load_onspd_with_lsoa(onspd_path)
 
@@ -260,19 +366,26 @@ def main(onspd_path: Path) -> None:
     )
     print(f"  Joined rows (postcodes with crime data): {len(df_joined):,}")
     if df_joined.empty:
-        raise RuntimeError("Join produced no rows – check LSOA code column names")
+        raise RuntimeError("Join produced no rows â€“ check LSOA code column names")
 
     # 4. Build one file per grid size
     for grid_label, grid_m in GRID_SIZES:
-        print(f"Building {grid_label} cells …", end=" ", flush=True)
-        cells = build_cells_for_grid(df_joined, grid_m)
+        cfg = LOCAL_CONFIG[grid_label]
+        radius_km = cfg["radius_m"] // 1000
+        lw = int(cfg["local_weight"] * 100)
+        print(
+            f"Building {grid_label} cells "
+            f"(local radius {radius_km}km, {lw}% local / {100-lw}% national) â€¦",
+            end=" ", flush=True,
+        )
+        cells = build_cells_for_grid(df_joined, grid_m, grid_label)
         print(f"{len(cells):,} cells")
 
         out_path = MODEL_CRIME_DIR / MODEL_CRIME_CELLS_TEMPLATE.name.format(grid=grid_label)
         with gzip.open(out_path, "wt", encoding="utf-8") as f:
             json.dump(cells, f, separators=(",", ":"))
         size_kb = out_path.stat().st_size // 1024
-        print(f"  → {out_path.name}  ({size_kb:,} KB)")
+        print(f"  â†’ {out_path.name}  ({size_kb:,} KB)")
 
     print("Done.")
 

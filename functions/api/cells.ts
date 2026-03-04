@@ -209,14 +209,18 @@ type AgeCellValue = Omit<AgeCellRow, "gx" | "gy">;
 type CrimeCellRow = {
   gx: number;
   gy: number;
-  violent_rate:   number;
-  property_rate:  number;
-  asb_rate:       number;
-  total_rate:     number;
-  crime_score:    number;
-  violent_score:  number;
-  property_score: number;
-  asb_score:      number;
+  violent_rate:         number;
+  property_rate:        number;
+  asb_rate:             number;
+  total_rate:           number;
+  crime_score:          number;
+  violent_score:        number;
+  property_score:       number;
+  asb_score:            number;
+  crime_local_score:    number;
+  violent_local_score:  number;
+  property_local_score: number;
+  asb_local_score:      number;
 };
 
 type CrimeCellValue = Omit<CrimeCellRow, "gx" | "gy">;
@@ -639,14 +643,18 @@ async function getCachedCrimeLookup(env: Env, grid: GridKey): Promise<Map<string
   const lookup = new Map<string, CrimeCellValue>();
   for (const row of rows) {
     lookup.set(`${row.gx}_${row.gy}`, {
-      violent_rate:   Number(row.violent_rate   ?? 0),
-      property_rate:  Number(row.property_rate  ?? 0),
-      asb_rate:       Number(row.asb_rate       ?? 0),
-      total_rate:     Number(row.total_rate     ?? 0),
-      crime_score:    Number(row.crime_score    ?? 50),
-      violent_score:  Number(row.violent_score  ?? 50),
-      property_score: Number(row.property_score ?? 50),
-      asb_score:      Number(row.asb_score      ?? 50),
+      violent_rate:         Number(row.violent_rate         ?? 0),
+      property_rate:        Number(row.property_rate        ?? 0),
+      asb_rate:             Number(row.asb_rate             ?? 0),
+      total_rate:           Number(row.total_rate           ?? 0),
+      crime_score:          Number(row.crime_score          ?? 50),
+      violent_score:        Number(row.violent_score        ?? 50),
+      property_score:       Number(row.property_score       ?? 50),
+      asb_score:            Number(row.asb_score            ?? 50),
+      crime_local_score:    Number(row.crime_local_score    ?? row.crime_score    ?? 50),
+      violent_local_score:  Number(row.violent_local_score  ?? row.violent_score  ?? 50),
+      property_local_score: Number(row.property_local_score ?? row.property_score ?? 50),
+      asb_local_score:      Number(row.asb_local_score      ?? row.asb_score      ?? 50),
     });
   }
 
@@ -715,14 +723,18 @@ async function backfillAll(env: Env, grid: GridKey, rows: CellRow[]): Promise<Ce
 
     const crime = crimeLookup?.get(key);
     if (crime) out = { ...out,
-      violent_rate:   crime.violent_rate,
-      property_rate:  crime.property_rate,
-      asb_rate:       crime.asb_rate,
-      total_rate:     crime.total_rate,
-      crime_score:    crime.crime_score,
-      violent_score:  crime.violent_score,
-      property_score: crime.property_score,
-      asb_score:      crime.asb_score,
+      violent_rate:         crime.violent_rate,
+      property_rate:        crime.property_rate,
+      asb_rate:             crime.asb_rate,
+      total_rate:           crime.total_rate,
+      crime_score:          crime.crime_score,
+      violent_score:        crime.violent_score,
+      property_score:       crime.property_score,
+      asb_score:            crime.asb_score,
+      crime_local_score:    crime.crime_local_score,
+      violent_local_score:  crime.violent_local_score,
+      property_local_score: crime.property_local_score,
+      asb_local_score:      crime.asb_local_score,
     };
 
     return out;

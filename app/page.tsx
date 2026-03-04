@@ -15,6 +15,7 @@ type PrimarySchoolOverlayMode = "off" | "on" | "on_hide_cells";
 type StationOverlayMode = "off" | "on" | "on_hide_cells";
 type CrimeOverlayMode = "off" | "on" | "on_hide_cells";
 type CrimeCellMode = "off" | "on";
+type CrimeCellScale = "absolute" | "relative";
 type CrimeCellSubMode = "total" | "violent" | "property" | "asb";
 type VoteOverlayMode = "off" | "on";
 type CommuteOverlayMode = "off" | "on";
@@ -49,6 +50,7 @@ type MapState = {
   stationOverlayMode: StationOverlayMode;
   crimeOverlayMode: CrimeOverlayMode;
   crimeCellMode: CrimeCellMode;
+  crimeCellScale: CrimeCellScale;
   crimeCellSubMode: CrimeCellSubMode;
   voteOverlayMode: VoteOverlayMode;
   voteColorScale: VoteColorScale;
@@ -203,6 +205,7 @@ export default function Home() {
       stationOverlayMode: "off",
       crimeOverlayMode: "off",
       crimeCellMode: "off",
+      crimeCellScale: "absolute",
       crimeCellSubMode: "total",
       voteOverlayMode: "off",
       voteColorScale: "relative",
@@ -229,6 +232,7 @@ export default function Home() {
       const commute = p.get("commute");
       const age = p.get("age");
       const crimeCell = p.get("crimeCell");
+      const crimeCellScaleParam = p.get("crimeCellScale");
       const crimeCellSub = p.get("crimeCellSub");
       const GRIDS: GridSize[] = ["1km", "5km", "10km", "25km"];
       const METRICS: Metric[] = ["median", "median_ppsf", "delta_gbp", "delta_pct"];
@@ -256,6 +260,7 @@ export default function Home() {
         stationOverlayMode: STATIONS.includes(stations as StationOverlayMode) ? (stations as StationOverlayMode) : defaults.stationOverlayMode,
         crimeOverlayMode: CRIMES.includes(crime as CrimeOverlayMode) ? (crime as CrimeOverlayMode) : defaults.crimeOverlayMode,
         crimeCellMode: crimeCell === "on" ? "on" : defaults.crimeCellMode,
+        crimeCellScale: crimeCellScaleParam === "relative" ? "relative" : defaults.crimeCellScale,
         crimeCellSubMode: (["total", "violent", "property", "asb"] as CrimeCellSubMode[]).includes(crimeCellSub as CrimeCellSubMode) ? (crimeCellSub as CrimeCellSubMode) : defaults.crimeCellSubMode,
         voteOverlayMode: vote === "on" ? "on" : defaults.voteOverlayMode,
         voteColorScale: voteScale === "absolute" ? "absolute" : defaults.voteColorScale,
@@ -409,6 +414,7 @@ export default function Home() {
     stationOverlayMode: "off",
     crimeOverlayMode: "off",
     crimeCellMode: "off",
+    crimeCellScale: "absolute",
     crimeCellSubMode: "total",
     voteOverlayMode: "off",
     voteColorScale: "relative",
@@ -684,6 +690,7 @@ export default function Home() {
     params.set("stations", state.stationOverlayMode);
     params.set("crime", state.crimeOverlayMode);
     params.set("crimeCell", state.crimeCellMode);
+    if (state.crimeCellScale !== "absolute") params.set("crimeCellScale", state.crimeCellScale);
     if (state.crimeCellSubMode !== "total") params.set("crimeCellSub", state.crimeCellSubMode);
     params.set("vote", state.voteOverlayMode);
     params.set("voteScale", state.voteColorScale);
@@ -2084,24 +2091,38 @@ export default function Home() {
                   {/* Crime cells */}
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 7 }}>
                     <div style={{ fontSize: 11, opacity: 0.8, width: 70, flexShrink: 0, paddingTop: 2 }}>🔴 Crime</div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                       <Segment
                         options={["off", "on"] as CrimeCellMode[]}
                         value={state.crimeCellMode}
                         onChange={(v) => setState((s) => ({ ...s, crimeCellMode: v as CrimeCellMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode } : {}) }))}
                         renderOption={(v) => v === "on" ? "On" : "Off"}
                       />
-                      {state.crimeCellMode === "on" && (
+                      {state.crimeCellMode === "on" && (<>
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <div style={{ fontSize: 10, opacity: 0.5, flexShrink: 0 }}>Type:</div>
+                          <div style={{ fontSize: 10, opacity: 0.5, width: 38, flexShrink: 0 }}>Scale:</div>
+                          <Segment
+                            options={["absolute", "relative"] as CrimeCellScale[]}
+                            value={state.crimeCellScale}
+                            onChange={(v) => setState((s) => ({ ...s, crimeCellScale: v as CrimeCellScale }))}
+                            renderOption={(v) => v === "absolute" ? "Absolute" : "Local area"}
+                          />
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <div style={{ fontSize: 10, opacity: 0.5, width: 38, flexShrink: 0 }}>Type:</div>
                           <Segment
                             options={["total", "violent", "property", "asb"] as CrimeCellSubMode[]}
                             value={state.crimeCellSubMode}
                             onChange={(v) => setState((s) => ({ ...s, crimeCellSubMode: v as CrimeCellSubMode }))}
-                            renderOption={(v) => v === "total" ? "Total" : v === "violent" ? "Violent" : v === "property" ? "Property" : "ASB"}
+                            renderOption={(v) => v === "total" ? "All" : v === "violent" ? "Violent" : v === "property" ? "Property" : "ASB"}
                           />
                         </div>
-                      )}
+                        {state.crimeCellScale === "relative" && (
+                          <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)" }}>
+                            Relative to local area
+                          </div>
+                        )}
+                      </>)}
                     </div>
                   </div>
 
