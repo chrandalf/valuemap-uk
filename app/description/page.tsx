@@ -8,7 +8,7 @@ export default function DescriptionPage() {
       <div style={{ width: "100%", maxWidth: 760, margin: "0 auto" }}>
 
         <div style={{ marginBottom: 28 }}>
-          <h1 style={{ margin: 0, fontSize: 30, lineHeight: 1.2 }}>Prope, what it does and how to use it</h1>
+          <h1 style={{ margin: 0, fontSize: 30, lineHeight: 1.2 }}>Property Price Map UK, what it does and how to use it</h1>
           <p style={{ marginTop: 8, opacity: 0.72, fontSize: 14, lineHeight: 1.5 }}>
             Property Price Map UK helps you spot house price patterns across the whole country, then narrow down to the exact areas worth viewing. It combines sold price data with useful overlays like flood risk, schools, crime, demographics, and more.
           </p>
