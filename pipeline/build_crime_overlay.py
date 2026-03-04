@@ -58,20 +58,20 @@ from paths import (
 # ── Crime-type tier mapping ────────────────────────────────────────────────────
 
 VIOLENT_TYPES: frozenset[str] = frozenset({
-    "violence-and-sexual-offences",
+    "violence and sexual offences",
     "robbery",
 })
 PROPERTY_TYPES: frozenset[str] = frozenset({
     "burglary",
-    "bicycle-theft",
-    "criminal-damage-arson",
-    "other-theft",
+    "bicycle theft",
+    "criminal damage and arson",
+    "other theft",
     "shoplifting",
-    "theft-from-the-person",
-    "vehicle-crime",
+    "theft from the person",
+    "vehicle crime",
 })
 ASB_TYPES: frozenset[str] = frozenset({
-    "anti-social-behaviour",
+    "anti-social behaviour",
 })
 # Anything else goes into "other" (drugs, public-order, possession-of-weapons, …)
 

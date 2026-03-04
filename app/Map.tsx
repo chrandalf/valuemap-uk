@@ -2184,8 +2184,8 @@ export default function ValueMap({
     const scoreLabel = (s: number) => s >= 80 ? "Low" : s >= 60 ? "Below avg" : s >= 40 ? "Average" : s >= 20 ? "Above avg" : "High";
     const scoreCol   = (s: number) => s >= 80 ? "#16a34a" : s >= 60 ? "#84cc16" : s >= 40 ? "#eab308" : s >= 20 ? "#f97316" : "#dc2626";
     // 1-in-X: rate is per 1,000/yr so X = 1000/rate; cap at 9999 for display
-    const oneInX = (rate: number) => rate > 0 ? Math.min(9999, Math.round(1000 / rate)) : null;
-    const rateStr = (rate: number) => { const x = oneInX(rate); return x ? `1 in ${x.toLocaleString()}/yr` : "No data"; };
+    const oneInX = (rate: number) => rate > 0 ? Math.max(1, Math.round(1000 / rate)) : null;
+    const rateStr = (rate: number) => { const x = oneInX(rate); return x !== null ? `1 in ${x.toLocaleString()}/yr` : "No data"; };
     const highFootfall = totalRate > 245;
     const html = `
       <div style="font:12px/1.5 system-ui,sans-serif;color:#374151;min-width:210px">
@@ -2545,8 +2545,8 @@ export default function ValueMap({
       const asbScore      = Number(isLocal ? (p.asb_local_score      ?? p.asb_score      ?? 50) : (p.asb_score      ?? 50));
       const sLabel = (s: number) => s >= 80 ? "Low" : s >= 60 ? "Below avg" : s >= 40 ? "Average" : s >= 20 ? "Above avg" : "High";
       const sCol   = (s: number) => s >= 80 ? "#16a34a" : s >= 60 ? "#84cc16" : s >= 40 ? "#eab308" : s >= 20 ? "#f97316" : "#dc2626";
-      const oneInX = (rate: number) => rate > 0 ? Math.min(9999, Math.round(1000 / rate)) : null;
-      const rStr   = (rate: number) => { const x = oneInX(rate); return x ? `1 in ${x.toLocaleString()}/yr` : "No data"; };
+      const oneInX = (rate: number) => rate > 0 ? Math.max(1, Math.round(1000 / rate)) : null;
+      const rStr   = (rate: number) => { const x = oneInX(rate); return x !== null ? `1 in ${x.toLocaleString()}/yr` : "No data"; };
       const context = isLocal ? "vs. local area" : "vs. UK national";
       const metricTitle = stateRef.current.metric === "median_ppsf"
         ? `GBP ${Math.round(median).toLocaleString()} / ft²`
@@ -2556,6 +2556,7 @@ export default function ValueMap({
         : "";
       const row = (label: string, score: number, rate: number) =>
         `<div style="display:flex;justify-content:space-between;gap:10px;"><span style="color:#6b7280">${label}</span><span><span style="color:${sCol(score)};font-weight:${label === "Overall" ? 600 : 400}">${sLabel(score)}</span>&nbsp;<span style="color:#9ca3af;font-size:10px">${rStr(rate)}</span></span></div>`;
+      const highFootfall = totalRate > 500;
       const crimeHtml = `
         <div style="font:12px/1.5 system-ui,sans-serif;min-width:200px">
           <div style="font-weight:700;font-size:13px;margin-bottom:2px">🔴 Crime</div>
@@ -2564,6 +2565,7 @@ export default function ValueMap({
           ${row("Violent", violentScore, violentRate)}
           ${row("Property", propertyScore, propertyRate)}
           ${row("ASB", asbScore, asbRate)}
+          ${highFootfall ? `<div style="font-size:10px;color:#9ca3af;margin-top:4px;border-top:1px solid rgba(0,0,0,0.08);padding-top:3px">⚠ High footfall area — rates vs. residents may be elevated</div>` : ""}
           ${propHtml}
         </div>`;
       popup.setLngLat(e.lngLat).setHTML(crimeHtml).addTo(map);
