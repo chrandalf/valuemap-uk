@@ -16,6 +16,8 @@ type CommuteOverlayMode = "off" | "on";
 type AgeOverlayMode = "off" | "on";
 type CrimeOverlayMode = "off" | "on" | "on_hide_cells";
 type CrimeCellMode = "off" | "on";
+type EpcFuelOverlayMode = "off" | "gas" | "electric" | "oil" | "lpg";
+type EpcPropAgeOverlayMode = "off" | "pre1900" | "1900_1950" | "1950_1980" | "1980_2000" | "post2000";
 type CrimeCellScale = "absolute" | "relative";
 type CrimeCellSubMode = "total" | "violent" | "property" | "asb";
 type VoteColorScale = "relative" | "absolute";
@@ -40,6 +42,8 @@ export type MapState = {
   crimeCellScale?: CrimeCellScale;
   crimeCellSubMode?: CrimeCellSubMode;
   voteColorScale?: VoteColorScale;
+  epcFuelOverlayMode?: EpcFuelOverlayMode;
+  epcPropAgeOverlayMode?: EpcPropAgeOverlayMode;
 };
 
 export type IndexPrefs = {
@@ -54,6 +58,10 @@ export type IndexPrefs = {
   ageWeight?: number;       // 0-10 importance (community age mix)
   ageDirection?: "young" | "old"; // prefer younger or older communities
   crimeWeight?: number;     // 0-10 importance (local crime safety)
+  epcFuelWeight?: number;       // 0-10 importance (heating fuel preference)
+  epcFuelPreference?: string;   // "gas" | "electric" | "oil" | "lpg" | "no_gas"
+  epcPropAgeWeight?: number;    // 0-10 importance (property age preference)
+  epcPropAgePreference?: string; // "pre1900" | "1900_1950" | "1950_1980" | "1980_2000" | "post2000"
   indexFilterMode?: "off" | "lte" | "gte";
   indexFilterThreshold?: number; // 0..1
 };
@@ -122,6 +130,19 @@ type ApiRow = {
   property_count?: number;
   asb_count?: number;
   total_count?: number;
+  // EPC heating fuel overlay
+  epc_n?: number;
+  pct_gas?: number;
+  pct_electric?: number;
+  pct_oil?: number;
+  pct_lpg?: number;
+  pct_other?: number;
+  // EPC property age overlay
+  pct_pre1900?: number;
+  pct_1900_1950?: number;
+  pct_1950_1980?: number;
+  pct_1980_2000?: number;
+  pct_post2000?: number;
 };
 
 function isDeltaMetric(metric: Metric) {
@@ -2352,7 +2373,7 @@ export default function ValueMap({
     // ── Index scoring breakdown popup ──
     if (indexPrefsRef.current) {
       const prefs = indexPrefsRef.current;
-      const totalPrefWeight = (prefs.affordWeight ?? 0) + (prefs.floodWeight ?? 0) + (prefs.schoolWeight ?? 0) + (prefs.primarySchoolWeight ?? 0) + (prefs.trainWeight ?? 0) + (prefs.ageWeight ?? 0) + (prefs.crimeWeight ?? 0);
+      const totalPrefWeight = (prefs.affordWeight ?? 0) + (prefs.floodWeight ?? 0) + (prefs.schoolWeight ?? 0) + (prefs.primarySchoolWeight ?? 0) + (prefs.trainWeight ?? 0) + (prefs.ageWeight ?? 0) + (prefs.crimeWeight ?? 0) + (prefs.epcFuelWeight ?? 0) + (prefs.epcPropAgeWeight ?? 0);
       if (totalPrefWeight === 0) {
         const html = `<div style="font-family:system-ui;font-size:12px;line-height:1.4;min-width:180px;max-width:220px;">
           <div style="font-weight:700;margin-bottom:6px;font-size:13px;">🗺️ No criteria set</div>
@@ -2422,6 +2443,16 @@ export default function ValueMap({
         if (prefs.coastWeight > 0)              html += wRow("🏖️ Coast",                 prefs.coastWeight,              bar(0.5, true));
         if ((prefs.ageWeight ?? 0) > 0) html += wRow(`👥 Community age (${(prefs.ageDirection ?? "young") === "old" ? "older" : "younger"})`, prefs.ageWeight!, bar(Number(p.ix_ag ?? 0.5), false));
         if ((prefs.crimeWeight ?? 0) > 0) html += wRow("🚔 Crime safety", prefs.crimeWeight!, bar(Number(p.ix_cr ?? 0.5), !Number.isFinite(Number(p.crime_local_score))));
+        if ((prefs.epcFuelWeight ?? 0) > 0) {
+          const fuelLabels: Record<string, string> = { gas: "Gas", electric: "Electric", oil: "Oil", lpg: "LPG", no_gas: "No gas" };
+          const fuelLabel = fuelLabels[prefs.epcFuelPreference ?? "gas"] ?? (prefs.epcFuelPreference ?? "gas");
+          html += wRow(`⚡ Heating fuel (${fuelLabel})`, prefs.epcFuelWeight!, bar(Number(p.ix_epc_fuel ?? 0.5), !Number.isFinite(Number(p.pct_gas))));
+        }
+        if ((prefs.epcPropAgeWeight ?? 0) > 0) {
+          const ageLabels: Record<string, string> = { pre1900: "Pre-1900", "1900_1950": "1900-1950", "1950_1980": "1950-1980", "1980_2000": "1980-2000", post2000: "Post-2000" };
+          const ageLabel = ageLabels[prefs.epcPropAgePreference ?? "post2000"] ?? (prefs.epcPropAgePreference ?? "post2000");
+          html += wRow(`🏗️ Property age (${ageLabel})`, prefs.epcPropAgeWeight!, bar(Number(p.ix_epc_age ?? 0.5), !Number.isFinite(Number(p.pct_post2000))));
+        }
         html += `</div>`;
         popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
         return;
@@ -3424,9 +3455,11 @@ export default function ValueMap({
     const scale = state.voteColorScale ?? "relative";
 
     const crimeCellMode = stateRef.current.crimeCellMode ?? "off";
+    const epcFuelMode = stateRef.current.epcFuelOverlayMode ?? "off";
+    const epcPropAgeMode = stateRef.current.epcPropAgeOverlayMode ?? "off";
     try {
-      if (crimeCellMode !== "off" || ageMode !== "off" || commuteMode !== "off") {
-        // Crime cell, age, or commute overlay takes priority — no-op, let those effects handle it
+      if (crimeCellMode !== "off" || epcFuelMode !== "off" || epcPropAgeMode !== "off" || ageMode !== "off" || commuteMode !== "off") {
+        // Higher-priority overlay takes precedence — no-op, let those effects handle it
       } else if (mode === "off") {
         void ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange, onStatsUpdateRef.current, easyColoursRef.current, !!indexPrefsRef.current);
       } else {
@@ -3444,9 +3477,11 @@ export default function ValueMap({
     const commuteMode = state.commuteOverlayMode ?? "off";
     const voteMode = stateRef.current.voteOverlayMode ?? "off";
     const crimeCellMode = stateRef.current.crimeCellMode ?? "off";
+    const epcFuelMode = stateRef.current.epcFuelOverlayMode ?? "off";
+    const epcPropAgeMode = stateRef.current.epcPropAgeOverlayMode ?? "off";
     try {
-      if (crimeCellMode !== "off") {
-        // Crime cell overlay takes priority — no-op
+      if (crimeCellMode !== "off" || epcFuelMode !== "off" || epcPropAgeMode !== "off") {
+        // Higher-priority overlay takes precedence — no-op
       } else if (commuteMode !== "off") {
         applyCommuteOverlayColorExpression(map, easyColoursRef.current);
       } else if (voteMode !== "off") {
@@ -3465,9 +3500,11 @@ export default function ValueMap({
     const commuteMode = stateRef.current.commuteOverlayMode ?? "off";
     const voteMode = stateRef.current.voteOverlayMode ?? "off";
     const crimeCellMode = stateRef.current.crimeCellMode ?? "off";
+    const epcFuelMode = stateRef.current.epcFuelOverlayMode ?? "off";
+    const epcPropAgeMode = stateRef.current.epcPropAgeOverlayMode ?? "off";
     try {
-      if (crimeCellMode !== "off") {
-        // Crime cell overlay takes priority — no-op
+      if (crimeCellMode !== "off" || epcFuelMode !== "off" || epcPropAgeMode !== "off") {
+        // Higher-priority overlay takes precedence — no-op
       } else if (ageMode !== "off") {
         applyAgeOverlayColorExpression(map, easyColoursRef.current);
       } else if (commuteMode !== "off") {
@@ -3485,6 +3522,8 @@ export default function ValueMap({
     const map = mapRef.current;
     if (!map || !map.getLayer("cells-fill")) return;
     const crimeMode = state.crimeCellMode ?? "off";
+    const epcFuelMode = stateRef.current.epcFuelOverlayMode ?? "off";
+    const epcPropAgeMode = stateRef.current.epcPropAgeOverlayMode ?? "off";
     const ageMode = stateRef.current.ageOverlayMode ?? "off";
     const commuteMode = stateRef.current.commuteOverlayMode ?? "off";
     const voteMode = stateRef.current.voteOverlayMode ?? "off";
@@ -3492,6 +3531,12 @@ export default function ValueMap({
       if (crimeMode !== "off") {
         applyCrimeCellOverlayColorExpression(map, state.crimeCellSubMode, state.crimeCellScale, easyColoursRef.current);
         onLegendChange?.(null); // hide house price legend while crime overlay is active
+      } else if (epcFuelMode !== "off") {
+        applyEpcFuelOverlayColorExpression(map, epcFuelMode, easyColoursRef.current);
+        onLegendChange?.(null);
+      } else if (epcPropAgeMode !== "off") {
+        applyEpcPropAgeOverlayColorExpression(map, epcPropAgeMode, easyColoursRef.current);
+        onLegendChange?.(null);
       } else if (ageMode !== "off") {
         applyAgeOverlayColorExpression(map, easyColoursRef.current);
       } else if (commuteMode !== "off") {
@@ -3504,16 +3549,81 @@ export default function ValueMap({
     } catch (e) { /* ignore */ }
   }, [state.crimeCellMode, state.crimeCellSubMode, state.crimeCellScale, onLegendChange]);
 
+  // EPC heating fuel overlay: apply/remove fuel composition colours on cells.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.getLayer("cells-fill")) return;
+    const crimeMode = stateRef.current.crimeCellMode ?? "off";
+    const epcFuelMode = state.epcFuelOverlayMode ?? "off";
+    const epcPropAgeMode = stateRef.current.epcPropAgeOverlayMode ?? "off";
+    const ageMode = stateRef.current.ageOverlayMode ?? "off";
+    const commuteMode = stateRef.current.commuteOverlayMode ?? "off";
+    const voteMode = stateRef.current.voteOverlayMode ?? "off";
+    try {
+      if (crimeMode !== "off") {
+        // Crime cell overlay takes priority — no-op
+      } else if (epcFuelMode !== "off") {
+        applyEpcFuelOverlayColorExpression(map, epcFuelMode, easyColoursRef.current);
+        onLegendChange?.(null);
+      } else if (epcPropAgeMode !== "off") {
+        applyEpcPropAgeOverlayColorExpression(map, epcPropAgeMode, easyColoursRef.current);
+        onLegendChange?.(null);
+      } else if (ageMode !== "off") {
+        applyAgeOverlayColorExpression(map, easyColoursRef.current);
+      } else if (commuteMode !== "off") {
+        applyCommuteOverlayColorExpression(map, easyColoursRef.current);
+      } else if (voteMode !== "off") {
+        applyVoteOverlayColorFromSource(map, stateRef.current.voteColorScale ?? "relative");
+      } else {
+        void ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange, onStatsUpdateRef.current, easyColoursRef.current, !!indexPrefsRef.current);
+      }
+    } catch (e) { /* ignore */ }
+  }, [state.epcFuelOverlayMode, onLegendChange]);
+
+  // EPC property age overlay: apply/remove construction age colours on cells.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.getLayer("cells-fill")) return;
+    const crimeMode = stateRef.current.crimeCellMode ?? "off";
+    const epcFuelMode = stateRef.current.epcFuelOverlayMode ?? "off";
+    const epcPropAgeMode = state.epcPropAgeOverlayMode ?? "off";
+    const ageMode = stateRef.current.ageOverlayMode ?? "off";
+    const commuteMode = stateRef.current.commuteOverlayMode ?? "off";
+    const voteMode = stateRef.current.voteOverlayMode ?? "off";
+    try {
+      if (crimeMode !== "off" || epcFuelMode !== "off") {
+        // Higher-priority overlay takes precedence — no-op
+      } else if (epcPropAgeMode !== "off") {
+        applyEpcPropAgeOverlayColorExpression(map, epcPropAgeMode, easyColoursRef.current);
+        onLegendChange?.(null);
+      } else if (ageMode !== "off") {
+        applyAgeOverlayColorExpression(map, easyColoursRef.current);
+      } else if (commuteMode !== "off") {
+        applyCommuteOverlayColorExpression(map, easyColoursRef.current);
+      } else if (voteMode !== "off") {
+        applyVoteOverlayColorFromSource(map, stateRef.current.voteColorScale ?? "relative");
+      } else {
+        void ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange, onStatsUpdateRef.current, easyColoursRef.current, !!indexPrefsRef.current);
+      }
+    } catch (e) { /* ignore */ }
+  }, [state.epcPropAgeOverlayMode, onLegendChange]);
+
   // Re-apply colour ramps whenever the easy-colours (colourblind) preference changes.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !map.getLayer("cells-fill")) return;
     const crimeMode = stateRef.current.crimeCellMode ?? "off";
+    const epcFuelMode = stateRef.current.epcFuelOverlayMode ?? "off";
+    const epcPropAgeMode = stateRef.current.epcPropAgeOverlayMode ?? "off";
     const ageMode = stateRef.current.ageOverlayMode ?? "off";
     const commuteMode = stateRef.current.commuteOverlayMode ?? "off";
     const voteMode = stateRef.current.voteOverlayMode ?? "off";
     if (crimeMode !== "off") {
       applyCrimeCellOverlayColorExpression(map, stateRef.current.crimeCellSubMode, stateRef.current.crimeCellScale, easyColours ?? false);
+    } else if (epcFuelMode !== "off") {
+      applyEpcFuelOverlayColorExpression(map, epcFuelMode, easyColours ?? false);
+    } else if (epcPropAgeMode !== "off") {
+      applyEpcPropAgeOverlayColorExpression(map, epcPropAgeMode, easyColours ?? false);
     } else if (ageMode !== "off") {
       applyAgeOverlayColorExpression(map, easyColours ?? false);
     } else if (commuteMode !== "off") {
@@ -3869,6 +3979,68 @@ function crimeCellColorExpression(subMode: CrimeCellSubMode | undefined, scale: 
 function applyCrimeCellOverlayColorExpression(map: maplibregl.Map, subMode: CrimeCellSubMode | undefined, scale: CrimeCellScale | undefined, easy = false) {
   if (map.getLayer("cells-fill")) {
     map.setPaintProperty("cells-fill", "fill-color", crimeCellColorExpression(subMode, scale, easy));
+  }
+}
+
+/** EPC fuel overlay: colour cells by % of the selected heating fuel type.
+ *  Low % → grey, high % → strong colour.
+ */
+function epcFuelColorExpression(fuelMode: EpcFuelOverlayMode, easy = false): any {
+  const fieldMap: Partial<Record<EpcFuelOverlayMode, string>> = {
+    gas:      "pct_gas",
+    electric: "pct_electric",
+    oil:      "pct_oil",
+    lpg:      "pct_lpg",
+  };
+  const field = fieldMap[fuelMode] ?? "pct_gas";
+  const colorMap: Partial<Record<EpcFuelOverlayMode, [string, string]>> = {
+    gas:      easy ? ["#f0f0f0", "#2166ac"] : ["#f7fbff", "#084594"],  // blue
+    electric: easy ? ["#f0f0f0", "#d6604d"] : ["#fff5eb", "#7f2704"],  // orange-red
+    oil:      easy ? ["#f0f0f0", "#4d9221"] : ["#f7fcf5", "#005a32"],  // green
+    lpg:      easy ? ["#f0f0f0", "#762a83"] : ["#f7f4f9", "#3f007d"],  // purple
+  };
+  const [lo, hi] = colorMap[fuelMode] ?? ["#f7fbff", "#084594"];
+  const pct = ["case", ["has", field], ["to-number", ["get", field]], -1] as any;
+  return ["interpolate", ["linear"], pct,
+    -1,  "#aaaaaa",  // no data
+     0,  lo,
+    50,  "#e5e7eb",
+   100,  hi,
+  ];
+}
+
+function applyEpcFuelOverlayColorExpression(map: maplibregl.Map, fuelMode: EpcFuelOverlayMode, easy = false) {
+  if (map.getLayer("cells-fill")) {
+    map.setPaintProperty("cells-fill", "fill-color", epcFuelColorExpression(fuelMode, easy));
+  }
+}
+
+/** EPC property age overlay: colour cells by % of the selected construction age band.
+ *  Low % → grey, high % → strong teal.
+ */
+function epcPropAgeColorExpression(ageMode: EpcPropAgeOverlayMode, easy = false): any {
+  const fieldMap: Partial<Record<EpcPropAgeOverlayMode, string>> = {
+    pre1900:   "pct_pre1900",
+    "1900_1950": "pct_1900_1950",
+    "1950_1980": "pct_1950_1980",
+    "1980_2000": "pct_1980_2000",
+    post2000:  "pct_post2000",
+  };
+  const field = fieldMap[ageMode] ?? "pct_post2000";
+  const lo = easy ? "#f0f0f0" : "#f7fcfd";
+  const hi = easy ? "#1d6a4b" : "#00441b";
+  const pct = ["case", ["has", field], ["to-number", ["get", field]], -1] as any;
+  return ["interpolate", ["linear"], pct,
+    -1,  "#aaaaaa",  // no data
+     0,  lo,
+    50,  "#e5e7eb",
+   100,  hi,
+  ];
+}
+
+function applyEpcPropAgeOverlayColorExpression(map: maplibregl.Map, ageMode: EpcPropAgeOverlayMode, easy = false) {
+  if (map.getLayer("cells-fill")) {
+    map.setPaintProperty("cells-fill", "fill-color", epcPropAgeColorExpression(ageMode, easy));
   }
 }
 
@@ -4625,6 +4797,10 @@ function buildIndexScoringSignature(prefs: IndexPrefs) {
     prefs.ageWeight ?? 0,
     prefs.ageDirection ?? "young",
     prefs.crimeWeight ?? 0,
+    prefs.epcFuelWeight ?? 0,
+    prefs.epcFuelPreference ?? "gas",
+    prefs.epcPropAgeWeight ?? 0,
+    prefs.epcPropAgePreference ?? "post2000",
   ].join("|");
 }
 
@@ -5158,7 +5334,42 @@ async function applyIndexScoring(
     }
     props.ix_cr = crimeScore;
 
-    // 7) Coast proximity (placeholder)
+    // 7) EPC heating fuel preference
+    let epcFuelScore = 0.5;
+    const epcFuelW = prefs.epcFuelWeight ?? 0;
+    if (epcFuelW > 0) {
+      const fuelPref = prefs.epcFuelPreference ?? "gas";
+      let rawFuelPct: number;
+      if (fuelPref === "no_gas") {
+        // "no_gas" = non-gas areas: score is % NOT on gas (1 - pct_gas/100)
+        const pctGas = Number(props.pct_gas ?? NaN);
+        rawFuelPct = Number.isFinite(pctGas) ? 100 - pctGas : NaN;
+      } else {
+        rawFuelPct = Number((props as any)[`pct_${fuelPref}`] ?? NaN);
+      }
+      if (Number.isFinite(rawFuelPct)) {
+        epcFuelScore = Math.max(0, Math.min(1, rawFuelPct / 100));
+      }
+      totalScore += epcFuelW * epcFuelScore;
+      totalWeight += epcFuelW;
+    }
+    props.ix_epc_fuel = epcFuelScore;
+
+    // 8) EPC property age preference
+    let epcPropAgeScore = 0.5;
+    const epcPropAgeW = prefs.epcPropAgeWeight ?? 0;
+    if (epcPropAgeW > 0) {
+      const agePref = prefs.epcPropAgePreference ?? "post2000";
+      const rawAgePct = Number((props as any)[`pct_${agePref}`] ?? NaN);
+      if (Number.isFinite(rawAgePct)) {
+        epcPropAgeScore = Math.max(0, Math.min(1, rawAgePct / 100));
+      }
+      totalScore += epcPropAgeW * epcPropAgeScore;
+      totalWeight += epcPropAgeW;
+    }
+    props.ix_epc_age = epcPropAgeScore;
+
+    // 9) Coast proximity (placeholder)
     if (prefs.coastWeight > 0) {
       totalScore += prefs.coastWeight * 0.5;
       totalWeight += prefs.coastWeight;

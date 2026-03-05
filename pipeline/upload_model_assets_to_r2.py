@@ -10,6 +10,7 @@ from tempfile import TemporaryDirectory
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from paths import (
+    MODEL_EPC_DIR,
     PUBLISH_CRIME_DIR,
     PUBLISH_FLOOD_DIR,
     PUBLISH_PROPERTY_DIR,
@@ -56,12 +57,14 @@ def collect_assets(
     property_dir: Path,
     stations_dir: Path,
     crime_dir: Path,
+    epc_dir: Path,
     include_vote: bool,
     include_schools: bool,
     include_flood: bool,
     include_property: bool,
     include_stations: bool,
     include_crime: bool,
+    include_epc: bool,
 ) -> list[Path]:
     files: list[Path] = []
     if include_vote:
@@ -102,6 +105,12 @@ def collect_assets(
             p = crime_dir / f"crime_cells_{grid}.json.gz"
             if p.exists():
                 files.append(p)
+    if include_epc:
+        for kind in ("fuel", "age"):
+            for grid in ("1km", "5km", "10km", "25km"):
+                p = epc_dir / f"epc_{kind}_cells_{grid}.json.gz"
+                if p.exists():
+                    files.append(p)
     return files
 
 
@@ -221,6 +230,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-flood", action="store_true", help="Skip flood asset uploads")
     parser.add_argument("--crime-dir", default=str(PUBLISH_CRIME_DIR), help="Staged crime assets directory")
     parser.add_argument("--skip-crime", action="store_true", help="Skip crime overlay upload")
+    parser.add_argument("--epc-dir", default=str(MODEL_EPC_DIR), help="EPC cell assets directory")
+    parser.add_argument("--skip-epc", action="store_true", help="Skip EPC cell upload")
     parser.add_argument(
         "--no-backup-before-upload",
         action="store_true",
@@ -243,6 +254,7 @@ def main() -> None:
     flood_dir = Path(args.flood_dir)
     property_dir = Path(args.property_dir)
     crime_dir = Path(args.crime_dir)
+    epc_dir = Path(args.epc_dir)
 
     include_vote = not args.skip_vote
     include_schools = not args.skip_schools
@@ -250,10 +262,11 @@ def main() -> None:
     include_flood = not args.skip_flood
     include_property = not args.skip_property
     include_crime = not args.skip_crime
+    include_epc = not args.skip_epc
     backup_before_upload = not args.no_backup_before_upload
     backup_dir = Path(args.backup_dir)
 
-    if not (include_vote or include_schools or include_stations or include_flood or include_property or include_crime):
+    if not (include_vote or include_schools or include_stations or include_flood or include_property or include_crime or include_epc):
         raise SystemExit("Nothing to upload. Enable at least one asset group.")
 
     files = collect_assets(
@@ -263,12 +276,14 @@ def main() -> None:
         property_dir,
         stations_dir,
         crime_dir,
+        epc_dir,
         include_vote,
         include_schools,
         include_flood,
         include_property,
         include_stations,
         include_crime,
+        include_epc,
     )
     missing = [str(path) for path in files if not path.exists()]
     if missing:

@@ -20,6 +20,8 @@ type CrimeCellSubMode = "total" | "violent" | "property" | "asb";
 type VoteOverlayMode = "off" | "on";
 type CommuteOverlayMode = "off" | "on";
 type AgeOverlayMode = "off" | "on";
+type EpcFuelOverlayMode = "off" | "gas" | "electric" | "oil" | "lpg";
+type EpcPropAgeOverlayMode = "off" | "pre1900" | "1900_1950" | "1950_1980" | "1980_2000" | "post2000";
 type VoteColorScale = "relative" | "absolute";
 type GridMode = "auto" | "manual";
 
@@ -35,6 +37,10 @@ type IndexScoringPrefs = {
   ageWeight?: number;
   ageDirection?: "young" | "old";
   crimeWeight?: number;
+  epcFuelWeight?: number;
+  epcFuelPreference?: string;
+  epcPropAgeWeight?: number;
+  epcPropAgePreference?: string;
 };
 
 type MapState = {
@@ -57,6 +63,8 @@ type MapState = {
   voteColorScale: VoteColorScale;
   commuteOverlayMode: CommuteOverlayMode;
   ageOverlayMode: AgeOverlayMode;
+  epcFuelOverlayMode: EpcFuelOverlayMode;
+  epcPropAgeOverlayMode: EpcPropAgeOverlayMode;
 };
 
 type OutcodeRank = {
@@ -212,6 +220,8 @@ export default function Home() {
       voteColorScale: "relative",
       commuteOverlayMode: "off",
       ageOverlayMode: "off",
+      epcFuelOverlayMode: "off",
+      epcPropAgeOverlayMode: "off",
     };
     if (typeof window === "undefined") return defaults;
     try {
@@ -267,6 +277,8 @@ export default function Home() {
         voteColorScale: voteScale === "absolute" ? "absolute" : defaults.voteColorScale,
         commuteOverlayMode: commute === "on" ? "on" : defaults.commuteOverlayMode,
         ageOverlayMode: age === "on" ? "on" : defaults.ageOverlayMode,
+        epcFuelOverlayMode: "off",
+        epcPropAgeOverlayMode: "off",
       };
     } catch {
       return defaults;
@@ -351,6 +363,10 @@ export default function Home() {
   const [indexAgeWeight, setIndexAgeWeight] = useState(0);
   const [indexAgeDirection, setIndexAgeDirection] = useState<"young" | "old">("young");
   const [indexCrimeWeight, setIndexCrimeWeight] = useState(0);
+  const [indexEpcFuelWeight, setIndexEpcFuelWeight] = useState(0);
+  const [indexEpcFuelPreference, setIndexEpcFuelPreference] = useState<string>("gas");
+  const [indexEpcPropAgeWeight, setIndexEpcPropAgeWeight] = useState(0);
+  const [indexEpcPropAgePreference, setIndexEpcPropAgePreference] = useState<string>("post2000");
   const [indexValidationError, setIndexValidationError] = useState<string | null>(null);
   const [indexApplied, setIndexApplied] = useState<IndexScoringPrefs>({
     budget: 300000,
@@ -393,6 +409,10 @@ export default function Home() {
       ageWeight: indexApplied.ageWeight ?? 0,
       ageDirection: indexApplied.ageDirection ?? "young",
       crimeWeight: indexApplied.crimeWeight ?? 0,
+      epcFuelWeight: indexApplied.epcFuelWeight ?? 0,
+      epcFuelPreference: indexApplied.epcFuelPreference ?? "gas",
+      epcPropAgeWeight: indexApplied.epcPropAgeWeight ?? 0,
+      epcPropAgePreference: indexApplied.epcPropAgePreference ?? "post2000",
       indexFilterMode: indexSuitabilityMode,
       indexFilterThreshold: indexSuitabilityThreshold / 100,
     };
@@ -424,6 +444,8 @@ export default function Home() {
     voteColorScale: "relative",
     commuteOverlayMode: "off",
     ageOverlayMode: "off",
+    epcFuelOverlayMode: "off",
+    epcPropAgeOverlayMode: "off",
   };
   const closeAllSubpanels = () => {
     setFiltersOpen(false);
@@ -464,6 +486,10 @@ export default function Home() {
     setIndexAgeWeight(0);
     setIndexAgeDirection("young");
     setIndexCrimeWeight(0);
+    setIndexEpcFuelWeight(0);
+    setIndexEpcFuelPreference("gas");
+    setIndexEpcPropAgeWeight(0);
+    setIndexEpcPropAgePreference("post2000");
     setIndexValidationError(null);
     setIndexApplied({
       budget: 300000,
@@ -476,6 +502,8 @@ export default function Home() {
       coastWeight: 0,
       ageWeight: 0,
       crimeWeight: 0,
+      epcFuelWeight: 0,
+      epcPropAgeWeight: 0,
     });
   };
 
@@ -959,8 +987,26 @@ export default function Home() {
       {!indexActive && state.ageOverlayMode === "on" && ageLegendContent}
       {!indexActive && state.ageOverlayMode !== "on" && state.commuteOverlayMode === "on" && commuteLegendContent}
       {!indexActive && state.ageOverlayMode !== "on" && state.commuteOverlayMode !== "on" && state.voteOverlayMode === "on" && voteLegendContent}
-      {!indexActive && state.ageOverlayMode !== "on" && state.commuteOverlayMode !== "on" && state.voteOverlayMode !== "on" && state.crimeCellMode === "on" && crimeCellLegendContent}
-      {!indexActive && state.ageOverlayMode !== "on" && state.commuteOverlayMode !== "on" && state.voteOverlayMode !== "on" && state.crimeCellMode !== "on" && (
+      {!indexActive && state.crimeCellMode === "on" && crimeCellLegendContent}
+      {!indexActive && state.crimeCellMode !== "on" && state.epcFuelOverlayMode !== "off" && (
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, opacity: 0.9 }}>
+          ⚡ Heating fuel — % {state.epcFuelOverlayMode === "gas" ? "Gas" : state.epcFuelOverlayMode === "electric" ? "Electric" : state.epcFuelOverlayMode === "oil" ? "Oil" : "LPG"}
+          <div style={{ marginTop: 6, display: "flex", height: 12, borderRadius: 6, overflow: "hidden" }}>
+            {["#e5e7eb", "#93c5fd", "#60a5fa", "#3b82f6", "#1d4ed8"].map((c, i) => <div key={i} style={{ flex: 1, backgroundColor: c }} />)}
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, opacity: 0.6, marginTop: 3 }}><span>0%</span><span>100%</span></div>
+        </div>
+      )}
+      {!indexActive && state.crimeCellMode !== "on" && state.epcFuelOverlayMode === "off" && state.epcPropAgeOverlayMode !== "off" && (
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, opacity: 0.9 }}>
+          🏗️ Property age — % {state.epcPropAgeOverlayMode === "pre1900" ? "Pre-1900" : state.epcPropAgeOverlayMode === "1900_1950" ? "1900-1950" : state.epcPropAgeOverlayMode === "1950_1980" ? "1950-1980" : state.epcPropAgeOverlayMode === "1980_2000" ? "1980-2000" : "Post-2000"}
+          <div style={{ marginTop: 6, display: "flex", height: 12, borderRadius: 6, overflow: "hidden" }}>
+            {["#e5e7eb", "#a7f3d0", "#6ee7b7", "#34d399", "#059669"].map((c, i) => <div key={i} style={{ flex: 1, backgroundColor: c }} />)}
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, opacity: 0.6, marginTop: 3 }}><span>0%</span><span>100%</span></div>
+        </div>
+      )}
+      {!indexActive && state.ageOverlayMode !== "on" && state.commuteOverlayMode !== "on" && state.voteOverlayMode !== "on" && state.crimeCellMode !== "on" && state.epcFuelOverlayMode === "off" && state.epcPropAgeOverlayMode === "off" && (
       <>
       <div className="legend-title" style={{ fontWeight: 600, marginBottom: 12, fontSize: 16, opacity: 0.9 }}>
         {state.metric === "median"
@@ -1110,7 +1156,7 @@ export default function Home() {
       ? "Off"
       : "On";
   const voteScaleLabel = state.voteColorScale === "relative" ? "Relative" : "Absolute";
-  const anyOverlayActive = state.floodOverlayMode !== "off" || state.schoolOverlayMode !== "off" || state.primarySchoolOverlayMode !== "off" || state.stationOverlayMode !== "off" || state.crimeOverlayMode !== "off" || state.crimeCellMode !== "off" || state.voteOverlayMode !== "off" || state.commuteOverlayMode !== "off" || state.ageOverlayMode !== "off";
+  const anyOverlayActive = state.floodOverlayMode !== "off" || state.schoolOverlayMode !== "off" || state.primarySchoolOverlayMode !== "off" || state.stationOverlayMode !== "off" || state.crimeOverlayMode !== "off" || state.crimeCellMode !== "off" || state.voteOverlayMode !== "off" || state.commuteOverlayMode !== "off" || state.ageOverlayMode !== "off" || state.epcFuelOverlayMode !== "off" || state.epcPropAgeOverlayMode !== "off";
 
   const currentFiltersSummary =
     `Grid: ${state.grid} · Metric: ${METRIC_LABEL[state.metric]} · ` +
@@ -1122,7 +1168,9 @@ export default function Home() {
     `Crime cells: ${state.crimeCellMode === "on" ? `On (${state.crimeCellSubMode})` : "Off"} · ` +
     `Vote overlay: ${voteOverlayLabel} (${voteScaleLabel}) · ` +
     `Commute: ${state.commuteOverlayMode === "on" ? "On" : "Off"} · ` +
-    `Age mix: ${state.ageOverlayMode === "on" ? "On" : "Off"}`;
+    `Age mix: ${state.ageOverlayMode === "on" ? "On" : "Off"} · ` +
+    `Heating fuel: ${state.epcFuelOverlayMode !== "off" ? state.epcFuelOverlayMode : "Off"} · ` +
+    `Property age: ${state.epcPropAgeOverlayMode !== "off" ? state.epcPropAgeOverlayMode : "Off"}`;
   const headerFilterSummary =
     `${state.grid} · ${METRIC_LABEL[state.metric]} · ${propertyTypeLabel(state.propertyType)} · ${NEWBUILD_LABEL[state.newBuild]} · ${periodLabel}`;
   const headerMedianSummary =
@@ -1288,7 +1336,7 @@ export default function Home() {
     setTourActive(true);
     setShowMePulse(false);
     // Reset map to default view
-    setState((s) => ({ ...s, grid: "5km", metric: "median", propertyType: "ALL", floodOverlayMode: "off", schoolOverlayMode: "off", primarySchoolOverlayMode: "off", stationOverlayMode: "off", crimeOverlayMode: "off", crimeCellMode: "off", voteOverlayMode: "off", commuteOverlayMode: "off", ageOverlayMode: "off" }));
+    setState((s) => ({ ...s, grid: "5km", metric: "median", propertyType: "ALL", floodOverlayMode: "off", schoolOverlayMode: "off", primarySchoolOverlayMode: "off", stationOverlayMode: "off", crimeOverlayMode: "off", crimeCellMode: "off", voteOverlayMode: "off", commuteOverlayMode: "off", ageOverlayMode: "off", epcFuelOverlayMode: "off", epcPropAgeOverlayMode: "off" }));
     const t = ++flyToSeqRef.current;
     setFlyToRequest({ center: [-1.5, 53.5], zoom: 5, token: t });
   }, []);
@@ -2231,6 +2279,32 @@ export default function Home() {
                       renderOption={(v) => v === "on" ? "On" : "Off"}
                     />
                   </div>
+
+                  {/* EPC heating fuel */}
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                    <div style={{ fontSize: 11, opacity: 0.8, width: 70, flexShrink: 0, paddingTop: 2 }}>⚡ Fuel type</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                      <Segment
+                        options={["off", "gas", "electric", "oil", "lpg"] as EpcFuelOverlayMode[]}
+                        value={state.epcFuelOverlayMode}
+                        onChange={(v) => setState((s) => ({ ...s, epcFuelOverlayMode: v as EpcFuelOverlayMode, ...(v !== "off" ? { crimeCellMode: "off" as CrimeCellMode, epcPropAgeOverlayMode: "off" as EpcPropAgeOverlayMode } : {}) }))}
+                        renderOption={(v) => v === "off" ? "Off" : v === "gas" ? "Gas" : v === "electric" ? "Electric" : v === "oil" ? "Oil" : "LPG"}
+                      />
+                    </div>
+                  </div>
+
+                  {/* EPC property age */}
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                    <div style={{ fontSize: 11, opacity: 0.8, width: 70, flexShrink: 0, paddingTop: 2 }}>🏗️ Prop age</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                      <Segment
+                        options={["off", "pre1900", "1900_1950", "1950_1980", "1980_2000", "post2000"] as EpcPropAgeOverlayMode[]}
+                        value={state.epcPropAgeOverlayMode}
+                        onChange={(v) => setState((s) => ({ ...s, epcPropAgeOverlayMode: v as EpcPropAgeOverlayMode, ...(v !== "off" ? { crimeCellMode: "off" as CrimeCellMode, epcFuelOverlayMode: "off" as EpcFuelOverlayMode } : {}) }))}
+                        renderOption={(v) => v === "off" ? "Off" : v === "pre1900" ? "Pre-1900" : v === "1900_1950" ? "1900-50" : v === "1950_1980" ? "1950-80" : v === "1980_2000" ? "1980-00" : "Post-00"}
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -2819,6 +2893,50 @@ export default function Home() {
                   })}
                 </div>
               </div>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", padding: "5px 0", borderBottom: "1px solid rgba(255,255,255,0.06)", flexDirection: "column", gap: 4 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, flex: "0 0 auto", minWidth: 100 }}>⚡ Heating fuel</span>
+                  <div style={{ display: "flex", gap: 3 }}>
+                    {([{ label: "Must", value: 10 }, { label: "Want", value: 6 }, { label: "Nice", value: 3 }, { label: "Off", value: 0 }] as const).map(({ label: lbl, value: v }) => {
+                      const active = [0, 3, 6, 10].reduce<number>((best, l) => Math.abs(indexEpcFuelWeight - l) < Math.abs(indexEpcFuelWeight - best) ? l : best, 10);
+                      return (
+                        <button key={v} type="button" onClick={() => setIndexEpcFuelWeight(v)} style={{ cursor: "pointer", padding: "3px 8px", borderRadius: 6, fontSize: 10, fontWeight: active === v ? 700 : 400, border: active === v ? "1.5px solid #38bdf8" : "1px solid rgba(255,255,255,0.13)", background: active === v ? "#38bdf830" : "rgba(255,255,255,0.04)", color: active === v ? "white" : "rgba(255,255,255,0.5)", lineHeight: 1.4, minWidth: 36, textAlign: "center" }}>{lbl}</button>
+                      );
+                    })}
+                  </div>
+                </div>
+                {indexEpcFuelWeight > 0 && (
+                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap", paddingLeft: 4 }}>
+                    {([["gas", "Gas"], ["electric", "Electric"], ["oil", "Oil"], ["lpg", "LPG"], ["no_gas", "No gas"]] as const).map(([val, lbl]) => (
+                      <button key={val} type="button" onClick={() => setIndexEpcFuelPreference(val)}
+                        style={{ cursor: "pointer", padding: "2px 7px", borderRadius: 6, fontSize: 10, fontWeight: indexEpcFuelPreference === val ? 700 : 400, border: indexEpcFuelPreference === val ? "1.5px solid #38bdf8" : "1px solid rgba(255,255,255,0.13)", background: indexEpcFuelPreference === val ? "#38bdf820" : "rgba(255,255,255,0.04)", color: indexEpcFuelPreference === val ? "white" : "rgba(255,255,255,0.5)", lineHeight: 1.4 }}
+                      >{lbl}</button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", padding: "5px 0", borderBottom: "1px solid rgba(255,255,255,0.06)", flexDirection: "column", gap: 4 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, flex: "0 0 auto", minWidth: 100 }}>🏗️ Property age</span>
+                  <div style={{ display: "flex", gap: 3 }}>
+                    {([{ label: "Must", value: 10 }, { label: "Want", value: 6 }, { label: "Nice", value: 3 }, { label: "Off", value: 0 }] as const).map(({ label: lbl, value: v }) => {
+                      const active = [0, 3, 6, 10].reduce<number>((best, l) => Math.abs(indexEpcPropAgeWeight - l) < Math.abs(indexEpcPropAgeWeight - best) ? l : best, 10);
+                      return (
+                        <button key={v} type="button" onClick={() => setIndexEpcPropAgeWeight(v)} style={{ cursor: "pointer", padding: "3px 8px", borderRadius: 6, fontSize: 10, fontWeight: active === v ? 700 : 400, border: active === v ? "1.5px solid #86efac" : "1px solid rgba(255,255,255,0.13)", background: active === v ? "#86efac30" : "rgba(255,255,255,0.04)", color: active === v ? "white" : "rgba(255,255,255,0.5)", lineHeight: 1.4, minWidth: 36, textAlign: "center" }}>{lbl}</button>
+                      );
+                    })}
+                  </div>
+                </div>
+                {indexEpcPropAgeWeight > 0 && (
+                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap", paddingLeft: 4 }}>
+                    {([["pre1900", "Pre-1900"], ["1900_1950", "1900-50"], ["1950_1980", "1950-80"], ["1980_2000", "1980-00"], ["post2000", "Post-2000"]] as const).map(([val, lbl]) => (
+                      <button key={val} type="button" onClick={() => setIndexEpcPropAgePreference(val)}
+                        style={{ cursor: "pointer", padding: "2px 7px", borderRadius: 6, fontSize: 10, fontWeight: indexEpcPropAgePreference === val ? 700 : 400, border: indexEpcPropAgePreference === val ? "1.5px solid #86efac" : "1px solid rgba(255,255,255,0.13)", background: indexEpcPropAgePreference === val ? "#86efac20" : "rgba(255,255,255,0.04)", color: indexEpcPropAgePreference === val ? "white" : "rgba(255,255,255,0.5)", lineHeight: 1.4 }}
+                      >{lbl}</button>
+                    ))}
+                  </div>
+                )}
+              </div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 0", opacity: 0.3 }}>
                 <span style={{ fontSize: 11, fontWeight: 600 }}>🏖️ Coast</span>
                 <span style={{ fontSize: 10, fontStyle: "italic" }}>coming soon</span>
@@ -2843,7 +2961,8 @@ export default function Home() {
                 onClick={() => {
                   // — Validate before scoring —
                   const totalW = indexAffordWeight + indexFloodWeight + indexSchoolWeight +
-                    indexPrimarySchoolWeight + indexTrainWeight + indexCoastWeight + indexAgeWeight + indexCrimeWeight;
+                    indexPrimarySchoolWeight + indexTrainWeight + indexCoastWeight + indexAgeWeight + indexCrimeWeight +
+                    indexEpcFuelWeight + indexEpcPropAgeWeight;
                   if (totalW === 0) {
                     setIndexValidationError("Please set at least one criterion above Off before scoring.");
                     return;
@@ -2866,6 +2985,10 @@ export default function Home() {
                     ageWeight: indexAgeWeight,
                     ageDirection: indexAgeDirection,
                     crimeWeight: indexCrimeWeight,
+                    epcFuelWeight: indexEpcFuelWeight,
+                    epcFuelPreference: indexEpcFuelPreference,
+                    epcPropAgeWeight: indexEpcPropAgeWeight,
+                    epcPropAgePreference: indexEpcPropAgePreference,
                   });
                   setGridMode("manual");
                   setState((s) => ({ ...s, grid: "1km" }));

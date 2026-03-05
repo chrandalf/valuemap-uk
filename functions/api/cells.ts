@@ -229,6 +229,32 @@ type CrimeCellRow = {
 
 type CrimeCellValue = Omit<CrimeCellRow, "gx" | "gy">;
 
+type EpcFuelCellRow = {
+  gx: number;
+  gy: number;
+  n: number;
+  pct_gas: number;
+  pct_electric: number;
+  pct_oil: number;
+  pct_lpg: number;
+  pct_other: number;
+};
+
+type EpcFuelCellValue = Omit<EpcFuelCellRow, "gx" | "gy">;
+
+type EpcPropAgeCellRow = {
+  gx: number;
+  gy: number;
+  n: number;
+  pct_pre1900: number;
+  pct_1900_1950: number;
+  pct_1950_1980: number;
+  pct_1980_2000: number;
+  pct_post2000: number;
+};
+
+type EpcPropAgeCellValue = Omit<EpcPropAgeCellRow, "gx" | "gy">;
+
 interface Env {
   R2?: R2Bucket;
   BRICKGRID_BUCKET?: R2Bucket;
@@ -670,6 +696,98 @@ async function getCachedCrimeLookup(env: Env, grid: GridKey): Promise<Map<string
   return lookup;
 }
 
+/* ---------- EPC fuel cell data ---------- */
+
+const EPC_FUEL_CACHE_BY_GRID: Partial<Record<GridKey, { lookup: Map<string, EpcFuelCellValue>; loadedAtMs: number }>> = {};
+
+function epcFuelKeyForGrid(grid: GridKey) {
+  switch (grid) {
+    case "1km":  return "epc_fuel_cells_1km.json.gz";
+    case "5km":  return "epc_fuel_cells_5km.json.gz";
+    case "10km": return "epc_fuel_cells_10km.json.gz";
+    case "25km": return "epc_fuel_cells_25km.json.gz";
+  }
+}
+
+async function getCachedEpcFuelLookup(env: Env, grid: GridKey): Promise<Map<string, EpcFuelCellValue> | null> {
+  const now = Date.now();
+  const cached = EPC_FUEL_CACHE_BY_GRID[grid];
+  if (cached && now - cached.loadedAtMs <= CACHE_TTL_MS) return cached.lookup;
+
+  const bucket = getBucket(env);
+  const key = epcFuelKeyForGrid(grid);
+  const obj = await bucket.get(key);
+  if (!obj) {
+    EPC_FUEL_CACHE_BY_GRID[grid] = { lookup: new Map(), loadedAtMs: Date.now() };
+    return null;
+  }
+
+  const gz = await obj.arrayBuffer();
+  const jsonText = await gunzipToString(gz);
+  const rows = JSON.parse(jsonText) as EpcFuelCellRow[];
+
+  const lookup = new Map<string, EpcFuelCellValue>();
+  for (const row of rows) {
+    lookup.set(`${row.gx}_${row.gy}`, {
+      n:            Number(row.n            ?? 0),
+      pct_gas:      Number(row.pct_gas      ?? 0),
+      pct_electric: Number(row.pct_electric ?? 0),
+      pct_oil:      Number(row.pct_oil      ?? 0),
+      pct_lpg:      Number(row.pct_lpg      ?? 0),
+      pct_other:    Number(row.pct_other    ?? 0),
+    });
+  }
+
+  EPC_FUEL_CACHE_BY_GRID[grid] = { lookup, loadedAtMs: Date.now() };
+  return lookup;
+}
+
+/* ---------- EPC property age cell data ---------- */
+
+const EPC_PROP_AGE_CACHE_BY_GRID: Partial<Record<GridKey, { lookup: Map<string, EpcPropAgeCellValue>; loadedAtMs: number }>> = {};
+
+function epcPropAgeKeyForGrid(grid: GridKey) {
+  switch (grid) {
+    case "1km":  return "epc_age_cells_1km.json.gz";
+    case "5km":  return "epc_age_cells_5km.json.gz";
+    case "10km": return "epc_age_cells_10km.json.gz";
+    case "25km": return "epc_age_cells_25km.json.gz";
+  }
+}
+
+async function getCachedEpcPropAgeLookup(env: Env, grid: GridKey): Promise<Map<string, EpcPropAgeCellValue> | null> {
+  const now = Date.now();
+  const cached = EPC_PROP_AGE_CACHE_BY_GRID[grid];
+  if (cached && now - cached.loadedAtMs <= CACHE_TTL_MS) return cached.lookup;
+
+  const bucket = getBucket(env);
+  const key = epcPropAgeKeyForGrid(grid);
+  const obj = await bucket.get(key);
+  if (!obj) {
+    EPC_PROP_AGE_CACHE_BY_GRID[grid] = { lookup: new Map(), loadedAtMs: Date.now() };
+    return null;
+  }
+
+  const gz = await obj.arrayBuffer();
+  const jsonText = await gunzipToString(gz);
+  const rows = JSON.parse(jsonText) as EpcPropAgeCellRow[];
+
+  const lookup = new Map<string, EpcPropAgeCellValue>();
+  for (const row of rows) {
+    lookup.set(`${row.gx}_${row.gy}`, {
+      n:             Number(row.n             ?? 0),
+      pct_pre1900:   Number(row.pct_pre1900   ?? 0),
+      pct_1900_1950: Number(row.pct_1900_1950 ?? 0),
+      pct_1950_1980: Number(row.pct_1950_1980 ?? 0),
+      pct_1980_2000: Number(row.pct_1980_2000 ?? 0),
+      pct_post2000:  Number(row.pct_post2000  ?? 0),
+    });
+  }
+
+  EPC_PROP_AGE_CACHE_BY_GRID[grid] = { lookup, loadedAtMs: Date.now() };
+  return lookup;
+}
+
 /** Fetch vote/commute/age/country lookups in parallel, then enrich rows in a single pass. */
 async function backfillAll(env: Env, grid: GridKey, rows: CellRow[]): Promise<CellRow[]> {
   // vote_cells_1km.json.gz is ~2 MB compressed / ~20 MB uncompressed — loading it
@@ -682,12 +800,14 @@ async function backfillAll(env: Env, grid: GridKey, rows: CellRow[]): Promise<Ce
     ? Promise.resolve(null)
     : getCachedVoteLookup(env, grid).catch(() => null);
 
-  const [voteLookup, countryLookup, commuteLookup, ageLookup, crimeLookup] = await Promise.all([
+  const [voteLookup, countryLookup, commuteLookup, ageLookup, crimeLookup, epcFuelLookup, epcPropAgeLookup] = await Promise.all([
     votePromise,
     getCachedCountryLookup(env, grid).catch(() => null),
     getCachedCommuteLookup(env, grid).catch(() => null),
     getCachedAgeLookup(env, grid).catch(() => null),
     getCachedCrimeLookup(env, grid).catch(() => null),
+    getCachedEpcFuelLookup(env, grid).catch(() => null),
+    getCachedEpcPropAgeLookup(env, grid).catch(() => null),
   ]);
 
   return rows.map((row) => {
@@ -747,6 +867,25 @@ async function backfillAll(env: Env, grid: GridKey, rows: CellRow[]): Promise<Ce
       violent_local_score:  crime.violent_local_score,
       property_local_score: crime.property_local_score,
       asb_local_score:      crime.asb_local_score,
+    };
+
+    const epcFuel = epcFuelLookup?.get(key);
+    if (epcFuel) out = { ...out,
+      epc_n:        epcFuel.n,
+      pct_gas:      epcFuel.pct_gas,
+      pct_electric: epcFuel.pct_electric,
+      pct_oil:      epcFuel.pct_oil,
+      pct_lpg:      epcFuel.pct_lpg,
+      pct_other:    epcFuel.pct_other,
+    };
+
+    const epcPropAge = epcPropAgeLookup?.get(key);
+    if (epcPropAge) out = { ...out,
+      pct_pre1900:   epcPropAge.pct_pre1900,
+      pct_1900_1950: epcPropAge.pct_1900_1950,
+      pct_1950_1980: epcPropAge.pct_1950_1980,
+      pct_1980_2000: epcPropAge.pct_1980_2000,
+      pct_post2000:  epcPropAge.pct_post2000,
     };
 
     return out;

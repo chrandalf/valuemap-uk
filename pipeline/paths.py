@@ -78,6 +78,9 @@ RAW_CENSUS_AGE_LSOA = RAW_CENSUS_DIR / "ts007a_age_lsoa21.csv"
 MODEL_CENSUS_COMMUTE_CELLS_TEMPLATE = MODEL_CENSUS_DIR / "commute_cells_{grid}.json.gz"
 MODEL_CENSUS_AGE_CELLS_TEMPLATE = MODEL_CENSUS_DIR / "age_cells_{grid}.json.gz"
 
+MODEL_EPC_FUEL_CELLS_TEMPLATE = MODEL_EPC_DIR / "epc_fuel_cells_{grid}.json.gz"
+MODEL_EPC_AGE_CELLS_TEMPLATE  = MODEL_EPC_DIR / "epc_age_cells_{grid}.json.gz"
+
 MODEL_VOTE_BLOCKS_BY_CONSTITUENCY_CSV = MODEL_VOTE_DIR / "ge2024_vote_blocks_by_constituency.csv"
 MODEL_VOTE_BLOCKS_MAP_GEOJSON = MODEL_VOTE_DIR / "ge2024_vote_blocks_map.geojson"
 
