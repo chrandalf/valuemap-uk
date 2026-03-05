@@ -2012,6 +2012,11 @@ export default function Home() {
                   >
                     ☕ Buy me a coffee
                   </a>
+                  <div style={{ padding: "4px 14px 8px" }}>
+                    <a href="https://www.producthunt.com/products/uk-house-price-map?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-uk-house-price-map" target="_blank" rel="noopener noreferrer">
+                      <img alt="UK House Price Map - Reverse Rightmove | Product Hunt" width={180} height={39} src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1090451&theme=light&t=1772703310897" style={{ display: "block" }} />
+                    </a>
+                  </div>
                   {supporterNames.length > 0 && (
                     <div style={{ padding: "2px 14px 7px", fontSize: 9, opacity: 0.55, lineHeight: 1.3 }}>
                       Thanks: {supporterNames.slice(0, 6).join(", ")}
