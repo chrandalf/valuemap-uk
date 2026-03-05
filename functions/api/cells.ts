@@ -790,17 +790,18 @@ async function getCachedEpcPropAgeLookup(env: Env, grid: GridKey): Promise<Map<s
 
 /** Fetch vote/commute/age/country lookups in parallel, then enrich rows in a single pass. */
 async function backfillAll(env: Env, grid: GridKey, rows: CellRow[]): Promise<CellRow[]> {
-  // Per-grid overlay budget.  Cloudflare Workers have ~128 MB memory and tight
-  // CPU limits.  Decompressed overlay JSON can be very large, so we hard-skip
-  // overlays that would push the isolate over the limit:
-  //   1km – skip vote (~73 MB).  Loads commute+age+EPC+crime+country ≈ 65 MB
-  //         (crime 1km file is slimmed to 10 fields / ~18 MB).
-  //   10km/25km/5km – load everything (5km total is ~53 MB with all overlays).
-  // Country is always loaded (tiny, needed for flood/school scoring).
-  const skipVote  = grid === "1km";
+  // vote_cells_1km.json.gz is ~2 MB compressed / ~20 MB uncompressed — loading it
+  // alongside a large 1km partition on a cold isolate reliably hits the Worker CPU
+  // time limit, so we skip vote overlay for 1km.
+  // Country is always sourced from the dedicated slim country_cells_{grid}.json.gz
+  // file (44 KB for 1km, <5 KB for other grids) rather than from the vote file,
+  // so it remains available for flood/school scoring regardless of vote load status.
+  const votePromise = grid === "1km"
+    ? Promise.resolve(null)
+    : getCachedVoteLookup(env, grid).catch(() => null);
 
   const [voteLookup, countryLookup, commuteLookup, ageLookup, crimeLookup, epcFuelLookup, epcPropAgeLookup] = await Promise.all([
-    skipVote  ? Promise.resolve(null) : getCachedVoteLookup(env, grid).catch(() => null),
+    votePromise,
     getCachedCountryLookup(env, grid).catch(() => null),
     getCachedCommuteLookup(env, grid).catch(() => null),
     getCachedAgeLookup(env, grid).catch(() => null),
