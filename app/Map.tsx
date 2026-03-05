@@ -3986,26 +3986,43 @@ function applyCrimeCellOverlayColorExpression(map: maplibregl.Map, subMode: Crim
  *  Low % → grey, high % → strong colour.
  */
 function epcFuelColorExpression(fuelMode: EpcFuelOverlayMode, easy = false): any {
-  const fieldMap: Partial<Record<EpcFuelOverlayMode, string>> = {
-    gas:      "pct_gas",
-    electric: "pct_electric",
-    oil:      "pct_oil",
-    lpg:      "pct_lpg",
+  if (fuelMode === "off") return "#cccccc";
+  // Realistic caps: gas peaks ~90%, electric ~50%, oil ~70%, lpg ~25%
+  type FuelKey = Exclude<EpcFuelOverlayMode, "off">;
+  const configs: Record<FuelKey, { field: string; stops: [number, string][] }> = {
+    gas: {
+      field: "pct_gas",
+      stops: easy
+        ? [[0, "#dbeafe"], [30, "#93c5fd"], [60, "#3b82f6"], [90, "#1e40af"]]
+        : [[0, "#bfdbfe"], [25, "#60a5fa"], [55, "#2563eb"], [90, "#1e3a8a"]],
+    },
+    electric: {
+      field: "pct_electric",
+      stops: easy
+        ? [[0, "#fef3c7"], [15, "#fcd34d"], [30, "#f59e0b"], [50, "#b45309"]]
+        : [[0, "#fde68a"], [15, "#f59e0b"], [30, "#d97706"], [50, "#92400e"]],
+    },
+    oil: {
+      field: "pct_oil",
+      stops: easy
+        ? [[0, "#dcfce7"], [20, "#86efac"], [45, "#22c55e"], [70, "#15803d"]]
+        : [[0, "#bbf7d0"], [20, "#4ade80"], [45, "#16a34a"], [70, "#14532d"]],
+    },
+    lpg: {
+      field: "pct_lpg",
+      stops: easy
+        ? [[0, "#f3e8ff"], [8, "#c084fc"], [15, "#a855f7"], [25, "#6b21a8"]]
+        : [[0, "#e9d5ff"], [8, "#a855f7"], [15, "#7e22ce"], [25, "#4c1d95"]],
+    },
   };
-  const field = fieldMap[fuelMode] ?? "pct_gas";
-  const colorMap: Partial<Record<EpcFuelOverlayMode, [string, string]>> = {
-    gas:      easy ? ["#f0f0f0", "#2166ac"] : ["#f7fbff", "#084594"],  // blue
-    electric: easy ? ["#f0f0f0", "#d6604d"] : ["#fff5eb", "#7f2704"],  // orange-red
-    oil:      easy ? ["#f0f0f0", "#4d9221"] : ["#f7fcf5", "#005a32"],  // green
-    lpg:      easy ? ["#f0f0f0", "#762a83"] : ["#f7f4f9", "#3f007d"],  // purple
-  };
-  const [lo, hi] = colorMap[fuelMode] ?? ["#f7fbff", "#084594"];
-  const pct = ["case", ["has", field], ["to-number", ["get", field]], -1] as any;
-  return ["interpolate", ["linear"], pct,
-    -1,  "#aaaaaa",  // no data
-     0,  lo,
-    50,  "#e5e7eb",
-   100,  hi,
+  const { field, stops } = configs[fuelMode as FuelKey];
+  const pctExpr = ["to-number", ["get", field]] as any;
+  const interpArgs: any[] = [];
+  for (const [val, color] of stops) { interpArgs.push(val, color); }
+  return ["case",
+    ["has", field],
+    ["interpolate", ["linear"], pctExpr, ...interpArgs],
+    "#aaaaaa",
   ];
 }
 
@@ -4016,25 +4033,52 @@ function applyEpcFuelOverlayColorExpression(map: maplibregl.Map, fuelMode: EpcFu
 }
 
 /** EPC property age overlay: colour cells by % of the selected construction age band.
- *  Low % → grey, high % → strong teal.
+ *  Realistic caps per band since most areas never reach 100% in any single band.
  */
 function epcPropAgeColorExpression(ageMode: EpcPropAgeOverlayMode, easy = false): any {
-  const fieldMap: Partial<Record<EpcPropAgeOverlayMode, string>> = {
-    pre1900:   "pct_pre1900",
-    "1900_1950": "pct_1900_1950",
-    "1950_1980": "pct_1950_1980",
-    "1980_2000": "pct_1980_2000",
-    post2000:  "pct_post2000",
+  if (ageMode === "off") return "#cccccc";
+  type AgeKey = Exclude<EpcPropAgeOverlayMode, "off">;
+  // Caps: pre1900≈40%, 1900-50≈50%, 1950-80≈65% (dominant band), 1980-00≈45%, post2000≈35%
+  const configs: Record<AgeKey, { field: string; stops: [number, string][] }> = {
+    pre1900: {
+      field: "pct_pre1900",
+      stops: easy
+        ? [[0, "#d1fae5"], [10, "#6ee7b7"], [25, "#10b981"], [40, "#065f46"]]
+        : [[0, "#ccfbf1"], [10, "#2dd4bf"], [25, "#0d9488"], [40, "#134e4a"]],
+    },
+    "1900_1950": {
+      field: "pct_1900_1950",
+      stops: easy
+        ? [[0, "#d1fae5"], [15, "#6ee7b7"], [30, "#10b981"], [50, "#065f46"]]
+        : [[0, "#ccfbf1"], [15, "#2dd4bf"], [30, "#0d9488"], [50, "#134e4a"]],
+    },
+    "1950_1980": {
+      field: "pct_1950_1980",
+      stops: easy
+        ? [[0, "#d1fae5"], [20, "#6ee7b7"], [42, "#10b981"], [65, "#065f46"]]
+        : [[0, "#ccfbf1"], [20, "#2dd4bf"], [42, "#0d9488"], [65, "#134e4a"]],
+    },
+    "1980_2000": {
+      field: "pct_1980_2000",
+      stops: easy
+        ? [[0, "#d1fae5"], [12, "#6ee7b7"], [28, "#10b981"], [45, "#065f46"]]
+        : [[0, "#ccfbf1"], [12, "#2dd4bf"], [28, "#0d9488"], [45, "#134e4a"]],
+    },
+    post2000: {
+      field: "pct_post2000",
+      stops: easy
+        ? [[0, "#d1fae5"], [10, "#6ee7b7"], [22, "#10b981"], [35, "#065f46"]]
+        : [[0, "#ccfbf1"], [10, "#2dd4bf"], [22, "#0d9488"], [35, "#134e4a"]],
+    },
   };
-  const field = fieldMap[ageMode] ?? "pct_post2000";
-  const lo = easy ? "#f0f0f0" : "#f7fcfd";
-  const hi = easy ? "#1d6a4b" : "#00441b";
-  const pct = ["case", ["has", field], ["to-number", ["get", field]], -1] as any;
-  return ["interpolate", ["linear"], pct,
-    -1,  "#aaaaaa",  // no data
-     0,  lo,
-    50,  "#e5e7eb",
-   100,  hi,
+  const { field, stops } = configs[ageMode as AgeKey];
+  const pctExpr = ["to-number", ["get", field]] as any;
+  const interpArgs: any[] = [];
+  for (const [val, color] of stops) { interpArgs.push(val, color); }
+  return ["case",
+    ["has", field],
+    ["interpolate", ["linear"], pctExpr, ...interpArgs],
+    "#aaaaaa",
   ];
 }
 

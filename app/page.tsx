@@ -992,18 +992,31 @@ export default function Home() {
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, opacity: 0.9 }}>
           ⚡ Heating fuel — % {state.epcFuelOverlayMode === "gas" ? "Gas" : state.epcFuelOverlayMode === "electric" ? "Electric" : state.epcFuelOverlayMode === "oil" ? "Oil" : "LPG"}
           <div style={{ marginTop: 6, display: "flex", height: 12, borderRadius: 6, overflow: "hidden" }}>
-            {["#e5e7eb", "#93c5fd", "#60a5fa", "#3b82f6", "#1d4ed8"].map((c, i) => <div key={i} style={{ flex: 1, backgroundColor: c }} />)}
+            {(state.epcFuelOverlayMode === "gas"
+              ? ["#bfdbfe", "#60a5fa", "#2563eb", "#1e3a8a"]
+              : state.epcFuelOverlayMode === "electric"
+              ? ["#fde68a", "#f59e0b", "#d97706", "#92400e"]
+              : state.epcFuelOverlayMode === "oil"
+              ? ["#bbf7d0", "#4ade80", "#16a34a", "#14532d"]
+              : ["#e9d5ff", "#a855f7", "#7e22ce", "#4c1d95"]
+            ).map((c, i) => <div key={i} style={{ flex: 1, backgroundColor: c }} />)}
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, opacity: 0.6, marginTop: 3 }}><span>0%</span><span>100%</span></div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, opacity: 0.6, marginTop: 3 }}>
+            <span>0%</span>
+            <span>{state.epcFuelOverlayMode === "gas" ? "90%" : state.epcFuelOverlayMode === "electric" ? "50%" : state.epcFuelOverlayMode === "oil" ? "70%" : "25%"}</span>
+          </div>
         </div>
       )}
       {!indexActive && state.crimeCellMode !== "on" && state.epcFuelOverlayMode === "off" && state.epcPropAgeOverlayMode !== "off" && (
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, opacity: 0.9 }}>
           🏗️ Property age — % {state.epcPropAgeOverlayMode === "pre1900" ? "Pre-1900" : state.epcPropAgeOverlayMode === "1900_1950" ? "1900-1950" : state.epcPropAgeOverlayMode === "1950_1980" ? "1950-1980" : state.epcPropAgeOverlayMode === "1980_2000" ? "1980-2000" : "Post-2000"}
           <div style={{ marginTop: 6, display: "flex", height: 12, borderRadius: 6, overflow: "hidden" }}>
-            {["#e5e7eb", "#a7f3d0", "#6ee7b7", "#34d399", "#059669"].map((c, i) => <div key={i} style={{ flex: 1, backgroundColor: c }} />)}
+            {["#ccfbf1", "#2dd4bf", "#0d9488", "#134e4a"].map((c, i) => <div key={i} style={{ flex: 1, backgroundColor: c }} />)}
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, opacity: 0.6, marginTop: 3 }}><span>0%</span><span>100%</span></div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, opacity: 0.6, marginTop: 3 }}>
+            <span>0%</span>
+            <span>{state.epcPropAgeOverlayMode === "1950_1980" ? "65%" : state.epcPropAgeOverlayMode === "1900_1950" ? "50%" : state.epcPropAgeOverlayMode === "1980_2000" ? "45%" : state.epcPropAgeOverlayMode === "pre1900" ? "40%" : "35%"}</span>
+          </div>
         </div>
       )}
       {!indexActive && state.ageOverlayMode !== "on" && state.commuteOverlayMode !== "on" && state.voteOverlayMode !== "on" && state.crimeCellMode !== "on" && state.epcFuelOverlayMode === "off" && state.epcPropAgeOverlayMode === "off" && (
