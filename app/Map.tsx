@@ -3430,7 +3430,7 @@ export default function ValueMap({
       abortController.abort();
       if (requestSeqRef.current === seq) setIsLoading(false);
     };
-  }, [state.grid, state.propertyType, state.newBuild, state.endMonth, state.metric, state.voteOverlayMode, state.commuteOverlayMode]);
+  }, [state.grid, state.propertyType, state.newBuild, state.endMonth, state.metric, state.voteOverlayMode, state.commuteOverlayMode, state.ageOverlayMode, state.crimeOverlayMode, state.epcFuelOverlayMode, state.epcPropAgeOverlayMode]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -4411,6 +4411,25 @@ function schoolQualityColorExpression(easy = false) {
   ] as any;
 }
 
+/** Pick which overlays the Worker should load for 1km.
+ *  At 1km the Worker can handle ~20-25 MB of decompressed overlay JSON before
+ *  hitting Cloudflare CPU/memory limits.  We request the currently active
+ *  overlay family so the user sees data; default is commute+age (the classic
+ *  set that was always loaded).  Country is always added server-side. */
+function getActiveOverlaysFor1km(state: MapState): string[] {
+  const active: string[] = [];
+  if ((state.commuteOverlayMode ?? "off") !== "off") active.push("commute");
+  if ((state.ageOverlayMode ?? "off") !== "off") active.push("age");
+  if ((state.epcFuelOverlayMode ?? "off") !== "off" || (state.epcPropAgeOverlayMode ?? "off") !== "off") {
+    active.push("epc_fuel", "epc_age");
+  }
+  if ((state.crimeOverlayMode ?? "off") !== "off") active.push("crime");
+  if ((state.voteOverlayMode ?? "off") !== "off") active.push("vote");
+  // Default: commute + age (matches pre-overlay-param behaviour)
+  if (active.length === 0) active.push("commute", "age");
+  return [...new Set(active)];
+}
+
 async function setRealData(
   map: maplibregl.Map,
   state: MapState,
@@ -4426,7 +4445,11 @@ async function setRealData(
   const endpoint = isDelta ? "/api/deltas" : "/api/cells";
 
   const endMonth = isDelta ? undefined : state.endMonth ?? "LATEST";
-  const cacheKey = `${state.grid}|${state.propertyType}|${state.newBuild}|${state.metric}|${endMonth ?? "LATEST"}|${VOTE_CELLS_DATA_VERSION}`;
+
+  // For 1km, determine which overlays to request (keeps Worker within CPU/memory budget)
+  const overlays1km = state.grid === "1km" ? getActiveOverlaysFor1km(state) : null;
+  const overlayKey = overlays1km ? overlays1km.sort().join(",") : "";
+  const cacheKey = `${state.grid}|${state.propertyType}|${state.newBuild}|${state.metric}|${endMonth ?? "LATEST"}|${VOTE_CELLS_DATA_VERSION}|${overlayKey}`;
   const cached = cache.get(cacheKey);
   if (cached) {
     const src = map.getSource("cells") as maplibregl.GeoJSONSource;
@@ -4462,6 +4485,11 @@ async function setRealData(
   }
   qs.set("voteDataVersion", VOTE_CELLS_DATA_VERSION);
 
+  // At 1km, tell the Worker which overlays to load to stay within limits
+  if (overlays1km) {
+    qs.set("overlays", overlays1km.join(","));
+  }
+
   const res = await fetch(`${endpoint}?${qs.toString()}`, { signal });
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
@@ -4481,6 +4509,10 @@ async function setRealData(
   const fc = rowsToGeoJsonSquares(rows, gridToMeters(state.grid));
 
   cache.set(cacheKey, fc);
+  // Also store under the base key (without overlay suffix) so that
+  // ensureAggregatesAndUpdate can find it for quantile-break computation.
+  const baseKey = `${state.grid}|${state.propertyType}|${state.newBuild}|${state.metric}|${endMonth ?? "LATEST"}|${VOTE_CELLS_DATA_VERSION}`;
+  cache.set(baseKey, fc);
 
   const src = map.getSource("cells") as maplibregl.GeoJSONSource;
   src.setData(fc as any);
