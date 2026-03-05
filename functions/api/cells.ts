@@ -800,12 +800,23 @@ async function backfillAll(env: Env, grid: GridKey, rows: CellRow[]): Promise<Ce
     ? Promise.resolve(null)
     : getCachedVoteLookup(env, grid).catch(() => null);
 
-  const [voteLookup, countryLookup, commuteLookup, ageLookup, crimeLookup, epcFuelLookup, epcPropAgeLookup] = await Promise.all([
+  // Load the main lookups first. For 1km, the crime file is stored as ~33 MB of
+  // plain JSON in R2 (ContentEncoding artefact): loading it concurrently with the
+  // EPC files (~8–9 MB decompressed each) can push peak Worker memory over the
+  // limit, causing EPC to silently return null via the .catch(). By awaiting the
+  // main batch before starting EPC we avoid that spike on cold-isolate starts.
+  const [voteLookup, countryLookup, commuteLookup, ageLookup, crimeLookup] = await Promise.all([
     votePromise,
     getCachedCountryLookup(env, grid).catch(() => null),
     getCachedCommuteLookup(env, grid).catch(() => null),
     getCachedAgeLookup(env, grid).catch(() => null),
     getCachedCrimeLookup(env, grid).catch(() => null),
+  ]);
+
+  // Load EPC lookups in a separate batch so their R2 reads + decompression
+  // happen after the main lookups are fully parsed and their raw JSON strings
+  // have been freed. Both EPC files start fetching in parallel with each other.
+  const [epcFuelLookup, epcPropAgeLookup] = await Promise.all([
     getCachedEpcFuelLookup(env, grid).catch(() => null),
     getCachedEpcPropAgeLookup(env, grid).catch(() => null),
   ]);
