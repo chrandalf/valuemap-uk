@@ -12,14 +12,6 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   const endMonthParam = (url.searchParams.get("endMonth") ?? "LATEST").toUpperCase();
   const minTxCount = Math.max(1, Number.parseInt(url.searchParams.get("minTxCount") ?? "3", 10) || 3);
 
-  // ---- overlay selection ----
-  // Client can specify which overlays to load via comma-separated list.
-  // If omitted the Worker loads all overlays that fit within its CPU budget.
-  const overlaysParam = url.searchParams.get("overlays");
-  const requestedOverlays: Set<string> | null = overlaysParam
-    ? new Set(overlaysParam.split(",").map(s => s.trim()).filter(Boolean))
-    : null;
-
   if (!isGridKey(grid)) {
     return Response.json("Invalid grid. Use 1km|5km|10km|25km", { status: 400 });
   }
@@ -48,7 +40,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     const manifest = await getManifest(env, grid, metric);
     if (!manifest) {
       // Fall back to legacy monolithic path
-      return await legacyHandler(env, grid, metric, canonicalPropertyType, propertyTypes, newBuild, endMonthParam, minTxCount, requestedOverlays);
+      return await legacyHandler(env, grid, metric, canonicalPropertyType, propertyTypes, newBuild, endMonthParam, minTxCount);
     }
     const months = [...new Set(manifest.partitions.map((p: any) => p.end_month as string))].sort();
     endMonth = months[months.length - 1] as string;
@@ -66,7 +58,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     const cachedMerged = PARTITION_CACHE.get(mergedCacheKey);
     if (cachedMerged && now - cachedMerged.loadedAtMs <= CACHE_TTL_MS) {
       const rows = applyFilters(cachedMerged.rows, minTxCount, metric);
-      const enriched = await backfillAll(env, grid, rows, requestedOverlays);
+      const enriched = await backfillAll(env, grid, rows);
       return jsonResponse({ grid, metric, end_month: endMonth, propertyType: canonicalPropertyType, newBuild, minTxCount, count: enriched.length, rows: enriched });
     }
 
@@ -77,13 +69,13 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     );
     const validPartitions = partitionResults.filter((p): p is CellRow[] => p !== null);
     if (validPartitions.length === 0) {
-      return await legacyHandler(env, grid, metric, canonicalPropertyType, propertyTypes, newBuild, endMonth, minTxCount, requestedOverlays);
+      return await legacyHandler(env, grid, metric, canonicalPropertyType, propertyTypes, newBuild, endMonth, minTxCount);
     }
 
     const rawMerged = mergePartitionRows(validPartitions);
     PARTITION_CACHE.set(mergedCacheKey, { rows: rawMerged, loadedAtMs: Date.now() });
     const rows = applyFilters(rawMerged, minTxCount, metric);
-    const enriched = await backfillAll(env, grid, rows, requestedOverlays);
+    const enriched = await backfillAll(env, grid, rows);
     return jsonResponse({ grid, metric, end_month: endMonth, propertyType: canonicalPropertyType, newBuild, minTxCount, count: enriched.length, rows: enriched });
   }
 
@@ -95,7 +87,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   const cached = PARTITION_CACHE.get(partitionKey);
   if (cached && now - cached.loadedAtMs <= CACHE_TTL_MS) {
     const rows = applyFilters(cached.rows, minTxCount, metric);
-    const enriched = await backfillAll(env, grid, rows, requestedOverlays);
+    const enriched = await backfillAll(env, grid, rows);
     return jsonResponse({ grid, metric, end_month: endMonth, propertyType: canonicalPropertyType, newBuild, minTxCount, count: enriched.length, rows: enriched });
   }
 
@@ -104,7 +96,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
 
   if (!obj) {
     // Partition not found — try legacy monolithic file as fallback
-    return await legacyHandler(env, grid, metric, canonicalPropertyType, propertyTypes, newBuild, endMonth, minTxCount, requestedOverlays);
+    return await legacyHandler(env, grid, metric, canonicalPropertyType, propertyTypes, newBuild, endMonth, minTxCount);
   }
 
   const gz = await obj.arrayBuffer();
@@ -115,7 +107,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   PARTITION_CACHE.set(partitionKey, { rows: rawRows, loadedAtMs: Date.now() });
 
   const rows = applyFilters(rawRows, minTxCount, metric);
-  const enriched = await backfillAll(env, grid, rows, requestedOverlays);
+  const enriched = await backfillAll(env, grid, rows);
   return jsonResponse({ grid, metric, end_month: endMonth, propertyType: canonicalPropertyType, newBuild, minTxCount, count: enriched.length, rows: enriched });
 };
 
@@ -797,30 +789,24 @@ async function getCachedEpcPropAgeLookup(env: Env, grid: GridKey): Promise<Map<s
 }
 
 /** Fetch vote/commute/age/country lookups in parallel, then enrich rows in a single pass. */
-async function backfillAll(env: Env, grid: GridKey, rows: CellRow[], requestedOverlays: Set<string> | null): Promise<CellRow[]> {
-  // Decide which overlays to load.
-  // Country is always loaded (tiny file, needed for flood/school scoring).
-  // When the client supplies an explicit set we honour it (respecting
-  // per-grid hard limits).  When omitted we load everything that the
-  // Worker can safely handle within its CPU/memory budget.
-  function shouldLoad(name: string): boolean {
-    if (name === "country") return true;
-    // Vote is always skipped at 1km (too heavy)
-    if (name === "vote" && grid === "1km") return false;
-    // Crime is always skipped at 5km and 1km (pushes over Worker limits)
-    if (name === "crime" && (grid === "1km" || grid === "5km")) return false;
-    if (requestedOverlays) return requestedOverlays.has(name);
-    return true;
-  }
+async function backfillAll(env: Env, grid: GridKey, rows: CellRow[]): Promise<CellRow[]> {
+  // Per-grid overlay budget.  Cloudflare Workers have ~128 MB memory and tight
+  // CPU limits.  Decompressed overlay JSON can be very large, so we hard-skip
+  // overlays that would push the isolate over the limit:
+  //   1km – skip vote (~73 MB).  Loads commute+age+EPC+crime+country ≈ 65 MB
+  //         (crime 1km file is slimmed to 10 fields / ~18 MB).
+  //   10km/25km/5km – load everything (5km total is ~53 MB with all overlays).
+  // Country is always loaded (tiny, needed for flood/school scoring).
+  const skipVote  = grid === "1km";
 
   const [voteLookup, countryLookup, commuteLookup, ageLookup, crimeLookup, epcFuelLookup, epcPropAgeLookup] = await Promise.all([
-    shouldLoad("vote") ? getCachedVoteLookup(env, grid).catch(() => null) : Promise.resolve(null),
-    shouldLoad("country") ? getCachedCountryLookup(env, grid).catch(() => null) : Promise.resolve(null),
-    shouldLoad("commute") ? getCachedCommuteLookup(env, grid).catch(() => null) : Promise.resolve(null),
-    shouldLoad("age") ? getCachedAgeLookup(env, grid).catch(() => null) : Promise.resolve(null),
-    shouldLoad("crime") ? getCachedCrimeLookup(env, grid).catch(() => null) : Promise.resolve(null),
-    shouldLoad("epc_fuel") ? getCachedEpcFuelLookup(env, grid).catch(() => null) : Promise.resolve(null),
-    shouldLoad("epc_age") ? getCachedEpcPropAgeLookup(env, grid).catch(() => null) : Promise.resolve(null),
+    skipVote  ? Promise.resolve(null) : getCachedVoteLookup(env, grid).catch(() => null),
+    getCachedCountryLookup(env, grid).catch(() => null),
+    getCachedCommuteLookup(env, grid).catch(() => null),
+    getCachedAgeLookup(env, grid).catch(() => null),
+    getCachedCrimeLookup(env, grid).catch(() => null),
+    getCachedEpcFuelLookup(env, grid).catch(() => null),
+    getCachedEpcPropAgeLookup(env, grid).catch(() => null),
   ]);
 
   return rows.map((row) => {
@@ -931,7 +917,6 @@ async function legacyHandler(
   newBuild: string,
   endMonth: string,
   minTxCount: number,
-  requestedOverlays: Set<string> | null = null,
 ): Promise<Response> {
   const cacheKey = `legacy|${grid}|${metric}`;
   const now = Date.now();
@@ -989,7 +974,7 @@ async function legacyHandler(
         : Number(r.median ?? NaN),
   }));
 
-  const enriched = await backfillAll(env, grid, rows, requestedOverlays);
+  const enriched = await backfillAll(env, grid, rows);
 
   return jsonResponse({
     grid,

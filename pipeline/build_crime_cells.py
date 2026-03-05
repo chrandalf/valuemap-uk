@@ -342,13 +342,20 @@ def build_cells_for_grid(
         agg["property_local_score"] = agg["property_score"]
         agg["asb_local_score"]      = agg["asb_score"]
 
+    # Core fields included for every grid level.
     keep = [
         "gx", "gy",
         "violent_rate", "property_rate", "asb_rate", "total_rate",
-        "violent_count", "property_count", "asb_count", "total_count",
-        "crime_score",       "violent_score",       "property_score",       "asb_score",
-        "crime_local_score", "violent_local_score", "property_local_score", "asb_local_score",
+        "crime_score", "violent_score", "property_score", "asb_score",
     ]
+    # At 1km there are ~106k cells; counts and local scores are omitted to keep
+    # the file within the Cloudflare Worker 128 MB memory limit (the frontend
+    # already handles these fields as optional with fallback logic).
+    if grid_label != "1km":
+        keep += [
+            "violent_count", "property_count", "asb_count", "total_count",
+            "crime_local_score", "violent_local_score", "property_local_score", "asb_local_score",
+        ]
     return agg[keep].to_dict(orient="records")
 
 
