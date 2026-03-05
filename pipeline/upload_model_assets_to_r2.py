@@ -117,10 +117,11 @@ def collect_assets(
 def content_type_for(path: Path) -> str:
     if path.name.endswith(".geojson.gz"):
         return "application/geo+json"
-    if path.name.endswith(".json.gz"):
-        return "application/json"
     if path.name.endswith(".json"):
         return "application/json"
+    # .json.gz and other .gz files are stored as raw gzip bytes — use application/gzip.
+    # Do NOT set ContentEncoding: gzip, as that causes boto3 to decompress the body
+    # before uploading, storing plain bytes instead of the compressed file.
     return "application/gzip"
 
 
@@ -330,8 +331,6 @@ def main() -> None:
             "ContentType": content_type_for(path),
             "CacheControl": "public, max-age=86400",
         }
-        if path.name.endswith(".gz"):
-            extra_args["ContentEncoding"] = "gzip"
         s3.upload_file(
             str(path),
             bucket_name,

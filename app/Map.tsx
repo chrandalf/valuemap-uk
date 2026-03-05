@@ -2401,9 +2401,15 @@ export default function ValueMap({
               <span>${label}</span><span style="opacity:0.5">×${w}</span>
             </div>${scoreHtml}</div>`;
 
+        const noAreaData = totalScore < 0;
         let html = `<div style="font-family:system-ui;font-size:12px;line-height:1.4;min-width:180px;max-width:210px;">`;
-        const totalCol = totalScore < 0.35 ? "#ef4444" : totalScore < 0.55 ? "#fb923c" : totalScore < 0.72 ? "#facc15" : "#4ade80";
-        html += `<div style="font-weight:700;margin-bottom:7px;font-size:13px;">🗺️ Match score: <span style="color:${totalCol}">${Math.round(totalScore * 100)}%</span></div>`;
+        if (noAreaData) {
+          html += `<div style="font-weight:700;margin-bottom:7px;font-size:13px;">🗺️ Match score: <span style="color:#9ca3af">⚪ no data</span></div>`;
+          html += `<div style="font-size:10px;opacity:0.55;margin-bottom:7px;">None of your search criteria have coverage data for this cell.</div>`;
+        } else {
+          const totalCol = totalScore < 0.35 ? "#ef4444" : totalScore < 0.55 ? "#fb923c" : totalScore < 0.72 ? "#facc15" : "#4ade80";
+          html += `<div style="font-weight:700;margin-bottom:7px;font-size:13px;">🗺️ Match score: <span style="color:${totalCol}">${Math.round(totalScore * 100)}%</span></div>`;
+        }
         const ptLabels: Record<string, string> = { ALL: "All types", D: "Detached", S: "Semi", T: "Terraced", F: "Flat" };
         const rawPtKey = prefs.propertyType ?? "ALL";
         const ptLabel = ptLabels[rawPtKey] ?? rawPtKey.split(",").map((t) => ptLabels[t] ?? t).join(" + ");
