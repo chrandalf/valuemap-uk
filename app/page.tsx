@@ -2005,18 +2005,18 @@ export default function Home() {
                     </span>
                   </button>
                   <div style={{ height: 1, background: "rgba(255,255,255,0.1)", margin: "4px 0" }} />
+                  <div style={{ padding: "6px 14px 2px" }}>
+                    <a href="https://www.producthunt.com/products/uk-house-price-map?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-uk-house-price-map" target="_blank" rel="noopener noreferrer">
+                      <img alt="UK House Price Map - Reverse Rightmove | Product Hunt" width={180} height={39} src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1090451&theme=light&t=1772703310897" style={{ display: "block" }} />
+                    </a>
+                  </div>
                   <a href="https://buymeacoffee.com/chrandalf" target="_blank" rel="noreferrer"
-                    style={{ display: "block", padding: "8px 14px", fontSize: 11, color: "white", textDecoration: "none" }}
+                    style={{ display: "block", padding: "6px 14px 8px", fontSize: 11, color: "white", textDecoration: "none" }}
                     onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
                     onMouseLeave={e => (e.currentTarget.style.background = "")}
                   >
                     ☕ Buy me a coffee
                   </a>
-                  <div style={{ padding: "4px 14px 8px" }}>
-                    <a href="https://www.producthunt.com/products/uk-house-price-map?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-uk-house-price-map" target="_blank" rel="noopener noreferrer">
-                      <img alt="UK House Price Map - Reverse Rightmove | Product Hunt" width={180} height={39} src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1090451&theme=light&t=1772703310897" style={{ display: "block" }} />
-                    </a>
-                  </div>
                   {supporterNames.length > 0 && (
                     <div style={{ padding: "2px 14px 7px", fontSize: 9, opacity: 0.55, lineHeight: 1.3 }}>
                       Thanks: {supporterNames.slice(0, 6).join(", ")}
@@ -2245,6 +2245,18 @@ export default function Home() {
               >
                 ↺ Reset
               </button>
+            )}
+
+            {/* ── Buy me a coffee in top bar (desktop only) ── */}
+            {!isMobileViewport && (
+              <a
+                href="https://buymeacoffee.com/chrandalf"
+                target="_blank"
+                rel="noreferrer"
+                style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.7)", padding: "5px 10px", borderRadius: 999, fontSize: 11, whiteSpace: "nowrap", flexShrink: 0, textDecoration: "none" }}
+              >
+                ☕ Buy me a coffee
+              </a>
             )}
 
             {/* ── Show Me How pill in top bar (desktop only) ── */}
