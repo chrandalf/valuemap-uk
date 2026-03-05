@@ -335,7 +335,7 @@ export type RgLogEntry = {
 /** Data passed to page.tsx for the right-click info panel. */
 export type RightClickInfoData =
   | { stage: 'loading'; clickLat: number; clickLng: number }
-  | { stage: 'ready'; postcode: string; isOutcode: boolean; floodHtml: string; schoolHtml: string; primarySchoolHtml: string; stationHtml: string; crimeHtml: string; clickLat: number; clickLng: number; cellMedian?: number; cellDeltaPct?: number; cellDeltaGbp?: number; cellTxCount?: number; constituency?: string; };
+  | { stage: 'ready'; postcode: string; isOutcode: boolean; floodHtml: string; schoolHtml: string; primarySchoolHtml: string; stationHtml: string; crimeHtml: string; epcHtml?: string; clickLat: number; clickLng: number; cellMedian?: number; cellDeltaPct?: number; cellDeltaGbp?: number; cellTxCount?: number; constituency?: string; };
 
 export default function ValueMap({
   state,
@@ -2446,12 +2446,14 @@ export default function ValueMap({
         if ((prefs.epcFuelWeight ?? 0) > 0) {
           const fuelLabels: Record<string, string> = { gas: "Gas", electric: "Electric", oil: "Oil", lpg: "LPG", no_gas: "No gas" };
           const fuelLabel = fuelLabels[prefs.epcFuelPreference ?? "gas"] ?? (prefs.epcFuelPreference ?? "gas");
-          html += wRow(`⚡ Heating fuel (${fuelLabel})`, prefs.epcFuelWeight!, bar(Number(p.ix_epc_fuel ?? 0.5), !Number.isFinite(Number(p.pct_gas))));
+          const epcFuelVal = Number(p.ix_epc_fuel ?? -1);
+          html += wRow(`⚡ Heating fuel (${fuelLabel})`, prefs.epcFuelWeight!, bar(epcFuelVal < 0 ? 0.5 : epcFuelVal, epcFuelVal < 0));
         }
         if ((prefs.epcPropAgeWeight ?? 0) > 0) {
           const ageLabels: Record<string, string> = { pre1900: "Pre-1900", "1900_1950": "1900-1950", "1950_1980": "1950-1980", "1980_2000": "1980-2000", post2000: "Post-2000" };
           const ageLabel = ageLabels[prefs.epcPropAgePreference ?? "post2000"] ?? (prefs.epcPropAgePreference ?? "post2000");
-          html += wRow(`🏗️ Property age (${ageLabel})`, prefs.epcPropAgeWeight!, bar(Number(p.ix_epc_age ?? 0.5), !Number.isFinite(Number(p.pct_post2000))));
+          const epcAgeVal = Number(p.ix_epc_age ?? -1);
+          html += wRow(`🏗️ Property age (${ageLabel})`, prefs.epcPropAgeWeight!, bar(epcAgeVal < 0 ? 0.5 : epcAgeVal, epcAgeVal < 0));
         }
         html += `</div>`;
         popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
@@ -2617,6 +2619,82 @@ export default function ValueMap({
           ${propHtml}
         </div>`;
       popup.setLngLat(e.lngLat).setHTML(crimeHtml).addTo(map);
+      return;
+    }
+
+    const epcFuelPopupMode = stateRef.current.epcFuelOverlayMode ?? "off";
+    if (epcFuelPopupMode !== "off") {
+      const pctGas      = Number(p.pct_gas      ?? NaN);
+      const pctElectric = Number(p.pct_electric ?? NaN);
+      const pctOil      = Number(p.pct_oil      ?? NaN);
+      const pctLpg      = Number(p.pct_lpg      ?? NaN);
+      const pctOther    = Number(p.pct_other    ?? NaN);
+      const hasEpc = Number.isFinite(pctGas);
+      const metricFooter = Number.isFinite(median) && median > 0
+        ? `<div style="border-top:1px solid rgba(0,0,0,0.1);margin-top:7px;padding-top:6px;font-size:11px;opacity:0.65;">${stateRef.current.metric === "median_ppsf" ? `GBP ${Math.round(median).toLocaleString()} / ft²` : `GBP ${median.toLocaleString()}`} · ${tx} sales</div>`
+        : "";
+      if (hasEpc) {
+        const fuelBands: Array<[string, number, string]> = [
+          ["Gas",      pctGas,      "#2563eb"],
+          ["Electric", pctElectric, "#f59e0b"],
+          ["Oil",      pctOil,      "#16a34a"],
+          ["LPG",      pctLpg,      "#a855f7"],
+          ["Other",    pctOther,    "#9ca3af"],
+        ];
+        const total = fuelBands.reduce((s, [, v]) => s + (isFinite(v) ? v : 0), 0) || 100;
+        const barSegs = fuelBands.filter(([, v]) => isFinite(v) && v > 0)
+          .map(([, v, col]) => `<div style="flex:${(v/total*100).toFixed(1)};background:${col};height:100%;"></div>`).join("");
+        const statsRows = fuelBands.map(([label, v, col]) =>
+          `<span style="white-space:nowrap;"><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${col};margin-right:3px;vertical-align:-1px;"></span>${label}&nbsp;<b>${Number.isFinite(v) ? v.toFixed(0) : "—"}%</b></span>`
+        ).join("<span style='opacity:0.35'> · </span>");
+        const html = `<div style="font-family:system-ui;font-size:12px;line-height:1.4;min-width:200px;">
+          <div style="font-weight:700;margin-bottom:5px;">⚡ Heating fuel mix</div>
+          <div style="display:flex;height:10px;border-radius:4px;overflow:hidden;margin-bottom:6px;">${barSegs}</div>
+          <div style="font-size:10px;line-height:1.8;">${statsRows}</div>
+          ${metricFooter}
+        </div>`;
+        popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+      } else {
+        popup.setLngLat(e.lngLat).setHTML(`<div style="font-family:system-ui;font-size:12px;"><b>⚡ No EPC fuel data</b><div style="opacity:0.6;font-size:11px;margin-top:3px;">EPC data not available for this cell</div>${metricFooter}</div>`).addTo(map);
+      }
+      return;
+    }
+
+    const epcPropAgePopupMode = stateRef.current.epcPropAgeOverlayMode ?? "off";
+    if (epcPropAgePopupMode !== "off") {
+      const pctPre1900   = Number(p.pct_pre1900   ?? NaN);
+      const pct1900_1950 = Number(p.pct_1900_1950 ?? NaN);
+      const pct1950_1980 = Number(p.pct_1950_1980 ?? NaN);
+      const pct1980_2000 = Number(p.pct_1980_2000 ?? NaN);
+      const pctPost2000  = Number(p.pct_post2000  ?? NaN);
+      const hasEpcAge = Number.isFinite(pctPre1900);
+      const metricFooter = Number.isFinite(median) && median > 0
+        ? `<div style="border-top:1px solid rgba(0,0,0,0.1);margin-top:7px;padding-top:6px;font-size:11px;opacity:0.65;">${stateRef.current.metric === "median_ppsf" ? `GBP ${Math.round(median).toLocaleString()} / ft²` : `GBP ${median.toLocaleString()}`} · ${tx} sales</div>`
+        : "";
+      if (hasEpcAge) {
+        const ageBands: Array<[string, number, string]> = [
+          ["Pre-1900",  pctPre1900,   "#86198f"],
+          ["1900–50",   pct1900_1950, "#b45309"],
+          ["1950–80",   pct1950_1980, "#6b7280"],
+          ["1980–00",   pct1980_2000, "#0e7490"],
+          ["Post-2000", pctPost2000,  "#1d4ed8"],
+        ];
+        const total = ageBands.reduce((s, [, v]) => s + (isFinite(v) ? v : 0), 0) || 100;
+        const barSegs = ageBands.filter(([, v]) => isFinite(v) && v > 0)
+          .map(([, v, col]) => `<div style="flex:${(v/total*100).toFixed(1)};background:${col};height:100%;"></div>`).join("");
+        const statsRows = ageBands.map(([label, v, col]) =>
+          `<span style="white-space:nowrap;"><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${col};margin-right:3px;vertical-align:-1px;"></span>${label}&nbsp;<b>${Number.isFinite(v) ? v.toFixed(0) : "—"}%</b></span>`
+        ).join("<span style='opacity:0.35'> · </span>");
+        const html = `<div style="font-family:system-ui;font-size:12px;line-height:1.4;min-width:200px;">
+          <div style="font-weight:700;margin-bottom:5px;">🏗️ Property construction age</div>
+          <div style="display:flex;height:10px;border-radius:4px;overflow:hidden;margin-bottom:6px;">${barSegs}</div>
+          <div style="font-size:10px;line-height:1.8;">${statsRows}</div>
+          ${metricFooter}
+        </div>`;
+        popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+      } else {
+        popup.setLngLat(e.lngLat).setHTML(`<div style="font-family:system-ui;font-size:12px;"><b>🏗️ No EPC age data</b><div style="opacity:0.6;font-size:11px;margin-top:3px;">EPC data not available for this cell</div>${metricFooter}</div>`).addTo(map);
+      }
       return;
     }
 
@@ -3174,11 +3252,53 @@ export default function ValueMap({
           cellDeltaGbp,
         });
 
+        // ── EPC cell data summary for right-click panel ──
+        let epcHtml: string | undefined;
+        const cpGas      = Number(cp.pct_gas      ?? NaN);
+        const cpElectric = Number(cp.pct_electric ?? NaN);
+        const cpOil      = Number(cp.pct_oil      ?? NaN);
+        const cpLpg      = Number(cp.pct_lpg      ?? NaN);
+        const cpOther    = Number(cp.pct_other    ?? NaN);
+        const cpPre1900   = Number(cp.pct_pre1900   ?? NaN);
+        const cp1900_1950 = Number(cp.pct_1900_1950 ?? NaN);
+        const cp1950_1980 = Number(cp.pct_1950_1980 ?? NaN);
+        const cp1980_2000 = Number(cp.pct_1980_2000 ?? NaN);
+        const cpPost2000  = Number(cp.pct_post2000  ?? NaN);
+        const hasFuel = Number.isFinite(cpGas);
+        const hasAge  = Number.isFinite(cpPre1900);
+        if (hasFuel || hasAge) {
+          const swatch = (col: string) => `<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${col};margin-right:3px;vertical-align:-1px;"></span>`;
+          let html = "";
+          if (hasFuel) {
+            const fuelBands: Array<[string, number, string]> = [
+              ["Gas", cpGas, "#2563eb"], ["Electric", cpElectric, "#f59e0b"],
+              ["Oil", cpOil, "#16a34a"], ["LPG", cpLpg, "#a855f7"], ["Other", cpOther, "#9ca3af"],
+            ];
+            const tot = fuelBands.reduce((s, [, v]) => s + (isFinite(v) ? v : 0), 0) || 100;
+            const bars = fuelBands.filter(([, v]) => isFinite(v) && v > 0)
+              .map(([, v, c]) => `<span style="display:inline-block;width:${(v/tot*100).toFixed(0)}%;height:7px;background:${c};"></span>`).join("");
+            const rows = fuelBands.map(([l, v, c]) => `${swatch(c)}<span style="color:#374151">${l} <b>${isFinite(v) ? v.toFixed(0) : "—"}%</b></span>`).join(" ");
+            html += `<div style="margin-bottom:5px"><div style="font-weight:600;font-size:11px;margin-bottom:3px;">⚡ Heating fuel</div><div style="display:flex;height:7px;border-radius:3px;overflow:hidden;margin-bottom:4px;">${bars}</div><div style="font-size:10px;line-height:1.7;">${rows}</div></div>`;
+          }
+          if (hasAge) {
+            const ageBands: Array<[string, number, string]> = [
+              ["Pre-1900", cpPre1900, "#86198f"], ["1900–50", cp1900_1950, "#b45309"],
+              ["1950–80", cp1950_1980, "#6b7280"], ["1980–00", cp1980_2000, "#0e7490"], ["Post-2000", cpPost2000, "#1d4ed8"],
+            ];
+            const tot = ageBands.reduce((s, [, v]) => s + (isFinite(v) ? v : 0), 0) || 100;
+            const bars = ageBands.filter(([, v]) => isFinite(v) && v > 0)
+              .map(([, v, c]) => `<span style="display:inline-block;width:${(v/tot*100).toFixed(0)}%;height:7px;background:${c};"></span>`).join("");
+            const rows = ageBands.map(([l, v, c]) => `${swatch(c)}<span style="color:#374151">${l} <b>${isFinite(v) ? v.toFixed(0) : "—"}%</b></span>`).join(" ");
+            html += `<div><div style="font-weight:600;font-size:11px;margin-bottom:3px;">🏗️ Property age</div><div style="display:flex;height:7px;border-radius:3px;overflow:hidden;margin-bottom:4px;">${bars}</div><div style="font-size:10px;line-height:1.7;">${rows}</div></div>`;
+          }
+          epcHtml = html;
+        }
+
         // Pass all resolved data to page.tsx to render in the fixed left panel
         onRightClickInfoRef.current?.({
           stage: 'ready',
           postcode, isOutcode,
-          floodHtml, schoolHtml, primarySchoolHtml, stationHtml, crimeHtml,
+          floodHtml, schoolHtml, primarySchoolHtml, stationHtml, crimeHtml, epcHtml,
           clickLat: lat, clickLng: lng,
           cellMedian, cellDeltaPct, cellDeltaGbp, cellTxCount, constituency,
         });
@@ -5379,7 +5499,7 @@ async function applyIndexScoring(
     props.ix_cr = crimeScore;
 
     // 7) EPC heating fuel preference
-    let epcFuelScore = 0.5;
+    let epcFuelScore = -1; // -1 = no data
     const epcFuelW = prefs.epcFuelWeight ?? 0;
     if (epcFuelW > 0) {
       const fuelPref = prefs.epcFuelPreference ?? "gas";
@@ -5393,23 +5513,25 @@ async function applyIndexScoring(
       }
       if (Number.isFinite(rawFuelPct)) {
         epcFuelScore = Math.max(0, Math.min(1, rawFuelPct / 100));
+        totalScore += epcFuelW * epcFuelScore;
+        totalWeight += epcFuelW;
       }
-      totalScore += epcFuelW * epcFuelScore;
-      totalWeight += epcFuelW;
+      // If no EPC data for this cell: skip weight entirely (don't penalise or reward)
     }
     props.ix_epc_fuel = epcFuelScore;
 
     // 8) EPC property age preference
-    let epcPropAgeScore = 0.5;
+    let epcPropAgeScore = -1; // -1 = no data
     const epcPropAgeW = prefs.epcPropAgeWeight ?? 0;
     if (epcPropAgeW > 0) {
       const agePref = prefs.epcPropAgePreference ?? "post2000";
       const rawAgePct = Number((props as any)[`pct_${agePref}`] ?? NaN);
       if (Number.isFinite(rawAgePct)) {
         epcPropAgeScore = Math.max(0, Math.min(1, rawAgePct / 100));
+        totalScore += epcPropAgeW * epcPropAgeScore;
+        totalWeight += epcPropAgeW;
       }
-      totalScore += epcPropAgeW * epcPropAgeScore;
-      totalWeight += epcPropAgeW;
+      // If no EPC data for this cell: skip weight entirely
     }
     props.ix_epc_age = epcPropAgeScore;
 

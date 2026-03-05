@@ -3993,6 +3993,13 @@ export default function Home() {
                   <div style={{ fontSize: 12, lineHeight: 1.4, flex: 1, minWidth: 0 }} dangerouslySetInnerHTML={{ __html: html }} />
                 </div>
               ))}
+              {rightClickInfo.epcHtml && (
+                <div style={{ display: "flex", gap: 6, alignItems: "flex-start", padding: "4px 0", borderBottom: "1px solid #f9fafb" }}>
+                  <span style={{ width: 16, flexShrink: 0, textAlign: "center", paddingTop: 1 }}>🏡</span>
+                  <span style={{ color: "#9ca3af", width: 48, flexShrink: 0, fontSize: 11, paddingTop: 2 }}>EPC</span>
+                  <div style={{ fontSize: 12, lineHeight: 1.4, flex: 1, minWidth: 0 }} dangerouslySetInnerHTML={{ __html: rightClickInfo.epcHtml }} />
+                </div>
+              )}
               {rightClickInfo.cellMedian && (
                 <div style={{ display: "flex", gap: 6, alignItems: "flex-start", padding: "4px 0", borderBottom: "1px solid #f9fafb" }}>
                   <span style={{ width: 16, flexShrink: 0, textAlign: "center", paddingTop: 1 }}>🏠</span>
@@ -4079,6 +4086,13 @@ export default function Home() {
                   <div style={{ fontSize: 12, lineHeight: 1.4, flex: 1, minWidth: 0 }} dangerouslySetInnerHTML={{ __html: html }} />
                 </div>
               ))}
+              {rightClickInfo.epcHtml && (
+                <div style={{ display: "flex", gap: 6, alignItems: "flex-start", padding: "4px 0", borderBottom: "1px solid #f9fafb" }}>
+                  <span style={{ width: 16, flexShrink: 0, textAlign: "center", paddingTop: 1 }}>🏡</span>
+                  <span style={{ color: "#9ca3af", width: 48, flexShrink: 0, fontSize: 11, paddingTop: 2 }}>EPC</span>
+                  <div style={{ fontSize: 12, lineHeight: 1.4, flex: 1, minWidth: 0 }} dangerouslySetInnerHTML={{ __html: rightClickInfo.epcHtml }} />
+                </div>
+              )}
               {rightClickInfo.cellMedian && (
                 <div style={{ display: "flex", gap: 6, alignItems: "flex-start", padding: "4px 0", borderBottom: "1px solid #f9fafb" }}>
                   <span style={{ width: 16, flexShrink: 0, textAlign: "center", paddingTop: 1 }}>🏠</span>
