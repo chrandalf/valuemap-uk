@@ -2864,9 +2864,14 @@ export default function Home() {
               padding: "6px 10px 4px",
               marginBottom: 10,
             }}>
-              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", opacity: 0.4, marginBottom: 3 }}>
-                How important?
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 3 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", opacity: 0.4 }}>
+                  How important?
+                </div>
+                <div style={{ fontSize: 9, opacity: 0.28, fontStyle: "italic" }}>scroll for more ↕</div>
               </div>
+              {/* Scrollable pickers — shows ~5 rows at once */}
+              <div style={{ overflowY: "auto", maxHeight: 152, paddingRight: 2, scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.18) transparent" }}>
               <ImportancePicker emoji="💰" label="Affordability" value={indexAffordWeight} onChange={setIndexAffordWeight} color="#facc15" />
               <ImportancePicker emoji="🌊" label="Flood safety"  value={indexFloodWeight}  onChange={setIndexFloodWeight}  color="#60a5fa" />
               <ImportancePicker emoji="🏫" label="Schools (sec.)"  value={indexSchoolWeight}        onChange={setIndexSchoolWeight}        color="#22c55e" />
@@ -2954,6 +2959,7 @@ export default function Home() {
                 <span style={{ fontSize: 11, fontWeight: 600 }}>🏖️ Coast</span>
                 <span style={{ fontSize: 10, fontStyle: "italic" }}>coming soon</span>
               </div>
+              </div>{/* end scrollable pickers */}
             </div>
 
             {/* Coverage note */}
