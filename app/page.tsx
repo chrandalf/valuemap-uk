@@ -2247,6 +2247,13 @@ export default function Home() {
               </button>
             )}
 
+            {/* ── Product Hunt badge in top bar (desktop only) ── */}
+            {!isMobileViewport && (
+              <a href="https://www.producthunt.com/products/uk-house-price-map?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-uk-house-price-map" target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0, lineHeight: 0 }}>
+                <img alt="UK House Price Map - Reverse Rightmove | Product Hunt" width={144} height={31} src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1090451&theme=light&t=1772703310897" style={{ display: "block" }} />
+              </a>
+            )}
+
             {/* ── Buy me a coffee in top bar (desktop only) ── */}
             {!isMobileViewport && (
               <a
