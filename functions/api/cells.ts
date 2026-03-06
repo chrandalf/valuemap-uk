@@ -11,10 +11,10 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   const newBuild = (url.searchParams.get("newBuild") ?? "ALL").toUpperCase();
   const endMonthParam = (url.searchParams.get("endMonth") ?? "LATEST").toUpperCase();
   const minTxCount = Math.max(1, Number.parseInt(url.searchParams.get("minTxCount") ?? "3", 10) || 3);
-  const modelledParam = url.searchParams.get("modelled") ?? "actual";
+  const modelledParam = url.searchParams.get("modelled") ?? "blend";
   const modelledMode = (["actual", "estimated", "model_only"] as const).includes(modelledParam as any)
     ? (modelledParam as "actual" | "estimated" | "model_only")
-    : "actual";
+    : "blend";
   // For blend/estimated/model_only on 1km median, keep sparse rows so applyModelledData
   // can see them (it applies the real minTxCount threshold internally).
   const effectiveMinTxCount = (grid === "1km" && metric === "median" && modelledMode !== "actual") ? 1 : minTxCount;

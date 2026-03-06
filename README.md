@@ -1,5 +1,17 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Rolled-back work after c6db026
+
+The codebase is being restored to commit `c6db026` at the user's request. The work attempted after that point was mainly in two areas:
+
+- 1km price-estimate UX changes: added extra estimate modes, changed the default 1km mode back to actual prices, adjusted popup copy to show actual vs estimate, and updated map styling for modelled cells.
+- Commute filtering prototype: added a separate commute filter control where a user enters a work postcode and a maximum drive time, then the map filters 1km cells against a generated catchment shape.
+- Commute backend experiments: first used a Cloudflare Pages function calling the Mapbox Isochrone API, then briefly added a free approximate fallback based on postcode-centered polygons to avoid paid routing costs.
+- Find My Area interaction changes: kept commute filtering separate from weighted scoring, and added a lightweight fast path so commute-only filtering would not trigger the full scoring pass.
+- Documentation and UI copy: added user-facing explanation text for 1km estimates and commute behavior.
+
+This section exists so the attempted direction is documented even though the code has been rolled back.
+
 ## Getting Started
 
 First, run the development server:
