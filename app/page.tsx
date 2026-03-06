@@ -20,7 +20,8 @@ type CrimeCellSubMode = "total" | "violent" | "property" | "asb";
 type VoteOverlayMode = "off" | "on";
 type CommuteOverlayMode = "off" | "on";
 type AgeOverlayMode = "off" | "on";
-type EpcFuelOverlayMode = "off" | "gas" | "electric" | "oil" | "lpg";
+type EpcFuelOverlayMode = "off" | "on";
+type EpcFuelType = "gas" | "electric" | "oil" | "lpg";
 type VoteColorScale = "relative" | "absolute";
 type GridMode = "auto" | "manual";
 
@@ -61,6 +62,7 @@ type MapState = {
   commuteOverlayMode: CommuteOverlayMode;
   ageOverlayMode: AgeOverlayMode;
   epcFuelOverlayMode: EpcFuelOverlayMode;
+  epcFuelType: EpcFuelType;
 };
 
 type OutcodeRank = {
@@ -217,6 +219,7 @@ export default function Home() {
       commuteOverlayMode: "off",
       ageOverlayMode: "off",
       epcFuelOverlayMode: "off",
+      epcFuelType: "gas",
     };
     if (typeof window === "undefined") return defaults;
     try {
@@ -273,6 +276,7 @@ export default function Home() {
         commuteOverlayMode: commute === "on" ? "on" : defaults.commuteOverlayMode,
         ageOverlayMode: age === "on" ? "on" : defaults.ageOverlayMode,
         epcFuelOverlayMode: "off",
+        epcFuelType: "gas",
       };
     } catch {
       return defaults;
@@ -435,6 +439,7 @@ export default function Home() {
     commuteOverlayMode: "off",
     ageOverlayMode: "off",
     epcFuelOverlayMode: "off",
+    epcFuelType: "gas",
   };
   const closeAllSubpanels = () => {
     setFiltersOpen(false);
@@ -974,26 +979,26 @@ export default function Home() {
       {!indexActive && state.ageOverlayMode !== "on" && state.commuteOverlayMode === "on" && commuteLegendContent}
       {!indexActive && state.ageOverlayMode !== "on" && state.commuteOverlayMode !== "on" && state.voteOverlayMode === "on" && voteLegendContent}
       {!indexActive && state.crimeCellMode === "on" && crimeCellLegendContent}
-      {!indexActive && state.crimeCellMode !== "on" && state.epcFuelOverlayMode !== "off" && (
+      {!indexActive && state.crimeCellMode !== "on" && state.epcFuelOverlayMode === "on" && (
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, opacity: 0.9 }}>
-          ⚡ Heating fuel — % {state.epcFuelOverlayMode === "gas" ? "Gas" : state.epcFuelOverlayMode === "electric" ? "Electric" : state.epcFuelOverlayMode === "oil" ? "Oil" : "LPG"}
+          ⚡ Heating fuel — % {state.epcFuelType === "gas" ? "Gas" : state.epcFuelType === "electric" ? "Electric" : state.epcFuelType === "oil" ? "Oil" : "LPG"}
           <div style={{ marginTop: 6, display: "flex", height: 12, borderRadius: 6, overflow: "hidden" }}>
-            {(state.epcFuelOverlayMode === "gas"
+            {(state.epcFuelType === "gas"
               ? ["#bfdbfe", "#60a5fa", "#2563eb", "#1e3a8a"]
-              : state.epcFuelOverlayMode === "electric"
+              : state.epcFuelType === "electric"
               ? ["#fde68a", "#f59e0b", "#d97706", "#92400e"]
-              : state.epcFuelOverlayMode === "oil"
+              : state.epcFuelType === "oil"
               ? ["#bbf7d0", "#4ade80", "#16a34a", "#14532d"]
               : ["#e9d5ff", "#a855f7", "#7e22ce", "#4c1d95"]
             ).map((c, i) => <div key={i} style={{ flex: 1, backgroundColor: c }} />)}
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, opacity: 0.6, marginTop: 3 }}>
             <span>0%</span>
-            <span>{state.epcFuelOverlayMode === "gas" ? "90%" : state.epcFuelOverlayMode === "electric" ? "50%" : state.epcFuelOverlayMode === "oil" ? "70%" : "25%"}</span>
+            <span>{state.epcFuelType === "gas" ? "90%" : state.epcFuelType === "electric" ? "50%" : state.epcFuelType === "oil" ? "70%" : "25%"}</span>
           </div>
         </div>
       )}
-      {!indexActive && state.ageOverlayMode !== "on" && state.commuteOverlayMode !== "on" && state.voteOverlayMode !== "on" && state.crimeCellMode !== "on" && state.epcFuelOverlayMode === "off" && (
+      {!indexActive && state.ageOverlayMode !== "on" && state.commuteOverlayMode !== "on" && state.voteOverlayMode !== "on" && state.crimeCellMode !== "on" && state.epcFuelOverlayMode !== "on" && (
       <>
       <div className="legend-title" style={{ fontWeight: 600, marginBottom: 12, fontSize: 16, opacity: 0.9 }}>
         {state.metric === "median"
@@ -1156,7 +1161,7 @@ export default function Home() {
     `Vote overlay: ${voteOverlayLabel} (${voteScaleLabel}) · ` +
     `Commute: ${state.commuteOverlayMode === "on" ? "On" : "Off"} · ` +
     `Age mix: ${state.ageOverlayMode === "on" ? "On" : "Off"} · ` +
-    `Heating fuel: ${state.epcFuelOverlayMode !== "off" ? state.epcFuelOverlayMode : "Off"}`;
+    `Heating fuel: ${state.epcFuelOverlayMode === "on" ? state.epcFuelType : "Off"}`;
   const headerFilterSummary =
     `${state.grid} · ${METRIC_LABEL[state.metric]} · ${propertyTypeLabel(state.propertyType)} · ${NEWBUILD_LABEL[state.newBuild]} · ${periodLabel}`;
   const headerMedianSummary =
@@ -1322,7 +1327,7 @@ export default function Home() {
     setTourActive(true);
     setShowMePulse(false);
     // Reset map to default view
-    setState((s) => ({ ...s, grid: "5km", metric: "median", propertyType: "ALL", floodOverlayMode: "off", schoolOverlayMode: "off", primarySchoolOverlayMode: "off", stationOverlayMode: "off", crimeOverlayMode: "off", crimeCellMode: "off", voteOverlayMode: "off", commuteOverlayMode: "off", ageOverlayMode: "off", epcFuelOverlayMode: "off" }));
+    setState((s) => ({ ...s, grid: "5km", metric: "median", propertyType: "ALL", floodOverlayMode: "off", schoolOverlayMode: "off", primarySchoolOverlayMode: "off", stationOverlayMode: "off", crimeOverlayMode: "off", crimeCellMode: "off", voteOverlayMode: "off", commuteOverlayMode: "off", ageOverlayMode: "off", epcFuelOverlayMode: "off", epcFuelType: "gas" }));
     const t = ++flyToSeqRef.current;
     setFlyToRequest({ center: [-1.5, 53.5], zoom: 5, token: t });
   }, []);
@@ -2269,13 +2274,24 @@ export default function Home() {
                   {/* EPC heating fuel */}
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
                     <div style={{ fontSize: 11, opacity: 0.8, width: 70, flexShrink: 0, paddingTop: 2 }}>⚡ Fuel type</div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                       <Segment
-                        options={["off", "gas", "electric", "oil", "lpg"] as EpcFuelOverlayMode[]}
+                        options={["off", "on"] as EpcFuelOverlayMode[]}
                         value={state.epcFuelOverlayMode}
-                        onChange={(v) => setState((s) => ({ ...s, epcFuelOverlayMode: v as EpcFuelOverlayMode, ...(v !== "off" ? { crimeCellMode: "off" as CrimeCellMode } : {}) }))}
-                        renderOption={(v) => v === "off" ? "Off" : v === "gas" ? "Gas" : v === "electric" ? "Electric" : v === "oil" ? "Oil" : "LPG"}
+                        onChange={(v) => setState((s) => ({ ...s, epcFuelOverlayMode: v as EpcFuelOverlayMode, ...(v === "on" ? { crimeCellMode: "off" as CrimeCellMode, voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode } : {}) }))}
+                        renderOption={(v) => v === "on" ? "On" : "Off"}
                       />
+                      {state.epcFuelOverlayMode === "on" && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <div style={{ fontSize: 10, opacity: 0.5, width: 38, flexShrink: 0 }}>Fuel:</div>
+                          <Segment
+                            options={["gas", "electric", "oil", "lpg"] as EpcFuelType[]}
+                            value={state.epcFuelType}
+                            onChange={(v) => setState((s) => ({ ...s, epcFuelType: v as EpcFuelType }))}
+                            renderOption={(v) => v === "gas" ? "Gas" : v === "electric" ? "Electric" : v === "oil" ? "Oil" : "LPG"}
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

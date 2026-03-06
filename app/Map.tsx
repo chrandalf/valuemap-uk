@@ -16,7 +16,8 @@ type CommuteOverlayMode = "off" | "on";
 type AgeOverlayMode = "off" | "on";
 type CrimeOverlayMode = "off" | "on" | "on_hide_cells";
 type CrimeCellMode = "off" | "on";
-type EpcFuelOverlayMode = "off" | "gas" | "electric" | "oil" | "lpg";
+type EpcFuelOverlayMode = "off" | "on";
+type EpcFuelType = "gas" | "electric" | "oil" | "lpg";
 type CrimeCellScale = "absolute" | "relative";
 type CrimeCellSubMode = "total" | "violent" | "property" | "asb";
 type VoteColorScale = "relative" | "absolute";
@@ -42,6 +43,7 @@ export type MapState = {
   crimeCellSubMode?: CrimeCellSubMode;
   voteColorScale?: VoteColorScale;
   epcFuelOverlayMode?: EpcFuelOverlayMode;
+  epcFuelType?: EpcFuelType;
 };
 
 export type IndexPrefs = {
@@ -3579,7 +3581,7 @@ export default function ValueMap({
         applyCrimeCellOverlayColorExpression(map, state.crimeCellSubMode, state.crimeCellScale, easyColoursRef.current);
         onLegendChange?.(null); // hide house price legend while crime overlay is active
       } else if (epcFuelMode !== "off") {
-        applyEpcFuelOverlayColorExpression(map, epcFuelMode, easyColoursRef.current);
+        applyEpcFuelOverlayColorExpression(map, (stateRef.current.epcFuelType ?? "gas") as EpcFuelType, easyColoursRef.current);
         onLegendChange?.(null);
       } else if (ageMode !== "off") {
         applyAgeOverlayColorExpression(map, easyColoursRef.current);
@@ -3606,7 +3608,7 @@ export default function ValueMap({
       if (crimeMode !== "off") {
         // Crime cell overlay takes priority — no-op
       } else if (epcFuelMode !== "off") {
-        applyEpcFuelOverlayColorExpression(map, epcFuelMode, easyColoursRef.current);
+        applyEpcFuelOverlayColorExpression(map, (stateRef.current.epcFuelType ?? "gas") as EpcFuelType, easyColoursRef.current);
         onLegendChange?.(null);
       } else if (ageMode !== "off") {
         applyAgeOverlayColorExpression(map, easyColoursRef.current);
@@ -3618,7 +3620,7 @@ export default function ValueMap({
         void ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange, onStatsUpdateRef.current, easyColoursRef.current, !!indexPrefsRef.current);
       }
     } catch (e) { /* ignore */ }
-  }, [state.epcFuelOverlayMode, onLegendChange]);
+  }, [state.epcFuelOverlayMode, state.epcFuelType, onLegendChange]);
 
   // Re-apply colour ramps whenever the easy-colours (colourblind) preference changes.
   useEffect(() => {
@@ -3632,7 +3634,7 @@ export default function ValueMap({
     if (crimeMode !== "off") {
       applyCrimeCellOverlayColorExpression(map, stateRef.current.crimeCellSubMode, stateRef.current.crimeCellScale, easyColours ?? false);
     } else if (epcFuelMode !== "off") {
-      applyEpcFuelOverlayColorExpression(map, epcFuelMode, easyColours ?? false);
+      applyEpcFuelOverlayColorExpression(map, (stateRef.current.epcFuelType ?? "gas") as EpcFuelType, easyColours ?? false);
     } else if (ageMode !== "off") {
       applyAgeOverlayColorExpression(map, easyColours ?? false);
     } else if (commuteMode !== "off") {
@@ -3994,11 +3996,9 @@ function applyCrimeCellOverlayColorExpression(map: maplibregl.Map, subMode: Crim
 /** EPC fuel overlay: colour cells by % of the selected heating fuel type.
  *  Low % → grey, high % → strong colour.
  */
-function epcFuelColorExpression(fuelMode: EpcFuelOverlayMode, easy = false): any {
-  if (fuelMode === "off") return "#cccccc";
+function epcFuelColorExpression(fuelType: EpcFuelType, easy = false): any {
   // Realistic caps: gas peaks ~90%, electric ~50%, oil ~70%, lpg ~25%
-  type FuelKey = Exclude<EpcFuelOverlayMode, "off">;
-  const configs: Record<FuelKey, { field: string; stops: [number, string][] }> = {
+  const configs: Record<EpcFuelType, { field: string; stops: [number, string][] }> = {
     gas: {
       field: "pct_gas",
       stops: easy
@@ -4024,7 +4024,7 @@ function epcFuelColorExpression(fuelMode: EpcFuelOverlayMode, easy = false): any
         : [[0, "#e9d5ff"], [8, "#a855f7"], [15, "#7e22ce"], [25, "#4c1d95"]],
     },
   };
-  const { field, stops } = configs[fuelMode as FuelKey];
+  const { field, stops } = configs[fuelType];
   const pctExpr = ["to-number", ["get", field]] as any;
   const interpArgs: any[] = [];
   for (const [val, color] of stops) { interpArgs.push(val, color); }
@@ -4035,9 +4035,9 @@ function epcFuelColorExpression(fuelMode: EpcFuelOverlayMode, easy = false): any
   ];
 }
 
-function applyEpcFuelOverlayColorExpression(map: maplibregl.Map, fuelMode: EpcFuelOverlayMode, easy = false) {
+function applyEpcFuelOverlayColorExpression(map: maplibregl.Map, fuelType: EpcFuelType, easy = false) {
   if (map.getLayer("cells-fill")) {
-    map.setPaintProperty("cells-fill", "fill-color", epcFuelColorExpression(fuelMode, easy));
+    map.setPaintProperty("cells-fill", "fill-color", epcFuelColorExpression(fuelType, easy));
   }
 }
 
