@@ -113,7 +113,7 @@ If you need to skip this backup step:
 python pipeline/upload_model_assets_to_r2.py --no-backup-before-upload
 ```
 
-The same pre-upload backup behavior is enabled in:
+The same pre-upload backup behavior is enabled in: ggg
 
 - `python pipeline/upload_vote_cells_to_r2.py`
 - legacy `pipeline/build_grids.py` uploads (disable there with env `R2_BACKUP_BEFORE_UPLOAD=0`, optional archive path via `R2_BACKUP_DIR`)
