@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import ValueMap, { type LegendData, type LocateMeResult, type IndexPrefs, type RgLogEntry, type RightClickInfoData } from "./Map";
+import ValueMap, { type CommuteFilterData, type LegendData, type LocateMeResult, type IndexPrefs, type RgLogEntry, type RightClickInfoData } from "./Map";
 import GuidedTour, { type TourStep } from "./components/GuidedTour";
 
 type GridSize = "1km" | "5km" | "10km" | "25km";
@@ -39,6 +39,7 @@ type IndexScoringPrefs = {
   crimeWeight?: number;
   epcFuelWeight?: number;
   epcFuelPreference?: string;
+  commuteFilter?: CommuteFilterData | null;
 };
 
 type MapState = {
@@ -366,6 +367,8 @@ export default function Home() {
   const [indexCrimeWeight, setIndexCrimeWeight] = useState(0);
   const [indexEpcFuelWeight, setIndexEpcFuelWeight] = useState(0);
   const [indexEpcFuelPreference, setIndexEpcFuelPreference] = useState<string>("gas");
+  const [indexCommutePostcode, setIndexCommutePostcode] = useState("");
+  const [indexCommuteMaxMinutes, setIndexCommuteMaxMinutes] = useState<15 | 30 | 45 | 60>(45);
   const [indexValidationError, setIndexValidationError] = useState<string | null>(null);
   const [indexApplied, setIndexApplied] = useState<IndexScoringPrefs>({
     budget: 300000,
@@ -376,6 +379,7 @@ export default function Home() {
     trainWeight: 0,
     coastWeight: 0,
     crimeWeight: 0,
+    commuteFilter: null,
   });
   const [indexSuitabilityMode, setIndexSuitabilityMode] = useState<ValueFilterMode>("off");
   const [indexSuitabilityThreshold, setIndexSuitabilityThreshold] = useState(65);
@@ -410,6 +414,7 @@ export default function Home() {
       crimeWeight: indexApplied.crimeWeight ?? 0,
       epcFuelWeight: indexApplied.epcFuelWeight ?? 0,
       epcFuelPreference: indexApplied.epcFuelPreference ?? "gas",
+      commuteFilter: indexApplied.commuteFilter ?? null,
       indexFilterMode: indexSuitabilityMode,
       indexFilterThreshold: indexSuitabilityThreshold / 100,
     };
@@ -486,6 +491,8 @@ export default function Home() {
     setIndexCrimeWeight(0);
     setIndexEpcFuelWeight(0);
     setIndexEpcFuelPreference("gas");
+    setIndexCommutePostcode("");
+    setIndexCommuteMaxMinutes(45);
     setIndexValidationError(null);
     setIndexApplied({
       budget: 300000,
@@ -499,6 +506,7 @@ export default function Home() {
       ageWeight: 0,
       crimeWeight: 0,
       epcFuelWeight: 0,
+      commuteFilter: null,
     });
   };
 
@@ -2776,6 +2784,35 @@ export default function Home() {
               Score every cell <b style={{ color: "#22c55e" }}>green</b> (great match) → <b style={{ color: "#ef4444" }}>red</b> (poor) based on what you care about.
             </div>
 
+            <div style={{
+              background: "rgba(255,255,255,0.04)",
+              borderRadius: 10,
+              border: "1px solid rgba(255,255,255,0.1)",
+              padding: "8px 10px",
+              marginBottom: 10,
+            }}>
+              <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 7 }}>🚗 Work commute filter</div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 7 }}>
+                <input
+                  type="text"
+                  value={indexCommutePostcode}
+                  onChange={(e) => setIndexCommutePostcode(e.target.value.toUpperCase())}
+                  placeholder="Work postcode e.g. LS1 4AP"
+                  style={{ flex: 1, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.14)", color: "white", fontSize: 12, borderRadius: 8, padding: "8px 10px", outline: "none" }}
+                />
+                <select
+                  value={indexCommuteMaxMinutes}
+                  onChange={(e) => setIndexCommuteMaxMinutes(Number(e.target.value) as 15 | 30 | 45 | 60)}
+                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.14)", color: "white", fontSize: 12, borderRadius: 8, padding: "8px 10px", outline: "none" }}
+                >
+                  {[15, 30, 45, 60].map((mins) => <option key={mins} value={mins} style={{ color: "black" }}>{mins} min</option>)}
+                </select>
+              </div>
+              <div style={{ fontSize: 10, opacity: 0.58, lineHeight: 1.35 }}>
+                Optional. If set, only 1km cells inside the drive-time catchment will remain visible after scoring.
+              </div>
+            </div>
+
             {/* Budget + Property type card */}
             <div style={{
               background: "rgba(255,255,255,0.04)",
@@ -2951,12 +2988,13 @@ export default function Home() {
             <div style={{ display: "flex", gap: 8 }}>
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   // — Validate before scoring —
                   const totalW = indexAffordWeight + indexFloodWeight + indexSchoolWeight +
                     indexPrimarySchoolWeight + indexTrainWeight + indexCoastWeight + indexAgeWeight + indexCrimeWeight +
                     indexEpcFuelWeight;
-                  if (totalW === 0) {
+                  const wantsCommute = indexCommutePostcode.trim().length > 0;
+                  if (totalW === 0 && !wantsCommute) {
                     setIndexValidationError("Please set at least one criterion above Off before scoring.");
                     return;
                   }
@@ -2964,7 +3002,31 @@ export default function Home() {
                     setIndexValidationError("Please enter a valid budget above £0 to use the affordability criterion.");
                     return;
                   }
+                  if (wantsCommute && state.metric !== "median") {
+                    setIndexValidationError("The work commute filter currently runs with the 1km median-price map only.");
+                    return;
+                  }
                   setIndexValidationError(null);
+                  setIndexScoringPending(true);
+
+                  let commuteFilter: CommuteFilterData | null = null;
+                  if (wantsCommute) {
+                    try {
+                      const qs = new URLSearchParams({ postcode: indexCommutePostcode.trim(), minutes: String(indexCommuteMaxMinutes) });
+                      const res = await fetch(`/api/commute-isochrone?${qs.toString()}`);
+                      const data = (await res.json()) as { error?: string } & Partial<CommuteFilterData>;
+                      if (!res.ok) {
+                        setIndexScoringPending(false);
+                        setIndexValidationError(data?.error || `Failed to build commute area (${res.status})`);
+                        return;
+                      }
+                      commuteFilter = data as CommuteFilterData;
+                    } catch (err: any) {
+                      setIndexScoringPending(false);
+                      setIndexValidationError(err?.message || "Failed to build commute area");
+                      return;
+                    }
+                  }
 
                   setIndexApplied({
                     budget: indexBudget,
@@ -2980,13 +3042,13 @@ export default function Home() {
                     crimeWeight: indexCrimeWeight,
                     epcFuelWeight: indexEpcFuelWeight,
                     epcFuelPreference: indexEpcFuelPreference,
+                    commuteFilter,
                   });
                   setGridMode("manual");
                   setState((s) => ({ ...s, grid: "1km" }));
-                  setIndexScoringPending(true);
                   setIndexActive(true);
                   setIndexToken((t) => t + 1);
-                  setIndexSuitabilityMode("gte");
+                  setIndexSuitabilityMode(totalW > 0 ? "gte" : "off");
                   setIndexSuitabilityThreshold(50);
                   setIndexOpen(false);
                 }}

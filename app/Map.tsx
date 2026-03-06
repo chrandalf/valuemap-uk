@@ -22,6 +22,17 @@ type CrimeCellScale = "absolute" | "relative";
 type CrimeCellSubMode = "total" | "violent" | "property" | "asb";
 type VoteColorScale = "relative" | "absolute";
 
+export type CommuteIsochroneGeometry =
+  | { type: "Polygon"; coordinates: number[][][] }
+  | { type: "MultiPolygon"; coordinates: number[][][][] };
+
+export type CommuteFilterData = {
+  normalizedPostcode: string;
+  minutes: 15 | 30 | 45 | 60;
+  origin: { lon: number; lat: number };
+  geometry: CommuteIsochroneGeometry;
+};
+
 export type MapState = {
   grid: GridSize;
   metric: Metric;
@@ -61,6 +72,7 @@ export type IndexPrefs = {
   crimeWeight?: number;     // 0-10 importance (local crime safety)
   epcFuelWeight?: number;       // 0-10 importance (heating fuel preference)
   epcFuelPreference?: string;   // "gas" | "electric" | "oil" | "lpg" | "no_gas"
+  commuteFilter?: CommuteFilterData | null;
   indexFilterMode?: "off" | "lte" | "gte";
   indexFilterThreshold?: number; // 0..1
 };
@@ -230,6 +242,11 @@ const STATION_MAX_DISTANCE_METERS = 16_093; // 10 miles
 const VOTE_CELLS_DATA_VERSION = process.env.NEXT_PUBLIC_VOTE_CELLS_DATA_VERSION ?? "20260222b";
 const COMMUTE_CELLS_DATA_VERSION = process.env.NEXT_PUBLIC_COMMUTE_CELLS_DATA_VERSION ?? "20260301a";
 const AGE_CELLS_DATA_VERSION = process.env.NEXT_PUBLIC_AGE_CELLS_DATA_VERSION ?? "20260301a";
+
+function hasWeightedIndexCriteria(prefs: IndexPrefs | null | undefined) {
+  if (!prefs) return false;
+  return (prefs.affordWeight ?? 0) + (prefs.floodWeight ?? 0) + (prefs.schoolWeight ?? 0) + (prefs.primarySchoolWeight ?? 0) + (prefs.trainWeight ?? 0) + (prefs.coastWeight ?? 0) + (prefs.ageWeight ?? 0) + (prefs.crimeWeight ?? 0) + (prefs.epcFuelWeight ?? 0) > 0;
+}
 
 /** Registers custom raster icons on a map instance. Call before adding icon-dependent layers. */
 function addMapIcons(map: maplibregl.Map): void {
@@ -1160,6 +1177,16 @@ export default function ValueMap({
     data: { type: "FeatureCollection", features: [] },
   });
 
+  map.addSource("commute-isochrone", {
+    type: "geojson",
+    data: { type: "FeatureCollection", features: [] },
+  });
+
+  map.addSource("commute-isochrone-origin", {
+    type: "geojson",
+    data: { type: "FeatureCollection", features: [] },
+  });
+
   map.addLayer({
     id: "cells-fill",
     type: "fill",
@@ -1921,6 +1948,43 @@ export default function ValueMap({
   });
 
   map.addLayer({
+    id: "commute-isochrone-fill",
+    type: "fill",
+    source: "commute-isochrone",
+    layout: { visibility: "none" },
+    paint: {
+      "fill-color": "#22c55e",
+      "fill-opacity": 0.1,
+    },
+  });
+
+  map.addLayer({
+    id: "commute-isochrone-line",
+    type: "line",
+    source: "commute-isochrone",
+    layout: { visibility: "none" },
+    paint: {
+      "line-color": "#4ade80",
+      "line-width": 2,
+      "line-dasharray": [2, 2],
+      "line-opacity": 0.9,
+    },
+  });
+
+  map.addLayer({
+    id: "commute-isochrone-origin",
+    type: "circle",
+    source: "commute-isochrone-origin",
+    layout: { visibility: "none" },
+    paint: {
+      "circle-radius": 5,
+      "circle-color": "#4ade80",
+      "circle-stroke-color": "#052e16",
+      "circle-stroke-width": 2,
+    },
+  });
+
+  map.addLayer({
     id: "cells-outline",
     type: "line",
     source: "cells",
@@ -2375,10 +2439,16 @@ export default function ValueMap({
       const prefs = indexPrefsRef.current;
       const totalPrefWeight = (prefs.affordWeight ?? 0) + (prefs.floodWeight ?? 0) + (prefs.schoolWeight ?? 0) + (prefs.primarySchoolWeight ?? 0) + (prefs.trainWeight ?? 0) + (prefs.ageWeight ?? 0) + (prefs.crimeWeight ?? 0) + (prefs.epcFuelWeight ?? 0);
       if (totalPrefWeight === 0) {
-        const html = `<div style="font-family:system-ui;font-size:12px;line-height:1.4;min-width:180px;max-width:220px;">
-          <div style="font-weight:700;margin-bottom:6px;font-size:13px;">🗺️ No criteria set</div>
-          <div style="font-size:11px;opacity:0.75;">Open <b>Find My Area</b> and set importance weights to score areas against your priorities.</div>
-        </div>`;
+        const html = prefs.commuteFilter
+          ? `<div style="font-family:system-ui;font-size:12px;line-height:1.4;min-width:180px;max-width:220px;">
+              <div style="font-weight:700;margin-bottom:6px;font-size:13px;">🚗 Within ${prefs.commuteFilter.minutes} min drive</div>
+              <div style="font-size:11px;opacity:0.82;">Work postcode: <b>${escapeHtml(prefs.commuteFilter.normalizedPostcode)}</b></div>
+              <div style="font-size:11px;opacity:0.7;margin-top:5px;">This cell falls inside the current drive-time catchment.</div>
+            </div>`
+          : `<div style="font-family:system-ui;font-size:12px;line-height:1.4;min-width:180px;max-width:220px;">
+              <div style="font-weight:700;margin-bottom:6px;font-size:13px;">🗺️ No criteria set</div>
+              <div style="font-size:11px;opacity:0.75;">Open <b>Find My Area</b> and set importance weights to score areas against your priorities.</div>
+            </div>`;
         popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
         return;
       }
@@ -3393,6 +3463,12 @@ export default function ValueMap({
 
   useEffect(() => {
     const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+    setCommuteIsochroneOverlay(map, indexPrefs?.commuteFilter ?? null);
+  }, [indexPrefs]);
+
+  useEffect(() => {
+    const map = mapRef.current;
     if (!map) return;
     if (!map.isStyleLoaded()) {
       map.once("load", () => applyValueFilter(map, stateRef.current, indexPrefsRef.current));
@@ -3414,11 +3490,15 @@ export default function ValueMap({
       const nextSignature = buildIndexScoringSignature(indexPrefs);
       const scoringChanged = prevIndexScoringSignatureRef.current !== nextSignature;
       const needsFullRescore = !prevIndexActiveRef.current || scoringChanged;
+      const weightedCriteriaActive = hasWeightedIndexCriteria(indexPrefs);
 
       if (needsFullRescore) {
         prevIndexScoringSignatureRef.current = nextSignature;
         void (async () => {
           const ok = await applyIndexScoring(map, indexPrefs, stateRef.current, cellFcRef.current ?? undefined);
+          if (ok && !weightedCriteriaActive) {
+            await ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange, onStatsUpdateRef.current, easyColoursRef.current, true);
+          }
           if (ok) onIndexScoringAppliedRef.current?.();
         })();
       } else {
@@ -4781,11 +4861,14 @@ function buildValueFilter(state: MapState) {
 
 function buildIndexFilter(indexPrefs: IndexPrefs | null | undefined) {
   if (!indexPrefs) return null;
+  const commuteFilter = indexPrefs.commuteFilter ? (["==", ["coalesce", ["get", "ix_commute_ok"], 0], 1] as any) : null;
   const mode = indexPrefs.indexFilterMode ?? "off";
-  if (mode === "off") return null;
-  const threshold = Math.max(0, Math.min(1, Number(indexPrefs.indexFilterThreshold ?? 0.6)));
-  const op = mode === "lte" ? "<=" : ">=";
-  return [op, ["coalesce", ["get", "index_score"], 0], threshold] as any;
+  const scoreFilter = mode === "off"
+    ? null
+    : ([mode === "lte" ? "<=" : ">=", ["coalesce", ["get", "index_score"], 0], Math.max(0, Math.min(1, Number(indexPrefs.indexFilterThreshold ?? 0.6)))] as any);
+  return commuteFilter && scoreFilter
+    ? (["all", commuteFilter, scoreFilter] as any)
+    : (commuteFilter ?? scoreFilter);
 }
 
 function applyCombinedCellFilters(
@@ -4831,6 +4914,8 @@ function buildIndexScoringSignature(prefs: IndexPrefs) {
     prefs.crimeWeight ?? 0,
     prefs.epcFuelWeight ?? 0,
     prefs.epcFuelPreference ?? "gas",
+    prefs.commuteFilter?.normalizedPostcode ?? "",
+    prefs.commuteFilter?.minutes ?? 0,
   ].join("|");
 }
 
@@ -5045,6 +5130,7 @@ async function applyIndexScoring(
   const NEAR_DEG = 0.08;
   const DATA_DEG = 0.45;
   const CHUNK = 300; // yield to browser every N cells
+  const weightedCriteriaActive = hasWeightedIndexCriteria(prefs);
 
   const features = fc.features;
 
@@ -5124,6 +5210,8 @@ async function applyIndexScoring(
 
     const cLon = (coords[0][0] + coords[2][0]) / 2;
     const cLat = (coords[0][1] + coords[2][1]) / 2;
+    const commuteInside = prefs.commuteFilter ? pointInGeometry(cLon, cLat, prefs.commuteFilter.geometry) : true;
+    props.ix_commute_ok = commuteInside ? 1 : 0;
 
     let totalWeight = 0;
     let totalScore = 0;
@@ -5437,12 +5525,12 @@ async function applyIndexScoring(
     }
 
     const baseScore = totalWeight > 0 ? totalScore / totalWeight : 0.5;
-    props.index_score = totalWeight > 0 ? Math.max(0, baseScore * vetoMultiplier) : -1;
+    props.index_score = totalWeight > 0 ? Math.max(0, baseScore * vetoMultiplier) : 0.5;
   }
 
   src.setData(fc as any);
 
-  if (map.getLayer("cells-fill")) {
+  if (map.getLayer("cells-fill") && weightedCriteriaActive) {
     const baseOpacityExpr = [
       "case", ["<", ["get", "index_score"], 0], 0.12,
       ["interpolate", ["linear"], ["get", "index_score"],
@@ -5461,6 +5549,71 @@ async function applyIndexScoring(
   }
   applyCombinedCellFilters(map, state, prefs);
   return true;
+}
+
+function pointInGeometry(lon: number, lat: number, geometry: CommuteIsochroneGeometry): boolean {
+  if (geometry.type === "Polygon") return pointInPolygonRings(lon, lat, geometry.coordinates);
+  for (const polygon of geometry.coordinates) {
+    if (pointInPolygonRings(lon, lat, polygon)) return true;
+  }
+  return false;
+}
+
+function pointInPolygonRings(lon: number, lat: number, rings: number[][][]): boolean {
+  if (!rings.length) return false;
+  if (!pointInRing(lon, lat, rings[0])) return false;
+  for (let i = 1; i < rings.length; i++) {
+    if (pointInRing(lon, lat, rings[i])) return false;
+  }
+  return true;
+}
+
+function pointInRing(lon: number, lat: number, ring: number[][]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = Number(ring[i]?.[0]);
+    const yi = Number(ring[i]?.[1]);
+    const xj = Number(ring[j]?.[0]);
+    const yj = Number(ring[j]?.[1]);
+    const intersects = ((yi > lat) !== (yj > lat)) && (lon < ((xj - xi) * (lat - yi)) / ((yj - yi) || 1e-12) + xi);
+    if (intersects) inside = !inside;
+  }
+  return inside;
+}
+
+function setCommuteIsochroneOverlay(map: maplibregl.Map, commuteFilter: CommuteFilterData | null) {
+  const areaSource = map.getSource("commute-isochrone") as maplibregl.GeoJSONSource | undefined;
+  const originSource = map.getSource("commute-isochrone-origin") as maplibregl.GeoJSONSource | undefined;
+  if (!areaSource || !originSource) return;
+
+  if (!commuteFilter) {
+    areaSource.setData({ type: "FeatureCollection", features: [] } as any);
+    originSource.setData({ type: "FeatureCollection", features: [] } as any);
+    if (map.getLayer("commute-isochrone-fill")) map.setLayoutProperty("commute-isochrone-fill", "visibility", "none");
+    if (map.getLayer("commute-isochrone-line")) map.setLayoutProperty("commute-isochrone-line", "visibility", "none");
+    if (map.getLayer("commute-isochrone-origin")) map.setLayoutProperty("commute-isochrone-origin", "visibility", "none");
+    return;
+  }
+
+  areaSource.setData({
+    type: "FeatureCollection",
+    features: [{
+      type: "Feature",
+      properties: { postcode: commuteFilter.normalizedPostcode, minutes: commuteFilter.minutes },
+      geometry: commuteFilter.geometry,
+    }],
+  } as any);
+  originSource.setData({
+    type: "FeatureCollection",
+    features: [{
+      type: "Feature",
+      properties: { postcode: commuteFilter.normalizedPostcode },
+      geometry: { type: "Point", coordinates: [commuteFilter.origin.lon, commuteFilter.origin.lat] },
+    }],
+  } as any);
+  if (map.getLayer("commute-isochrone-fill")) map.setLayoutProperty("commute-isochrone-fill", "visibility", "visible");
+  if (map.getLayer("commute-isochrone-line")) map.setLayoutProperty("commute-isochrone-line", "visibility", "visible");
+  if (map.getLayer("commute-isochrone-origin")) map.setLayoutProperty("commute-isochrone-origin", "visibility", "visible");
 }
 
 function rowsToGeoJsonSquares(rows: ApiRow[], g: number) {
