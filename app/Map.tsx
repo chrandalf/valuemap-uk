@@ -3365,7 +3365,7 @@ export default function ValueMap({
       abortController.abort();
       if (requestSeqRef.current === seq) setIsLoading(false);
     };
-  }, [state.grid, state.propertyType, state.newBuild, state.endMonth, state.metric, state.voteOverlayMode, state.commuteOverlayMode]);
+  }, [state.grid, state.propertyType, state.newBuild, state.endMonth, state.metric, state.voteOverlayMode, state.commuteOverlayMode, state.modelledMode]);
 
   useEffect(() => {
     const map = mapRef.current;
