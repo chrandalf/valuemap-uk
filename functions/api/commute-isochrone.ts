@@ -9,7 +9,9 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     if (!minutes) return jsonError("Invalid minutes. Use 15, 30, 45 or 60.", 400);
 
     const token = env.COMMUTE_ISOCHRONE_MAPBOX_TOKEN ?? env.MAPBOX_ACCESS_TOKEN;
-    if (!token) return jsonError("Commute isochrone token is not configured.", 503);
+    if (!token) {
+      return jsonError("Commute filter needs a server-side Mapbox token. Set COMMUTE_ISOCHRONE_MAPBOX_TOKEN (or MAPBOX_ACCESS_TOKEN) in the deployment environment.", 503);
+    }
 
     const normalizedPostcode = normalizePostcode(postcodeRaw);
     if (!normalizedPostcode) return jsonError("Invalid postcode", 400);
