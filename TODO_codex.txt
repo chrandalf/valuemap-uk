@@ -268,7 +268,101 @@ TIER 3 — LARGER FEATURES  (L, significant work)
           - UI: bedroom chip selector (Any / 1 / 2 / 3 / 4+) in Filters panel
           - Note: requires full pipeline rebuild across all grid sizes
 
-[ ] [L]   Proximity to coast as a scoring factor
+[ ] [L]   Modelled price estimates for sparse 1km cells
+          Problem: many 1km cells have only 2-5 sales in any 12-month window, giving
+          an unreliable or missing median. These cells show up blank on the map.
+
+          SCIENCE — Ratio Estimator (standard small-area estimation technique):
+          For each 1km cell (gx,gy) + (property_type, new_build) combo:
+            1. Find the parent 5km cell: parent_gx = gx // 5, parent_gy = gy // 5
+            2. Collect N historical year snapshots where BOTH the 1km cell AND
+               the parent 5km cell have ≥ 3 sales: pairs (median_1km_t, median_5km_t)
+            3. Compute ratio_t = median_1km_t / median_5km_t for each year t
+            4. mean_ratio = mean(ratio_t over all valid t)
+            5. ratio_cv   = std(ratio_t) / mean_ratio  (coefficient of variation)
+            6. estimated_median = mean_ratio × current_5km_median
+            Fallback if parent 5km also sparse: climb to 10km parent and repeat.
+          Confidence tiers (stored as model_confidence field):
+            H  (2) — n_years ≥ 4 AND ratio_cv < 0.15  (stable local premium/discount)
+            M  (1) — n_years ≥ 2 AND ratio_cv < 0.30
+            L  (0) — fewer than 2 years or high variance (flagged, treat with caution)
+          Why this works: it captures the local street-level premium or discount vs
+          the wider area. A village that has always been 20% above its 5km average
+          will stay flagged at roughly that premium in estimates.
+          Why it is not perfect: sudden local changes (new development, HS2, etc.)
+          won't be captured until real transactions arrive.
+
+          PIPELINE — new script: pipeline/build_price_model.py
+          Input:
+          [ ] grid_1km_annual  (already built by make_grid_annual_stack_levels)
+          [ ] grid_5km_annual  (already built)
+          [ ] grid_10km_annual (already built, used as fallback)
+          Steps:
+          [ ] Load all three annual stacks from data/model/property/
+          [ ] For each (gx_1km, gy_1km, property_type, new_build):
+                map to parent 5km cell → join 5km annual stack on same end_month
+                collect pairs where both have sales_12m ≥ 3
+                compute mean_ratio, n_years, ratio_cv
+                if n_years < 2: climb to 10km parent and repeat
+                estimated_median = mean_ratio × latest_5km_median
+                model_confidence = 2 / 1 / 0 per tiers above
+          [ ] Output: data/model/property/grid_1km_modelled_ALL_ALL.json.gz etc.
+              Schema per row: {gx, gy, property_type, new_build, end_month,
+                               estimated_median, model_confidence, n_years, ratio_cv}
+          [ ] Upload: add to upload_model_assets_to_r2.py with --skip-model flag
+
+          API — functions/api/cells.ts
+          [ ] New R2 key pattern: grid_1km_modelled_{property_type}_{new_build}.json.gz
+          [ ] New in-memory cache: MODEL_CACHE (keyed by grid+type+build)
+          [ ] Fetch modelled lookup in parallel inside backfillAll (1km only)
+          [ ] New CellRow fields: estimated_median?, model_confidence? (0|1|2)
+          [ ] New query param ?modelled=actual|blend|estimated (default: blend)
+              actual    — current behaviour, no change
+              blend     — use actual where tx_count ≥ 3, else fill from modelled
+              estimated — replace all medians with modelled estimate regardless
+          [ ] Merge logic: for blend, final median = actual if available else estimated
+              also write is_modelled: true when the estimate is being used
+
+          MAP.TSX
+          [ ] MapState: add modelledMode: "actual" | "blend" | "estimated"
+          [ ] Cell popup: when is_modelled=true show  "◆ Estimated — based on N years
+              of local price history relative to the {5km/10km} area" with confidence
+              tier label (High / Medium / Low)
+          [ ] Popup: show model_confidence tier and ratio_cv so power users can judge
+          [ ] Visual distinction: modelled cells rendered at 85% opacity (separate
+              paint property driven by a feature-state or a "is_modelled" field in
+              the source data) — subtle, not alarming
+          [ ] useEffect dep array: include modelledMode; re-fetch on change
+
+          PAGE.TSX
+          [ ] AppState: modelledMode field, default "blend"
+          [ ] Controls menu: "Price estimates" section with 3 buttons:
+              [Actual only] [Actual + Estimated ✓] [Estimated only]
+          [ ] Legend: when modelled mode != "actual" add a note:
+              "◆ = estimated from {N}-year local trend" below colour ramp
+          [ ] Filters panel: note about modelled mode affecting affordability filter
+
+          FIND MY AREA — defer to separate TODO item
+          [ ] When modelled mode is blend/estimated, use estimated_median in place
+              of missing actual medians for the affordability scoring pass
+              (currently null medians are silently excluded from scoring)
+
+          DATA NOTES
+          - Pipeline already has 10 years of annual stacks at 1km/5km/10km/25km
+            (make_grid_annual_stack_levels in build_grids.py) — no new data needed
+          - 1km ALL/ALL stack has ~220,000 cells across GB; modelled output will be
+            similar in size — expect ~2-3 MB gzipped per property_type+new_build combo
+          - Scotland cells: ratio estimator still works; upstream data quality caveat
+            about ~1-2 year staleness still applies
+          Internal difficulty breakdown:
+            Pipeline (build_price_model.py)           [S]  — straightforward pandas
+            API extension (new cache + merge + param) [S]  — boilerplate, low risk
+            Map visual + popup changes                [S]  — one new paint rule
+            Page UI toggle + legend                   [XS] — three buttons + note
+            Find My Area integration                  [S]  — fill null medians only
+            Total end-to-end                          [M]  — good first sprint target
+
+
           - Pipeline: pre-compute nearest-coastline distance per cell centroid
             (use OS BoundaryLine or Natural Earth coastline shapefile)
           - Add `coastScore` to cell properties

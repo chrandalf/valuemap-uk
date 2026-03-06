@@ -62,6 +62,13 @@ export default function NextStepsPage() {
 
         <ol start={1} style={{ margin: 0, padding: "0 0 0 18px", fontSize: 14, opacity: 0.92 }}>
           <li style={{ marginBottom: 8 }}>
+            Modelled price estimates for sparse areas &mdash; using up to five years of local
+            price history relative to the surrounding area, the map will fill in estimated
+            values for cells with too few recent sales to give a reliable median. A toggle
+            lets you choose between actual data only, actual where available plus estimates
+            elsewhere, or estimates everywhere for a fuller picture.
+          </li>
+          <li style={{ marginBottom: 8 }}>
             Confidence and coverage indicators per cell (sales bands, low-data flags,
             and freshness hints).
           </li>
