@@ -2853,9 +2853,9 @@ export default function Home() {
               <ImportancePicker emoji="🏫" label="Schools (sec.)"  value={indexSchoolWeight}        onChange={setIndexSchoolWeight}        color="#22c55e" />
               <ImportancePicker emoji="🕋" label="Primary school" value={indexPrimarySchoolWeight} onChange={setIndexPrimarySchoolWeight} color="#86efac" />
               <ImportancePicker emoji="🚂" label="Trains"        value={indexTrainWeight}  onChange={setIndexTrainWeight}  color="#f97316" />
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                <span style={{ fontSize: 11, fontWeight: 600, flex: "0 0 auto", minWidth: 100 }}>👥 Community age</span>
-                <div style={{ display: "flex", gap: 3, alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", padding: "5px 0", borderBottom: "1px solid rgba(255,255,255,0.06)", flexDirection: "column", gap: 4 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, flex: "0 0 auto", minWidth: 100 }}>👥 Community age</span>
                   <div style={{ display: "flex", gap: 3 }}>
                     {([{ label: "Must", value: 10 }, { label: "Want", value: 6 }, { label: "Nice", value: 3 }, { label: "Off", value: 0 }] as const).map(({ label: lbl, value: v }) => {
                       const active = [0, 3, 6, 10].reduce<number>((best, l) => Math.abs(indexAgeWeight - l) < Math.abs(indexAgeWeight - best) ? l : best, 10);
@@ -2864,17 +2864,16 @@ export default function Home() {
                       );
                     })}
                   </div>
-                  {indexAgeWeight > 0 && (
-                    <select
-                      value={indexAgeDirection}
-                      onChange={(e) => setIndexAgeDirection(e.target.value as "young" | "old")}
-                      style={{ marginLeft: 4, fontSize: 10, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)", color: "white", borderRadius: 6, padding: "2px 4px", cursor: "pointer" }}
-                    >
-                      <option value="young">Younger</option>
-                      <option value="old">Older</option>
-                    </select>
-                  )}
                 </div>
+                {indexAgeWeight > 0 && (
+                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap", paddingLeft: 4 }}>
+                    {([["young", "Younger"], ["old", "Older"]] as const).map(([val, lbl]) => (
+                      <button key={val} type="button" onClick={() => setIndexAgeDirection(val)}
+                        style={{ cursor: "pointer", padding: "2px 7px", borderRadius: 6, fontSize: 10, fontWeight: indexAgeDirection === val ? 700 : 400, border: indexAgeDirection === val ? "1.5px solid #a78bfa" : "1px solid rgba(255,255,255,0.13)", background: indexAgeDirection === val ? "#a78bfa20" : "rgba(255,255,255,0.04)", color: indexAgeDirection === val ? "white" : "rgba(255,255,255,0.5)", lineHeight: 1.4 }}
+                      >{lbl}</button>
+                    ))}
+                  </div>
+                )}
               </div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
                 <span style={{ fontSize: 11, fontWeight: 600, flex: "0 0 auto", minWidth: 100 }}>🚔 Crime safety</span>
