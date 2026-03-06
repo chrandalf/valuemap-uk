@@ -353,6 +353,9 @@ export default function Home() {
   const [indexOpen, setIndexOpen] = useState(false);
   const [indexActive, setIndexActive] = useState(false);
   const [indexScoringPending, setIndexScoringPending] = useState(false);
+  const [commuteOpen, setCommuteOpen] = useState(false);
+  const [commuteActive, setCommuteActive] = useState(false);
+  const [commutePending, setCommutePending] = useState(false);
   const [indexToken, setIndexToken] = useState(0);
   const [indexBudget, setIndexBudget] = useState(300000);
   const [indexPropertyType, setIndexPropertyType] = useState<string>("ALL");
@@ -370,6 +373,8 @@ export default function Home() {
   const [indexCommutePostcode, setIndexCommutePostcode] = useState("");
   const [indexCommuteMaxMinutes, setIndexCommuteMaxMinutes] = useState<15 | 30 | 45 | 60>(45);
   const [indexValidationError, setIndexValidationError] = useState<string | null>(null);
+  const [commuteError, setCommuteError] = useState<string | null>(null);
+  const [commuteApplied, setCommuteApplied] = useState<CommuteFilterData | null>(null);
   const [indexApplied, setIndexApplied] = useState<IndexScoringPrefs>({
     budget: 300000,
     propertyType: "ALL",
@@ -399,7 +404,7 @@ export default function Home() {
   // Keep map scoring prefs stable while user edits sliders; apply only on "Score areas"
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const computedIndexPrefs: IndexPrefs | null = useMemo(() => {
-    if (!indexActive) return null;
+    if (!indexActive && !commuteActive) return null;
     return {
       budget: indexApplied.budget,
       propertyType: indexApplied.propertyType,
@@ -414,12 +419,14 @@ export default function Home() {
       crimeWeight: indexApplied.crimeWeight ?? 0,
       epcFuelWeight: indexApplied.epcFuelWeight ?? 0,
       epcFuelPreference: indexApplied.epcFuelPreference ?? "gas",
-      commuteFilter: indexApplied.commuteFilter ?? null,
+      commuteFilter: commuteActive ? commuteApplied : null,
       indexFilterMode: indexSuitabilityMode,
       indexFilterThreshold: indexSuitabilityThreshold / 100,
     };
   }, [
     indexActive,
+    commuteActive,
+    commuteApplied,
     indexToken,
     indexApplied,
     indexSuitabilityMode,
@@ -478,6 +485,9 @@ export default function Home() {
     setIndexOpen(false);
     setIndexActive(false);
     setIndexScoringPending(false);
+    setCommuteOpen(false);
+    setCommuteActive(false);
+    setCommutePending(false);
     setIndexBudget(300000);
     setIndexPropertyType("ALL");
     setIndexAffordWeight(0);
@@ -494,6 +504,8 @@ export default function Home() {
     setIndexCommutePostcode("");
     setIndexCommuteMaxMinutes(45);
     setIndexValidationError(null);
+    setCommuteError(null);
+    setCommuteApplied(null);
     setIndexApplied({
       budget: 300000,
       propertyType: "ALL",
@@ -508,6 +520,40 @@ export default function Home() {
       epcFuelWeight: 0,
       commuteFilter: null,
     });
+  };
+
+  const applyCommuteFilter = async () => {
+    const postcode = indexCommutePostcode.trim();
+    if (!postcode) {
+      setCommuteError("Please enter a work postcode.");
+      return;
+    }
+    if (state.metric !== "median") {
+      setCommuteError("The commute filter currently runs with the 1km median-price map only.");
+      return;
+    }
+
+    setCommuteError(null);
+    setCommutePending(true);
+    try {
+      const qs = new URLSearchParams({ postcode, minutes: String(indexCommuteMaxMinutes) });
+      const res = await fetch(`/api/commute-isochrone?${qs.toString()}`);
+      const data = (await res.json()) as { error?: string } & Partial<CommuteFilterData>;
+      if (!res.ok) {
+        setCommutePending(false);
+        setCommuteError(data?.error || "Commute filter is temporarily unavailable.");
+        return;
+      }
+      setCommuteApplied(data as CommuteFilterData);
+      setGridMode("manual");
+      setState((s) => ({ ...s, grid: "1km", metric: "median" }));
+      setCommuteActive(true);
+      setIndexToken((t) => t + 1);
+      setCommuteOpen(false);
+    } catch (err: any) {
+      setCommutePending(false);
+      setCommuteError("Commute filter is temporarily unavailable.");
+    }
   };
 
   // Close dropdowns when clicking outside
@@ -538,6 +584,12 @@ export default function Home() {
       setIndexScoringPending(false);
     }
   }, [indexActive]);
+
+  useEffect(() => {
+    if (!commuteActive) {
+      setCommutePending(false);
+    }
+  }, [commuteActive]);
 
   useEffect(() => {
     if (introInitRef.current) return;
@@ -1185,6 +1237,9 @@ export default function Home() {
       ? `${formatMetricFilterValue(state.metric, medianLegend.breaks[0])}–${formatMetricFilterValue(state.metric, medianLegend.breaks[medianLegend.breaks.length - 1])}`
       : null;
   const indexAffordabilitySummary = `Find my area affordability uses ${propertyTypeLabel(indexApplied.propertyType)} medians vs max price ${state.metric === "median_ppsf" ? `£${Math.round(indexApplied.budget).toLocaleString()}/ft²` : `£${Math.round(indexApplied.budget).toLocaleString()}`}`;
+  const commuteFilterSummary = commuteActive && commuteApplied
+    ? `Commute filter: ${commuteApplied.normalizedPostcode} within ${commuteApplied.minutes} min drive`
+    : null;
   const topBarHeight = isMobileViewport ? 88 : 48;
   const topStripTop = topBarHeight + 4;
   const floatingPanelTop = topBarHeight + 8;
@@ -1902,7 +1957,7 @@ export default function Home() {
         locateMeToken={locateMeToken}
         onLocateMeResult={handleLocateMeResult}
         indexPrefs={computedIndexPrefs}
-        onIndexScoringApplied={() => setIndexScoringPending(false)}
+        onIndexScoringApplied={() => { setIndexScoringPending(false); setCommutePending(false); }}
         onStatsUpdate={setMapStats}
         flyToRequest={flyToRequest}
         easyColours={easyColours}
@@ -2018,6 +2073,7 @@ export default function Home() {
                   {([
                     { label: filtersOpen ? "🗂 Filters (open)" : "🗂 Filters", action: () => { setFiltersOpen(v => !v); setControlsDropOpen(false); bringToFront("filters"); } },
                     { label: "🔍 Find my area", action: () => { setIndexOpen(v => !v); setControlsDropOpen(false); bringToFront("index"); } },
+                    { label: commuteActive ? "🚗 Commute filter (active)" : "🚗 Commute filter", action: () => { setCommuteOpen(v => !v); setControlsDropOpen(false); bringToFront("commute"); } },
                     { label: rgLog.length > 0 ? `📋 Search log (${rgLog.length})` : "📋 Search log", action: () => { setRgLogOpen(v => !v); setControlsDropOpen(false); } },
                     { label: "↺  Reset all", action: () => { resetAll(); } },
                   ] as Array<{ label: string; action: () => void }>).map(({ label, action }) => (
@@ -2389,6 +2445,10 @@ export default function Home() {
                 {indexActive ? (
                   <div style={{ fontSize: 10, opacity: 0.8, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                     {indexAffordabilitySummary}
+                  </div>
+                ) : commuteFilterSummary ? (
+                  <div style={{ fontSize: 10, opacity: 0.78, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {commuteFilterSummary}
                   </div>
                 ) : headerMedianSummary && (
                   <div style={{ fontSize: 10, opacity: 0.72, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -2784,35 +2844,6 @@ export default function Home() {
               Score every cell <b style={{ color: "#22c55e" }}>green</b> (great match) → <b style={{ color: "#ef4444" }}>red</b> (poor) based on what you care about.
             </div>
 
-            <div style={{
-              background: "rgba(255,255,255,0.04)",
-              borderRadius: 10,
-              border: "1px solid rgba(255,255,255,0.1)",
-              padding: "8px 10px",
-              marginBottom: 10,
-            }}>
-              <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 7 }}>🚗 Work commute filter</div>
-              <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 7 }}>
-                <input
-                  type="text"
-                  value={indexCommutePostcode}
-                  onChange={(e) => setIndexCommutePostcode(e.target.value.toUpperCase())}
-                  placeholder="Work postcode e.g. LS1 4AP"
-                  style={{ flex: 1, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.14)", color: "white", fontSize: 12, borderRadius: 8, padding: "8px 10px", outline: "none" }}
-                />
-                <select
-                  value={indexCommuteMaxMinutes}
-                  onChange={(e) => setIndexCommuteMaxMinutes(Number(e.target.value) as 15 | 30 | 45 | 60)}
-                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.14)", color: "white", fontSize: 12, borderRadius: 8, padding: "8px 10px", outline: "none" }}
-                >
-                  {[15, 30, 45, 60].map((mins) => <option key={mins} value={mins} style={{ color: "black" }}>{mins} min</option>)}
-                </select>
-              </div>
-              <div style={{ fontSize: 10, opacity: 0.58, lineHeight: 1.35 }}>
-                Optional. If set, only 1km cells inside the drive-time catchment will remain visible after scoring.
-              </div>
-            </div>
-
             {/* Budget + Property type card */}
             <div style={{
               background: "rgba(255,255,255,0.04)",
@@ -2988,13 +3019,12 @@ export default function Home() {
             <div style={{ display: "flex", gap: 8 }}>
               <button
                 type="button"
-                onClick={async () => {
+                onClick={() => {
                   // — Validate before scoring —
                   const totalW = indexAffordWeight + indexFloodWeight + indexSchoolWeight +
                     indexPrimarySchoolWeight + indexTrainWeight + indexCoastWeight + indexAgeWeight + indexCrimeWeight +
                     indexEpcFuelWeight;
-                  const wantsCommute = indexCommutePostcode.trim().length > 0;
-                  if (totalW === 0 && !wantsCommute) {
+                  if (totalW === 0) {
                     setIndexValidationError("Please set at least one criterion above Off before scoring.");
                     return;
                   }
@@ -3002,31 +3032,8 @@ export default function Home() {
                     setIndexValidationError("Please enter a valid budget above £0 to use the affordability criterion.");
                     return;
                   }
-                  if (wantsCommute && state.metric !== "median") {
-                    setIndexValidationError("The work commute filter currently runs with the 1km median-price map only.");
-                    return;
-                  }
                   setIndexValidationError(null);
                   setIndexScoringPending(true);
-
-                  let commuteFilter: CommuteFilterData | null = null;
-                  if (wantsCommute) {
-                    try {
-                      const qs = new URLSearchParams({ postcode: indexCommutePostcode.trim(), minutes: String(indexCommuteMaxMinutes) });
-                      const res = await fetch(`/api/commute-isochrone?${qs.toString()}`);
-                      const data = (await res.json()) as { error?: string } & Partial<CommuteFilterData>;
-                      if (!res.ok) {
-                        setIndexScoringPending(false);
-                        setIndexValidationError(data?.error || `Failed to build commute area (${res.status})`);
-                        return;
-                      }
-                      commuteFilter = data as CommuteFilterData;
-                    } catch (err: any) {
-                      setIndexScoringPending(false);
-                      setIndexValidationError(err?.message || "Failed to build commute area");
-                      return;
-                    }
-                  }
 
                   setIndexApplied({
                     budget: indexBudget,
@@ -3042,7 +3049,7 @@ export default function Home() {
                     crimeWeight: indexCrimeWeight,
                     epcFuelWeight: indexEpcFuelWeight,
                     epcFuelPreference: indexEpcFuelPreference,
-                    commuteFilter,
+                    commuteFilter: null,
                   });
                   setGridMode("manual");
                   setState((s) => ({ ...s, grid: "1km" }));
@@ -3121,6 +3128,105 @@ export default function Home() {
               >
                 Skip — explore manually
               </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {commuteOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: frontZ("commute", 46),
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(0,0,0,0.45)",
+            backdropFilter: "blur(3px)",
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget) setCommuteOpen(false); }}
+          onMouseDown={() => bringToFront("commute")}
+        >
+          <div
+            style={{
+              width: compactIndexUi ? 352 : 380,
+              maxWidth: compactIndexUi ? "calc(100vw - 20px)" : "calc(100vw - 32px)",
+              padding: compactIndexUi ? "11px 12px" : "16px 18px",
+              borderRadius: compactIndexUi ? 12 : 16,
+              background: "rgba(10, 12, 20, 0.96)",
+              border: commuteActive ? "2px solid rgba(14,165,233,0.55)" : "1px solid rgba(14,165,233,0.3)",
+              backdropFilter: "blur(12px)",
+              color: "white",
+              fontSize: compactIndexUi ? 11 : 12,
+              boxShadow: "0 8px 40px rgba(0,0,0,0.5)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <div style={{ fontWeight: 700, fontSize: compactIndexUi ? 14 : 15 }}>🚗 Commute filter</div>
+              <button
+                type="button"
+                onClick={() => setCommuteOpen(false)}
+                style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "white", width: compactIndexUi ? 24 : 26, height: compactIndexUi ? 24 : 26, borderRadius: 999, fontSize: compactIndexUi ? 13 : 15, lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ fontSize: 11, opacity: 0.68, marginBottom: 10, lineHeight: 1.35 }}>
+              Enter a work postcode and max drive time to show only 1km cells that fall inside that catchment.
+            </div>
+
+            <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 10, border: "1px solid rgba(255,255,255,0.1)", padding: "10px 12px", marginBottom: 10 }}>
+              <div style={{ display: "grid", gap: 8 }}>
+                <input
+                  type="text"
+                  value={indexCommutePostcode}
+                  onChange={(e) => setIndexCommutePostcode(e.target.value.toUpperCase())}
+                  placeholder="Work postcode e.g. LS1 4AP"
+                  style={{ width: "100%", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.14)", color: "white", fontSize: 12, borderRadius: 8, padding: "9px 10px", outline: "none" }}
+                />
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                  <div style={{ fontSize: 11, opacity: 0.78 }}>Max drive time</div>
+                  <select
+                    value={indexCommuteMaxMinutes}
+                    onChange={(e) => setIndexCommuteMaxMinutes(Number(e.target.value) as 15 | 30 | 45 | 60)}
+                    style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.14)", color: "white", fontSize: 12, borderRadius: 8, padding: "8px 10px", outline: "none" }}
+                  >
+                    {[15, 30, 45, 60].map((mins) => <option key={mins} value={mins} style={{ color: "black" }}>{mins} min</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ fontSize: 10, opacity: 0.56, marginBottom: 10, lineHeight: 1.35 }}>
+              This is a separate map filter, not part of Find My Area scoring. It currently runs on the 1km median-price view.
+            </div>
+
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => { void applyCommuteFilter(); }}
+                style={{ flex: 1, cursor: "pointer", border: "2px solid rgba(14,165,233,0.6)", background: "rgba(14,165,233,0.2)", color: "white", padding: "9px 10px", borderRadius: 999, fontSize: 13, fontWeight: 700 }}
+              >
+                {commutePending ? "⏳ Applying..." : commuteActive ? "🚗 Update filter" : "🚗 Apply filter"}
+              </button>
+              {commuteActive && (
+                <button
+                  type="button"
+                  onClick={() => { setCommutePending(false); setCommuteActive(false); setCommuteOpen(false); setCommuteApplied(null); setCommuteError(null); setIndexToken((t) => t + 1); }}
+                  style={{ flex: 1, cursor: "pointer", border: "1px solid rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.12)", color: "white", padding: "9px 10px", borderRadius: 999, fontSize: 13, fontWeight: 600 }}
+                >
+                  Clear filter
+                </button>
+              )}
+            </div>
+
+            {commuteError && (
+              <div style={{ marginTop: 8, padding: "7px 10px", borderRadius: 8, background: "rgba(220,60,60,0.22)", border: "1px solid rgba(220,60,60,0.55)", color: "#ffb3b3", fontSize: 11, lineHeight: 1.4 }}>
+                ⚠️ {commuteError}
+              </div>
             )}
           </div>
         </div>
@@ -3583,6 +3689,46 @@ export default function Home() {
                     fontSize: 11,
                     fontWeight: 600,
                   }}
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+          )}
+
+          {commuteActive && !commuteOpen && (
+            <div
+              style={{
+                width: "100%",
+                padding: "8px 10px",
+                borderRadius: 12,
+                background: "rgba(10, 12, 20, 0.9)",
+                border: "2px solid rgba(14,165,233,0.45)",
+                backdropFilter: "blur(10px)",
+                color: "white",
+                fontSize: 11,
+                display: "grid",
+                gap: 8,
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>🚗 Commute filter</div>
+              </div>
+              <div style={{ fontSize: 11, opacity: 0.82, lineHeight: 1.35 }}>
+                {commuteFilterSummary}
+              </div>
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                <button
+                  type="button"
+                  onClick={() => setCommuteOpen(true)}
+                  style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.08)", color: "white", padding: "5px 10px", borderRadius: 999, fontSize: 11, fontWeight: 600 }}
+                >
+                  Edit filter
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setCommutePending(false); setCommuteActive(false); setCommuteOpen(false); setCommuteApplied(null); setCommuteError(null); setIndexToken((t) => t + 1); }}
+                  style={{ cursor: "pointer", border: "1px solid rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.12)", color: "white", padding: "5px 10px", borderRadius: 999, fontSize: 11, fontWeight: 600 }}
                 >
                   Clear
                 </button>

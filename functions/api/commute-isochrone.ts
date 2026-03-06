@@ -10,7 +10,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
 
     const token = env.COMMUTE_ISOCHRONE_MAPBOX_TOKEN ?? env.MAPBOX_ACCESS_TOKEN;
     if (!token) {
-      return jsonError("Commute filter needs a server-side Mapbox token. Set COMMUTE_ISOCHRONE_MAPBOX_TOKEN (or MAPBOX_ACCESS_TOKEN) in the deployment environment.", 503);
+      return jsonError("Commute filter is temporarily unavailable.", 503);
     }
 
     const normalizedPostcode = normalizePostcode(postcodeRaw);
