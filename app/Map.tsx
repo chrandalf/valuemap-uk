@@ -44,6 +44,7 @@ export type MapState = {
   voteColorScale?: VoteColorScale;
   epcFuelOverlayMode?: EpcFuelOverlayMode;
   epcFuelType?: EpcFuelType;
+  modelledMode?: "actual" | "blend" | "estimated";
 };
 
 export type IndexPrefs = {
@@ -135,6 +136,12 @@ type ApiRow = {
   pct_oil?: number;
   pct_lpg?: number;
   fuel_pct_other?: number;
+  // modelled price estimate fields
+  is_modelled?: boolean;
+  model_confidence?: number;   // 0 | 1 | 2
+  n_years_model?: number;
+  ratio_cv_model?: number;
+  estimated_median?: number;
 };
 
 function isDeltaMetric(metric: Metric) {
@@ -1158,7 +1165,7 @@ export default function ValueMap({
     source: "cells",
     paint: {
       "fill-color": getFillColorExpression(state.metric, easyColoursRef.current),
-      "fill-opacity": 0.42,
+      "fill-opacity": ["case", ["==", ["get", "is_modelled"], true], 0.28, 0.42] as any,
     },
   });
 
@@ -2706,6 +2713,7 @@ export default function ValueMap({
         <div style="font-family: system-ui; font-size: 12px; line-height: 1.25;">
           <div style="font-weight: 700; margin-bottom: 4px;">${metricTitle}</div>
           <div>Sales sample: <b>${tx}</b></div>
+          ${p.is_modelled ? `<div style="color:#888;font-style:italic;margin-top:3px;">◆ Estimated — ${p.n_years_model ?? "?"}yr local trend · ${p.model_confidence === 2 ? "High" : p.model_confidence === 1 ? "Medium" : "Low"} confidence</div>` : ""}
         </div>
       `;
     }
@@ -3400,7 +3408,7 @@ export default function ValueMap({
         const hideCells =
           (stateRef.current.floodOverlayMode ?? "off") === "on_hide_cells" ||
           (stateRef.current.schoolOverlayMode ?? "off") === "on_hide_cells";
-        map.setPaintProperty("cells-fill", "fill-opacity", hideCells ? 0.09 : 0.42);
+        map.setPaintProperty("cells-fill", "fill-opacity", hideCells ? 0.09 : ["case", ["==", ["get", "is_modelled"], true], 0.28, 0.42] as any);
       }
       applyCombinedCellFilters(map, stateRef.current, null);
       prevIndexScoringSignatureRef.current = null;
@@ -3468,7 +3476,7 @@ export default function ValueMap({
         // Cell opacity — applied in the same call so it cannot be skipped by a mid-layout bail
         if (map.getLayer("cells-fill")) {
           map.setLayoutProperty("cells-fill", "visibility", "visible");
-          map.setPaintProperty("cells-fill", "fill-opacity", hideCellsMode ? 0.09 : 0.42);
+          map.setPaintProperty("cells-fill", "fill-opacity", hideCellsMode ? 0.09 : ["case", ["==", ["get", "is_modelled"], true], 0.28, 0.42] as any);
         }
         if (map.getLayer("cells-outline")) {
           map.setLayoutProperty("cells-outline", "visibility", "visible");
@@ -4253,7 +4261,7 @@ async function setRealData(
   const endpoint = isDelta ? "/api/deltas" : "/api/cells";
 
   const endMonth = isDelta ? undefined : state.endMonth ?? "LATEST";
-  const cacheKey = `${state.grid}|${state.propertyType}|${state.newBuild}|${state.metric}|${endMonth ?? "LATEST"}|${VOTE_CELLS_DATA_VERSION}`;
+  const cacheKey = `${state.grid}|${state.propertyType}|${state.newBuild}|${state.metric}|${endMonth ?? "LATEST"}|${state.modelledMode ?? "blend"}|${VOTE_CELLS_DATA_VERSION}`;
   const cached = cache.get(cacheKey);
   if (cached) {
     const src = map.getSource("cells") as maplibregl.GeoJSONSource;
@@ -4286,6 +4294,9 @@ async function setRealData(
   if (!isDelta) {
     qs.set("metric", state.metric);
     qs.set("endMonth", endMonth!);
+    if (state.grid === "1km") {
+      qs.set("modelled", state.modelledMode ?? "blend");
+    }
   }
   qs.set("voteDataVersion", VOTE_CELLS_DATA_VERSION);
 
@@ -4394,7 +4405,7 @@ async function ensureAggregatesAndUpdate(
 
     // 1) ensure 25km aggregate for the overlay (unchanged behaviour)
     const endMonth = state.endMonth ?? "LATEST";
-    const key25 = `25km|${state.propertyType}|${state.newBuild}|${state.metric}|${endMonth}|${VOTE_CELLS_DATA_VERSION}`;
+    const key25 = `25km|${state.propertyType}|${state.newBuild}|${state.metric}|${endMonth}|${state.modelledMode ?? "blend"}|${VOTE_CELLS_DATA_VERSION}`;
     let fc25 = cache.get(key25);
 
     if (!fc25) {
@@ -4440,7 +4451,7 @@ async function ensureAggregatesAndUpdate(
     }
 
     // 2) ensure current-grid aggregate for colour breaks (per-grid deciles)
-    const keyCur = `${state.grid}|${state.propertyType}|${state.newBuild}|${state.metric}|${endMonth}|${VOTE_CELLS_DATA_VERSION}`;
+    const keyCur = `${state.grid}|${state.propertyType}|${state.newBuild}|${state.metric}|${endMonth}|${state.modelledMode ?? "blend"}|${VOTE_CELLS_DATA_VERSION}`;
     let fcCur = cache.get(keyCur);
 
     if (!fcCur) {

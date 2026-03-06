@@ -63,6 +63,7 @@ type MapState = {
   ageOverlayMode: AgeOverlayMode;
   epcFuelOverlayMode: EpcFuelOverlayMode;
   epcFuelType: EpcFuelType;
+  modelledMode?: "actual" | "blend" | "estimated";
 };
 
 type OutcodeRank = {
@@ -220,6 +221,7 @@ export default function Home() {
       ageOverlayMode: "off",
       epcFuelOverlayMode: "off",
       epcFuelType: "gas",
+      modelledMode: "blend",
     };
     if (typeof window === "undefined") return defaults;
     try {
@@ -277,6 +279,7 @@ export default function Home() {
         ageOverlayMode: age === "on" ? "on" : defaults.ageOverlayMode,
         epcFuelOverlayMode: "off",
         epcFuelType: "gas",
+        modelledMode: "blend",
       };
     } catch {
       return defaults;
@@ -440,6 +443,7 @@ export default function Home() {
     ageOverlayMode: "off",
     epcFuelOverlayMode: "off",
     epcFuelType: "gas",
+    modelledMode: "blend",
   };
   const closeAllSubpanels = () => {
     setFiltersOpen(false);
@@ -1062,6 +1066,10 @@ export default function Home() {
             </>
           )}
         </>
+      )}
+      {/* modelled footnote when blend/estimated on 1km */}
+      {state.grid === "1km" && (state.modelledMode ?? "blend") !== "actual" && (
+        <div style={{ fontSize: 10, opacity: 0.55, marginTop: 6 }}>◆ = estimated from local trend</div>
       )}
       </>
       )}
@@ -2044,6 +2052,19 @@ export default function Home() {
                     </span>
                   </button>
                   <div style={{ height: 1, background: "rgba(255,255,255,0.1)", margin: "4px 0" }} />
+                  <div style={{ padding: "5px 14px 3px", fontSize: 10, opacity: 0.45 }}>Price estimates (1km)</div>
+                  <div style={{ display: "flex", gap: 3, padding: "0 14px 6px" }}>
+                    {(["actual", "blend", "estimated"] as const).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setState((s) => ({ ...s, modelledMode: m }))}
+                        style={{ flex: 1, padding: "3px 0", fontSize: 10, cursor: "pointer", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 6, color: "white", background: (state.modelledMode ?? "blend") === m ? "rgba(59,130,246,0.45)" : "rgba(255,255,255,0.07)" }}
+                      >
+                        {m === "actual" ? "Actual" : m === "blend" ? "Blend" : "All est."}
+                      </button>
+                    ))}
+                  </div>
                   <div style={{ padding: "6px 14px 2px" }}>
                     <a href="https://www.producthunt.com/products/uk-house-price-map?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-uk-house-price-map" target="_blank" rel="noopener noreferrer">
                       <img alt="UK House Price Map - Reverse Rightmove | Product Hunt" width={180} height={39} src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1090451&theme=light&t=1772703310897" style={{ display: "block" }} />

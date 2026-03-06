@@ -11,6 +11,8 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   const newBuild = (url.searchParams.get("newBuild") ?? "ALL").toUpperCase();
   const endMonthParam = (url.searchParams.get("endMonth") ?? "LATEST").toUpperCase();
   const minTxCount = Math.max(1, Number.parseInt(url.searchParams.get("minTxCount") ?? "3", 10) || 3);
+  const modelledParam = url.searchParams.get("modelled") ?? "blend";
+  const modelledMode = (modelledParam === "actual" || modelledParam === "estimated") ? modelledParam : "blend";
 
   if (!isGridKey(grid)) {
     return Response.json("Invalid grid. Use 1km|5km|10km|25km", { status: 400 });
@@ -58,8 +60,12 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     const cachedMerged = PARTITION_CACHE.get(mergedCacheKey);
     if (cachedMerged && now - cachedMerged.loadedAtMs <= CACHE_TTL_MS) {
       const rows = applyFilters(cachedMerged.rows, minTxCount, metric);
-      const enriched = await backfillAll(env, grid, rows);
-      return jsonResponse({ grid, metric, end_month: endMonth, propertyType: canonicalPropertyType, newBuild, minTxCount, count: enriched.length, rows: enriched });
+      let enriched = await backfillAll(env, grid, rows);
+      if (grid === "1km" && metric === "median" && modelledMode !== "actual") {
+        const modelledLookup = await getCachedModelledLookup(env, canonicalPropertyType, newBuild).catch(() => null);
+        if (modelledLookup) enriched = applyModelledData(enriched, modelledLookup, modelledMode as "blend" | "estimated", minTxCount);
+      }
+      return jsonResponse({ grid, metric, end_month: endMonth, propertyType: canonicalPropertyType, newBuild, minTxCount, modelledMode, count: enriched.length, rows: enriched });
     }
 
     const partitionResults = await Promise.all(
@@ -75,8 +81,12 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     const rawMerged = mergePartitionRows(validPartitions);
     PARTITION_CACHE.set(mergedCacheKey, { rows: rawMerged, loadedAtMs: Date.now() });
     const rows = applyFilters(rawMerged, minTxCount, metric);
-    const enriched = await backfillAll(env, grid, rows);
-    return jsonResponse({ grid, metric, end_month: endMonth, propertyType: canonicalPropertyType, newBuild, minTxCount, count: enriched.length, rows: enriched });
+    let enriched = await backfillAll(env, grid, rows);
+    if (grid === "1km" && metric === "median" && modelledMode !== "actual") {
+      const modelledLookup = await getCachedModelledLookup(env, canonicalPropertyType, newBuild).catch(() => null);
+      if (modelledLookup) enriched = applyModelledData(enriched, modelledLookup, modelledMode as "blend" | "estimated", minTxCount);
+    }
+    return jsonResponse({ grid, metric, end_month: endMonth, propertyType: canonicalPropertyType, newBuild, minTxCount, modelledMode, count: enriched.length, rows: enriched });
   }
 
   // Single type (or ALL): standard single-partition fetch
@@ -87,8 +97,12 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   const cached = PARTITION_CACHE.get(partitionKey);
   if (cached && now - cached.loadedAtMs <= CACHE_TTL_MS) {
     const rows = applyFilters(cached.rows, minTxCount, metric);
-    const enriched = await backfillAll(env, grid, rows);
-    return jsonResponse({ grid, metric, end_month: endMonth, propertyType: canonicalPropertyType, newBuild, minTxCount, count: enriched.length, rows: enriched });
+    let enriched = await backfillAll(env, grid, rows);
+    if (grid === "1km" && metric === "median" && modelledMode !== "actual") {
+      const modelledLookup = await getCachedModelledLookup(env, canonicalPropertyType, newBuild).catch(() => null);
+      if (modelledLookup) enriched = applyModelledData(enriched, modelledLookup, modelledMode as "blend" | "estimated", minTxCount);
+    }
+    return jsonResponse({ grid, metric, end_month: endMonth, propertyType: canonicalPropertyType, newBuild, minTxCount, modelledMode, count: enriched.length, rows: enriched });
   }
 
   // Fetch from R2
@@ -107,8 +121,12 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   PARTITION_CACHE.set(partitionKey, { rows: rawRows, loadedAtMs: Date.now() });
 
   const rows = applyFilters(rawRows, minTxCount, metric);
-  const enriched = await backfillAll(env, grid, rows);
-  return jsonResponse({ grid, metric, end_month: endMonth, propertyType: canonicalPropertyType, newBuild, minTxCount, count: enriched.length, rows: enriched });
+  let enriched = await backfillAll(env, grid, rows);
+  if (grid === "1km" && metric === "median" && modelledMode !== "actual") {
+    const modelledLookup = await getCachedModelledLookup(env, canonicalPropertyType, newBuild).catch(() => null);
+    if (modelledLookup) enriched = applyModelledData(enriched, modelledLookup, modelledMode as "blend" | "estimated", minTxCount);
+  }
+  return jsonResponse({ grid, metric, end_month: endMonth, propertyType: canonicalPropertyType, newBuild, minTxCount, modelledMode, count: enriched.length, rows: enriched });
 };
 
 /* ---------- types ---------- */
@@ -164,6 +182,12 @@ type CellRow = {
   pct_25_44?: number;
   pct_45_64?: number;
   pct_65_plus?: number;
+  // modelled price estimate fields
+  is_modelled?: boolean;
+  model_confidence?: number;   // 0 | 1 | 2
+  n_years_model?: number;
+  ratio_cv_model?: number;
+  estimated_median?: number;
 };
 
 type VoteCellRow = {
@@ -734,6 +758,105 @@ async function getCachedEpcFuelLookup(env: Env, grid: GridKey): Promise<Map<stri
 
   EPC_FUEL_CACHE_BY_GRID[grid] = { lookup, loadedAtMs: Date.now() };
   return lookup;
+}
+
+/* ---------- modelled price estimates ---------- */
+
+type ModelledRow = { estimated_median: number; model_confidence: number; n_years: number; ratio_cv: number };
+const MODELLED_CACHE = new Map<string, { lookup: Map<string, ModelledRow>; loadedAtMs: number }>();
+
+async function getCachedModelledLookup(
+  env: Env,
+  propertyType: string,
+  newBuild: string,
+): Promise<Map<string, ModelledRow> | null> {
+  const cacheMapKey = `modelled_1km_${propertyType}_${newBuild}`;
+  const now = Date.now();
+  const cached = MODELLED_CACHE.get(cacheMapKey);
+  if (cached && now - cached.loadedAtMs <= CACHE_TTL_MS) {
+    return cached.lookup.size > 0 ? cached.lookup : null;
+  }
+  const bucket = getBucket(env);
+  const obj = await bucket.get(`${cacheMapKey}.json.gz`);
+  if (!obj) {
+    MODELLED_CACHE.set(cacheMapKey, { lookup: new Map(), loadedAtMs: Date.now() });
+    return null;
+  }
+  const gz = await obj.arrayBuffer();
+  const jsonText = await gunzipToString(gz);
+  const rows = JSON.parse(jsonText) as Array<{ gx: number; gy: number; estimated_median: number; model_confidence: number; n_years: number; ratio_cv: number }>;
+  const lookup = new Map<string, ModelledRow>();
+  for (const r of rows) {
+    lookup.set(`${r.gx}_${r.gy}`, { estimated_median: r.estimated_median, model_confidence: r.model_confidence, n_years: r.n_years, ratio_cv: r.ratio_cv });
+  }
+  MODELLED_CACHE.set(cacheMapKey, { lookup, loadedAtMs: Date.now() });
+  return lookup.size > 0 ? lookup : null;
+}
+
+/**
+ * Merge modelled estimates into the enriched row set.
+ *
+ * Modes:
+ *   blend     — keep actual rows with tx_count >= minTxCount; for sparse/missing cells
+ *               inject modelled rows where model_confidence >= 1.
+ *   estimated — replace all actual medians with modelled estimates where available;
+ *               inject modelled rows for cells with no actual data.
+ *   actual    — noop (should not be called).
+ */
+function applyModelledData(
+  enrichedRows: CellRow[],
+  modelledLookup: Map<string, ModelledRow>,
+  modelledMode: "blend" | "estimated",
+  minTxCount: number,
+): CellRow[] {
+  const actualByKey = new Map<string, CellRow>();
+  for (const r of enrichedRows) actualByKey.set(`${r.gx}_${r.gy}`, r);
+
+  const output: CellRow[] = [];
+
+  if (modelledMode === "estimated") {
+    // Replace all actuals with modelled estimates where available; fall back to actual if not
+    for (const r of enrichedRows) {
+      const key = `${r.gx}_${r.gy}`;
+      const m = modelledLookup.get(key);
+      if (m) {
+        output.push({ ...r, median: m.estimated_median, is_modelled: true, model_confidence: m.model_confidence, n_years_model: m.n_years, ratio_cv_model: m.ratio_cv, estimated_median: m.estimated_median });
+      } else {
+        output.push(r);
+      }
+    }
+    // Inject cells that have no actual data at all
+    for (const [key, m] of modelledLookup) {
+      if (!actualByKey.has(key) && m.model_confidence >= 1) {
+        const [gx, gy] = key.split("_").map(Number);
+        output.push({ gx, gy, end_month: "", property_type: "ALL", new_build: "ALL", tx_count: 0, median: m.estimated_median, is_modelled: true, model_confidence: m.model_confidence, n_years_model: m.n_years, ratio_cv_model: m.ratio_cv, estimated_median: m.estimated_median });
+      }
+    }
+  } else {
+    // blend: keep actual rows passing minTxCount; inject model for sparse/missing cells
+    for (const r of enrichedRows) {
+      if (Number(r.tx_count ?? 0) >= minTxCount) {
+        output.push(r);
+      } else {
+        // Sparse actual — replace with model if confidence >= 1
+        const key = `${r.gx}_${r.gy}`;
+        const m = modelledLookup.get(key);
+        if (m && m.model_confidence >= 1) {
+          output.push({ ...r, median: m.estimated_median, is_modelled: true, model_confidence: m.model_confidence, n_years_model: m.n_years, ratio_cv_model: m.ratio_cv, estimated_median: m.estimated_median });
+        }
+        // else drop (not enough data for actual or model)
+      }
+    }
+    // Inject cells with no actual data at all
+    for (const [key, m] of modelledLookup) {
+      if (!actualByKey.has(key) && m.model_confidence >= 1) {
+        const [gx, gy] = key.split("_").map(Number);
+        output.push({ gx, gy, end_month: "", property_type: "ALL", new_build: "ALL", tx_count: 0, median: m.estimated_median, is_modelled: true, model_confidence: m.model_confidence, n_years_model: m.n_years, ratio_cv_model: m.ratio_cv, estimated_median: m.estimated_median });
+      }
+    }
+  }
+
+  return output;
 }
 
 /** Fetch vote/commute/age/country lookups in parallel, then enrich rows in a single pass. */
