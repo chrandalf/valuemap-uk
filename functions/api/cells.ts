@@ -840,7 +840,14 @@ function applyModelledData(
     // blend: keep actual rows passing minTxCount; inject model for sparse/missing cells
     for (const r of enrichedRows) {
       if (Number(r.tx_count ?? 0) >= minTxCount) {
-        output.push(r);
+        // Actual cell — attach estimate for popup comparison if model has one
+        const key = `${r.gx}_${r.gy}`;
+        const m = modelledLookup.get(key);
+        if (m) {
+          output.push({ ...r, estimated_median: m.estimated_median, model_confidence: m.model_confidence, n_years_model: m.n_years, ratio_cv_model: m.ratio_cv });
+        } else {
+          output.push(r);
+        }
       } else {
         // Sparse actual — replace with model if confidence >= 1
         const key = `${r.gx}_${r.gy}`;
@@ -854,7 +861,7 @@ function applyModelledData(
     }
     // Inject cells with no actual data at all
     for (const [key, m] of modelledLookup) {
-      if (!actualByKey.has(key) && m.model_confidence >= 1) {
+      if (!actualByKey.has(key) && m.model_confidence >= 0) {
         const [gx, gy] = key.split("_").map(Number);
         output.push({ gx, gy, end_month: "", property_type: "ALL", new_build: "ALL", tx_count: 0, median: m.estimated_median, is_modelled: true, model_confidence: m.model_confidence, n_years_model: m.n_years, ratio_cv_model: m.ratio_cv, estimated_median: m.estimated_median });
       }

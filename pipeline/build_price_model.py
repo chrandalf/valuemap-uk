@@ -32,6 +32,7 @@ Upload to R2:
 from __future__ import annotations
 
 import gzip
+import gc
 import json
 import sys
 from pathlib import Path
@@ -154,6 +155,13 @@ def build_for_combo(
         hist10_merged["ratio10"] = hist10_merged["median_price_12m"] / hist10_merged["med10"]
         hist10_merged.loc[~hist10_merged["ratio10"].between(0.1, 10.0), "ratio10"] = np.nan
 
+    # ── Pre-group hist10_merged by cell for O(1) lookups in the loop ─────────
+    hist10_by_cell: dict | None = None
+    if hist10_merged is not None:
+        hist10_by_cell = {
+            key: grp for key, grp in hist10_merged.groupby([gx1, gy1])
+        }
+
     # ── Build estimate per 1km cell ───────────────────────────────────────────
     results: list[dict] = []
 
@@ -187,58 +195,123 @@ def build_for_combo(
                 })
                 continue
 
-        # ── Fallback to 10km ratio ────────────────────────────────────────────
-        if hist10_merged is not None:
-            grp10 = hist10_merged[
-                (hist10_merged[gx1] == gx_val) & (hist10_merged[gy1] == gy_val)
-            ]
-            valid10 = grp10.dropna(subset=["ratio10"])
-            if len(valid10) >= 2:
-                ratios = valid10["ratio10"].values
-                mean_r = float(np.mean(ratios))
-                cv = float(np.std(ratios) / max(mean_r, MIN_CV_FLOOR))
-                n_yrs = len(valid10)
-                if curr10 is not None:
-                    try:
-                        cur10_med = float(curr10.at[(pgx10_v, pgy10_v), "cur10"])
-                    except KeyError:
-                        cur10_med = np.nan
-                    if np.isfinite(cur10_med) and cur10_med > 0:
-                        results.append({
-                            "gx": gx_int,
-                            "gy": gy_int,
-                            "estimated_median": int(round(mean_r * cur10_med)),
-                            "model_confidence": confidence(n_yrs, cv),
-                            "n_years": n_yrs,
-                            "ratio_cv": round(cv, 3),
-                        })
+        # ── Fallback to 10km ratio (O(1) dict lookup) ────────────────────────
+        if hist10_by_cell is not None:
+            grp10 = hist10_by_cell.get((gx_val, gy_val))
+            if grp10 is not None:
+                valid10 = grp10.dropna(subset=["ratio10"])
+                if len(valid10) >= 2:
+                    ratios = valid10["ratio10"].values
+                    mean_r = float(np.mean(ratios))
+                    cv = float(np.std(ratios) / max(mean_r, MIN_CV_FLOOR))
+                    n_yrs = len(valid10)
+                    if curr10 is not None:
+                        try:
+                            cur10_med = float(curr10.at[(pgx10_v, pgy10_v), "cur10"])
+                        except KeyError:
+                            cur10_med = np.nan
+                        if np.isfinite(cur10_med) and cur10_med > 0:
+                            results.append({
+                                "gx": gx_int,
+                                "gy": gy_int,
+                                "estimated_median": int(round(mean_r * cur10_med)),
+                                "model_confidence": confidence(n_yrs, cv),
+                                "n_years": n_yrs,
+                                "ratio_cv": round(cv, 3),
+                            })
+
+    # ── Fallback: cover all 1km cells that appeared in pt1 but got no ratio estimate ─
+    # Vectorised anti-join against already-estimated cells, then merge to parent medians.
+    estimated_df = pd.DataFrame(results, columns=["gx", "gy"]) if results else pd.DataFrame(columns=["gx", "gy"])
+    all_cells = pt1[[gx1, gy1]].drop_duplicates().copy()
+    all_cells = all_cells.rename(columns={gx1: "gx", gy1: "gy"})
+    all_cells["gx"] = all_cells["gx"].astype(int)
+    all_cells["gy"] = all_cells["gy"].astype(int)
+    if not estimated_df.empty:
+        all_cells = all_cells.merge(estimated_df[["gx", "gy"]].drop_duplicates().assign(_est=True),
+                                    on=["gx", "gy"], how="left")
+        all_cells = all_cells[all_cells["_est"].isna()].drop(columns=["_est"])
+
+    if not all_cells.empty:
+        all_cells["pgx5"] = (all_cells["gx"] // step5) * step5
+        all_cells["pgy5"] = (all_cells["gy"] // step5) * step5
+        # Join to current 5km medians
+        curr5_df = curr5.reset_index().rename(columns={gx5: "pgx5", gy5: "pgy5"})
+        fb = all_cells.merge(curr5_df, on=["pgx5", "pgy5"], how="left")
+        has5 = fb["cur5"].notna() & (fb["cur5"] > 0)
+        fb5 = fb[has5][["gx", "gy", "cur5"]].copy()
+        for rec in fb5.itertuples(index=False):
+            results.append({"gx": int(rec.gx), "gy": int(rec.gy),
+                            "estimated_median": int(round(float(rec.cur5))),
+                            "model_confidence": 0, "n_years": 0, "ratio_cv": 0.0})
+        # 10km fallback for cells whose 5km parent had no current median
+        if curr10 is not None:
+            gx10_col = next(c for c in curr10.index.names if c.startswith("gx_"))
+            gy10_col = next(c for c in curr10.index.names if c.startswith("gy_"))
+            curr10_df = curr10.reset_index().rename(columns={gx10_col: "pgx10", gy10_col: "pgy10"})
+            fb_miss = fb[~has5].copy()
+            fb_miss["pgx10"] = (fb_miss["gx"] // step10) * step10
+            fb_miss["pgy10"] = (fb_miss["gy"] // step10) * step10
+            fb10 = fb_miss.merge(curr10_df, on=["pgx10", "pgy10"], how="left")
+            has10 = fb10["cur10"].notna() & (fb10["cur10"] > 0)
+            fb10r = fb10[has10][["gx", "gy", "cur10"]].copy()
+            for rec in fb10r.itertuples(index=False):
+                results.append({"gx": int(rec.gx), "gy": int(rec.gy),
+                                "estimated_median": int(round(float(rec.cur10))),
+                                "model_confidence": 0, "n_years": 0, "ratio_cv": 0.0})
 
     return results
 
 
-def main() -> None:
-    print("Loading annual parquet files…")
+def run_combo(pt: str, nb: str) -> int:
+    """Run a single (property_type, new_build) combo in-process with full cleanup."""
     df_1km  = load_annual("1km")
     df_5km  = load_annual("5km")
     df_10km = load_annual("10km")
+    rows = build_for_combo(df_1km, df_5km, df_10km, pt, nb)
+    n = len(rows)
+    out_path = MODEL_PROPERTY / f"modelled_1km_{pt}_{nb}.json.gz"
+    dump_gz(out_path, rows)
+    return n
 
-    if df_1km.empty or df_5km.empty:
-        print("ERROR: required parquet files missing — exiting.", file=sys.stderr)
-        sys.exit(1)
 
-    print(f"\n1km rows: {len(df_1km):,}  |  5km rows: {len(df_5km):,}  |  10km rows: {len(df_10km):,}")
-    print(f"1km end_months: {sorted(df_1km['end_month'].dropna().unique())}")
+def main() -> None:
+    # Detect if running as a combo sub-invocation: python build_price_model.py --combo PT NB
+    if len(sys.argv) == 4 and sys.argv[1] == "--combo":
+        pt, nb = sys.argv[2], sys.argv[3]
+        run_combo(pt, nb)
+        return
 
-    print("\nBuilding estimates…")
+    print("Building estimates (each combo in a fresh subprocess for memory isolation)…")
     total_rows = 0
+    script = Path(__file__).resolve()
+    python = sys.executable
+    failed = []
+
     for pt in PROPERTY_TYPES:
         for nb in NEW_BUILDS:
-            print(f"  {pt}/{nb}", end="  ")
-            rows = build_for_combo(df_1km, df_5km, df_10km, pt, nb)
-            total_rows += len(rows)
-            out_path = MODEL_PROPERTY / f"modelled_1km_{pt}_{nb}.json.gz"
-            dump_gz(out_path, rows)
+            print(f"  {pt}/{nb}", end="  ", flush=True)
+            import subprocess
+            result = subprocess.run(
+                [python, str(script), "--combo", pt, nb],
+                capture_output=False,
+                text=True,
+            )
+            if result.returncode != 0:
+                print(f"FAILED (exit {result.returncode})")
+                failed.append(f"{pt}/{nb}")
+            else:
+                out_path = MODEL_PROPERTY / f"modelled_1km_{pt}_{nb}.json.gz"
+                if out_path.exists():
+                    total_rows += int(
+                        __import__("json").loads(
+                            __import__("gzip").decompress(out_path.read_bytes())
+                        ).__len__()
+                    )
 
+    if failed:
+        print(f"\nFailed combos: {failed}", file=sys.stderr)
+        sys.exit(1)
     print(f"\nDone. Total estimated cells across all combos: {total_rows:,}")
     print(f"Output directory: {MODEL_PROPERTY}")
 

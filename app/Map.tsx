@@ -1166,7 +1166,7 @@ export default function ValueMap({
     source: "cells",
     paint: {
       "fill-color": getFillColorExpression(state.metric, easyColoursRef.current),
-      "fill-opacity": ["case", ["==", ["get", "is_modelled"], true], 0.28, 0.42] as any,
+      "fill-opacity": ["case", ["all", ["==", ["get", "is_modelled"], true], ["==", ["get", "model_confidence"], 0]], 0.15, ["==", ["get", "is_modelled"], true], 0.28, 0.42] as any,
     },
   });
 
@@ -2710,30 +2710,35 @@ export default function ValueMap({
       const metricTitle = stateRef.current.metric === "median_ppsf"
         ? `GBP ${Math.round(median).toLocaleString()} / ft²`
         : `GBP ${median.toLocaleString()}`;
-      const isBlend = (stateRef.current.modelledMode ?? "blend") === "blend";
-      const showBothRows = p.is_modelled && isBlend;
-      const actualStr = showBothRows
-        ? (p.actual_median != null && p.actual_median > 0
-          ? (stateRef.current.metric === "median_ppsf"
-            ? `GBP ${Math.round(p.actual_median).toLocaleString()} / ft² (${Number(p.tx_count ?? 0)} sales)`
-            : `GBP ${Math.round(p.actual_median).toLocaleString()} (${Number(p.tx_count ?? 0)} sales)`)
-          : `— (${Number(p.tx_count ?? 0)} sales)`)
-        : null;
-      const estimateStr = showBothRows
-        ? (stateRef.current.metric === "median_ppsf"
-          ? `GBP ${Math.round(median).toLocaleString()} / ft²`
-          : `GBP ${median.toLocaleString()}`)
-        : null;
-      html = `
-        <div style="font-family: system-ui; font-size: 12px; line-height: 1.25;">
-          ${showBothRows
-            ? `<div style="font-weight: 700; margin-bottom: 4px;">${estimateStr} <span style="font-weight:400;color:#888;">est.</span></div>
-          <div style="color:#888;">Actual: <b style="color:#ccc;">${actualStr}</b></div>`
-            : `<div style="font-weight: 700; margin-bottom: 4px;">${metricTitle}</div>
-          <div>Sales sample: <b>${tx}</b></div>`}
-          ${p.is_modelled ? `<div style="color:#888;font-style:italic;margin-top:3px;">◆ Estimated — ${p.n_years_model ?? "?"}yr local trend · ${p.model_confidence === 2 ? "High" : p.model_confidence === 1 ? "Medium" : "Low"} confidence</div>` : ""}
-        </div>
-      `;
+      const isPpsf = stateRef.current.metric === "median_ppsf";
+      const fmtGbp = (v: number) => isPpsf ? `GBP ${Math.round(v).toLocaleString()} / ft²` : `GBP ${Math.round(v).toLocaleString()}`;
+      const isBlendMode = (stateRef.current.modelledMode ?? "blend") === "blend";
+      const hasEstimate = isBlendMode && p.estimated_median != null && (p.estimated_median as number) > 0;
+      if (hasEstimate) {
+        // Dual-row: actual + estimate for all blend cells that have a model value
+        const actualVal = p.is_modelled
+          ? (p.actual_median != null && (p.actual_median as number) > 0 ? fmtGbp(p.actual_median as number) : "—")
+          : fmtGbp(median);
+        const actualSales = `${p.is_modelled ? Number(p.tx_count ?? 0) : tx} sales`;
+        const confLabel = p.model_confidence === 2 ? "High" : p.model_confidence === 1 ? "Medium" : "Low";
+        html = `
+          <div style="font-family: system-ui; font-size: 12px; line-height: 1.4;">
+            <div style="display:grid;grid-template-columns:max-content 1fr;gap:1px 8px;">
+              <span style="color:#888;">Actual</span><span><b>${actualVal}</b> <span style="color:#888;">${actualSales}</span></span>
+              <span style="color:#888;">Estimate</span><span><b>${fmtGbp(p.estimated_median as number)}</b></span>
+            </div>
+            <div style="color:#888;font-style:italic;margin-top:4px;">◆ ${p.n_years_model ?? "?"}yr local trend · ${confLabel} confidence</div>
+          </div>
+        `;
+      } else {
+        html = `
+          <div style="font-family: system-ui; font-size: 12px; line-height: 1.25;">
+            <div style="font-weight: 700; margin-bottom: 4px;">${metricTitle}</div>
+            <div>Sales sample: <b>${tx}</b></div>
+            ${p.is_modelled ? `<div style="color:#888;font-style:italic;margin-top:3px;">◆ Estimated — ${p.n_years_model ?? "?"}yr local trend · ${p.model_confidence === 2 ? "High" : p.model_confidence === 1 ? "Medium" : "Low"} confidence</div>` : ""}
+          </div>
+        `;
+      }
     }
 
     popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
@@ -3426,7 +3431,7 @@ export default function ValueMap({
         const hideCells =
           (stateRef.current.floodOverlayMode ?? "off") === "on_hide_cells" ||
           (stateRef.current.schoolOverlayMode ?? "off") === "on_hide_cells";
-        map.setPaintProperty("cells-fill", "fill-opacity", hideCells ? 0.09 : ["case", ["==", ["get", "is_modelled"], true], 0.28, 0.42] as any);
+        map.setPaintProperty("cells-fill", "fill-opacity", hideCells ? 0.09 : ["case", ["all", ["==", ["get", "is_modelled"], true], ["==", ["get", "model_confidence"], 0]], 0.15, ["==", ["get", "is_modelled"], true], 0.28, 0.42] as any);
       }
       applyCombinedCellFilters(map, stateRef.current, null);
       prevIndexScoringSignatureRef.current = null;
@@ -3494,7 +3499,7 @@ export default function ValueMap({
         // Cell opacity — applied in the same call so it cannot be skipped by a mid-layout bail
         if (map.getLayer("cells-fill")) {
           map.setLayoutProperty("cells-fill", "visibility", "visible");
-          map.setPaintProperty("cells-fill", "fill-opacity", hideCellsMode ? 0.09 : ["case", ["==", ["get", "is_modelled"], true], 0.28, 0.42] as any);
+          map.setPaintProperty("cells-fill", "fill-opacity", hideCellsMode ? 0.09 : ["case", ["all", ["==", ["get", "is_modelled"], true], ["==", ["get", "model_confidence"], 0]], 0.15, ["==", ["get", "is_modelled"], true], 0.28, 0.42] as any);
         }
         if (map.getLayer("cells-outline")) {
           map.setLayoutProperty("cells-outline", "visibility", "visible");
