@@ -237,10 +237,17 @@ type EpcFuelCellRow = {
   pct_electric: number;
   pct_oil: number;
   pct_lpg: number;
-  pct_other: number;
+  pct_other: number; // raw JSON field name; stored as fuel_pct_other to avoid clash with vote pct_other
 };
 
-type EpcFuelCellValue = Omit<EpcFuelCellRow, "gx" | "gy">;
+type EpcFuelCellValue = {
+  n: number;
+  pct_gas: number;
+  pct_electric: number;
+  pct_oil: number;
+  pct_lpg: number;
+  fuel_pct_other: number;
+};
 
 interface Env {
   R2?: R2Bucket;
@@ -716,12 +723,12 @@ async function getCachedEpcFuelLookup(env: Env, grid: GridKey): Promise<Map<stri
   const lookup = new Map<string, EpcFuelCellValue>();
   for (const row of rows) {
     lookup.set(`${row.gx}_${row.gy}`, {
-      n:            Number(row.n            ?? 0),
-      pct_gas:      Number(row.pct_gas      ?? 0),
-      pct_electric: Number(row.pct_electric ?? 0),
-      pct_oil:      Number(row.pct_oil      ?? 0),
-      pct_lpg:      Number(row.pct_lpg      ?? 0),
-      pct_other:    Number(row.pct_other    ?? 0),
+      n:              Number(row.n            ?? 0),
+      pct_gas:        Number(row.pct_gas      ?? 0),
+      pct_electric:   Number(row.pct_electric ?? 0),
+      pct_oil:        Number(row.pct_oil      ?? 0),
+      pct_lpg:        Number(row.pct_lpg      ?? 0),
+      fuel_pct_other: Number(row.pct_other    ?? 0),
     });
   }
 
@@ -811,12 +818,12 @@ async function backfillAll(env: Env, grid: GridKey, rows: CellRow[]): Promise<Ce
 
     const epcFuel = epcFuelLookup?.get(key);
     if (epcFuel) out = { ...out,
-      epc_n:        epcFuel.n,
-      pct_gas:      epcFuel.pct_gas,
-      pct_electric: epcFuel.pct_electric,
-      pct_oil:      epcFuel.pct_oil,
-      pct_lpg:      epcFuel.pct_lpg,
-      pct_other:    epcFuel.pct_other,
+      epc_n:          epcFuel.n,
+      pct_gas:        epcFuel.pct_gas,
+      pct_electric:   epcFuel.pct_electric,
+      pct_oil:        epcFuel.pct_oil,
+      pct_lpg:        epcFuel.pct_lpg,
+      fuel_pct_other: epcFuel.fuel_pct_other,
     };
 
     return out;

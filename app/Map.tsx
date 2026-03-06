@@ -134,7 +134,7 @@ type ApiRow = {
   pct_electric?: number;
   pct_oil?: number;
   pct_lpg?: number;
-  pct_other?: number;
+  fuel_pct_other?: number;
 };
 
 function isDeltaMetric(metric: Metric) {
@@ -2620,7 +2620,7 @@ export default function ValueMap({
       const pctElectric = Number(p.pct_electric ?? NaN);
       const pctOil      = Number(p.pct_oil      ?? NaN);
       const pctLpg      = Number(p.pct_lpg      ?? NaN);
-      const pctOther    = Number(p.pct_other    ?? NaN);
+      const pctOther    = Number(p.fuel_pct_other ?? NaN);
       const hasEpc = Number.isFinite(pctGas);
       const metricFooter = Number.isFinite(median) && median > 0
         ? `<div style="border-top:1px solid rgba(0,0,0,0.1);margin-top:7px;padding-top:6px;font-size:11px;opacity:0.65;">${stateRef.current.metric === "median_ppsf" ? `GBP ${Math.round(median).toLocaleString()} / ft²` : `GBP ${median.toLocaleString()}`} · ${tx} sales</div>`
@@ -3212,7 +3212,7 @@ export default function ValueMap({
         const cpElectric = Number(cp.pct_electric ?? NaN);
         const cpOil      = Number(cp.pct_oil      ?? NaN);
         const cpLpg      = Number(cp.pct_lpg      ?? NaN);
-        const cpOther    = Number(cp.pct_other    ?? NaN);
+        const cpOther    = Number(cp.fuel_pct_other ?? NaN);
         const hasFuel = Number.isFinite(cpGas);
         if (hasFuel) {
           const swatch = (col: string) => `<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${col};margin-right:3px;vertical-align:-1px;"></span>`;
