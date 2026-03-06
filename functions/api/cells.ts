@@ -12,9 +12,11 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   const endMonthParam = (url.searchParams.get("endMonth") ?? "LATEST").toUpperCase();
   const minTxCount = Math.max(1, Number.parseInt(url.searchParams.get("minTxCount") ?? "3", 10) || 3);
   const modelledParam = url.searchParams.get("modelled") ?? "blend";
-  const modelledMode = (modelledParam === "actual" || modelledParam === "estimated") ? modelledParam : "blend";
-  // For blend/estimated on 1km median, keep sparse rows so applyModelledData can replace them.
-  // (applyModelledData applies the real minTxCount threshold internally.)
+  const modelledMode = (["actual", "estimated", "model_only"] as const).includes(modelledParam as any)
+    ? (modelledParam as "actual" | "estimated" | "model_only")
+    : "blend";
+  // For blend/estimated/model_only on 1km median, keep sparse rows so applyModelledData
+  // can see them (it applies the real minTxCount threshold internally).
   const effectiveMinTxCount = (grid === "1km" && metric === "median" && modelledMode !== "actual") ? 1 : minTxCount;
 
   if (!isGridKey(grid)) {
@@ -66,7 +68,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
       let enriched = await backfillAll(env, grid, rows);
       if (grid === "1km" && metric === "median" && modelledMode !== "actual") {
         const modelledLookup = await getCachedModelledLookup(env, canonicalPropertyType, newBuild).catch(() => null);
-        if (modelledLookup) enriched = applyModelledData(enriched, modelledLookup, modelledMode as "blend" | "estimated", minTxCount);
+        if (modelledLookup) enriched = applyModelledData(enriched, modelledLookup, modelledMode as "blend" | "estimated" | "model_only", minTxCount);
       }
       return jsonResponse({ grid, metric, end_month: endMonth, propertyType: canonicalPropertyType, newBuild, minTxCount, modelledMode, count: enriched.length, rows: enriched });
     }
@@ -87,7 +89,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     let enriched = await backfillAll(env, grid, rows);
     if (grid === "1km" && metric === "median" && modelledMode !== "actual") {
       const modelledLookup = await getCachedModelledLookup(env, canonicalPropertyType, newBuild).catch(() => null);
-      if (modelledLookup) enriched = applyModelledData(enriched, modelledLookup, modelledMode as "blend" | "estimated", minTxCount);
+      if (modelledLookup) enriched = applyModelledData(enriched, modelledLookup, modelledMode as "blend" | "estimated" | "model_only", minTxCount);
     }
     return jsonResponse({ grid, metric, end_month: endMonth, propertyType: canonicalPropertyType, newBuild, minTxCount, modelledMode, count: enriched.length, rows: enriched });
   }
@@ -103,7 +105,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     let enriched = await backfillAll(env, grid, rows);
     if (grid === "1km" && metric === "median" && modelledMode !== "actual") {
       const modelledLookup = await getCachedModelledLookup(env, canonicalPropertyType, newBuild).catch(() => null);
-      if (modelledLookup) enriched = applyModelledData(enriched, modelledLookup, modelledMode as "blend" | "estimated", minTxCount);
+      if (modelledLookup) enriched = applyModelledData(enriched, modelledLookup, modelledMode as "blend" | "estimated" | "model_only", minTxCount);
     }
     return jsonResponse({ grid, metric, end_month: endMonth, propertyType: canonicalPropertyType, newBuild, minTxCount, modelledMode, count: enriched.length, rows: enriched });
   }
@@ -127,7 +129,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   let enriched = await backfillAll(env, grid, rows);
   if (grid === "1km" && metric === "median" && modelledMode !== "actual") {
     const modelledLookup = await getCachedModelledLookup(env, canonicalPropertyType, newBuild).catch(() => null);
-    if (modelledLookup) enriched = applyModelledData(enriched, modelledLookup, modelledMode as "blend" | "estimated", minTxCount);
+    if (modelledLookup) enriched = applyModelledData(enriched, modelledLookup, modelledMode as "blend" | "estimated" | "model_only", minTxCount);
   }
   return jsonResponse({ grid, metric, end_month: endMonth, propertyType: canonicalPropertyType, newBuild, minTxCount, modelledMode, count: enriched.length, rows: enriched });
 };
@@ -801,16 +803,17 @@ async function getCachedModelledLookup(
  * Merge modelled estimates into the enriched row set.
  *
  * Modes:
- *   blend     — keep actual rows with tx_count >= minTxCount; for sparse/missing cells
- *               inject modelled rows where model_confidence >= 1.
- *   estimated — replace all actual medians with modelled estimates where available;
- *               inject modelled rows for cells with no actual data.
- *   actual    — noop (should not be called).
+ *   blend      — keep actual rows with tx_count >= minTxCount; for sparse/missing cells
+ *                inject modelled rows; annotate well-sampled actuals with estimated_median.
+ *   estimated  — replace all actual medians with modelled estimates where available;
+ *                inject modelled rows for cells with no actual data.
+ *   model_only — return ONLY injected cells (no actual data in partition); pure coverage map.
+ *   actual     — noop (should not be called).
  */
 function applyModelledData(
   enrichedRows: CellRow[],
   modelledLookup: Map<string, ModelledRow>,
-  modelledMode: "blend" | "estimated",
+  modelledMode: "blend" | "estimated" | "model_only",
   minTxCount: number,
 ): CellRow[] {
   const actualByKey = new Map<string, CellRow>();
@@ -832,6 +835,14 @@ function applyModelledData(
     // Inject cells that have no actual data at all
     for (const [key, m] of modelledLookup) {
       if (!actualByKey.has(key) && m.model_confidence >= 1) {
+        const [gx, gy] = key.split("_").map(Number);
+        output.push({ gx, gy, end_month: "", property_type: "ALL", new_build: "ALL", tx_count: 0, median: m.estimated_median, is_modelled: true, model_confidence: m.model_confidence, n_years_model: m.n_years, ratio_cv_model: m.ratio_cv, estimated_median: m.estimated_median });
+      }
+    }
+  } else if (modelledMode === "model_only") {
+    // Show ONLY cells that have a model estimate but NO actual data in the partition
+    for (const [key, m] of modelledLookup) {
+      if (!actualByKey.has(key) && m.model_confidence >= 0) {
         const [gx, gy] = key.split("_").map(Number);
         output.push({ gx, gy, end_month: "", property_type: "ALL", new_build: "ALL", tx_count: 0, median: m.estimated_median, is_modelled: true, model_confidence: m.model_confidence, n_years_model: m.n_years, ratio_cv_model: m.ratio_cv, estimated_median: m.estimated_median });
       }

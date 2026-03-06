@@ -44,7 +44,7 @@ export type MapState = {
   voteColorScale?: VoteColorScale;
   epcFuelOverlayMode?: EpcFuelOverlayMode;
   epcFuelType?: EpcFuelType;
-  modelledMode?: "actual" | "blend" | "estimated";
+  modelledMode?: "actual" | "blend" | "estimated" | "model_only";
 };
 
 export type IndexPrefs = {
@@ -1166,7 +1166,7 @@ export default function ValueMap({
     source: "cells",
     paint: {
       "fill-color": getFillColorExpression(state.metric, easyColoursRef.current),
-      "fill-opacity": ["case", ["all", ["==", ["get", "is_modelled"], true], ["==", ["get", "model_confidence"], 0]], 0.15, ["==", ["get", "is_modelled"], true], 0.28, 0.42] as any,
+      "fill-opacity": ["case", ["all", ["==", ["get", "is_modelled"], true], ["==", ["get", "model_confidence"], 0]], 0.22, ["==", ["get", "is_modelled"], true], 0.32, 0.42] as any,
     },
   });
 
@@ -2712,7 +2712,8 @@ export default function ValueMap({
         : `GBP ${median.toLocaleString()}`;
       const isPpsf = stateRef.current.metric === "median_ppsf";
       const fmtGbp = (v: number) => isPpsf ? `GBP ${Math.round(v).toLocaleString()} / ft²` : `GBP ${Math.round(v).toLocaleString()}`;
-      const isBlendMode = (stateRef.current.modelledMode ?? "blend") === "blend";
+      const currentMode = stateRef.current.modelledMode ?? "blend";
+      const isBlendMode = currentMode === "blend" || currentMode === "model_only";
       const hasEstimate = isBlendMode && p.estimated_median != null && (p.estimated_median as number) > 0;
       if (hasEstimate) {
         // Dual-row: actual + estimate for all blend cells that have a model value
@@ -3431,7 +3432,7 @@ export default function ValueMap({
         const hideCells =
           (stateRef.current.floodOverlayMode ?? "off") === "on_hide_cells" ||
           (stateRef.current.schoolOverlayMode ?? "off") === "on_hide_cells";
-        map.setPaintProperty("cells-fill", "fill-opacity", hideCells ? 0.09 : ["case", ["all", ["==", ["get", "is_modelled"], true], ["==", ["get", "model_confidence"], 0]], 0.15, ["==", ["get", "is_modelled"], true], 0.28, 0.42] as any);
+        map.setPaintProperty("cells-fill", "fill-opacity", hideCells ? 0.09 : ["case", ["all", ["==", ["get", "is_modelled"], true], ["==", ["get", "model_confidence"], 0]], 0.22, ["==", ["get", "is_modelled"], true], 0.32, 0.42] as any);
       }
       applyCombinedCellFilters(map, stateRef.current, null);
       prevIndexScoringSignatureRef.current = null;
@@ -3499,7 +3500,7 @@ export default function ValueMap({
         // Cell opacity — applied in the same call so it cannot be skipped by a mid-layout bail
         if (map.getLayer("cells-fill")) {
           map.setLayoutProperty("cells-fill", "visibility", "visible");
-          map.setPaintProperty("cells-fill", "fill-opacity", hideCellsMode ? 0.09 : ["case", ["all", ["==", ["get", "is_modelled"], true], ["==", ["get", "model_confidence"], 0]], 0.15, ["==", ["get", "is_modelled"], true], 0.28, 0.42] as any);
+          map.setPaintProperty("cells-fill", "fill-opacity", hideCellsMode ? 0.09 : ["case", ["all", ["==", ["get", "is_modelled"], true], ["==", ["get", "model_confidence"], 0]], 0.22, ["==", ["get", "is_modelled"], true], 0.32, 0.42] as any);
         }
         if (map.getLayer("cells-outline")) {
           map.setLayoutProperty("cells-outline", "visibility", "visible");

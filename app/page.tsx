@@ -63,7 +63,7 @@ type MapState = {
   ageOverlayMode: AgeOverlayMode;
   epcFuelOverlayMode: EpcFuelOverlayMode;
   epcFuelType: EpcFuelType;
-  modelledMode?: "actual" | "blend" | "estimated";
+  modelledMode?: "actual" | "blend" | "estimated" | "model_only";
 };
 
 type OutcodeRank = {
@@ -2054,14 +2054,14 @@ export default function Home() {
                   <div style={{ height: 1, background: "rgba(255,255,255,0.1)", margin: "4px 0" }} />
                   <div style={{ padding: "5px 14px 3px", fontSize: 10, opacity: 0.45 }}>Price estimates (1km)</div>
                   <div style={{ display: "flex", gap: 3, padding: "0 14px 6px" }}>
-                    {(["actual", "blend", "estimated"] as const).map((m) => (
+                    {(["actual", "blend", "estimated", "model_only"] as const).map((m) => (
                       <button
                         key={m}
                         type="button"
                         onClick={() => setState((s) => ({ ...s, modelledMode: m }))}
                         style={{ flex: 1, padding: "3px 0", fontSize: 10, cursor: "pointer", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 6, color: "white", background: (state.modelledMode ?? "blend") === m ? "rgba(59,130,246,0.45)" : "rgba(255,255,255,0.07)" }}
                       >
-                        {m === "actual" ? "Actual" : m === "blend" ? "Blend" : "All est."}
+                        {m === "actual" ? "Actual" : m === "blend" ? "Blend" : m === "estimated" ? "All est." : "Est. only"}
                       </button>
                     ))}
                   </div>
