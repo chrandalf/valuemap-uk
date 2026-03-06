@@ -13,6 +13,9 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   const minTxCount = Math.max(1, Number.parseInt(url.searchParams.get("minTxCount") ?? "3", 10) || 3);
   const modelledParam = url.searchParams.get("modelled") ?? "blend";
   const modelledMode = (modelledParam === "actual" || modelledParam === "estimated") ? modelledParam : "blend";
+  // For blend/estimated on 1km median, keep sparse rows so applyModelledData can replace them.
+  // (applyModelledData applies the real minTxCount threshold internally.)
+  const effectiveMinTxCount = (grid === "1km" && metric === "median" && modelledMode !== "actual") ? 1 : minTxCount;
 
   if (!isGridKey(grid)) {
     return Response.json("Invalid grid. Use 1km|5km|10km|25km", { status: 400 });
@@ -59,7 +62,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     const now = Date.now();
     const cachedMerged = PARTITION_CACHE.get(mergedCacheKey);
     if (cachedMerged && now - cachedMerged.loadedAtMs <= CACHE_TTL_MS) {
-      const rows = applyFilters(cachedMerged.rows, minTxCount, metric);
+      const rows = applyFilters(cachedMerged.rows, effectiveMinTxCount, metric);
       let enriched = await backfillAll(env, grid, rows);
       if (grid === "1km" && metric === "median" && modelledMode !== "actual") {
         const modelledLookup = await getCachedModelledLookup(env, canonicalPropertyType, newBuild).catch(() => null);
@@ -80,7 +83,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
 
     const rawMerged = mergePartitionRows(validPartitions);
     PARTITION_CACHE.set(mergedCacheKey, { rows: rawMerged, loadedAtMs: Date.now() });
-    const rows = applyFilters(rawMerged, minTxCount, metric);
+    const rows = applyFilters(rawMerged, effectiveMinTxCount, metric);
     let enriched = await backfillAll(env, grid, rows);
     if (grid === "1km" && metric === "median" && modelledMode !== "actual") {
       const modelledLookup = await getCachedModelledLookup(env, canonicalPropertyType, newBuild).catch(() => null);
@@ -96,7 +99,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   const now = Date.now();
   const cached = PARTITION_CACHE.get(partitionKey);
   if (cached && now - cached.loadedAtMs <= CACHE_TTL_MS) {
-    const rows = applyFilters(cached.rows, minTxCount, metric);
+    const rows = applyFilters(cached.rows, effectiveMinTxCount, metric);
     let enriched = await backfillAll(env, grid, rows);
     if (grid === "1km" && metric === "median" && modelledMode !== "actual") {
       const modelledLookup = await getCachedModelledLookup(env, canonicalPropertyType, newBuild).catch(() => null);
@@ -120,7 +123,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   // Cache it
   PARTITION_CACHE.set(partitionKey, { rows: rawRows, loadedAtMs: Date.now() });
 
-  const rows = applyFilters(rawRows, minTxCount, metric);
+  const rows = applyFilters(rawRows, effectiveMinTxCount, metric);
   let enriched = await backfillAll(env, grid, rows);
   if (grid === "1km" && metric === "median" && modelledMode !== "actual") {
     const modelledLookup = await getCachedModelledLookup(env, canonicalPropertyType, newBuild).catch(() => null);
