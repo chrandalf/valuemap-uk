@@ -2782,7 +2782,7 @@ export default function ValueMap({
         : `GBP ${median.toLocaleString()}`;
       const isPpsf = stateRef.current.metric === "median_ppsf";
       const fmtGbp = (v: number) => isPpsf ? `GBP ${Math.round(v).toLocaleString()} / ft²` : `GBP ${Math.round(v).toLocaleString()}`;
-      const currentMode = stateRef.current.modelledMode ?? "blend";
+      const currentMode = stateRef.current.modelledMode ?? "actual";
       const isBlendMode = currentMode === "blend" || currentMode === "model_only";
       const hasEstimate = isBlendMode && p.estimated_median != null && (p.estimated_median as number) > 0;
       if (hasEstimate) {
@@ -4365,7 +4365,7 @@ async function setRealData(
   const endpoint = isDelta ? "/api/deltas" : "/api/cells";
 
   const endMonth = isDelta ? undefined : state.endMonth ?? "LATEST";
-  const cacheKey = `${state.grid}|${state.propertyType}|${state.newBuild}|${state.metric}|${endMonth ?? "LATEST"}|${state.modelledMode ?? "blend"}|${VOTE_CELLS_DATA_VERSION}`;
+  const cacheKey = `${state.grid}|${state.propertyType}|${state.newBuild}|${state.metric}|${endMonth ?? "LATEST"}|${state.modelledMode ?? "actual"}|${VOTE_CELLS_DATA_VERSION}`;
   const cached = cache.get(cacheKey);
   if (cached) {
     const src = map.getSource("cells") as maplibregl.GeoJSONSource;
@@ -4399,7 +4399,7 @@ async function setRealData(
     qs.set("metric", state.metric);
     qs.set("endMonth", endMonth!);
     if (state.grid === "1km") {
-      qs.set("modelled", state.modelledMode ?? "blend");
+      qs.set("modelled", state.modelledMode ?? "actual");
     }
   }
   qs.set("voteDataVersion", VOTE_CELLS_DATA_VERSION);
@@ -4509,7 +4509,7 @@ async function ensureAggregatesAndUpdate(
 
     // 1) ensure 25km aggregate for the overlay (unchanged behaviour)
     const endMonth = state.endMonth ?? "LATEST";
-    const key25 = `25km|${state.propertyType}|${state.newBuild}|${state.metric}|${endMonth}|${state.modelledMode ?? "blend"}|${VOTE_CELLS_DATA_VERSION}`;
+    const key25 = `25km|${state.propertyType}|${state.newBuild}|${state.metric}|${endMonth}|${state.modelledMode ?? "actual"}|${VOTE_CELLS_DATA_VERSION}`;
     let fc25 = cache.get(key25);
 
     if (!fc25) {
@@ -4555,7 +4555,7 @@ async function ensureAggregatesAndUpdate(
     }
 
     // 2) ensure current-grid aggregate for colour breaks (per-grid deciles)
-    const keyCur = `${state.grid}|${state.propertyType}|${state.newBuild}|${state.metric}|${endMonth}|${state.modelledMode ?? "blend"}|${VOTE_CELLS_DATA_VERSION}`;
+    const keyCur = `${state.grid}|${state.propertyType}|${state.newBuild}|${state.metric}|${endMonth}|${state.modelledMode ?? "actual"}|${VOTE_CELLS_DATA_VERSION}`;
     let fcCur = cache.get(keyCur);
 
     if (!fcCur) {

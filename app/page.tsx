@@ -222,7 +222,7 @@ export default function Home() {
       ageOverlayMode: "off",
       epcFuelOverlayMode: "off",
       epcFuelType: "gas",
-      modelledMode: "blend",
+      modelledMode: "actual",
     };
     if (typeof window === "undefined") return defaults;
     try {
@@ -280,7 +280,7 @@ export default function Home() {
         ageOverlayMode: age === "on" ? "on" : defaults.ageOverlayMode,
         epcFuelOverlayMode: "off",
         epcFuelType: "gas",
-        modelledMode: "blend",
+        modelledMode: "actual",
       };
     } catch {
       return defaults;
@@ -455,7 +455,7 @@ export default function Home() {
     ageOverlayMode: "off",
     epcFuelOverlayMode: "off",
     epcFuelType: "gas",
-    modelledMode: "blend",
+    modelledMode: "actual",
   };
   const closeAllSubpanels = () => {
     setFiltersOpen(false);
@@ -1128,7 +1128,7 @@ export default function Home() {
         </>
       )}
       {/* modelled footnote when blend/estimated on 1km */}
-      {state.grid === "1km" && (state.modelledMode ?? "blend") !== "actual" && (
+      {state.grid === "1km" && (state.modelledMode ?? "actual") !== "actual" && (
         <div style={{ fontSize: 10, opacity: 0.55, marginTop: 6 }}>◆ = estimated from local trend</div>
       )}
       </>
@@ -2123,7 +2123,7 @@ export default function Home() {
                         key={m}
                         type="button"
                         onClick={() => setState((s) => ({ ...s, modelledMode: m }))}
-                        style={{ flex: 1, padding: "3px 0", fontSize: 10, cursor: "pointer", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 6, color: "white", background: (state.modelledMode ?? "blend") === m ? "rgba(59,130,246,0.45)" : "rgba(255,255,255,0.07)" }}
+                        style={{ flex: 1, padding: "3px 0", fontSize: 10, cursor: "pointer", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 6, color: "white", background: (state.modelledMode ?? "actual") === m ? "rgba(59,130,246,0.45)" : "rgba(255,255,255,0.07)" }}
                       >
                         {m === "actual" ? "Actual" : m === "blend" ? "Blend" : m === "estimated" ? "All est." : "Est. only"}
                       </button>
