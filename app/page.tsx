@@ -2846,8 +2846,8 @@ export default function Home() {
                 </div>
                 <div style={{ fontSize: 9, opacity: 0.28, fontStyle: "italic" }}>scroll for more ↕</div>
               </div>
-              {/* Scrollable pickers — shows ~5 rows at once */}
-              <div style={{ overflowY: "auto", maxHeight: 152, paddingRight: 2, scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.18) transparent" }}>
+              {/* Scrollable pickers — shows ~8 rows at once */}
+              <div style={{ overflowY: "auto", maxHeight: 244, paddingRight: 2, scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.18) transparent" }}>
               <ImportancePicker emoji="💰" label="Affordability" value={indexAffordWeight} onChange={setIndexAffordWeight} color="#facc15" />
               <ImportancePicker emoji="🌊" label="Flood safety"  value={indexFloodWeight}  onChange={setIndexFloodWeight}  color="#60a5fa" />
               <ImportancePicker emoji="🏫" label="Schools (sec.)"  value={indexSchoolWeight}        onChange={setIndexSchoolWeight}        color="#22c55e" />
