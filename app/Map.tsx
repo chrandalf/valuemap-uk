@@ -4861,9 +4861,10 @@ function buildValueFilter(state: MapState) {
 
 function buildIndexFilter(indexPrefs: IndexPrefs | null | undefined) {
   if (!indexPrefs) return null;
+  const weightedCriteriaActive = hasWeightedIndexCriteria(indexPrefs);
   const commuteFilter = indexPrefs.commuteFilter ? (["==", ["coalesce", ["get", "ix_commute_ok"], 0], 1] as any) : null;
   const mode = indexPrefs.indexFilterMode ?? "off";
-  const scoreFilter = mode === "off"
+  const scoreFilter = !weightedCriteriaActive || mode === "off"
     ? null
     : ([mode === "lte" ? "<=" : ">=", ["coalesce", ["get", "index_score"], 0], Math.max(0, Math.min(1, Number(indexPrefs.indexFilterThreshold ?? 0.6)))] as any);
   return commuteFilter && scoreFilter
@@ -4982,6 +4983,26 @@ async function applyIndexScoring(
 
   const fc: any = cellFc ?? (src as any)._data ?? null;
   if (!fc || !Array.isArray(fc.features) || fc.features.length === 0) return false;
+  const weightedCriteriaActive = hasWeightedIndexCriteria(prefs);
+  const features = fc.features;
+
+  if (!weightedCriteriaActive) {
+    for (const feature of features) {
+      const props = feature.properties ?? {};
+      feature.properties = props;
+      const coords = feature.geometry?.coordinates?.[0];
+      if (!coords || coords.length < 4) {
+        props.ix_commute_ok = 0;
+        continue;
+      }
+      const cLon = (coords[0][0] + coords[2][0]) / 2;
+      const cLat = (coords[0][1] + coords[2][1]) / 2;
+      props.ix_commute_ok = prefs.commuteFilter ? (pointInGeometry(cLon, cLat, prefs.commuteFilter.geometry) ? 1 : 0) : 1;
+    }
+    src.setData(fc as any);
+    applyCombinedCellFilters(map, state, prefs);
+    return true;
+  }
 
   // — Fetch flood data once, build grid index —
   if (_indexFloodCache === null) {
@@ -5130,9 +5151,6 @@ async function applyIndexScoring(
   const NEAR_DEG = 0.08;
   const DATA_DEG = 0.45;
   const CHUNK = 300; // yield to browser every N cells
-  const weightedCriteriaActive = hasWeightedIndexCriteria(prefs);
-
-  const features = fc.features;
 
   // ─── Flood pre-pass: compute worst-case severity score for every cell ───
   // Flood points are only considered if they fall **within the cell itself**.
