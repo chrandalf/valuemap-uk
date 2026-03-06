@@ -39,6 +39,26 @@ export default function DescriptionPage() {
           </ul>
         </Section>
 
+        <Section title="◆ Price estimates at 1km">
+          <p>Many 1 km cells — particularly in rural areas, or when you filter to a short period or a specific property type — don&apos;t have enough real sales to show a reliable median. The map&apos;s built-in statistical model fills those gaps with an estimate, so you get coverage across the whole country rather than a patchwork of blank cells.</p>
+          <p style={{ marginTop: 8 }}><strong>How the estimates are produced</strong></p>
+          <p>For each 1 km cell the model looks back over historical years and measures how that cell&apos;s median price has typically compared to the surrounding 5 km cell. If a particular 1 km cell has consistently traded about 12% above its 5 km parent, the model multiplies today&apos;s 5 km median by that same ratio to produce an estimate. Cells with more years of consistent data earn a higher confidence rating. Where a 1 km cell has no history at all, the model simply inherits the parent 5 km median directly.</p>
+          <p style={{ marginTop: 8 }}><strong>Confidence levels shown in popups</strong></p>
+          <ul>
+            <li><strong>High</strong> — multiple years of stable ratio data. Likely within ±10% of the true market price.</li>
+            <li><strong>Medium</strong> — some ratio history; a reasonable fit but wider margin of uncertainty.</li>
+            <li><strong>Low</strong> — no 1 km history; inherits the 5 km parent median. Treat as a rough guide only.</li>
+          </ul>
+          <p style={{ marginTop: 8 }}><strong>Viewing modes</strong> (1 km grid, Median price only)</p>
+          <ul>
+            <li><strong>Actual</strong> — only real sold-price data, minimum transaction threshold enforced. Sparse cells are blank.</li>
+            <li><strong>Blend</strong> — actual data where it exists; model estimates fill in sparse and empty cells. Cell popups show both the actual figure and the model estimate side-by-side so you can judge how well they align.</li>
+            <li><strong>All est.</strong> — replaces every actual median with the model output and injects estimated-only cells on top. Useful for checking how closely the model tracks reality across the board.</li>
+            <li><strong>Est. only</strong> — shows exclusively the cells that come from the model and have no real transactions in the selected period. A pure coverage view of the gaps the model is filling.</li>
+          </ul>
+          <p style={{ marginTop: 8, opacity: 0.7, fontStyle: "italic" }}>Estimated cells are marked ◆ in popups. Opacity on the map is reduced relative to cells based on real data, and further reduced for Low confidence estimates, so you can read the confidence at a glance.</p>
+        </Section>
+
         <Section title="Filters to keep comparisons fair">
           <ul>
             <li><strong>Property type</strong> — filter by Detached, Semi-detached, Terraced, Flat, or any combination. Mixing types distorts medians, so filter when comparing like with like.</li>
@@ -162,6 +182,7 @@ export default function DescriptionPage() {
         <Section title="Coverage by feature">
           <ul>
             <li><strong>Price grid (median, change)</strong> — England ✅, Wales ✅, Scotland ✅ (partial)</li>
+            <li><strong>Price estimates (1km blend/model modes)</strong> — England ✅, Wales ✅, Scotland ✅ (partial)</li>
             <li><strong>Price per ft²</strong> — England ✅, Wales ❌, Scotland ❌</li>
             <li><strong>Flood risk</strong> — England ✅, Wales ❌, Scotland ❌</li>
             <li><strong>Schools</strong> — England ✅, Wales ❌, Scotland ❌</li>
