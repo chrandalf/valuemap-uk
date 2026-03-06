@@ -320,18 +320,51 @@ TIER 3 — LARGER FEATURES  (L, significant work)
 TIER 4 — COMPLEX / RESEARCH NEEDED  (XL)
 ────────────────────────────────────────────────────────────────────────────────
 
-[ ] [XL]  Commute time overlay (multi-destination)
+[ ] [XL]  Commute filter — show only cells within X minutes of a work location
+          User story: "I work in Leeds city centre — only show me places ≤ 45 min away"
           Options to evaluate:
             a) TfL / OpenTripPlanner isochrone API — free but needs hosting
             b) Google Maps Distance Matrix — accurate but paid per request
             c) Mapbox Isochrone API — paid, easy to integrate
             d) Pre-compute isochrones for top ~50 employment centres offline
-               and store as GeoJSON in R2 (no per-request cost) ← recommended
-          Recommended approach:
-          - User enters up to 3 work destinations (postcode / freetext)
-          - Fetch isochrones on demand, cache results in R2 by origin+mode+mins
-          - Blend commute score into Find My Area index weighting
-          - UI: destination inputs in Filters or dedicated Commute panel
+               and store as GeoJSON in R2 (no per-request cost) ← recommended first pass
+          Commute modes to support: driving, rail, mixed (drive-to-station + rail)
+          Transport complexity note:
+          - Road isochrones (driving) are computable offline or via Mapbox cheaply
+          - Real public transport durations require GTFS + trip planning — expensive
+          - Phased approach: v1 = road/driving isochrone; v2 = add rail catchment
+            (use existing station distance + train time estimate as proxy for v2)
+          - MVP UX: user enters work postcode + max commute time (15/30/45/60 min)
+            → map only colours cells inside the isochrone polygon
+          - Edge cases: Scottish/Welsh coverage, cross-border commuters
+          - Find My Area integration: commute can be a hard filter (hide outside)
+            rather than a scoring weight, or soft-score (cells near edge score lower)
+          Internal difficulty: [XL] — main cost is the isochrone data/API choice;
+            road-only isochrone via Mapbox is ~[L] once decision is made;
+            full public-transport accuracy is genuinely [XL] and may never be cheap enough
+
+[ ] [L]   "Underrated best-value places near X" feature
+          User story: "I want hidden-gem areas near London that are good value and
+            have decent schools/transport — not just the obvious commuter towns"
+          Approach:
+          - User enters a reference location (postcode / city name)
+          - A spatial search radius is computed (e.g. 30 / 60 / 90 min drive)
+          - Cells within that radius are ranked by a composite:
+              value_score = (how_cheap_vs_area_average × flood × school × crime × train)
+          - Top N cells (e.g. 10–20) shown as highlighted pins with a mini-leaderboard
+            sidebar: ranks by "value score", showing price, key factor scores
+          - "Underrated" qualifier: cells where price is low relative to quality
+            (i.e. high index score but low price — areas the market hasn't caught up to)
+          Implementation notes:
+          - If commute isochrone feature exists: use same radius geometry
+          - Without isochrone: fall back to straight-line distance radius
+          - Scoring uses existing IndexPrefs logic but with fixed preset weights
+            (or let user customise then hit "Find hidden gems near [postcode]")
+          - Leaderboard UI: new panel or results list below search bar
+          - Could double as "best areas near X" for users who want commutability +
+            value combined (natural companion to the commute filter above)
+          Internal difficulty: [L] for presets + radius filter + leaderboard UI;
+            [XL] if real isochrone routing is required for the "near X" radius
 
 [ ] [XL]  Planning application visibility
           - No single national free feed (each LPA publishes separately)

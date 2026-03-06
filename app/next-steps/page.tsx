@@ -72,8 +72,18 @@ export default function NextStepsPage() {
             Expand flood/school data coverage to Wales and Scotland and improve sourcing alignment
             with official UK datasets.
           </li>
-          <li>
+          <li style={{ marginBottom: 8 }}>
             Affordability layers after integrating income signals (e.g. price-to-income).
+          </li>
+          <li style={{ marginBottom: 8 }}>
+            Commute filter &mdash; enter a work location and a maximum journey time, and the map
+            shows only areas that fall within that commute. Initial version covers driving times,
+            with public transport estimates to follow.
+          </li>
+          <li>
+            Underrated best-value areas near a chosen location &mdash; a ranked list of
+            hidden-gem cells that score well on schools, safety, and transport but are
+            priced below what comparable areas command elsewhere.
           </li>
         </ol>
 
