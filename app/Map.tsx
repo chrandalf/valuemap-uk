@@ -142,6 +142,7 @@ type ApiRow = {
   n_years_model?: number;
   ratio_cv_model?: number;
   estimated_median?: number;
+  actual_median?: number;
 };
 
 function isDeltaMetric(metric: Metric) {
@@ -2709,10 +2710,27 @@ export default function ValueMap({
       const metricTitle = stateRef.current.metric === "median_ppsf"
         ? `GBP ${Math.round(median).toLocaleString()} / ft²`
         : `GBP ${median.toLocaleString()}`;
+      const isBlend = (stateRef.current.modelledMode ?? "blend") === "blend";
+      const showBothRows = p.is_modelled && isBlend;
+      const actualStr = showBothRows
+        ? (p.actual_median != null && p.actual_median > 0
+          ? (stateRef.current.metric === "median_ppsf"
+            ? `GBP ${Math.round(p.actual_median).toLocaleString()} / ft² (${Number(p.tx_count ?? 0)} sales)`
+            : `GBP ${Math.round(p.actual_median).toLocaleString()} (${Number(p.tx_count ?? 0)} sales)`)
+          : `— (${Number(p.tx_count ?? 0)} sales)`)
+        : null;
+      const estimateStr = showBothRows
+        ? (stateRef.current.metric === "median_ppsf"
+          ? `GBP ${Math.round(median).toLocaleString()} / ft²`
+          : `GBP ${median.toLocaleString()}`)
+        : null;
       html = `
         <div style="font-family: system-ui; font-size: 12px; line-height: 1.25;">
-          <div style="font-weight: 700; margin-bottom: 4px;">${metricTitle}</div>
-          <div>Sales sample: <b>${tx}</b></div>
+          ${showBothRows
+            ? `<div style="font-weight: 700; margin-bottom: 4px;">${estimateStr} <span style="font-weight:400;color:#888;">est.</span></div>
+          <div style="color:#888;">Actual: <b style="color:#ccc;">${actualStr}</b></div>`
+            : `<div style="font-weight: 700; margin-bottom: 4px;">${metricTitle}</div>
+          <div>Sales sample: <b>${tx}</b></div>`}
           ${p.is_modelled ? `<div style="color:#888;font-style:italic;margin-top:3px;">◆ Estimated — ${p.n_years_model ?? "?"}yr local trend · ${p.model_confidence === 2 ? "High" : p.model_confidence === 1 ? "Medium" : "Low"} confidence</div>` : ""}
         </div>
       `;

@@ -188,6 +188,7 @@ type CellRow = {
   n_years_model?: number;
   ratio_cv_model?: number;
   estimated_median?: number;
+  actual_median?: number;      // original sparse median before model replacement (blend mode only)
 };
 
 type VoteCellRow = {
@@ -842,7 +843,8 @@ function applyModelledData(
         const key = `${r.gx}_${r.gy}`;
         const m = modelledLookup.get(key);
         if (m && m.model_confidence >= 1) {
-          output.push({ ...r, median: m.estimated_median, is_modelled: true, model_confidence: m.model_confidence, n_years_model: m.n_years, ratio_cv_model: m.ratio_cv, estimated_median: m.estimated_median });
+          const actualMedian = Number(r.tx_count ?? 0) > 0 ? r.median : undefined;
+          output.push({ ...r, median: m.estimated_median, is_modelled: true, model_confidence: m.model_confidence, n_years_model: m.n_years, ratio_cv_model: m.ratio_cv, estimated_median: m.estimated_median, actual_median: actualMedian });
         }
         // else drop (not enough data for actual or model)
       }
