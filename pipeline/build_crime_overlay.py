@@ -14,7 +14,10 @@ Steps
 5. Join population from ONS Census 2021 LSOA age data (ts007a_age_lsoa21.csv)
 6. Compute rates per 1,000 residents (annualised over the 12 months)
 7. Compute inverse-percentile scores: 100 = lowest crime, 0 = highest crime
-8. Output:
+8. Detect and exclude local-authority groups with implausibly low avg crime rates
+   (indicates the primary police force did not publish data to data.police.uk;
+    those areas are excluded so they render as grey "no data" rather than green)
+9. Output:
      crime_overlay_lsoa.geojson.gz   → MODEL_CRIME_DIR  (then staged to PUBLISH)
      crime_analysis.csv              → MODEL_CRIME_DIR   (for inspection)
 
@@ -38,13 +41,14 @@ import csv
 import gzip
 import io
 import json
+import re
 import shutil
 import sys
 import urllib.request
 import zipfile
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Set, Tuple
 
 from paths import (
     MODEL_CRIME_DIR,
@@ -330,6 +334,73 @@ def _build_geojson(
     return {"type": "FeatureCollection", "features": features}
 
 
+# ── Sparse-force detection ────────────────────────────────────────────────────
+
+# Local-authority groups whose average total_rate (crimes/1k residents/yr) falls
+# below this threshold are assumed to lack primary police force data (e.g. GMP
+# not publishing to data.police.uk).  They are excluded from the output so the
+# map renders them as grey "no data" instead of artificially green.
+# The threshold is chosen conservatively: the lowest-crime genuinely-covered area
+# historically sits around 40/1k/yr, while missing-force areas appear at < 2/1k/yr.
+SPARSE_FORCE_THRESHOLD = 5.0  # crimes per 1,000 residents per year
+
+_LA_CODE_RE = re.compile(r'^(.+?)\s+\d+[A-Z]+$')
+
+
+def _la_name(lsoa_name: str) -> str:
+    """Extract local-authority prefix from an LSOA name like 'Manchester 001A'."""
+    m = _LA_CODE_RE.match(lsoa_name.strip())
+    return m.group(1) if m else lsoa_name
+
+
+def _filter_sparse_forces(features: list) -> tuple[Set[str], list]:
+    """
+    Detect LSOAs from local-authority areas where the average total_rate is
+    implausibly low (indicating the primary police force is absent from the
+    data.police.uk archive).  Returns the set of excluded LA names and the
+    filtered feature list.
+    """
+    groups: Dict[str, List[float]] = defaultdict(list)
+    for f in features:
+        name = (f["properties"].get("lsoa_name") or "").strip()
+        rate = float(f["properties"].get("total_rate") or 0)
+        groups[_la_name(name)].append(rate)
+
+    # Compute national median excluding groups themselves (simple list median)
+    all_avgs = sorted(sum(r) / len(r) for r in groups.values())
+    nat_median = all_avgs[len(all_avgs) // 2] if all_avgs else 1.0
+
+    sparse_las: Set[str] = set()
+    for la, rates in groups.items():
+        avg = sum(rates) / len(rates)
+        if avg < SPARSE_FORCE_THRESHOLD:
+            sparse_las.add(la)
+
+    if sparse_las:
+        print(
+            f"\nWARNING: {len(sparse_las)} local-authority area(s) detected with "
+            f"avg total_rate < {SPARSE_FORCE_THRESHOLD:.0f} per 1k/yr "
+            f"(national LA median: {nat_median:.0f}).  "
+            f"Likely cause: primary police force did not publish data."
+        )
+        print("  These areas will be excluded (shown as grey 'no data' on the map):")
+        for la in sorted(sparse_las):
+            rates = groups[la]
+            print(f"    {la:30s} {len(rates):4d} LSOAs  avg_rate={sum(rates)/len(rates):.2f}")
+
+        filtered = [
+            f for f in features
+            if _la_name((f["properties"].get("lsoa_name") or "").strip()) not in sparse_las
+        ]
+        print(
+            f"  Removed {len(features) - len(filtered):,} features; "
+            f"{len(filtered):,} remaining."
+        )
+        return sparse_las, filtered
+
+    return set(), features
+
+
 # ── Analysis CSV ───────────────────────────────────────────────────────────────
 
 def _write_analysis(features: list, out_path: Path) -> None:
@@ -428,6 +499,11 @@ def main() -> None:
     geojson = _build_geojson(acc, pop, len(chosen))
     features = geojson["features"]
     print(f"  Features after coord filtering: {len(features):,}")
+
+    # ── Post-build: exclude low-coverage force areas ───────────────────────────
+    _, features = _filter_sparse_forces(features)
+    geojson["features"] = features
+
     print("\nDistribution stats:")
     _print_stats(features)
 

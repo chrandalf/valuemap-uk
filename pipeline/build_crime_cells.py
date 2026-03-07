@@ -49,10 +49,12 @@ import pandas as pd
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent))
+import shutil
 from paths import (
     MODEL_CRIME_CELLS_TEMPLATE,
     MODEL_CRIME_DIR,
     MODEL_CRIME_OVERLAY,
+    PUBLISH_CRIME_DIR,
     RAW_PROPERTY_DIR,
     ensure_pipeline_dirs,
 )
@@ -392,7 +394,9 @@ def main(onspd_path: Path) -> None:
         with gzip.open(out_path, "wt", encoding="utf-8") as f:
             json.dump(cells, f, separators=(",", ":"))
         size_kb = out_path.stat().st_size // 1024
-        print(f"  â†’ {out_path.name}  ({size_kb:,} KB)")
+        publish_path = PUBLISH_CRIME_DIR / out_path.name
+        shutil.copy2(out_path, publish_path)
+        print(f"  → {out_path.name}  ({size_kb:,} KB)  [staged to publish]")
 
     print("Done.")
 
