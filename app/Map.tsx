@@ -2605,7 +2605,7 @@ export default function ValueMap({
         ? `<div style="border-top:1px solid rgba(0,0,0,0.1);margin-top:6px;padding-top:5px;font-size:11px;opacity:0.65;">${metricTitle} · ${tx} sales</div>`
         : "";
       const row = (label: string, score: number, rate: number, count: number | null) =>
-        `<div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:2px"><span style="color:#6b7280">${label}</span><span style="text-align:right"><span style="color:${sCol(score)};font-weight:${label === "Overall" ? 600 : 400}">${sLabel(score)}</span>&nbsp;<span style="color:#9ca3af;font-size:10px">${rStr(rate)}</span>${count !== null ? `&nbsp;<span style="color:#c0c0c0;font-size:10px">~${count.toLocaleString()} crimes/yr</span>` : ""}</span></div>`;
+        `<div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:2px"><span style="color:#6b7280">${label}</span><span style="text-align:right"><span style="color:${sCol(score)};font-weight:${label === "Overall" ? 600 : 400}">${sLabel(score)}</span>&nbsp;<span style="color:#9ca3af;font-size:10px">${rStr(rate)}</span>${count !== null && count > 0 ? `&nbsp;<span style="color:#c0c0c0;font-size:10px">~${count.toLocaleString()} crimes/yr</span>` : ""}</span></div>`;
       const highFootfall = totalRate > 500;
       const crimeHtml = `
         <div style="font:12px/1.5 system-ui,sans-serif;min-width:220px">
