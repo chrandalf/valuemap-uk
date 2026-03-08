@@ -1,6 +1,6 @@
 ================================================================================
   VALUEMAP — PRODUCT BACKLOG
-  Updated: 2026-03-02 (audited — stale items cleared)
+  Updated: 2026-03-08 (new items: weighting labels, station max-distance, county restrict, avoid/inverse weight, crime smoothing, boundary effects, Ofsted scoring, housing stock, broadband)
   Effort key:  [XS] < 1 hr  [S] ~half day  [M] 1-2 days  [L] 3-5 days  [XL] week+
   Status:      [x] done   [-] in progress   [ ] not started
 ================================================================================
@@ -205,6 +205,26 @@ TIER 1 — QUICK WINS  (XS / S, low risk)
           - Consider defaulting affordWeight to 5 instead of 0
           - From mate feedback: "Affordability was set to off — didn't realise I needed it"
 
+[ ] [XS]  Clarify Find My Area weighting labels — especially what "Nice" means
+          - Current slider labels (e.g. "A bit", "Nice", "Really want") are ambiguous;
+            "Nice" does not carry an obvious priority meaning to new users
+          - Consider renaming to a clearer scale: "Low" / "Medium" / "High" / "Essential"
+            or use numeric tooltips: "Nice (3/5)", "Very important (4/5)", etc.
+          - Also audit the 0 = ignored state: make it explicit with a visual indicator
+            (greyed row, "(ignored)" sub-label) so users know setting 0 does nothing
+          - Low-risk copy/label change — no scoring logic changes needed
+
+[ ] [S]   Maximum distance cap for train station (hard filter)
+          - Currently station proximity is a soft scoring factor only; a user who
+            *requires* a station within walking/cycling distance has no way to enforce it
+          - Add a "Max distance" input or dropdown (e.g. ½ km / 1 km / 2 km / 5 km / Any)
+            that appears alongside the station weight slider
+          - Implementation: in applyIndexScoring, if stationMaxKm is set, zero-score any
+            cell whose nearest station exceeds the cap (hard veto, like affordability cap)
+          - UI: only show the distance selector when stationWeight > 0, or always visible
+            in the station row for clarity
+          - Follow Pattern B checklist; requires passing stationMaxKm into IndexScoringPrefs
+
 [ ] [S]   Place-name / city / county search in the postcode search box
           - Reddit feedback: "I'd love a way to specify specific counties, areas or cities"
             (users who already know where they want to live, not just a postcode)
@@ -250,6 +270,99 @@ TIER 2 — MEDIUM EFFORT  (M, moderate complexity)
           - Review known-flood areas that users report score incorrectly
           - Link directly to EA long-term flood risk map from popup
 
+[ ] [M]   Restrict Find My Area scored results to specific counties / regions / cities
+          - Companion feature to the place-name search (TIER 1): once the geocoder
+            returns a bbox for a county or city, offer a "Search within this area only"
+            mode so scored cells outside the bbox are hidden/zeroed
+          - UX: an active chip "[Devon ×]" shows under the search box when a region
+            filter is applied; clear it to restore all-GB results
+          - Implementation: after geocoder returns bbox (Nominatim), store as a
+            [minLon, minLat, maxLon, maxLat] region filter; in applyIndexScoring
+            skip cells whose centroid falls outside the bbox
+          - Edge cases: cells that straddle a county boundary — use centroid rule
+          - Works for both "fly to area" (navigation) and "score within area" (filter)
+          - From Reddit: u/Least-Broccoli9995 (2026-03-08)
+
+[ ] [M]   "Avoid" / inverse weighting option for scoring factors
+          - All current factor weights are positive (higher weight = more important);
+            users can't express "I actively want to avoid X" — e.g. rural users who
+            want to be far from a railway line (noise), or who prefer low connectivity
+          - Implementation: allow negative weights in IndexScoringPrefs, or add a
+            per-factor "Avoid" toggle that inverts the score contribution
+          - Suggested UX: 3-state toggle before the slider: [Prefer] [Neutral] [Avoid]
+            — "Avoid" multiplies the factor's normalised score by -1 before weighting
+          - Initially useful for: station proximity, crime (already inverse by nature),
+            and eventually broadband (rural buyers who want peace over speed)
+          - Care needed: negative weights affect total normalisation; audit score
+            accumulation logic in applyIndexScoring to handle negative contributions
+          - From user feedback: "add a stronger avoid or inverse option for transport links"
+
+[ ] [M]   Rework / smooth crime & safety contribution to the match score
+          - Current implementation: LSOA inverse-percentile score applied directly;
+            this creates step-changes at LSOA boundaries that can make adjacent cells
+            look unrealistically different
+          - Approach: apply a spatial smoothing pass over crime scores before they
+            feed into the match score:
+            a) Weighted average with 8 neighbouring cells (e.g. 60% own / 40% neighbours)
+            b) Or: for each cell centroid, sample all LSOAs within a small radius (e.g.
+               500 m) and use a distance-weighted mean of their crime rates
+          - Separately, review the weight the crime score carries in the composite:
+            current step from "some crime" to "lots of crime" may be too steep
+          - Keep raw LSOA score visible in the cell popup for transparency
+          - See also: "Reduce micro boundary effects" item below
+
+[ ] [M]   Reduce micro boundary effects — unrealistically different scores for nearby cells
+          - Problem: two cells separated by a road can have wildly different match scores
+            because of sharp polygon edges in the underlying data (LSOA crime boundaries,
+            school catchment edges, flood zone polygons)
+          - Root causes:
+            • Crime: LSOA boundaries are administrative — a street can sit on the edge
+            • Schools: nearest-school scoring snaps hard to Voronoi boundaries
+            • Flood: EA zone polygons are precise but don't model street-level variation
+          - Mitigation approach (priority order):
+            a) [Easy]   Smooth crime score with neighbour averaging (see crime item above)
+            b) [Medium] School score: sample 3 nearest schools and distance-weight them
+               rather than taking only the single closest
+            c) [Hard]   Flood: no fix needed — flood zones are precise and real differences
+               are legitimate; do not smooth flood scores
+          - Aim: reduce jarring visual "checkerboard" patterns on the scored map without
+            hiding genuine neighbourhood-level differences
+          - This is a scoring methodology change, not a visual opacity trick
+
+[ ] [M]   Ofsted-based school quality as a scoring factor (not just proximity)
+          - Current state: school scoring uses KS4 GCSE attainment / Progress 8 only;
+            TIER 2 item "Improve school score display" already tracks replacing with
+            Ofsted grades in popups — this item specifically covers the scoring side
+          - Goal: when stationWeight (schoolWeight) > 0, the match score should reflect
+            actual Ofsted inspection outcome (Outstanding / Good / Requires Improvement /
+            Inadequate) not just attainment data that punishes specialist schools
+          - Data: OFSTED open data — Inspections and outcomes dataset (gov.uk, OGL) —
+            downloadable CSV with URN, school name, overall_effectiveness rating, region
+          - Pipeline: join by URN to existing school overlay points, add ofsted_grade (1–4)
+            and ofsted_date fields; re-upload overlay GeoJSON
+          - Scoring: ofsted_score = {Outstanding:100, Good:75, RI:40, Inadequate:10}
+            blend or replace GCSE score depending on school phase / type
+          - Overlay popup: show Ofsted grade badge (colour-coded) + inspection date
+          - Cross-reference: TIER 2 "Improve school score display" item e
+
+[ ] [M]   Housing stock breakdown by bedroom count per area
+          - Request: show rough counts of 2-bed, 3-bed semi, 4-bed, etc. per cell
+            so users know if a high-scoring area has the type of home they want
+          - Data: EPC (Energy Performance Certificate) dataset — already partially
+            integrated in the pipeline; contains property_type, number-habitable-rooms,
+            and address for every home that has been marketed or newly built
+          - Pipeline: aggregate EPC records by cell grid (gx, gy) to produce:
+              counts by implied bedroom band (1-bed ≤2 rooms, 2-bed 3–4, 3-bed 5–6, 4-bed+ ≥7)
+              counts by property_type (terrace, semi, detached, flat)
+          - Display: mini breakdown in the cell click popup (and right-click panel):
+              "~45 × 3-bed semi, ~20 × 2-bed flat, ~12 × 4-bed detached"
+          - Caveat to show: "Based on EPC records — newer/frequently-sold homes
+            better represented; older un-traded stock may be under-counted"
+          - Licence: DLUHC EPC data (OGL v3.0) — free
+          - Cross-reference: also relates to "Bedroom filter" (TIER 3) and
+            "Current property stock" (TIER 3) items
+          - From user feedback (2026-03-08)
+
 [ ] [M]   "Views switch" discoverability
           - Audit current UX — is it below fold / hidden on mobile?
           - Consider moving to a persistent tab bar or prominent toggle
@@ -272,6 +385,7 @@ TIER 3 — LARGER FEATURES  (L, significant work)
 [ ] [L]   Top-areas list view (non-map browse mode)
           - Reddit feedback: "a non-map option, simply a list to look at that I can click through"
             for users who prefer browsing a ranked table over visually scanning the map
+          - Also from user feedback (2026-03-08): same ask — non-map list of results
           - Scope: most useful when Find My Area is active (scored areas)
           - Implementation:
             a) After "Score areas" is pressed, add a "List" toggle button alongside
@@ -435,6 +549,22 @@ TIER 3 — LARGER FEATURES  (L, significant work)
           - Pipeline: spatial index, nearest stop distance per cell
           - Overlay + popup row alongside the existing station line
           - Scoring: combine rail + bus/tram into a composite transit score
+
+[ ] [L]   High-speed broadband as a scoring factor
+          - Data: Ofcom Connected Nations dataset (open data, updated annually)
+            — reports % of premises with ≥30 Mbit/s, ≥300 Mbit/s, and full-fibre (FTTP)
+              at postcode sector level across GB
+            — alternative / supplement: BDUK Project Gigabit coverage maps (geospatial, OGL)
+          - Pipeline: join Ofcom broadband CSV to cell grid via postcode sector centroid;
+            derive broadband_score (0–100) based on % full-fibre or % ≥300 Mbit/s
+            (raw % suffices; no complex normalisation needed — already 0–100)
+          - Scoring: add broadbandWeight to IndexScoringPrefs; follow Pattern B checklist
+          - UI: broadband slider in Find My Area (📶 emoji, label "Fast broadband")
+          - Overlay (optional v2): colour cells by % full-fibre coverage as a layer toggle
+          - Relevance: high variance between urban and rural GB; increasingly important
+            for remote workers, families with streaming, buyers leaving cities
+          - Data licence: Ofcom Open Data Licence (OGL-compatible) — free, no API key
+          - From user feedback (2026-03-08)
 
 [ ] [XL]  Current property stock / active listing counts per cell
           - Reddit feedback: "are there 5 houses or 500 houses here?" — users want to

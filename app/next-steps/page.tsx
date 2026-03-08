@@ -62,34 +62,65 @@ export default function NextStepsPage() {
 
         <ol start={1} style={{ margin: 0, padding: "0 0 0 18px", fontSize: 14, opacity: 0.92 }}>
           <li style={{ marginBottom: 8 }}>
-            Modelled price estimates for sparse areas &mdash; using up to five years of local
-            price history relative to the surrounding area, the map will fill in estimated
-            values for cells with too few recent sales to give a reliable median. A toggle
-            lets you choose between actual data only, actual where available plus estimates
-            elsewhere, or estimates everywhere for a fuller picture.
+            <strong>Scored area list view</strong> &mdash; after running Find My Area, browse
+            your top results as a sortable table showing area name, match score, and median
+            price. Click any row to fly the map straight to that spot.
           </li>
           <li style={{ marginBottom: 8 }}>
-            Confidence and coverage indicators per cell (sales bands, low-data flags,
-            and freshness hints).
+            <strong>Search and filter by county, city, or region</strong> &mdash; type
+            &ldquo;Devon&rdquo; or &ldquo;Greater Manchester&rdquo; in the search box and pin
+            scoring to that area only. An active chip shows your current region filter and
+            can be cleared at any time.
           </li>
           <li style={{ marginBottom: 8 }}>
-            Comparison mode (side-by-side metrics or then-vs-now slider).
+            <strong>Maximum distance to a train station</strong> &mdash; set a hard cap
+            (e.g. 1 km, 2 km, 5 km) so areas without a nearby station are filtered out
+            entirely rather than just scored lower.
           </li>
           <li style={{ marginBottom: 8 }}>
-            Expand flood/school data coverage to Wales and Scotland and improve sourcing alignment
-            with official UK datasets.
+            <strong>&ldquo;Avoid&rdquo; mode for scoring factors</strong> &mdash; as well as
+            weighting things you want, mark factors you actively want to avoid &mdash; for
+            example, heavy transport corridors or high-density areas &mdash; so the scoring
+            works in both directions.
           </li>
           <li style={{ marginBottom: 8 }}>
-            Affordability layers after integrating income signals (e.g. price-to-income).
+            <strong>School quality based on Ofsted grades</strong> &mdash; school scoring will
+            reflect actual Ofsted inspection outcomes (Outstanding / Good / Requires Improvement
+            / Inadequate) rather than exam results alone, giving a fairer picture across all
+            school types including specialist schools.
           </li>
           <li style={{ marginBottom: 8 }}>
-            Commute filter &mdash; enter a work location and a maximum journey time, and the map
-            shows only areas that fall within that commute. Initial version covers driving times,
-            with public transport estimates to follow.
+            <strong>Fast broadband coverage</strong> &mdash; full-fibre and superfast broadband
+            availability added as a scoring factor and map overlay, sourced from Ofcom open data.
+            Particularly useful for remote workers or anyone moving out of a city.
+          </li>
+          <li style={{ marginBottom: 8 }}>
+            <strong>Housing stock breakdown per area</strong> &mdash; rough counts of 2-bed
+            flats, 3-bed semis, 4-bed detacheds, and other types in each cell (based on EPC
+            records), so you can see whether your top-scoring areas actually have the kind of
+            home you&rsquo;re looking for.
+          </li>
+          <li style={{ marginBottom: 8 }}>
+            <strong>Modelled price estimates for sparse areas</strong> &mdash; using up to five
+            years of local price history relative to the surrounding area, the map will fill in
+            estimated values for cells with too few recent sales to give a reliable median. A
+            toggle lets you switch between actual data only, blended, or estimates everywhere for
+            a fuller picture.
+          </li>
+          <li style={{ marginBottom: 8 }}>
+            <strong>Smoother match scores near borders</strong> &mdash; a refinement pass on
+            crime and school scoring to reduce cases where two adjacent streets end up with
+            unrealistically different match scores due to administrative boundary edges in the
+            underlying data.
+          </li>
+          <li style={{ marginBottom: 8 }}>
+            <strong>Commute filter</strong> &mdash; enter a work location and a maximum journey
+            time, and the map shows only areas within that commute. Initial version covers driving
+            times, with public transport estimates to follow.
           </li>
           <li>
-            Underrated best-value areas near a chosen location &mdash; a ranked list of
-            hidden-gem cells that score well on schools, safety, and transport but are
+            <strong>Underrated best-value areas near a chosen location</strong> &mdash; a ranked
+            list of hidden-gem areas that score well on schools, safety, and transport but are
             priced below what comparable areas command elsewhere.
           </li>
         </ol>
