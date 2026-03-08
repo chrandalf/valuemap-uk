@@ -89,8 +89,8 @@ export default function SupportersPage() {
     >
       <style>{`
         @keyframes vm-crawl {
-          from { transform: translateY(105vh); }
-          to   { transform: translateY(-460%); }
+          from { transform: rotateX(22deg) translateY(105vh); }
+          to   { transform: rotateX(22deg) translateY(-460%); }
         }
         @keyframes vm-title-glow {
           0%, 100% { text-shadow: 0 0 12px rgba(245,230,66,0.5); }
@@ -120,17 +120,16 @@ export default function SupportersPage() {
         <div
           style={{
             position: "absolute",
-            left: "50%",
-            width: "min(540px, 80vw)",
-            transform: "translateX(-50%) rotateX(22deg)",
+            left: 0,
+            right: 0,
             transformOrigin: "50% 100%",
             animation: "vm-crawl 75s linear 0.6s forwards",
-            textAlign: "center",
             color: "#f5e642",
             fontSize: "clamp(12px, 2vw, 16px)",
             lineHeight: 1.8,
           }}
         >
+          <div style={{ width: "min(540px, 80vw)", margin: "0 auto", textAlign: "center" }}>
           {/* top padding so text crawls in from below */}
           <div style={{ height: "55vh" }} />
 
@@ -291,6 +290,7 @@ export default function SupportersPage() {
 
           {/* trailing space so names aren't cut off at top */}
           <div style={{ height: "60vh" }} />
+          </div>{/* end centering wrapper */}
         </div>
       </div>
 
