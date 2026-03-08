@@ -48,6 +48,7 @@ export type MapState = {
   epcFuelType?: EpcFuelType;
   broadbandCellOverlayMode?: BroadbandCellOverlayMode;
   broadbandCellMetric?: BroadbandCellMetric;
+  overlayFilterThreshold?: number; // threshold for cell-overlay filter (units depend on active overlay)
   modelledMode?: "actual" | "blend" | "estimated" | "model_only";
 };
 
@@ -157,6 +158,35 @@ function isDeltaMetric(metric: Metric) {
 function metricPropName(metric: Metric): "median" | "delta_gbp" | "delta_pct" {
   if (metric === "delta_gbp" || metric === "delta_pct") return metric;
   return "median";
+}
+
+/**
+ * Returns the GeoJSON property name + optional divisor to apply to `overlayFilterThreshold`
+ * when a cell colour overlay is active. Returns null when house-price filter should be used.
+ */
+function getActiveCellOverlayFilterField(state: MapState): { field: string; divisor?: number } | null {
+  if ((state.broadbandCellOverlayMode ?? "off") !== "off") {
+    const metric = state.broadbandCellMetric ?? "avg_speed";
+    if (metric === "avg_speed") return { field: "bb_avg_speed" };
+    if (metric === "pct_sfbb")  return { field: "bb_pct_sfbb" };
+    return { field: "bb_pct_fast" };
+  }
+  if ((state.crimeCellMode ?? "off") !== "off") {
+    return { field: state.crimeCellScale === "relative" ? "crime_local_score" : "crime_score" };
+  }
+  if ((state.epcFuelOverlayMode ?? "off") !== "off") {
+    const fuel = state.epcFuelType ?? "gas";
+    const field = fuel === "electric" ? "pct_electric" : fuel === "oil" ? "pct_oil" : fuel === "lpg" ? "pct_lpg" : "pct_gas";
+    return { field };
+  }
+  if ((state.ageOverlayMode ?? "off") !== "off") {
+    // age_score is 0–1 but slider uses 0–100, so divide threshold by 100
+    return { field: "age_score", divisor: 100 };
+  }
+  if ((state.commuteOverlayMode ?? "off") !== "off") {
+    return { field: "mean_dist_km" };
+  }
+  return null;
 }
 
 function escapeHtml(value: unknown): string {
@@ -4938,13 +4968,22 @@ function gridToMeters(grid: "1km" | "5km" | "10km" | "25km") {
 
 function buildValueFilter(state: MapState) {
   const mode = state.valueFilterMode ?? "off";
-  const threshold = state.valueThreshold;
-  if (mode === "off" || !Number.isFinite(threshold)) return null;
+  if (mode === "off" || mode === undefined) return null;
   const op = mode === "lte" ? "<=" : ">=";
 
-  const prop = metricPropName(state.metric);
+  // If a cell colour overlay is active, filter on the overlay metric
+  const overlayField = getActiveCellOverlayFilterField(state);
+  if (overlayField) {
+    const raw = state.overlayFilterThreshold;
+    if (!Number.isFinite(raw)) return null;
+    const threshold = overlayField.divisor ? raw! / overlayField.divisor : raw!;
+    return [op, ["coalesce", ["get", overlayField.field], 0], threshold] as any;
+  }
 
-  // Coalesce missing values to 0 so the filter behaves deterministically.
+  // Default: house price / metric filter
+  const threshold = state.valueThreshold;
+  if (!Number.isFinite(threshold)) return null;
+  const prop = metricPropName(state.metric);
   return [op, ["coalesce", ["get", prop], 0], threshold] as any;
 }
 

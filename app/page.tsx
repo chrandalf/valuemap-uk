@@ -68,6 +68,7 @@ type MapState = {
   epcFuelType: EpcFuelType;
   broadbandCellOverlayMode: BroadbandCellOverlayMode;
   broadbandCellMetric: BroadbandCellMetric;
+  overlayFilterThreshold: number;
   modelledMode?: "actual" | "blend" | "estimated" | "model_only";
 };
 
@@ -233,6 +234,7 @@ export default function Home() {
       epcFuelType: "gas",
       broadbandCellOverlayMode: "off",
       broadbandCellMetric: "avg_speed",
+      overlayFilterThreshold: 50,
       modelledMode: "blend",
     };
     if (typeof window === "undefined") return defaults;
@@ -293,6 +295,7 @@ export default function Home() {
         epcFuelType: "gas",
         broadbandCellOverlayMode: "off",
         broadbandCellMetric: "avg_speed",
+        overlayFilterThreshold: 50,
         modelledMode: "blend",
       };
     } catch {
@@ -461,6 +464,7 @@ export default function Home() {
     epcFuelType: "gas",
     broadbandCellOverlayMode: "off",
     broadbandCellMetric: "avg_speed",
+    overlayFilterThreshold: 50,
     modelledMode: "blend",
   };
   const closeAllSubpanels = () => {
@@ -1170,10 +1174,35 @@ export default function Home() {
     setLocateMeSummary(chunks.join(" · "));
   };
 
-  const valueFilterLabel =
-    state.valueFilterMode === "off"
+  const activeCellOverlay =
+    state.broadbandCellOverlayMode === "on" ? "broadband" :
+    state.crimeCellMode === "on" ? "crime" :
+    state.epcFuelOverlayMode === "on" ? "epc" :
+    state.ageOverlayMode === "on" ? "age" :
+    state.commuteOverlayMode === "on" ? "commute" :
+    null;
+  const overlayFilterPanelConfig = activeCellOverlay ? (() => {
+    if (activeCellOverlay === "broadband") {
+      const metric = state.broadbandCellMetric ?? "avg_speed";
+      if (metric === "avg_speed") return { title: "Internet speed filter", min: 0, max: 500, step: 10, format: (v: number) => `${v} Mbit/s` };
+      return { title: metric === "pct_sfbb" ? "Superfast coverage filter" : "Fibre/cable filter", min: 0, max: 100, step: 1, format: (v: number) => `${v}% of homes` };
+    }
+    if (activeCellOverlay === "crime") return { title: "Safety score filter", min: 0, max: 100, step: 1, format: (v: number) => `Score ${v}/100` };
+    if (activeCellOverlay === "epc") {
+      const fuel = state.epcFuelType ?? "gas";
+      const fuelLabel = fuel === "gas" ? "Gas" : fuel === "electric" ? "Electric" : fuel === "oil" ? "Oil" : "LPG";
+      return { title: `${fuelLabel} heating filter`, min: 0, max: 100, step: 1, format: (v: number) => `${v}%` };
+    }
+    if (activeCellOverlay === "age") return { title: "Age mix filter", min: 0, max: 100, step: 1, format: (v: number) => `Score ${v}/100` };
+    return { title: "Commute distance filter", min: 0, max: 30, step: 0.5, format: (v: number) => `${v} km average` };
+  })() : null;
+  const valueFilterLabel = overlayFilterPanelConfig
+    ? (state.valueFilterMode === "off"
       ? "Off"
-      : `${state.valueFilterMode === "lte" ? "Below" : "Above"} ${formatMetricFilterValue(state.metric, state.valueThreshold)}`;
+      : `${state.valueFilterMode === "lte" ? "Below" : "Above"} ${overlayFilterPanelConfig.format(state.overlayFilterThreshold ?? overlayFilterPanelConfig.min)}`)
+    : (state.valueFilterMode === "off"
+      ? "Off"
+      : `${state.valueFilterMode === "lte" ? "Below" : "Above"} ${formatMetricFilterValue(state.metric, state.valueThreshold)}`);
   const indexSuitabilityLabel =
     indexSuitabilityMode === "off"
       ? "Off (all areas shown)"
@@ -1209,7 +1238,8 @@ export default function Home() {
     `Vote overlay: ${voteOverlayLabel} (${voteScaleLabel}) · ` +
     `Commute: ${state.commuteOverlayMode === "on" ? "On" : "Off"} · ` +
     `Age mix: ${state.ageOverlayMode === "on" ? "On" : "Off"} · ` +
-    `Heating fuel: ${state.epcFuelOverlayMode === "on" ? state.epcFuelType : "Off"}`;
+    `Heating fuel: ${state.epcFuelOverlayMode === "on" ? state.epcFuelType : "Off"} · ` +
+    `Internet: ${state.broadbandCellOverlayMode !== "on" ? "Off" : state.broadbandCellMetric === "avg_speed" ? "On (Avg speed)" : state.broadbandCellMetric === "pct_sfbb" ? "On (% SFBB+)" : "On (% Fibre)"}`;
   const headerFilterSummary =
     `${state.grid} · ${METRIC_LABEL[state.metric]} · ${propertyTypeLabel(state.propertyType)} · ${NEWBUILD_LABEL[state.newBuild]} · ${periodLabel}`;
   const headerMedianSummary =
@@ -2256,7 +2286,7 @@ export default function Home() {
                       <Segment
                         options={["off", "on"] as CrimeCellMode[]}
                         value={state.crimeCellMode}
-                        onChange={(v) => setState((s) => ({ ...s, crimeCellMode: v as CrimeCellMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode } : {}) }))}
+                        onChange={(v) => setState((s) => ({ ...s, crimeCellMode: v as CrimeCellMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, overlayFilterThreshold: 50 } : {}) }))}
                         renderOption={(v) => v === "on" ? "On" : "Off"}
                       />
                       {state.crimeCellMode === "on" && (<>
@@ -2317,7 +2347,7 @@ export default function Home() {
                     <Segment
                       options={["off", "on"]}
                       value={state.commuteOverlayMode}
-                      onChange={(v) => setState((s) => ({ ...s, commuteOverlayMode: v as CommuteOverlayMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, crimeCellMode: "off" as CrimeCellMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode } : {}) }))}
+                      onChange={(v) => setState((s) => ({ ...s, commuteOverlayMode: v as CommuteOverlayMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, crimeCellMode: "off" as CrimeCellMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, overlayFilterThreshold: 15 } : {}) }))}
                       renderOption={(v) => v === "on" ? "On" : "Off"}
                     />
                   </div>
@@ -2328,7 +2358,7 @@ export default function Home() {
                     <Segment
                       options={["off", "on"]}
                       value={state.ageOverlayMode}
-                      onChange={(v) => setState((s) => ({ ...s, ageOverlayMode: v as AgeOverlayMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, crimeCellMode: "off" as CrimeCellMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode } : {}) }))}
+                      onChange={(v) => setState((s) => ({ ...s, ageOverlayMode: v as AgeOverlayMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, crimeCellMode: "off" as CrimeCellMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, overlayFilterThreshold: 50 } : {}) }))}
                       renderOption={(v) => v === "on" ? "On" : "Off"}
                     />
                   </div>
@@ -2340,7 +2370,7 @@ export default function Home() {
                       <Segment
                         options={["off", "on"] as EpcFuelOverlayMode[]}
                         value={state.epcFuelOverlayMode}
-                        onChange={(v) => setState((s) => ({ ...s, epcFuelOverlayMode: v as EpcFuelOverlayMode, ...(v === "on" ? { crimeCellMode: "off" as CrimeCellMode, voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode } : {}) }))}
+                        onChange={(v) => setState((s) => ({ ...s, epcFuelOverlayMode: v as EpcFuelOverlayMode, ...(v === "on" ? { crimeCellMode: "off" as CrimeCellMode, voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, overlayFilterThreshold: 50 } : {}) }))}
                         renderOption={(v) => v === "on" ? "On" : "Off"}
                       />
                       {state.epcFuelOverlayMode === "on" && (
@@ -2364,7 +2394,7 @@ export default function Home() {
                       <Segment
                         options={["off", "on"] as BroadbandCellOverlayMode[]}
                         value={state.broadbandCellOverlayMode}
-                        onChange={(v) => setState((s) => ({ ...s, broadbandCellOverlayMode: v as BroadbandCellOverlayMode, ...(v === "on" ? { crimeCellMode: "off" as CrimeCellMode, voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, epcFuelOverlayMode: "off" as EpcFuelOverlayMode } : {}) }))}
+                        onChange={(v) => setState((s) => ({ ...s, broadbandCellOverlayMode: v as BroadbandCellOverlayMode, ...(v === "on" ? { crimeCellMode: "off" as CrimeCellMode, voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, epcFuelOverlayMode: "off" as EpcFuelOverlayMode, overlayFilterThreshold: s.broadbandCellMetric === "avg_speed" ? 100 : 50 } : {}) }))}
                         renderOption={(v) => v === "on" ? "On" : "Off"}
                       />
                       {state.broadbandCellOverlayMode === "on" && (
@@ -2373,7 +2403,7 @@ export default function Home() {
                           <Segment
                             options={["avg_speed", "pct_sfbb", "pct_fast"] as BroadbandCellMetric[]}
                             value={state.broadbandCellMetric}
-                            onChange={(v) => setState((s) => ({ ...s, broadbandCellMetric: v as BroadbandCellMetric }))}
+                            onChange={(v) => setState((s) => ({ ...s, broadbandCellMetric: v as BroadbandCellMetric, overlayFilterThreshold: v === "avg_speed" ? 100 : 50 }))}
                             renderOption={(v) => v === "avg_speed" ? "Avg speed" : v === "pct_sfbb" ? "% SFBB+" : "% Fibre"}
                           />
                         </div>
@@ -3271,20 +3301,24 @@ export default function Home() {
               <div className="mobile-collapsible-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, gap: 8 }}>
                 <div style={{ fontWeight: 600 }}>
                   <span className="title-full">
-                    {state.metric === "median"
-                      ? "Median value filter"
-                      : state.metric === "median_ppsf"
-                        ? "Price / ft² filter"
-                      : state.metric === "delta_gbp"
-                        ? "Change (£) filter"
-                        : "Change (%) filter"}
+                    {overlayFilterPanelConfig
+                      ? overlayFilterPanelConfig.title
+                      : state.metric === "median"
+                        ? "Median value filter"
+                        : state.metric === "median_ppsf"
+                          ? "Price / ft² filter"
+                        : state.metric === "delta_gbp"
+                          ? "Change (£) filter"
+                          : "Change (%) filter"}
                   </span>
                   <span className="title-mini">Value</span>
                 </div>
                 <div className="mobile-header-extra" style={{ fontSize: 10, opacity: 0.7 }}>
-                  {state.metric === "median"
-                    ? `${formatFilterValue(valueFilterMin)}–${formatFilterValue(valueFilterMax)}`
-                    : `${formatMetricFilterValue(state.metric, valueFilterMin)}–${formatMetricFilterValue(state.metric, valueFilterMax)}`}
+                  {overlayFilterPanelConfig
+                    ? `${overlayFilterPanelConfig.min}–${overlayFilterPanelConfig.max}`
+                    : state.metric === "median"
+                      ? `${formatFilterValue(valueFilterMin)}–${formatFilterValue(valueFilterMax)}`
+                      : `${formatMetricFilterValue(state.metric, valueFilterMin)}–${formatMetricFilterValue(state.metric, valueFilterMax)}`}
                 </div>
                 <button
                   type="button"
@@ -3332,19 +3366,31 @@ export default function Home() {
                   <div style={{ display: "grid", gridTemplateColumns: "84px 1fr", gap: 8, alignItems: "center" }}>
                     <div style={{ fontSize: 11, opacity: 0.8 }}>Threshold</div>
                     <div style={{ display: "grid", gap: 6 }}>
-                      <input
-                        type="range"
-                        min={0}
-                        max={1000}
-                        step={1}
-                        value={thresholdToPos(state.valueThreshold)}
-                        onChange={(e) => {
-                          const pos = Number(e.target.value);
-                          const next = posToThreshold(pos);
-                          setState((s) => ({ ...s, valueThreshold: next }));
-                        }}
-                        style={{ width: "100%" }}
-                      />
+                      {overlayFilterPanelConfig ? (
+                        <input
+                          type="range"
+                          min={overlayFilterPanelConfig.min}
+                          max={overlayFilterPanelConfig.max}
+                          step={overlayFilterPanelConfig.step}
+                          value={state.overlayFilterThreshold ?? overlayFilterPanelConfig.min}
+                          onChange={(e) => setState((s) => ({ ...s, overlayFilterThreshold: Number(e.target.value) }))}
+                          style={{ width: "100%" }}
+                        />
+                      ) : (
+                        <input
+                          type="range"
+                          min={0}
+                          max={1000}
+                          step={1}
+                          value={thresholdToPos(state.valueThreshold)}
+                          onChange={(e) => {
+                            const pos = Number(e.target.value);
+                            const next = posToThreshold(pos);
+                            setState((s) => ({ ...s, valueThreshold: next }));
+                          }}
+                          style={{ width: "100%" }}
+                        />
+                      )}
                       <div style={{ fontSize: 10, opacity: 0.75 }}>
                         {valueFilterLabel}
                       </div>
