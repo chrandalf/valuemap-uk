@@ -3483,7 +3483,10 @@ export default function ValueMap({
     }
 
     applyValueFilter(map, state, indexPrefsRef.current);
-  }, [state.metric, state.valueFilterMode, state.valueThreshold]);
+  }, [state.metric, state.valueFilterMode, state.valueThreshold, state.overlayFilterThreshold,
+      state.broadbandCellOverlayMode, state.broadbandCellMetric,
+      state.crimeCellMode, state.epcFuelOverlayMode, state.epcFuelType,
+      state.ageOverlayMode, state.commuteOverlayMode]);
 
   // Index scoring effect
   useEffect(() => {
