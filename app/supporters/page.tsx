@@ -125,24 +125,13 @@ export default function SupportersPage() {
             transformOrigin: "50% 100%",
             animation: "vm-crawl 75s linear 0.6s forwards",
             color: "#f5e642",
-            fontSize: "clamp(12px, 2vw, 16px)",
+            fontSize: "clamp(14px, 2vw, 20px)",
             lineHeight: 1.8,
           }}
         >
           <div style={{ width: "min(540px, 80vw)", margin: "0 auto", textAlign: "center" }}>
           {/* top padding so text crawls in from below */}
           <div style={{ height: "55vh" }} />
-
-          <p
-            style={{
-              opacity: 0.65,
-              fontStyle: "italic",
-              fontSize: "0.9em",
-              marginBottom: "2em",
-            }}
-          >
-            A long time ago, in a housing market far, far away…
-          </p>
 
           {/* Title block */}
           <div
@@ -155,26 +144,16 @@ export default function SupportersPage() {
           >
             <div
               style={{
-                fontSize: "2em",
+                fontSize: "1.6em",
                 fontWeight: "bold",
-                letterSpacing: "0.2em",
+                letterSpacing: "0.12em",
                 animation: "vm-title-glow 3s ease-in-out infinite",
               }}
             >
-              VALUEMAP
+              propertypricemap.co.uk
             </div>
-            <div style={{ fontSize: "0.8em", opacity: 0.6, marginTop: "0.3em" }}>
-              Episode I
-            </div>
-            <div
-              style={{
-                fontSize: "1em",
-                fontStyle: "italic",
-                marginTop: "0.25em",
-                opacity: 0.85,
-              }}
-            >
-              The Postcode Awakens
+            <div style={{ fontSize: "0.8em", opacity: 0.5, marginTop: "0.3em", letterSpacing: "0.05em" }}>
+              propertypricemap.co.uk
             </div>
           </div>
 
@@ -190,9 +169,7 @@ export default function SupportersPage() {
             ⭐&nbsp;SUPPORTERS&nbsp;⭐
           </div>
           <p style={{ opacity: 0.75, fontSize: "0.9em", marginBottom: "1.4em" }}>
-            These fine beings bought a coffee to keep the servers running.
-            <br />
-            The Force is strong with them.
+            These lovely people bought a coffee to keep the servers running.
           </p>
 
           {loaded ? (
@@ -232,7 +209,7 @@ export default function SupportersPage() {
           <p style={{ opacity: 0.6, fontSize: "0.85em" }}>
             Want your name up here?
             <br />
-            buymeacoffee.com/valuemap
+            buymeacoffee.com/propertypricemap
           </p>
 
           <div
@@ -246,45 +223,23 @@ export default function SupportersPage() {
             — ✦ —
           </div>
 
-          {/* Project blurb */}
+          {/* About the dev */}
           <p>
-            It is a period of rising prices. Buyers, stretched thin by sky-high
-            deposits, have turned to the open web in search of a map that tells
-            the truth about where their money will go furthest.
+            Built by one developer, in spare evenings, because house-hunting
+            in the UK felt like flying blind.
           </p>
           <p>
-            Built in the gaps between a day job, ValueMap scans millions of Land
-            Registry records to shine light into the chaos of the UK housing
-            market.
-          </p>
-          <p>
-            No venture capital. No subscription fees. No adverts.
+            No VC money. No ads. No premium tier.
             <br />
-            Just data, a map, and one developer who got tired of guessing.
+            Just a lot of Land Registry data and a worrying amount of coffee.
           </p>
 
-          <div
-            style={{
-              margin: "3em 0",
-              opacity: 0.35,
-              letterSpacing: "0.4em",
-              fontSize: "0.9em",
-            }}
-          >
-            — ✦ —
-          </div>
-
-          {/* Credits */}
-          <p style={{ opacity: 0.6, fontSize: "0.85em", lineHeight: 2 }}>
-            Built with open data from
-            <br />
+          <p style={{ opacity: 0.6, fontSize: "0.85em", lineHeight: 2, marginTop: "2.5em" }}>
             HM Land Registry · ONS Census 2021
             <br />
-            Environment Agency · data.police.uk
-            <br />
-            Ofsted · OpenStreetMap
+            Environment Agency · data.police.uk · Ofsted
           </p>
-          <p style={{ opacity: 0.35, fontSize: "0.75em", marginTop: "1.5em" }}>
+          <p style={{ opacity: 0.3, fontSize: "0.75em", marginTop: "0.8em" }}>
             Open Government Licence v3.0
           </p>
 
