@@ -4324,7 +4324,7 @@ export default function Home() {
                       dc("ValueMap accepts no responsibility or liability for any loss or damage arising from reliance on this data."),
                       dc(""),
                     ];
-                    const header = "Timestamp,Postcode,Lat,Lng,Flood,Schools,Station,Median Price,Price Change %,Price Change £,Tx Count,Constituency";
+                    const header = "Timestamp,Postcode,Lat,Lng,Flood,Sec School,Pri School,Station,Crime,EPC,Internet,Median Price,Price Change %,Price Change £,Tx Count,Constituency";
                     const rows = rgLog.map(e => [
                       e.timestamp,
                       `"${e.postcode}"`,
@@ -4332,7 +4332,11 @@ export default function Home() {
                       e.lng,
                       `"${e.floodSummary.replace(/"/g, '""')}"`,
                       `"${e.schoolSummary.replace(/"/g, '""')}"`,
+                      e.primarySchoolSummary ? `"${e.primarySchoolSummary.replace(/"/g, '""')}"` : "",
                       `"${e.stationSummary.replace(/"/g, '""')}"`,
+                      e.crimeSummary ? `"${e.crimeSummary.replace(/"/g, '""')}"` : "",
+                      e.epcSummary ? `"${e.epcSummary.replace(/"/g, '""')}"` : "",
+                      e.broadbandSummary ? `"${e.broadbandSummary.replace(/"/g, '""')}"` : "",
                       e.cellMedian ?? "",
                       e.cellDeltaPct ?? "",
                       e.cellDeltaGbp ?? "",
@@ -4362,7 +4366,11 @@ export default function Home() {
                   <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", lineHeight: 1.4 }}>
                     <div>🌊 {entry.floodSummary}</div>
                     <div>🏫 {entry.schoolSummary}</div>
+                    {entry.primarySchoolSummary && <div>🔑 {entry.primarySchoolSummary}</div>}
                     <div>🚂 {entry.stationSummary}</div>
+                    {entry.crimeSummary && <div>🔴 {entry.crimeSummary}</div>}
+                    {entry.epcSummary && <div>🏡 {entry.epcSummary}</div>}
+                    {entry.broadbandSummary && <div>📶 {entry.broadbandSummary}</div>}
                     {entry.cellMedian && <div>🏠 {entry.cellMedian >= 1000000 ? `£${(entry.cellMedian / 1000000).toFixed(1)}m` : `£${Math.round(entry.cellMedian / 1000)}k`}{entry.cellDeltaPct !== undefined ? ` (${entry.cellDeltaPct >= 0 ? "▲" : "▼"}${Math.abs(entry.cellDeltaPct).toFixed(1)}%)` : ""}</div>}
                     {entry.constituency && <div>🗳️ {entry.constituency}</div>}
                   </div>

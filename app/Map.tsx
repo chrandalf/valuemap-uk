@@ -366,6 +366,8 @@ export type RgLogEntry = {
   cellTxCount?: number;   // transaction count in cell
   constituency?: string;  // Westminster constituency
   crimeSummary?: string;
+  epcSummary?: string;
+  broadbandSummary?: string;
 };
 
 /** Data passed to page.tsx for the right-click info panel. */
@@ -3296,20 +3298,6 @@ export default function ValueMap({
           } catch { /* use undefined if delta fetch fails */ }
         }
 
-        // ── Log this search entry ──
-        const stripHtml = (s: string) => s.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
-        onLocationLoggedRef.current?.({
-          postcode, lat, lng,
-          timestamp: new Date().toISOString(),
-          floodSummary: stripHtml(floodHtml),
-          schoolSummary: stripHtml(schoolHtml),
-          primarySchoolSummary: stripHtml(primarySchoolHtml),
-          stationSummary: stripHtml(stationHtml),
-          crimeSummary: stripHtml(crimeHtml),
-          cellMedian, cellDeltaPct, cellTxCount, constituency,
-          cellDeltaGbp,
-        });
-
         // ── EPC cell data summary for right-click panel ──
         let epcHtml: string | undefined;
         const cpGas      = Number(cp.pct_gas      ?? NaN);
@@ -3343,6 +3331,22 @@ export default function ValueMap({
             (Number.isFinite(bbPctFast) ? ` <span style="color:#9ca3af">· ${bbPctFast.toFixed(0)}% fibre/cable</span>` : "") +
             (Number.isFinite(bbPctSfbb) ? ` <span style="color:#9ca3af">· ${bbPctSfbb.toFixed(0)}% SFBB+</span>` : "");
         }
+
+        // ── Log this search entry (after EPC + broadband so all data is captured) ──
+        const stripHtml = (s: string) => s.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+        onLocationLoggedRef.current?.({
+          postcode, lat, lng,
+          timestamp: new Date().toISOString(),
+          floodSummary: stripHtml(floodHtml),
+          schoolSummary: stripHtml(schoolHtml),
+          primarySchoolSummary: stripHtml(primarySchoolHtml),
+          stationSummary: stripHtml(stationHtml),
+          crimeSummary: stripHtml(crimeHtml),
+          epcSummary: epcHtml ? stripHtml(epcHtml) : undefined,
+          broadbandSummary: broadbandHtml ? stripHtml(broadbandHtml) : undefined,
+          cellMedian, cellDeltaPct, cellTxCount, constituency,
+          cellDeltaGbp,
+        });
 
         // Pass all resolved data to page.tsx to render in the fixed left panel
         onRightClickInfoRef.current?.({
