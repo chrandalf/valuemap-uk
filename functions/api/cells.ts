@@ -925,6 +925,13 @@ async function backfillAll(env: Env, grid: GridKey, rows: CellRow[]): Promise<Ce
     ? Promise.resolve(null)
     : getCachedVoteLookup(env, grid).catch(() => null);
 
+  // broadband_cells_1km.json.gz is 632 KB compressed — loading it alongside all
+  // other 1km backfills risks hitting the Worker CPU limit (same issue as vote at 1km).
+  // Broadband infrastructure doesn't vary meaningfully at sub-5km resolution, so we
+  // always use the 5km lookup (51 KB) and snap 1km cell coordinates up to 5km.
+  const broadbandGrid: GridKey = grid === "1km" ? "5km" : grid;
+  const broadbandPromise = getCachedBroadbandLookup(env, broadbandGrid).catch(() => null);
+
   const [voteLookup, countryLookup, commuteLookup, ageLookup, crimeLookup, epcFuelLookup, broadbandLookup] = await Promise.all([
     votePromise,
     getCachedCountryLookup(env, grid).catch(() => null),
@@ -932,7 +939,7 @@ async function backfillAll(env: Env, grid: GridKey, rows: CellRow[]): Promise<Ce
     getCachedAgeLookup(env, grid).catch(() => null),
     getCachedCrimeLookup(env, grid).catch(() => null),
     getCachedEpcFuelLookup(env, grid).catch(() => null),
-    getCachedBroadbandLookup(env, grid).catch(() => null),
+    broadbandPromise,
   ]);
 
   return rows.map((row) => {
@@ -1004,7 +1011,11 @@ async function backfillAll(env: Env, grid: GridKey, rows: CellRow[]): Promise<Ce
       fuel_pct_other: epcFuel.fuel_pct_other,
     };
 
-    const broadband = broadbandLookup?.get(key);
+    const broadband = broadbandLookup?.get(
+      grid === "1km"
+        ? `${Math.floor(row.gx / 5000) * 5000}_${Math.floor(row.gy / 5000) * 5000}`
+        : key
+    );
     if (broadband !== undefined) out = { ...out, bb_avg_speed: broadband };
 
     return out;
