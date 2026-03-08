@@ -4980,7 +4980,11 @@ function buildValueFilter(state: MapState) {
     const raw = state.overlayFilterThreshold;
     if (!Number.isFinite(raw)) return null;
     const threshold = overlayField.divisor ? raw! / overlayField.divisor : raw!;
-    return [op, ["coalesce", ["get", overlayField.field], 0], threshold] as any;
+    // Exclude cells with no data for this overlay field (don't coalesce to 0)
+    return ["all",
+      ["!=", ["get", overlayField.field], null],
+      [op, ["get", overlayField.field], threshold],
+    ] as any;
   }
 
   // Default: house price / metric filter
