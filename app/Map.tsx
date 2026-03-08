@@ -371,7 +371,7 @@ export type RgLogEntry = {
 /** Data passed to page.tsx for the right-click info panel. */
 export type RightClickInfoData =
   | { stage: 'loading'; clickLat: number; clickLng: number }
-  | { stage: 'ready'; postcode: string; isOutcode: boolean; floodHtml: string; schoolHtml: string; primarySchoolHtml: string; stationHtml: string; crimeHtml: string; epcHtml?: string; clickLat: number; clickLng: number; cellMedian?: number; cellDeltaPct?: number; cellDeltaGbp?: number; cellTxCount?: number; constituency?: string; };
+  | { stage: 'ready'; postcode: string; isOutcode: boolean; floodHtml: string; schoolHtml: string; primarySchoolHtml: string; stationHtml: string; crimeHtml: string; epcHtml?: string; broadbandHtml?: string; clickLat: number; clickLng: number; cellMedian?: number; cellDeltaPct?: number; cellDeltaGbp?: number; cellTxCount?: number; constituency?: string; };
 
 export default function ValueMap({
   state,
@@ -3331,11 +3331,24 @@ export default function ValueMap({
           epcHtml = `<div style="margin-bottom:5px"><div style="font-weight:600;font-size:11px;margin-bottom:3px;">⚡ Heating fuel</div><div style="display:flex;height:7px;border-radius:3px;overflow:hidden;margin-bottom:4px;">${bars}</div><div style="font-size:10px;line-height:1.7;">${rows}</div></div>`;
         }
 
+        // ── Internet (broadband) cell data for right-click panel ──
+        let broadbandHtml: string | undefined;
+        const bbSpeed   = Number(cp.bb_avg_speed ?? NaN);
+        const bbPctSfbb = Number(cp.bb_pct_sfbb  ?? NaN);
+        const bbPctFast = Number(cp.bb_pct_fast   ?? NaN);
+        if (Number.isFinite(bbSpeed)) {
+          const speedCol = bbSpeed >= 300 ? "#15803d" : bbSpeed >= 100 ? "#2563eb" : bbSpeed >= 30 ? "#d97706" : "#dc2626";
+          broadbandHtml =
+            `<span style="color:${speedCol};font-weight:600">${bbSpeed.toFixed(0)} Mbit/s avg</span>` +
+            (Number.isFinite(bbPctFast) ? ` <span style="color:#9ca3af">· ${bbPctFast.toFixed(0)}% fibre/cable</span>` : "") +
+            (Number.isFinite(bbPctSfbb) ? ` <span style="color:#9ca3af">· ${bbPctSfbb.toFixed(0)}% SFBB+</span>` : "");
+        }
+
         // Pass all resolved data to page.tsx to render in the fixed left panel
         onRightClickInfoRef.current?.({
           stage: 'ready',
           postcode, isOutcode,
-          floodHtml, schoolHtml, primarySchoolHtml, stationHtml, crimeHtml, epcHtml,
+          floodHtml, schoolHtml, primarySchoolHtml, stationHtml, crimeHtml, epcHtml, broadbandHtml,
           clickLat: lat, clickLng: lng,
           cellMedian, cellDeltaPct, cellDeltaGbp, cellTxCount, constituency,
         });

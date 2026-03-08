@@ -4147,6 +4147,13 @@ export default function Home() {
                   <div style={{ fontSize: 12, lineHeight: 1.4, flex: 1, minWidth: 0 }} dangerouslySetInnerHTML={{ __html: rightClickInfo.epcHtml }} />
                 </div>
               )}
+              {rightClickInfo.broadbandHtml && (
+                <div style={{ display: "flex", gap: 6, alignItems: "flex-start", padding: "4px 0", borderBottom: "1px solid #f9fafb" }}>
+                  <span style={{ width: 16, flexShrink: 0, textAlign: "center", paddingTop: 1 }}>📶</span>
+                  <span style={{ color: "#9ca3af", width: 48, flexShrink: 0, fontSize: 11, paddingTop: 2 }}>Internet</span>
+                  <div style={{ fontSize: 12, lineHeight: 1.4, flex: 1, minWidth: 0 }} dangerouslySetInnerHTML={{ __html: rightClickInfo.broadbandHtml }} />
+                </div>
+              )}
               {rightClickInfo.cellMedian && (
                 <div style={{ display: "flex", gap: 6, alignItems: "flex-start", padding: "4px 0", borderBottom: "1px solid #f9fafb" }}>
                   <span style={{ width: 16, flexShrink: 0, textAlign: "center", paddingTop: 1 }}>🏠</span>
@@ -4204,6 +4211,7 @@ export default function Home() {
           position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9998,
           background: "white", borderTopLeftRadius: 14, borderTopRightRadius: 14,
           boxShadow: "0 -4px 24px rgba(0,0,0,0.15)",
+          maxHeight: "52vh", display: "flex", flexDirection: "column",
         }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px 8px", borderBottom: rgPanelMinimized ? "none" : "1px solid #f3f4f6" }}>
             <span style={{ fontWeight: 700, fontSize: 14, color: "#1d4ed8" }}>
@@ -4219,7 +4227,7 @@ export default function Home() {
           {!rgPanelMinimized && (rightClickInfo.stage === "loading" ? (
             <div style={{ padding: "12px 14px", fontSize: 12, color: "#9ca3af" }}>Looking up location…</div>
           ) : (
-            <div style={{ padding: "8px 14px 16px" }}>
+            <div style={{ padding: "8px 14px 16px", overflowY: "auto", flex: 1 }}>
               {([
                 { icon: "🌊", label: "Flood",       html: rightClickInfo.floodHtml },
                 { icon: "🏫", label: "Sec. school", html: rightClickInfo.schoolHtml },
@@ -4238,6 +4246,13 @@ export default function Home() {
                   <span style={{ width: 16, flexShrink: 0, textAlign: "center", paddingTop: 1 }}>🏡</span>
                   <span style={{ color: "#9ca3af", width: 48, flexShrink: 0, fontSize: 11, paddingTop: 2 }}>EPC</span>
                   <div style={{ fontSize: 12, lineHeight: 1.4, flex: 1, minWidth: 0 }} dangerouslySetInnerHTML={{ __html: rightClickInfo.epcHtml }} />
+                </div>
+              )}
+              {rightClickInfo.broadbandHtml && (
+                <div style={{ display: "flex", gap: 6, alignItems: "flex-start", padding: "4px 0", borderBottom: "1px solid #f9fafb" }}>
+                  <span style={{ width: 16, flexShrink: 0, textAlign: "center", paddingTop: 1 }}>📶</span>
+                  <span style={{ color: "#9ca3af", width: 48, flexShrink: 0, fontSize: 11, paddingTop: 2 }}>Internet</span>
+                  <div style={{ fontSize: 12, lineHeight: 1.4, flex: 1, minWidth: 0 }} dangerouslySetInnerHTML={{ __html: rightClickInfo.broadbandHtml }} />
                 </div>
               )}
               {rightClickInfo.cellMedian && (
