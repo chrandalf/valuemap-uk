@@ -1022,7 +1022,27 @@ export default function Home() {
           </div>
         </div>
       )}
-      {!indexActive && state.ageOverlayMode !== "on" && state.commuteOverlayMode !== "on" && state.voteOverlayMode !== "on" && state.crimeCellMode !== "on" && state.epcFuelOverlayMode !== "on" && (
+      {!indexActive && state.broadbandCellOverlayMode === "on" && (
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, opacity: 0.9 }}>
+          📶 Internet —&nbsp;
+          {state.broadbandCellMetric === "avg_speed" ? "Avg download speed"
+            : state.broadbandCellMetric === "pct_sfbb" ? "% SFBB+ (≥30 Mbit/s)"
+            : "% Fibre/cable (≥300 Mbit/s)"}
+          <div style={{ marginTop: 6, display: "flex", height: 12, borderRadius: 6, overflow: "hidden" }}>
+            {(state.broadbandCellMetric === "avg_speed"
+              ? ["#7f1d1d", "#f97316", "#fbbf24", "#4ade80", "#15803d"]
+              : state.broadbandCellMetric === "pct_sfbb"
+              ? ["#fef9c3", "#22d3ee", "#0891b2", "#164e63", "#164e63"]
+              : ["#fef9c3", "#a78bfa", "#7c3aed", "#4c1d95", "#4c1d95"]
+            ).map((c, i) => <div key={i} style={{ flex: 1, backgroundColor: c }} />)}
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, opacity: 0.6, marginTop: 3 }}>
+            <span>{state.broadbandCellMetric === "avg_speed" ? "0 Mb/s" : "0%"}</span>
+            <span>{state.broadbandCellMetric === "avg_speed" ? "500+ Mb/s" : "100%"}</span>
+          </div>
+        </div>
+      )}
+      {!indexActive && state.ageOverlayMode !== "on" && state.commuteOverlayMode !== "on" && state.voteOverlayMode !== "on" && state.crimeCellMode !== "on" && state.epcFuelOverlayMode !== "on" && state.broadbandCellOverlayMode !== "on" && (
       <>
       <div className="legend-title" style={{ fontWeight: 600, marginBottom: 12, fontSize: 16, opacity: 0.9 }}>
         {state.metric === "median"

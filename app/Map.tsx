@@ -2646,13 +2646,15 @@ export default function ValueMap({
         ? `<div style="border-top:1px solid rgba(0,0,0,0.1);margin-top:7px;padding-top:6px;font-size:11px;opacity:0.65;">${stateRef.current.metric === "median_ppsf" ? `GBP ${Math.round(median).toLocaleString()} / ft²` : `GBP ${median.toLocaleString()}`} · ${tx} sales</div>`
         : "";
       if (hasBb) {
-        const pctAdsl = Number.isFinite(bbPctSfbb) ? (100 - bbPctSfbb).toFixed(0) : "—";
-        const html = `<div style="font-family:system-ui;font-size:12px;line-height:1.6;min-width:180px;">
-          <div style="font-weight:700;margin-bottom:5px;">📶 Broadband coverage</div>
-          <div>Avg speed: <b>${Number.isFinite(bbSpeed) ? bbSpeed.toFixed(0) : "—"} Mbit/s</b></div>
-          <div>% SFBB+ (≥30Mb): <b>${Number.isFinite(bbPctSfbb) ? bbPctSfbb.toFixed(0) : "—"}%</b></div>
-          <div>% Fibre/cable (≥300Mb): <b>${Number.isFinite(bbPctFast) ? bbPctFast.toFixed(0) : "—"}%</b></div>
-          <div>% Sub-SFBB (&lt;30Mb): <b>${pctAdsl}%</b></div>
+        const pctSlow = Number.isFinite(bbPctSfbb) ? (100 - bbPctSfbb).toFixed(0) : "—";
+        const html = `<div style="font-family:system-ui;font-size:12px;line-height:1.6;min-width:195px;">
+          <div style="font-weight:700;margin-bottom:5px;">📶 Broadband speeds</div>
+          <div>Average speed: <b>${Number.isFinite(bbSpeed) ? bbSpeed.toFixed(0) : "—"} Mbit/s</b></div>
+          <div style="margin-top:4px;border-top:1px solid rgba(0,0,0,0.07);padding-top:4px;">
+          <div><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#15803d;margin-right:5px;vertical-align:-1px;"></span>Full-fibre / cable speeds: <b>${Number.isFinite(bbPctFast) ? bbPctFast.toFixed(0) : "—"}%</b> of homes</div>
+          <div><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#22d3ee;margin-right:5px;vertical-align:-1px;"></span>Superfast broadband+: <b>${Number.isFinite(bbPctSfbb) ? bbPctSfbb.toFixed(0) : "—"}%</b> of homes</div>
+          <div><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#f97316;margin-right:5px;vertical-align:-1px;"></span>Slow connection only: <b>${pctSlow}%</b> of homes</div>
+          </div>
           ${metricFooter}
         </div>`;
         popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
