@@ -2769,19 +2769,51 @@ export default function Home() {
       {/* ── Floating Data Sources panel ── */}
       {dataSourcesOpen && !cleanScreenMode && (
         <div
-          style={{ position: "fixed", top: floatingPanelTop, left: 18, zIndex: frontZ("datasources", 45), width: 420, maxWidth: "calc(100vw - 36px)", maxHeight: "calc(100vh - 72px)", overflow: "auto", padding: 14, borderRadius: 14, background: "rgba(10,12,20,0.96)", border: "1px solid rgba(255,255,255,0.15)", backdropFilter: "blur(12px)", color: "white", boxShadow: "0 8px 40px rgba(0,0,0,0.55)", fontSize: 11, lineHeight: 1.45 }}
+          style={{ position: "fixed", top: floatingPanelTop, left: 18, zIndex: frontZ("datasources", 45), width: 440, maxWidth: "calc(100vw - 36px)", maxHeight: "calc(100vh - 72px)", overflow: "auto", padding: 14, borderRadius: 14, background: "rgba(10,12,20,0.96)", border: "1px solid rgba(255,255,255,0.15)", backdropFilter: "blur(12px)", color: "white", boxShadow: "0 8px 40px rgba(0,0,0,0.55)", fontSize: 11, lineHeight: 1.45 }}
           onMouseDown={() => bringToFront("datasources")}
         >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
             <div style={{ fontWeight: 700, fontSize: 13 }}>📊 Data sources</div>
             <button type="button" onClick={() => setDataSourcesOpen(false)} style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "white", width: 26, height: 26, borderRadius: 999, fontSize: 15, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>✕</button>
           </div>
-          <ol start={1} style={{ margin: 0, padding: "0 0 0 16px" }}>
-            <li>UK Land Registry Price Paid Data (sold price transactions).</li>
-            <li>Office for National Statistics: ONSPD_Online_latest_Postcode_Centroids.</li>
-            <li>Energy Performance of Buildings Register (Domestic EPC data) — Department for Levelling Up, Housing and Communities.</li>
-          </ol>
-          <div style={{ marginTop: 8, opacity: 0.8 }}>Licensing and attribution follow the terms provided by each source.</div>
+          <div style={{ display: "flex", gap: 12, marginBottom: 10, fontSize: 10, opacity: 0.6 }}>
+            <span>🟢 Current (&le;6mo)</span>
+            <span>🟡 Aging (6–18mo)</span>
+            <span>🔴 Stale (&gt;18mo)</span>
+            <span>⚪ Historical</span>
+          </div>
+          {([
+            { icon: "🏠", label: "House prices",       source: "HM Land Registry + Registers of Scotland",      dataDate: "2025-12-01", dataLabel: "Dec 2025" },
+            { icon: "🚨", label: "Crime",               source: "Home Office Police.uk (LSOA records)",           dataDate: "2025-09-01", dataLabel: "Sep 2025" },
+            { icon: "🌊", label: "Flood risk",          source: "Environment Agency Flood Risk Register",         dataDate: "2025-12-01", dataLabel: "Dec 2025" },
+            { icon: "🏫", label: "Secondary schools",   source: "DfE / Ofsted inspections & KS4 GCSE",           dataDate: "2024-09-01", dataLabel: "2023–24" },
+            { icon: "🏫", label: "Primary schools",     source: "DfE / Ofsted inspections",                      dataDate: "2024-09-01", dataLabel: "2023–24" },
+            { icon: "🚉", label: "Train stations",      source: "Network Rail / OpenStreetMap",                  dataDate: "2026-01-01", dataLabel: "Jan 2026" },
+            { icon: "⚡", label: "Heating fuel (EPC)",  source: "DLUHC — Domestic EPC Register",                 dataDate: "2024-12-01", dataLabel: "Q4 2024" },
+            { icon: "📶", label: "Internet speed",      source: "Ofcom Connected Nations broadband data",        dataDate: "2024-05-01", dataLabel: "May 2024" },
+            { icon: "👥", label: "Community age",       source: "ONS Census 2021 age distributions",             dataDate: "2021-03-01", dataLabel: "Census 2021" },
+            { icon: "🚗", label: "Commute distance",    source: "ONS Census 2021 travel-to-work",                dataDate: "2021-03-01", dataLabel: "Census 2021" },
+            { icon: "🗳️", label: "Election shares",    source: "Electoral Commission — General Election 2024",  dataDate: "static",     dataLabel: "Jul 2024" },
+            { icon: "📮", label: "Postcodes",           source: "ONS ONSPD postcode centroids",                  dataDate: "2025-11-01", dataLabel: "Nov 2025" },
+          ] as Array<{ icon: string; label: string; source: string; dataDate: string; dataLabel: string }>).map(({ icon, label, source, dataDate, dataLabel }) => {
+            const days = dataDate === "static" ? Infinity : (Date.now() - new Date(dataDate).getTime()) / 86400000;
+            const ragDot = dataDate === "static" ? "⚪" : days <= 180 ? "🟢" : days <= 540 ? "🟡" : "🔴";
+            const ragColor = dataDate === "static" ? "#9ca3af" : days <= 180 ? "#22c55e" : days <= 540 ? "#f59e0b" : "#ef4444";
+            return (
+              <div key={label} style={{ display: "grid", gridTemplateColumns: "20px 1fr auto", gap: "2px 8px", alignItems: "start", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                <span style={{ fontSize: 13, lineHeight: 1.4 }}>{icon}</span>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 11 }}>{label}</div>
+                  <div style={{ fontSize: 10, opacity: 0.55, marginTop: 1 }}>{source}</div>
+                </div>
+                <div style={{ textAlign: "right", whiteSpace: "nowrap", paddingTop: 1 }}>
+                  <span style={{ fontSize: 10, color: ragColor, fontWeight: 700 }}>{ragDot}</span>
+                  <span style={{ fontSize: 10, opacity: 0.75, marginLeft: 4 }}>{dataLabel}</span>
+                </div>
+              </div>
+            );
+          })}
+          <div style={{ marginTop: 8, opacity: 0.55, fontSize: 10 }}>Licensing and attribution follow the terms provided by each source.</div>
         </div>
       )}
 
