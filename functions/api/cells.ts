@@ -195,6 +195,8 @@ type CellRow = {
   estimated_median?: number;
   actual_median?: number;      // original sparse median before model replacement (blend mode only)
   bb_avg_speed?: number;       // weighted avg max available download speed (Mbit/s)
+  bb_pct_sfbb?: number;        // % of premises capable of SFBB+ (≥30 Mbit/s)
+  bb_pct_fast?: number;        // % of premises capable of ultrafast (≥300 Mbit/s, proxy for fibre/cable)
 };
 
 type VoteCellRow = {
@@ -769,9 +771,10 @@ async function getCachedEpcFuelLookup(env: Env, grid: GridKey): Promise<Map<stri
 
 /* ---------- broadband speed cell data ---------- */
 
-const BROADBAND_CACHE_BY_GRID: Partial<Record<GridKey, { lookup: Map<string, number>; loadedAtMs: number }>> = {};
+type BroadbandEntry = { avg_speed: number; pct_sfbb: number; pct_fast: number };
+const BROADBAND_CACHE_BY_GRID: Partial<Record<GridKey, { lookup: Map<string, BroadbandEntry>; loadedAtMs: number }>> = {};
 
-async function getCachedBroadbandLookup(env: Env, grid: GridKey): Promise<Map<string, number> | null> {
+async function getCachedBroadbandLookup(env: Env, grid: GridKey): Promise<Map<string, BroadbandEntry> | null> {
   const now = Date.now();
   const cached = BROADBAND_CACHE_BY_GRID[grid];
   if (cached && now - cached.loadedAtMs <= CACHE_TTL_MS) return cached.lookup.size > 0 ? cached.lookup : null;
@@ -786,11 +789,11 @@ async function getCachedBroadbandLookup(env: Env, grid: GridKey): Promise<Map<st
 
   const gz = await obj.arrayBuffer();
   const jsonText = await gunzipToString(gz);
-  const rows = JSON.parse(jsonText) as Array<{ gx: number; gy: number; bb_avg_speed: number }>;
+  const rows = JSON.parse(jsonText) as Array<{ gx: number; gy: number; bb_avg_speed: number; bb_pct_sfbb: number; bb_pct_fast: number }>;
 
-  const lookup = new Map<string, number>();
+  const lookup = new Map<string, BroadbandEntry>();
   for (const row of rows) {
-    lookup.set(`${row.gx}_${row.gy}`, row.bb_avg_speed);
+    lookup.set(`${row.gx}_${row.gy}`, { avg_speed: row.bb_avg_speed, pct_sfbb: row.bb_pct_sfbb, pct_fast: row.bb_pct_fast });
   }
 
   BROADBAND_CACHE_BY_GRID[grid] = { lookup, loadedAtMs: Date.now() };
@@ -1016,7 +1019,7 @@ async function backfillAll(env: Env, grid: GridKey, rows: CellRow[]): Promise<Ce
         ? `${Math.floor(row.gx / 5000) * 5000}_${Math.floor(row.gy / 5000) * 5000}`
         : key
     );
-    if (broadband !== undefined) out = { ...out, bb_avg_speed: broadband };
+    if (broadband !== undefined) out = { ...out, bb_avg_speed: broadband.avg_speed, bb_pct_sfbb: broadband.pct_sfbb, bb_pct_fast: broadband.pct_fast };
 
     return out;
   });

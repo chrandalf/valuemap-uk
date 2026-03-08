@@ -18,6 +18,8 @@ type CrimeOverlayMode = "off" | "on" | "on_hide_cells";
 type CrimeCellMode = "off" | "on";
 type EpcFuelOverlayMode = "off" | "on";
 type EpcFuelType = "gas" | "electric" | "oil" | "lpg";
+type BroadbandCellOverlayMode = "off" | "on";
+type BroadbandCellMetric = "avg_speed" | "pct_sfbb" | "pct_fast";
 type CrimeCellScale = "absolute" | "relative";
 type CrimeCellSubMode = "total" | "violent" | "property" | "asb";
 type VoteColorScale = "relative" | "absolute";
@@ -44,6 +46,8 @@ export type MapState = {
   voteColorScale?: VoteColorScale;
   epcFuelOverlayMode?: EpcFuelOverlayMode;
   epcFuelType?: EpcFuelType;
+  broadbandCellOverlayMode?: BroadbandCellOverlayMode;
+  broadbandCellMetric?: BroadbandCellMetric;
   modelledMode?: "actual" | "blend" | "estimated" | "model_only";
 };
 
@@ -2631,6 +2635,33 @@ export default function ValueMap({
     }
 
     const epcFuelPopupMode = stateRef.current.epcFuelOverlayMode ?? "off";
+    const broadbandPopupMode = stateRef.current.broadbandCellOverlayMode ?? "off";
+
+    if (broadbandPopupMode !== "off") {
+      const bbSpeed   = Number(p.bb_avg_speed ?? NaN);
+      const bbPctSfbb = Number(p.bb_pct_sfbb  ?? NaN);
+      const bbPctFast = Number(p.bb_pct_fast   ?? NaN);
+      const hasBb = Number.isFinite(bbSpeed);
+      const metricFooter = Number.isFinite(median) && median > 0
+        ? `<div style="border-top:1px solid rgba(0,0,0,0.1);margin-top:7px;padding-top:6px;font-size:11px;opacity:0.65;">${stateRef.current.metric === "median_ppsf" ? `GBP ${Math.round(median).toLocaleString()} / ft²` : `GBP ${median.toLocaleString()}`} · ${tx} sales</div>`
+        : "";
+      if (hasBb) {
+        const pctAdsl = Number.isFinite(bbPctSfbb) ? (100 - bbPctSfbb).toFixed(0) : "—";
+        const html = `<div style="font-family:system-ui;font-size:12px;line-height:1.6;min-width:180px;">
+          <div style="font-weight:700;margin-bottom:5px;">📶 Broadband coverage</div>
+          <div>Avg speed: <b>${Number.isFinite(bbSpeed) ? bbSpeed.toFixed(0) : "—"} Mbit/s</b></div>
+          <div>% SFBB+ (≥30Mb): <b>${Number.isFinite(bbPctSfbb) ? bbPctSfbb.toFixed(0) : "—"}%</b></div>
+          <div>% Fibre/cable (≥300Mb): <b>${Number.isFinite(bbPctFast) ? bbPctFast.toFixed(0) : "—"}%</b></div>
+          <div>% Sub-SFBB (&lt;30Mb): <b>${pctAdsl}%</b></div>
+          ${metricFooter}
+        </div>`;
+        popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+      } else {
+        popup.setLngLat(e.lngLat).setHTML(`<div style="font-family:system-ui;font-size:12px;"><b>📶 No broadband data</b><div style="opacity:0.6;font-size:11px;margin-top:3px;">Broadband data not available for this cell</div>${metricFooter}</div>`).addTo(map);
+      }
+      return;
+    }
+
     if (epcFuelPopupMode !== "off") {
       const pctGas      = Number(p.pct_gas      ?? NaN);
       const pctElectric = Number(p.pct_electric ?? NaN);
@@ -3549,8 +3580,9 @@ export default function ValueMap({
 
     const crimeCellMode = stateRef.current.crimeCellMode ?? "off";
     const epcFuelMode = stateRef.current.epcFuelOverlayMode ?? "off";
+    const broadbandMode = stateRef.current.broadbandCellOverlayMode ?? "off";
     try {
-      if (crimeCellMode !== "off" || epcFuelMode !== "off" || ageMode !== "off" || commuteMode !== "off") {
+      if (broadbandMode !== "off" || crimeCellMode !== "off" || epcFuelMode !== "off" || ageMode !== "off" || commuteMode !== "off") {
         // Higher-priority overlay takes precedence — no-op, let those effects handle it
       } else if (mode === "off") {
         void ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange, onStatsUpdateRef.current, easyColoursRef.current, !!indexPrefsRef.current);
@@ -3570,8 +3602,9 @@ export default function ValueMap({
     const voteMode = stateRef.current.voteOverlayMode ?? "off";
     const crimeCellMode = stateRef.current.crimeCellMode ?? "off";
     const epcFuelMode = stateRef.current.epcFuelOverlayMode ?? "off";
+    const broadbandMode = stateRef.current.broadbandCellOverlayMode ?? "off";
     try {
-      if (crimeCellMode !== "off" || epcFuelMode !== "off") {
+      if (broadbandMode !== "off" || crimeCellMode !== "off" || epcFuelMode !== "off") {
         // Higher-priority overlay takes precedence — no-op
       } else if (commuteMode !== "off") {
         applyCommuteOverlayColorExpression(map, easyColoursRef.current);
@@ -3592,8 +3625,9 @@ export default function ValueMap({
     const voteMode = stateRef.current.voteOverlayMode ?? "off";
     const crimeCellMode = stateRef.current.crimeCellMode ?? "off";
     const epcFuelMode = stateRef.current.epcFuelOverlayMode ?? "off";
+    const broadbandMode = stateRef.current.broadbandCellOverlayMode ?? "off";
     try {
-      if (crimeCellMode !== "off" || epcFuelMode !== "off") {
+      if (broadbandMode !== "off" || crimeCellMode !== "off" || epcFuelMode !== "off") {
         // Higher-priority overlay takes precedence — no-op
       } else if (ageMode !== "off") {
         applyAgeOverlayColorExpression(map, easyColoursRef.current);
@@ -3616,8 +3650,11 @@ export default function ValueMap({
     const ageMode = stateRef.current.ageOverlayMode ?? "off";
     const commuteMode = stateRef.current.commuteOverlayMode ?? "off";
     const voteMode = stateRef.current.voteOverlayMode ?? "off";
+    const broadbandMode = stateRef.current.broadbandCellOverlayMode ?? "off";
     try {
-      if (crimeMode !== "off") {
+      if (broadbandMode !== "off") {
+        // Broadband overlay takes precedence — no-op
+      } else if (crimeMode !== "off") {
         applyCrimeCellOverlayColorExpression(map, state.crimeCellSubMode, state.crimeCellScale, easyColoursRef.current);
         onLegendChange?.(null); // hide house price legend while crime overlay is active
       } else if (epcFuelMode !== "off") {
@@ -3644,8 +3681,11 @@ export default function ValueMap({
     const ageMode = stateRef.current.ageOverlayMode ?? "off";
     const commuteMode = stateRef.current.commuteOverlayMode ?? "off";
     const voteMode = stateRef.current.voteOverlayMode ?? "off";
+    const broadbandMode = stateRef.current.broadbandCellOverlayMode ?? "off";
     try {
-      if (crimeMode !== "off") {
+      if (broadbandMode !== "off") {
+        // Broadband overlay takes precedence — no-op
+      } else if (crimeMode !== "off") {
         // Crime cell overlay takes priority — no-op
       } else if (epcFuelMode !== "off") {
         applyEpcFuelOverlayColorExpression(map, (stateRef.current.epcFuelType ?? "gas") as EpcFuelType, easyColoursRef.current);
@@ -3662,6 +3702,39 @@ export default function ValueMap({
     } catch (e) { /* ignore */ }
   }, [state.epcFuelOverlayMode, state.epcFuelType, onLegendChange]);
 
+  // Broadband cell overlay: apply/remove broadband speed/coverage colours on cells.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.getLayer("cells-fill")) return;
+    const broadbandMode = state.broadbandCellOverlayMode ?? "off";
+    const metric = (state.broadbandCellMetric ?? "avg_speed") as BroadbandCellMetric;
+    const crimeMode = stateRef.current.crimeCellMode ?? "off";
+    const epcFuelMode = stateRef.current.epcFuelOverlayMode ?? "off";
+    const ageMode = stateRef.current.ageOverlayMode ?? "off";
+    const commuteMode = stateRef.current.commuteOverlayMode ?? "off";
+    const voteMode = stateRef.current.voteOverlayMode ?? "off";
+    try {
+      if (broadbandMode !== "off") {
+        applyBroadbandCellOverlayColorExpression(map, metric, easyColoursRef.current);
+        onLegendChange?.(null);
+      } else if (crimeMode !== "off") {
+        applyCrimeCellOverlayColorExpression(map, stateRef.current.crimeCellSubMode, stateRef.current.crimeCellScale, easyColoursRef.current);
+        onLegendChange?.(null);
+      } else if (epcFuelMode !== "off") {
+        applyEpcFuelOverlayColorExpression(map, (stateRef.current.epcFuelType ?? "gas") as EpcFuelType, easyColoursRef.current);
+        onLegendChange?.(null);
+      } else if (ageMode !== "off") {
+        applyAgeOverlayColorExpression(map, easyColoursRef.current);
+      } else if (commuteMode !== "off") {
+        applyCommuteOverlayColorExpression(map, easyColoursRef.current);
+      } else if (voteMode !== "off") {
+        applyVoteOverlayColorFromSource(map, stateRef.current.voteColorScale ?? "relative");
+      } else {
+        void ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange, onStatsUpdateRef.current, easyColoursRef.current, !!indexPrefsRef.current);
+      }
+    } catch (e) { /* ignore */ }
+  }, [state.broadbandCellOverlayMode, state.broadbandCellMetric, onLegendChange]);
+
   // Re-apply colour ramps whenever the easy-colours (colourblind) preference changes.
   useEffect(() => {
     const map = mapRef.current;
@@ -3671,7 +3744,10 @@ export default function ValueMap({
     const ageMode = stateRef.current.ageOverlayMode ?? "off";
     const commuteMode = stateRef.current.commuteOverlayMode ?? "off";
     const voteMode = stateRef.current.voteOverlayMode ?? "off";
-    if (crimeMode !== "off") {
+    const broadbandMode = stateRef.current.broadbandCellOverlayMode ?? "off";
+    if (broadbandMode !== "off") {
+      applyBroadbandCellOverlayColorExpression(map, (stateRef.current.broadbandCellMetric ?? "avg_speed") as BroadbandCellMetric, easyColours ?? false);
+    } else if (crimeMode !== "off") {
       applyCrimeCellOverlayColorExpression(map, stateRef.current.crimeCellSubMode, stateRef.current.crimeCellScale, easyColours ?? false);
     } else if (epcFuelMode !== "off") {
       applyEpcFuelOverlayColorExpression(map, (stateRef.current.epcFuelType ?? "gas") as EpcFuelType, easyColours ?? false);
@@ -4078,6 +4154,77 @@ function epcFuelColorExpression(fuelType: EpcFuelType, easy = false): any {
 function applyEpcFuelOverlayColorExpression(map: maplibregl.Map, fuelType: EpcFuelType, easy = false) {
   if (map.getLayer("cells-fill")) {
     map.setPaintProperty("cells-fill", "fill-color", epcFuelColorExpression(fuelType, easy));
+  }
+}
+
+/** Broadband cell overlay colour expressions.
+ *  avg_speed: 0 Mb/s (red) → 30 (orange) → 100 (yellow) → 300+ (green)
+ *  pct_sfbb / pct_fast: 0% (light grey) → 100% (teal/purple)
+ */
+function broadbandCellColorExpression(metric: BroadbandCellMetric, easy = false): any {
+  if (metric === "avg_speed") {
+    const speed = ["case", ["has", "bb_avg_speed"], ["to-number", ["get", "bb_avg_speed"]], -1] as any;
+    if (easy) {
+      return ["interpolate", ["linear"], speed,
+        -1,   "#aaaaaa",
+         0,   "#762a83",
+        30,   "#af8dc3",
+       100,   "#f7f7f7",
+       300,   "#d9f0a3",
+       500,   "#1a7837",
+      ];
+    }
+    return ["interpolate", ["linear"], speed,
+      -1,   "#aaaaaa",   // no data
+       0,   "#7f1d1d",   // very slow — dark red
+      30,   "#f97316",   // SFBB threshold — orange
+     100,   "#fbbf24",   // ultrafast threshold — amber
+     300,   "#4ade80",   // fibre threshold — light green
+     500,   "#15803d",   // max — dark green
+    ];
+  }
+  // pct_sfbb or pct_fast — 0–100%
+  const field = metric === "pct_sfbb" ? "bb_pct_sfbb" : "bb_pct_fast";
+  const pct = ["case", ["has", field], ["to-number", ["get", field]], -1] as any;
+  if (metric === "pct_sfbb") {
+    if (easy) {
+      return ["interpolate", ["linear"], pct,
+        -1,  "#aaaaaa",
+         0,  "#fef3c7",
+        50,  "#34d399",
+       100,  "#065f46",
+      ];
+    }
+    return ["interpolate", ["linear"], pct,
+      -1,  "#aaaaaa",   // no data
+       0,  "#fef9c3",   // 0% — pale yellow
+      40,  "#22d3ee",   // 40% — cyan
+      75,  "#0891b2",   // 75% — teal
+     100,  "#164e63",   // 100% — dark teal
+    ];
+  }
+  // pct_fast (≥300 Mbps, proxy for fibre/cable)
+  if (easy) {
+    return ["interpolate", ["linear"], pct,
+      -1,  "#aaaaaa",
+       0,  "#fef3c7",
+      40,  "#c084fc",
+      80,  "#7e22ce",
+     100,  "#4c1d95",
+    ];
+  }
+  return ["interpolate", ["linear"], pct,
+    -1,  "#aaaaaa",   // no data
+     0,  "#fef9c3",   // 0% — pale yellow
+    30,  "#a78bfa",   // 30% — light purple
+    70,  "#7c3aed",   // 70% — violet
+   100,  "#4c1d95",   // 100% — dark purple
+  ];
+}
+
+function applyBroadbandCellOverlayColorExpression(map: maplibregl.Map, metric: BroadbandCellMetric, easy = false) {
+  if (map.getLayer("cells-fill")) {
+    map.setPaintProperty("cells-fill", "fill-color", broadbandCellColorExpression(metric, easy));
   }
 }
 

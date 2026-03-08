@@ -22,6 +22,8 @@ type CommuteOverlayMode = "off" | "on";
 type AgeOverlayMode = "off" | "on";
 type EpcFuelOverlayMode = "off" | "on";
 type EpcFuelType = "gas" | "electric" | "oil" | "lpg";
+type BroadbandCellOverlayMode = "off" | "on";
+type BroadbandCellMetric = "avg_speed" | "pct_sfbb" | "pct_fast";
 type VoteColorScale = "relative" | "absolute";
 type GridMode = "auto" | "manual";
 
@@ -64,6 +66,8 @@ type MapState = {
   ageOverlayMode: AgeOverlayMode;
   epcFuelOverlayMode: EpcFuelOverlayMode;
   epcFuelType: EpcFuelType;
+  broadbandCellOverlayMode: BroadbandCellOverlayMode;
+  broadbandCellMetric: BroadbandCellMetric;
   modelledMode?: "actual" | "blend" | "estimated" | "model_only";
 };
 
@@ -227,6 +231,8 @@ export default function Home() {
       ageOverlayMode: "off",
       epcFuelOverlayMode: "off",
       epcFuelType: "gas",
+      broadbandCellOverlayMode: "off",
+      broadbandCellMetric: "avg_speed",
       modelledMode: "blend",
     };
     if (typeof window === "undefined") return defaults;
@@ -285,6 +291,8 @@ export default function Home() {
         ageOverlayMode: age === "on" ? "on" : defaults.ageOverlayMode,
         epcFuelOverlayMode: "off",
         epcFuelType: "gas",
+        broadbandCellOverlayMode: "off",
+        broadbandCellMetric: "avg_speed",
         modelledMode: "blend",
       };
     } catch {
@@ -451,6 +459,8 @@ export default function Home() {
     ageOverlayMode: "off",
     epcFuelOverlayMode: "off",
     epcFuelType: "gas",
+    broadbandCellOverlayMode: "off",
+    broadbandCellMetric: "avg_speed",
     modelledMode: "blend",
   };
   const closeAllSubpanels = () => {
@@ -1166,7 +1176,7 @@ export default function Home() {
       ? "Off"
       : "On";
   const voteScaleLabel = state.voteColorScale === "relative" ? "Relative" : "Absolute";
-  const anyOverlayActive = state.floodOverlayMode !== "off" || state.schoolOverlayMode !== "off" || state.primarySchoolOverlayMode !== "off" || state.stationOverlayMode !== "off" || state.crimeOverlayMode !== "off" || state.crimeCellMode !== "off" || state.voteOverlayMode !== "off" || state.commuteOverlayMode !== "off" || state.ageOverlayMode !== "off" || state.epcFuelOverlayMode !== "off";
+  const anyOverlayActive = state.floodOverlayMode !== "off" || state.schoolOverlayMode !== "off" || state.primarySchoolOverlayMode !== "off" || state.stationOverlayMode !== "off" || state.crimeOverlayMode !== "off" || state.crimeCellMode !== "off" || state.voteOverlayMode !== "off" || state.commuteOverlayMode !== "off" || state.ageOverlayMode !== "off" || state.epcFuelOverlayMode !== "off" || state.broadbandCellOverlayMode !== "off";
 
   const currentFiltersSummary =
     `Grid: ${state.grid} · Metric: ${METRIC_LABEL[state.metric]} · ` +
@@ -1345,7 +1355,7 @@ export default function Home() {
     setTourActive(true);
     setShowMePulse(false);
     // Reset map to default view
-    setState((s) => ({ ...s, grid: "5km", metric: "median", propertyType: "ALL", floodOverlayMode: "off", schoolOverlayMode: "off", primarySchoolOverlayMode: "off", stationOverlayMode: "off", crimeOverlayMode: "off", crimeCellMode: "off", voteOverlayMode: "off", commuteOverlayMode: "off", ageOverlayMode: "off", epcFuelOverlayMode: "off", epcFuelType: "gas" }));
+    setState((s) => ({ ...s, grid: "5km", metric: "median", propertyType: "ALL", floodOverlayMode: "off", schoolOverlayMode: "off", primarySchoolOverlayMode: "off", stationOverlayMode: "off", crimeOverlayMode: "off", crimeCellMode: "off", voteOverlayMode: "off", commuteOverlayMode: "off", ageOverlayMode: "off", epcFuelOverlayMode: "off", epcFuelType: "gas", broadbandCellOverlayMode: "off", broadbandCellMetric: "avg_speed" }));
     const t = ++flyToSeqRef.current;
     setFlyToRequest({ center: [-1.5, 53.5], zoom: 5, token: t });
   }, []);
@@ -2226,7 +2236,7 @@ export default function Home() {
                       <Segment
                         options={["off", "on"] as CrimeCellMode[]}
                         value={state.crimeCellMode}
-                        onChange={(v) => setState((s) => ({ ...s, crimeCellMode: v as CrimeCellMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode } : {}) }))}
+                        onChange={(v) => setState((s) => ({ ...s, crimeCellMode: v as CrimeCellMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode } : {}) }))}
                         renderOption={(v) => v === "on" ? "On" : "Off"}
                       />
                       {state.crimeCellMode === "on" && (<>
@@ -2264,7 +2274,7 @@ export default function Home() {
                       <Segment
                         options={["off", "on"]}
                         value={state.voteOverlayMode}
-                        onChange={(v) => setState((s) => ({ ...s, voteOverlayMode: v as VoteOverlayMode, ...(v === "on" ? { commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, crimeCellMode: "off" as CrimeCellMode } : {}) }))}
+                        onChange={(v) => setState((s) => ({ ...s, voteOverlayMode: v as VoteOverlayMode, ...(v === "on" ? { commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, crimeCellMode: "off" as CrimeCellMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode } : {}) }))}
                         renderOption={(v) => v === "on" ? "On" : "Off"}
                       />
                       {state.voteOverlayMode === "on" && (
@@ -2287,7 +2297,7 @@ export default function Home() {
                     <Segment
                       options={["off", "on"]}
                       value={state.commuteOverlayMode}
-                      onChange={(v) => setState((s) => ({ ...s, commuteOverlayMode: v as CommuteOverlayMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, crimeCellMode: "off" as CrimeCellMode } : {}) }))}
+                      onChange={(v) => setState((s) => ({ ...s, commuteOverlayMode: v as CommuteOverlayMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, crimeCellMode: "off" as CrimeCellMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode } : {}) }))}
                       renderOption={(v) => v === "on" ? "On" : "Off"}
                     />
                   </div>
@@ -2298,7 +2308,7 @@ export default function Home() {
                     <Segment
                       options={["off", "on"]}
                       value={state.ageOverlayMode}
-                      onChange={(v) => setState((s) => ({ ...s, ageOverlayMode: v as AgeOverlayMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, crimeCellMode: "off" as CrimeCellMode } : {}) }))}
+                      onChange={(v) => setState((s) => ({ ...s, ageOverlayMode: v as AgeOverlayMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, crimeCellMode: "off" as CrimeCellMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode } : {}) }))}
                       renderOption={(v) => v === "on" ? "On" : "Off"}
                     />
                   </div>
@@ -2310,7 +2320,7 @@ export default function Home() {
                       <Segment
                         options={["off", "on"] as EpcFuelOverlayMode[]}
                         value={state.epcFuelOverlayMode}
-                        onChange={(v) => setState((s) => ({ ...s, epcFuelOverlayMode: v as EpcFuelOverlayMode, ...(v === "on" ? { crimeCellMode: "off" as CrimeCellMode, voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode } : {}) }))}
+                        onChange={(v) => setState((s) => ({ ...s, epcFuelOverlayMode: v as EpcFuelOverlayMode, ...(v === "on" ? { crimeCellMode: "off" as CrimeCellMode, voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode } : {}) }))}
                         renderOption={(v) => v === "on" ? "On" : "Off"}
                       />
                       {state.epcFuelOverlayMode === "on" && (
@@ -2321,6 +2331,30 @@ export default function Home() {
                             value={state.epcFuelType}
                             onChange={(v) => setState((s) => ({ ...s, epcFuelType: v as EpcFuelType }))}
                             renderOption={(v) => v === "gas" ? "Gas" : v === "electric" ? "Electric" : v === "oil" ? "Oil" : "LPG"}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Broadband / internet speed */}
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                    <div style={{ fontSize: 11, opacity: 0.8, width: 70, flexShrink: 0, paddingTop: 2 }}>📶 Internet</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      <Segment
+                        options={["off", "on"] as BroadbandCellOverlayMode[]}
+                        value={state.broadbandCellOverlayMode}
+                        onChange={(v) => setState((s) => ({ ...s, broadbandCellOverlayMode: v as BroadbandCellOverlayMode, ...(v === "on" ? { crimeCellMode: "off" as CrimeCellMode, voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, epcFuelOverlayMode: "off" as EpcFuelOverlayMode } : {}) }))}
+                        renderOption={(v) => v === "on" ? "On" : "Off"}
+                      />
+                      {state.broadbandCellOverlayMode === "on" && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <div style={{ fontSize: 10, opacity: 0.5, width: 38, flexShrink: 0 }}>Show:</div>
+                          <Segment
+                            options={["avg_speed", "pct_sfbb", "pct_fast"] as BroadbandCellMetric[]}
+                            value={state.broadbandCellMetric}
+                            onChange={(v) => setState((s) => ({ ...s, broadbandCellMetric: v as BroadbandCellMetric }))}
+                            renderOption={(v) => v === "avg_speed" ? "Avg speed" : v === "pct_sfbb" ? "% SFBB+" : "% Fibre"}
                           />
                         </div>
                       )}

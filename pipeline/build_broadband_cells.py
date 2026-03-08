@@ -7,10 +7,12 @@ Source: Ofcom Connected Nations Update — fixed broadband coverage ZIP
 
 Join:   ONSPD postcode → OA21CD → BNG easting/northing → grid cells (1km/5km/10km/25km)
 
-For each Output Area we compute a premises-weighted average max available
-download speed using the number of premises in each coverage band × a
-representative speed (band midpoint):
+For each Output Area we compute:
+  bb_avg_speed  — premises-weighted average max available download speed (Mbit/s)
+  bb_pct_sfbb   — % of premises capable of SFBB+ (≥30 Mbit/s)
+  bb_pct_fast   — % of premises capable of ultrafast (≥300 Mbit/s; proxy for fibre/cable)
 
+Speed band midpoints used for bb_avg_speed:
   Band          Representative speed
   0–2 Mbit/s         1  Mbit/s
   2–5 Mbit/s         3.5
@@ -19,11 +21,11 @@ representative speed (band midpoint):
   30–300 Mbit/s    100   (urban median ~80-150 Mbit/s, 100 is conservative)
   ≥300 Mbit/s      500   (typical cable/FTTP; Ofcom performance data shows 500-900)
 
-For each grid cell we aggregate bb_avg_speed as a postcode-count-weighted mean
-(all postcodes in an OA carry the same speed, so postcodes act as proxy weights).
+For each grid cell we aggregate all three metrics as postcode-count-weighted means.
 
 Output: broadband_cells_{1km,5km,10km,25km}.json.gz
-        Each row: {"gx": <int>, "gy": <int>, "bb_avg_speed": <float>}
+        Each row: {"gx": <int>, "gy": <int>, "bb_avg_speed": <float>,
+                   "bb_pct_sfbb": <float>, "bb_pct_fast": <float>}
 """
 
 from __future__ import annotations
@@ -106,7 +108,8 @@ def load_oa_speeds(coverage_zip_path: Path) -> dict[str, float]:
         csv_name = csv_names[0]
         print(f"  Reading CSV: {csv_name}")
 
-        result: dict[str, float] = {}
+        # (oa21cd → {avg_speed, pct_sfbb, pct_fast})
+        result: dict[str, dict[str, float]] = {}
         with inner.open(csv_name) as f:
             reader = csv.DictReader(io.TextIOWrapper(f, encoding="utf-8-sig"))
             for row in reader:
@@ -114,30 +117,41 @@ def load_oa_speeds(coverage_zip_path: Path) -> dict[str, float]:
                 if not oa:
                     continue
 
-                # Build weighted average from premises counts across speed bands
+                # Build weighted average and coverage % from premises counts
                 weighted_sum = 0.0
                 n_sum = 0
+                n_sfbb = 0   # premises with ≥30 Mbit/s (30<300 + ≥300 bands)
+                n_fast = 0   # premises with ≥300 Mbit/s
                 for col, midpoint in BAND_COLS:
                     v_str = row.get(col, "").strip()
                     if v_str and v_str.isdigit():
                         n = int(v_str)
                         weighted_sum += n * midpoint
                         n_sum += n
+                        if midpoint >= 30:
+                            n_sfbb += n
+                        if midpoint >= 300:
+                            n_fast += n
 
                 if n_sum > 0:
-                    result[oa] = weighted_sum / n_sum
+                    result[oa] = {
+                        "avg_speed": weighted_sum / n_sum,
+                        "pct_sfbb":  n_sfbb / n_sum * 100,
+                        "pct_fast":  n_fast / n_sum * 100,
+                    }
 
     print(f"  Loaded speeds for {len(result):,} Output Areas")
     return result
 
 
 def build_grid_cells(
-    oa_speeds: dict[str, float],
+    oa_speeds: dict[str, dict[str, float]],
     onspd_path: Path,
 ) -> dict[str, dict[str, dict]]:
-    """Single ONSPD pass: postcode → OA21CD → speed → snap to all grid sizes.
+    """Single ONSPD pass: postcode → OA21CD → metrics → snap to all grid sizes.
 
-    Returns {grid_name: {"gx_gy": {"gx": int, "gy": int, "sum": float, "n": int}}}
+    Returns {grid_name: {"gx_gy": {"gx": int, "gy": int,
+                                    "sum": float, "sum_sfbb": float, "sum_fast": float, "n": int}}}
     """
     grids: dict[str, dict[str, dict]] = {g: {} for g in GRIDS}
     processed = 0
@@ -152,8 +166,8 @@ def build_grid_cells(
             oa = row.get("OA21CD", "").strip()
             if not oa:
                 continue
-            speed = oa_speeds.get(oa)
-            if speed is None:
+            metrics = oa_speeds.get(oa)
+            if metrics is None:
                 continue
 
             east_str = row.get("EAST1M", "").strip()
@@ -174,9 +188,11 @@ def build_grid_cells(
                 gy = snap(n, step)
                 key = f"{gx}_{gy}"
                 if key not in grids[grid_name]:
-                    grids[grid_name][key] = {"gx": gx, "gy": gy, "sum": 0.0, "n": 0}
+                    grids[grid_name][key] = {"gx": gx, "gy": gy, "sum": 0.0, "sum_sfbb": 0.0, "sum_fast": 0.0, "n": 0}
                 cell = grids[grid_name][key]
-                cell["sum"] += speed
+                cell["sum"] += metrics["avg_speed"]
+                cell["sum_sfbb"] += metrics["pct_sfbb"]
+                cell["sum_fast"] += metrics["pct_fast"]
                 cell["n"] += 1
 
     print(
@@ -213,7 +229,9 @@ def main() -> None:
             {
                 "gx": cell["gx"],
                 "gy": cell["gy"],
-                "bb_avg_speed": round(cell["sum"] / cell["n"], 1),
+                "bb_avg_speed": round(cell["sum"]      / cell["n"], 1),
+                "bb_pct_sfbb":  round(cell["sum_sfbb"] / cell["n"], 1),
+                "bb_pct_fast":  round(cell["sum_fast"] / cell["n"], 1),
             }
             for cell in grids[grid_name].values()
             if cell["n"] > 0
