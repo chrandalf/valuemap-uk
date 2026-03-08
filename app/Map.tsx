@@ -3405,13 +3405,25 @@ export default function ValueMap({
               if (ok) { prevIndexActiveRef.current = true; onIndexScoringAppliedRef.current?.(); }
             });
           }
-          // If crime cells are active, the data reload must not restore the house price legend
-          // and must re-apply the crime colour expression (ensureAggregatesAndUpdate always
-          // resets to house-price colours, so we need to re-paint immediately after).
-          if ((stateRef.current.crimeCellMode ?? "off") !== "off") {
-            onLegendChange?.(null);
-            if (map.getLayer("cells-fill")) {
-              applyCrimeCellOverlayColorExpression(map, stateRef.current.crimeCellSubMode, stateRef.current.crimeCellScale, easyColoursRef.current);
+          // If a cell colour overlay is active, setRealData/ensureAggregatesAndUpdate
+          // always resets to house-price colours, so we must re-apply the overlay immediately.
+          const activeOverlay = stateRef.current;
+          if (map.getLayer("cells-fill")) {
+            if ((activeOverlay.broadbandCellOverlayMode ?? "off") !== "off") {
+              onLegendChange?.(null);
+              applyBroadbandCellOverlayColorExpression(map, (activeOverlay.broadbandCellMetric ?? "avg_speed") as BroadbandCellMetric, easyColoursRef.current);
+            } else if ((activeOverlay.crimeCellMode ?? "off") !== "off") {
+              onLegendChange?.(null);
+              applyCrimeCellOverlayColorExpression(map, activeOverlay.crimeCellSubMode, activeOverlay.crimeCellScale, easyColoursRef.current);
+            } else if ((activeOverlay.epcFuelOverlayMode ?? "off") !== "off") {
+              onLegendChange?.(null);
+              applyEpcFuelOverlayColorExpression(map, (activeOverlay.epcFuelType ?? "gas") as EpcFuelType, easyColoursRef.current);
+            } else if ((activeOverlay.ageOverlayMode ?? "off") !== "off") {
+              applyAgeOverlayColorExpression(map, easyColoursRef.current);
+            } else if ((activeOverlay.commuteOverlayMode ?? "off") !== "off") {
+              applyCommuteOverlayColorExpression(map, easyColoursRef.current);
+            } else if ((activeOverlay.voteOverlayMode ?? "off") !== "off") {
+              applyVoteOverlayColorFromSource(map, activeOverlay.voteColorScale ?? "relative");
             }
           }
           if (requestSeqRef.current === seq) setIsLoading(false);
