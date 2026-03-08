@@ -1193,7 +1193,7 @@ export default function Home() {
       const fuelLabel = fuel === "gas" ? "Gas" : fuel === "electric" ? "Electric" : fuel === "oil" ? "Oil" : "LPG";
       return { title: `${fuelLabel} heating filter`, min: 0, max: 100, step: 1, format: (v: number) => `${v}%` };
     }
-    if (activeCellOverlay === "age") return { title: "Age mix filter", min: 0, max: 100, step: 1, format: (v: number) => `Score ${v}/100` };
+    if (activeCellOverlay === "age") return { title: "Elderly mix filter", min: 0, max: 100, step: 1, format: (v: number) => `${v}% older residents` };
     return { title: "Commute distance filter", min: 0, max: 30, step: 0.5, format: (v: number) => `${v} km average` };
   })() : null;
   const valueFilterLabel = overlayFilterPanelConfig

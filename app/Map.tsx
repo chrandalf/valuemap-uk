@@ -164,7 +164,7 @@ function metricPropName(metric: Metric): "median" | "delta_gbp" | "delta_pct" {
  * Returns the GeoJSON property name + optional divisor to apply to `overlayFilterThreshold`
  * when a cell colour overlay is active. Returns null when house-price filter should be used.
  */
-function getActiveCellOverlayFilterField(state: MapState): { field: string; divisor?: number } | null {
+function getActiveCellOverlayFilterField(state: MapState): { field: string; divisor?: number; invert?: boolean } | null {
   if ((state.broadbandCellOverlayMode ?? "off") !== "off") {
     const metric = state.broadbandCellMetric ?? "avg_speed";
     if (metric === "avg_speed") return { field: "bb_avg_speed" };
@@ -180,8 +180,9 @@ function getActiveCellOverlayFilterField(state: MapState): { field: string; divi
     return { field };
   }
   if ((state.ageOverlayMode ?? "off") !== "off") {
-    // age_score is 0–1 but slider uses 0–100, so divide threshold by 100
-    return { field: "age_score", divisor: 100 };
+    // age_score is 0–1 (0=oldest, 1=youngest). Slider is 0–100 meaning "% older".
+    // invert=true makes higher slider = older (we flip the op and use 1-threshold/100)
+    return { field: "age_score", divisor: 100, invert: true };
   }
   if ((state.commuteOverlayMode ?? "off") !== "off") {
     return { field: "mean_dist_km" };
@@ -4979,11 +4980,14 @@ function buildValueFilter(state: MapState) {
   if (overlayField) {
     const raw = state.overlayFilterThreshold;
     if (!Number.isFinite(raw)) return null;
-    const threshold = overlayField.divisor ? raw! / overlayField.divisor : raw!;
+    let threshold = overlayField.divisor ? raw! / overlayField.divisor : raw!;
+    // invert: field is reversed vs slider (e.g. age_score 0=old, 1=young but slider means "older")
+    const effectiveOp = overlayField.invert ? (op === "<=" ? ">=" : "<=") : op;
+    if (overlayField.invert) threshold = 1 - threshold;
     // Exclude cells with no data for this overlay field (don't coalesce to 0)
     return ["all",
       ["!=", ["get", overlayField.field], null],
-      [op, ["get", overlayField.field], threshold],
+      [effectiveOp, ["get", overlayField.field], threshold],
     ] as any;
   }
 
