@@ -20,6 +20,7 @@ from paths import (
     PUBLISH_VOTE_DIR,
     R2_ARCHIVE_DIR,
     REQUIRED_PROPERTY_ASSET_NAMES,
+    MODEL_BROADBAND_DIR,
 )
 
 
@@ -60,6 +61,7 @@ def collect_assets(
     crime_dir: Path,
     epc_dir: Path,
     model_property_dir: Path,
+    broadband_dir: Path,
     include_vote: bool,
     include_schools: bool,
     include_flood: bool,
@@ -68,6 +70,7 @@ def collect_assets(
     include_crime: bool,
     include_epc: bool,
     include_model: bool,
+    include_broadband: bool,
 ) -> list[Path]:
     files: list[Path] = []
     if include_vote:
@@ -120,6 +123,11 @@ def collect_assets(
                 p = model_property_dir / f"modelled_1km_{pt}_{nb}.json.gz"
                 if p.exists():
                     files.append(p)
+    if include_broadband:
+        for grid in ("1km", "5km", "10km", "25km"):
+            p = broadband_dir / f"broadband_cells_{grid}.json.gz"
+            if p.exists():
+                files.append(p)
     return files
 
 
@@ -243,6 +251,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--epc-dir", default=str(MODEL_EPC_DIR), help="EPC cell assets directory")
     parser.add_argument("--skip-epc", action="store_true", help="Skip EPC cell upload")
     parser.add_argument("--skip-model", action="store_true", help="Skip modelled price estimate upload")
+    parser.add_argument("--broadband-dir", default=str(MODEL_BROADBAND_DIR), help="Broadband cell assets directory")
+    parser.add_argument("--skip-broadband", action="store_true", help="Skip broadband cell upload")
     parser.add_argument(
         "--no-backup-before-upload",
         action="store_true",
@@ -266,6 +276,7 @@ def main() -> None:
     property_dir = Path(args.property_dir)
     crime_dir = Path(args.crime_dir)
     epc_dir = Path(args.epc_dir)
+    broadband_dir = Path(args.broadband_dir)
 
     include_vote = not args.skip_vote
     include_schools = not args.skip_schools
@@ -275,10 +286,11 @@ def main() -> None:
     include_crime = not args.skip_crime
     include_epc = not args.skip_epc
     include_model = not args.skip_model
+    include_broadband = not args.skip_broadband
     backup_before_upload = not args.no_backup_before_upload
     backup_dir = Path(args.backup_dir)
 
-    if not (include_vote or include_schools or include_stations or include_flood or include_property or include_crime or include_epc or include_model):
+    if not (include_vote or include_schools or include_stations or include_flood or include_property or include_crime or include_epc or include_model or include_broadband):
         raise SystemExit("Nothing to upload. Enable at least one asset group.")
 
     files = collect_assets(
@@ -290,6 +302,7 @@ def main() -> None:
         crime_dir,
         epc_dir,
         MODEL_PROPERTY_DIR,
+        broadband_dir,
         include_vote,
         include_schools,
         include_flood,
@@ -298,6 +311,7 @@ def main() -> None:
         include_crime,
         include_epc,
         include_model,
+        include_broadband,
     )
     missing = [str(path) for path in files if not path.exists()]
     if missing:

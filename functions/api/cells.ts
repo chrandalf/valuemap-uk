@@ -194,6 +194,7 @@ type CellRow = {
   ratio_cv_model?: number;
   estimated_median?: number;
   actual_median?: number;      // original sparse median before model replacement (blend mode only)
+  bb_avg_speed?: number;       // weighted avg max available download speed (Mbit/s)
 };
 
 type VoteCellRow = {
@@ -766,6 +767,36 @@ async function getCachedEpcFuelLookup(env: Env, grid: GridKey): Promise<Map<stri
   return lookup;
 }
 
+/* ---------- broadband speed cell data ---------- */
+
+const BROADBAND_CACHE_BY_GRID: Partial<Record<GridKey, { lookup: Map<string, number>; loadedAtMs: number }>> = {};
+
+async function getCachedBroadbandLookup(env: Env, grid: GridKey): Promise<Map<string, number> | null> {
+  const now = Date.now();
+  const cached = BROADBAND_CACHE_BY_GRID[grid];
+  if (cached && now - cached.loadedAtMs <= CACHE_TTL_MS) return cached.lookup.size > 0 ? cached.lookup : null;
+
+  const bucket = getBucket(env);
+  const key = `broadband_cells_${grid}.json.gz`;
+  const obj = await bucket.get(key);
+  if (!obj) {
+    BROADBAND_CACHE_BY_GRID[grid] = { lookup: new Map(), loadedAtMs: Date.now() };
+    return null;
+  }
+
+  const gz = await obj.arrayBuffer();
+  const jsonText = await gunzipToString(gz);
+  const rows = JSON.parse(jsonText) as Array<{ gx: number; gy: number; bb_avg_speed: number }>;
+
+  const lookup = new Map<string, number>();
+  for (const row of rows) {
+    lookup.set(`${row.gx}_${row.gy}`, row.bb_avg_speed);
+  }
+
+  BROADBAND_CACHE_BY_GRID[grid] = { lookup, loadedAtMs: Date.now() };
+  return lookup.size > 0 ? lookup : null;
+}
+
 /* ---------- modelled price estimates ---------- */
 
 type ModelledRow = { estimated_median: number; model_confidence: number; n_years: number; ratio_cv: number };
@@ -894,13 +925,14 @@ async function backfillAll(env: Env, grid: GridKey, rows: CellRow[]): Promise<Ce
     ? Promise.resolve(null)
     : getCachedVoteLookup(env, grid).catch(() => null);
 
-  const [voteLookup, countryLookup, commuteLookup, ageLookup, crimeLookup, epcFuelLookup] = await Promise.all([
+  const [voteLookup, countryLookup, commuteLookup, ageLookup, crimeLookup, epcFuelLookup, broadbandLookup] = await Promise.all([
     votePromise,
     getCachedCountryLookup(env, grid).catch(() => null),
     getCachedCommuteLookup(env, grid).catch(() => null),
     getCachedAgeLookup(env, grid).catch(() => null),
     getCachedCrimeLookup(env, grid).catch(() => null),
     getCachedEpcFuelLookup(env, grid).catch(() => null),
+    getCachedBroadbandLookup(env, grid).catch(() => null),
   ]);
 
   return rows.map((row) => {
@@ -971,6 +1003,9 @@ async function backfillAll(env: Env, grid: GridKey, rows: CellRow[]): Promise<Ce
       pct_lpg:        epcFuel.pct_lpg,
       fuel_pct_other: epcFuel.fuel_pct_other,
     };
+
+    const broadband = broadbandLookup?.get(key);
+    if (broadband !== undefined) out = { ...out, bb_avg_speed: broadband };
 
     return out;
   });

@@ -78,6 +78,10 @@ RAW_CENSUS_AGE_LSOA = RAW_CENSUS_DIR / "ts007a_age_lsoa21.csv"
 MODEL_CENSUS_COMMUTE_CELLS_TEMPLATE = MODEL_CENSUS_DIR / "commute_cells_{grid}.json.gz"
 MODEL_CENSUS_AGE_CELLS_TEMPLATE = MODEL_CENSUS_DIR / "age_cells_{grid}.json.gz"
 
+RAW_BROADBAND_DIR = RAW_DIR / "broadband"
+MODEL_BROADBAND_DIR = MODEL_DIR / "broadband"
+MODEL_BROADBAND_CELLS_TEMPLATE = MODEL_BROADBAND_DIR / "broadband_cells_{grid}.json.gz"
+
 MODEL_EPC_FUEL_CELLS_TEMPLATE = MODEL_EPC_DIR / "epc_fuel_cells_{grid}.json.gz"
 MODEL_EPC_AGE_CELLS_TEMPLATE  = MODEL_EPC_DIR / "epc_age_cells_{grid}.json.gz"
 
@@ -140,5 +144,7 @@ def ensure_pipeline_dirs() -> None:
         RAW_CRIME_DIR,
         MODEL_CRIME_DIR,
         PUBLISH_CRIME_DIR,
+        RAW_BROADBAND_DIR,
+        MODEL_BROADBAND_DIR,
     ]:
         p.mkdir(parents=True, exist_ok=True)

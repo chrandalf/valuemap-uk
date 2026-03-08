@@ -239,6 +239,16 @@ def run_country_lookup() -> None:
     run_step("country-lookup", [str(SCRIPT_DIR / "build_country_lookup_assets.py")])
 
 
+def run_broadband() -> None:
+    """
+    Build broadband speed cells (broadband_cells_{grid}.json.gz) from
+    Ofcom fixed broadband coverage data (OA level) joined to ONSPD.
+    Requires: pipeline/data/raw/broadband/202507_fixed_broadband_coverage_r01.zip
+              (or any *coverage*.zip from Ofcom Connected Nations)
+    """
+    run_step("broadband", [str(SCRIPT_DIR / "build_broadband_cells.py")])
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run ValueMap pipeline in the correct order")
     parser.add_argument("--skip-property", action="store_true", help="Skip property asset staging")
@@ -251,6 +261,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-primary-schools", action="store_true", help="Skip primary school Ofsted overlay generation (auto-downloads Ofsted MI CSV)")
     parser.add_argument("--skip-epc", action="store_true", help="Skip EPC cell generation (requires all-domestic-certificates.zip manually downloaded)")
     parser.add_argument("--skip-country-lookup", action="store_true", help="Skip country-lookup asset generation (must run after vote step)")
+    parser.add_argument("--skip-broadband", action="store_true", help="Skip broadband cell generation (requires 202507_fixed_broadband_coverage_r01.zip in raw/broadband/)")
     parser.add_argument(
         "--mainstream-only",
         action="store_true",
@@ -302,6 +313,9 @@ def main() -> None:
 
     if not args.skip_country_lookup:
         run_country_lookup()
+
+    if not args.skip_broadband:
+        run_broadband()
 
     if not args.no_publish_r2_staging:
         copy_model_to_publish()

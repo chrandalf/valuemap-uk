@@ -39,6 +39,7 @@ type IndexScoringPrefs = {
   crimeWeight?: number;
   epcFuelWeight?: number;
   epcFuelPreference?: string;
+  broadbandWeight?: number;
 };
 
 type MapState = {
@@ -155,12 +156,17 @@ function snapToLevel(v: number): number {
 }
 
 function ImportancePicker({
-  emoji, label, value, onChange, color, disabled,
+  emoji, label, value, onChange, color, disabled, levels,
 }: {
   emoji: string; label: string; value: number;
   onChange: (v: number) => void; color: string; disabled?: boolean;
+  levels?: ReadonlyArray<{ label: string; value: number }>;
 }) {
-  const active = snapToLevel(value);
+  const activeLevels = levels ?? IMP_LEVELS;
+  const active = activeLevels.reduce<number>(
+    (best, l) => (Math.abs(value - l.value) < Math.abs(value - best) ? l.value : best),
+    activeLevels[0].value
+  );
   return (
     <div style={{
       display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -171,7 +177,7 @@ function ImportancePicker({
         {emoji} {label}
       </span>
       <div style={{ display: "flex", gap: 3 }}>
-        {IMP_LEVELS.map(({ label: lbl, value: v }) => (
+        {activeLevels.map(({ label: lbl, value: v }) => (
           <button
             key={v}
             type="button"
@@ -366,6 +372,7 @@ export default function Home() {
   const [indexCrimeWeight, setIndexCrimeWeight] = useState(0);
   const [indexEpcFuelWeight, setIndexEpcFuelWeight] = useState(0);
   const [indexEpcFuelPreference, setIndexEpcFuelPreference] = useState<string>("gas");
+  const [indexBroadbandWeight, setIndexBroadbandWeight] = useState(0);
   const [indexValidationError, setIndexValidationError] = useState<string | null>(null);
   const [indexApplied, setIndexApplied] = useState<IndexScoringPrefs>({
     budget: 300000,
@@ -410,6 +417,7 @@ export default function Home() {
       crimeWeight: indexApplied.crimeWeight ?? 0,
       epcFuelWeight: indexApplied.epcFuelWeight ?? 0,
       epcFuelPreference: indexApplied.epcFuelPreference ?? "gas",
+      broadbandWeight: indexApplied.broadbandWeight ?? 0,
       indexFilterMode: indexSuitabilityMode,
       indexFilterThreshold: indexSuitabilityThreshold / 100,
     };
@@ -486,6 +494,7 @@ export default function Home() {
     setIndexCrimeWeight(0);
     setIndexEpcFuelWeight(0);
     setIndexEpcFuelPreference("gas");
+    setIndexBroadbandWeight(0);
     setIndexValidationError(null);
     setIndexApplied({
       budget: 300000,
@@ -499,6 +508,7 @@ export default function Home() {
       ageWeight: 0,
       crimeWeight: 0,
       epcFuelWeight: 0,
+      broadbandWeight: 0,
     });
   };
 
@@ -2930,16 +2940,21 @@ export default function Home() {
                   </div>
                 )}
               </div>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 0", opacity: 0.3 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 0", borderBottom: "1px solid rgba(255,255,255,0.06)", opacity: 0.3 }}>
                 <span style={{ fontSize: 11, fontWeight: 600 }}>🏖️ Coast</span>
                 <span style={{ fontSize: 10, fontStyle: "italic" }}>coming soon</span>
               </div>
+              <ImportancePicker emoji="📶" label="Internet speed *" value={indexBroadbandWeight} onChange={setIndexBroadbandWeight} color="#a78bfa"
+                levels={[{ label: "Fibre", value: 10 }, { label: "Cable", value: 6 }, { label: "SFBB", value: 3 }, { label: "Off", value: 0 }]} />
               </div>{/* end scrollable pickers */}
             </div>
 
             {/* Coverage note */}
-            <div style={{ fontSize: 10, opacity: 0.52, marginBottom: 10, lineHeight: 1.35 }}>
+            <div style={{ fontSize: 10, opacity: 0.52, marginBottom: 6, lineHeight: 1.35 }}>
               ⓘ Flood, secondary &amp; primary school scores use England-only data — Wales &amp; Scotland coming later.
+            </div>
+            <div style={{ fontSize: 10, opacity: 0.52, marginBottom: 10, lineHeight: 1.35 }}>
+              * = Work in progress — results may be incomplete
             </div>
 
             {indexActive && (
@@ -2956,7 +2971,7 @@ export default function Home() {
                   // — Validate before scoring —
                   const totalW = indexAffordWeight + indexFloodWeight + indexSchoolWeight +
                     indexPrimarySchoolWeight + indexTrainWeight + indexCoastWeight + indexAgeWeight + indexCrimeWeight +
-                    indexEpcFuelWeight;
+                    indexEpcFuelWeight + indexBroadbandWeight;
                   if (totalW === 0) {
                     setIndexValidationError("Please set at least one criterion above Off before scoring.");
                     return;
@@ -2981,6 +2996,7 @@ export default function Home() {
                     crimeWeight: indexCrimeWeight,
                     epcFuelWeight: indexEpcFuelWeight,
                     epcFuelPreference: indexEpcFuelPreference,
+                    broadbandWeight: indexBroadbandWeight,
                   });
                   setGridMode("manual");
                   setState((s) => ({ ...s, grid: "1km" }));

@@ -61,6 +61,7 @@ export type IndexPrefs = {
   crimeWeight?: number;     // 0-10 importance (local crime safety)
   epcFuelWeight?: number;       // 0-10 importance (heating fuel preference)
   epcFuelPreference?: string;   // "gas" | "electric" | "oil" | "lpg" | "no_gas"
+  broadbandWeight?: number;     // 0-10 importance (internet speed tier: 3=SFBB/30Mb+, 6=Cable/100Mb+, 10=Fibre/300Mb+)
   indexFilterMode?: "off" | "lte" | "gte";
   indexFilterThreshold?: number; // 0..1
 };
@@ -2373,7 +2374,7 @@ export default function ValueMap({
     // ── Index scoring breakdown popup ──
     if (indexPrefsRef.current) {
       const prefs = indexPrefsRef.current;
-      const totalPrefWeight = (prefs.affordWeight ?? 0) + (prefs.floodWeight ?? 0) + (prefs.schoolWeight ?? 0) + (prefs.primarySchoolWeight ?? 0) + (prefs.trainWeight ?? 0) + (prefs.ageWeight ?? 0) + (prefs.crimeWeight ?? 0) + (prefs.epcFuelWeight ?? 0);
+      const totalPrefWeight = (prefs.affordWeight ?? 0) + (prefs.floodWeight ?? 0) + (prefs.schoolWeight ?? 0) + (prefs.primarySchoolWeight ?? 0) + (prefs.trainWeight ?? 0) + (prefs.ageWeight ?? 0) + (prefs.crimeWeight ?? 0) + (prefs.epcFuelWeight ?? 0) + (prefs.broadbandWeight ?? 0);
       if (totalPrefWeight === 0) {
         const html = `<div style="font-family:system-ui;font-size:12px;line-height:1.4;min-width:180px;max-width:220px;">
           <div style="font-weight:700;margin-bottom:6px;font-size:13px;">🗺️ No criteria set</div>
@@ -2454,6 +2455,13 @@ export default function ValueMap({
           const fuelLabel = fuelLabels[prefs.epcFuelPreference ?? "gas"] ?? (prefs.epcFuelPreference ?? "gas");
           const epcFuelVal = Number(p.ix_epc_fuel ?? -1);
           html += wRow(`⚡ Heating fuel (${fuelLabel})`, prefs.epcFuelWeight!, bar(epcFuelVal < 0 ? 0.5 : epcFuelVal, epcFuelVal < 0));
+        }
+        if ((prefs.broadbandWeight ?? 0) > 0) {
+          const bbTierLabel = prefs.broadbandWeight === 10 ? "Fibre" : prefs.broadbandWeight === 6 ? "Cable" : "SFBB";
+          const bbThreshold = prefs.broadbandWeight === 10 ? 300 : prefs.broadbandWeight === 6 ? 100 : 30;
+          const bbSpeed = Number(p.bb_avg_speed ?? NaN);
+          const bbVal = Number.isFinite(bbSpeed) ? Math.min(1, bbSpeed / bbThreshold) : NaN;
+          html += wRow(`📶 Internet (${bbTierLabel} ≥${bbThreshold}Mb)`, prefs.broadbandWeight!, bar(Number.isFinite(bbVal) ? bbVal : 0.5, !Number.isFinite(bbSpeed)));
         }
         html += `</div>`;
         popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
@@ -4831,6 +4839,7 @@ function buildIndexScoringSignature(prefs: IndexPrefs) {
     prefs.crimeWeight ?? 0,
     prefs.epcFuelWeight ?? 0,
     prefs.epcFuelPreference ?? "gas",
+    prefs.broadbandWeight ?? 0,
   ].join("|");
 }
 
@@ -5385,6 +5394,24 @@ async function applyIndexScoring(
       // If no EPC data for this cell: skip weight entirely (don't penalise or reward)
     }
     props.ix_epc_fuel = epcFuelScore;
+
+    // 8) Broadband speed — score = min(1, avg_speed / threshold) where threshold
+    //    is derived from the tier the user selected (3→30Mb, 6→100Mb, 10→300Mb).
+    let broadbandScore = 0.5;
+    let broadbandNoData = false;
+    const broadbandW = prefs.broadbandWeight ?? 0;
+    if (broadbandW > 0) {
+      const bbThreshold = broadbandW === 10 ? 300 : broadbandW === 6 ? 100 : 30;
+      const avgSpeed = Number(props.bb_avg_speed ?? NaN);
+      if (!Number.isFinite(avgSpeed)) {
+        broadbandNoData = true;
+      } else {
+        broadbandScore = Math.min(1, avgSpeed / bbThreshold);
+        totalScore += broadbandW * broadbandScore;
+        totalWeight += broadbandW;
+      }
+    }
+    props.ix_bb = broadbandScore;
 
     // 9) Coast proximity (placeholder)
     if (prefs.coastWeight > 0) {
