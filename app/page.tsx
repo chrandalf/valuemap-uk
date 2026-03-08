@@ -2107,6 +2107,7 @@ export default function Home() {
                     { label: "🗳 Election info",  action: () => { setElectionInfoOpen(v => !v); setInfoDropOpen(false); bringToFront("electioninfo"); } },
                     { label: "📝 Description",   action: () => { setDocModalSrc("/description?embedded=1"); setInfoDropOpen(false); } },
                     { label: "🗺 Next steps",    action: () => { setDocModalSrc("/next-steps?embedded=1"); setInfoDropOpen(false); } },
+                    { label: "⭐ Supporters",    action: () => { setDocModalSrc("/supporters?embedded=1"); setInfoDropOpen(false); } },
                     { label: "✉ Contact",        action: () => { setDocModalSrc("/contact?embedded=1"); setInfoDropOpen(false); } },
                     { label: "⚖ Legal",          action: () => { setDocModalSrc("/legal?embedded=1"); setInfoDropOpen(false); } },
                     { label: "🔒 Privacy",       action: () => { setDocModalSrc("/privacy?embedded=1"); setInfoDropOpen(false); } },

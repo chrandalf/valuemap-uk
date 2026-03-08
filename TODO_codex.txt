@@ -205,6 +205,21 @@ TIER 1 — QUICK WINS  (XS / S, low risk)
           - Consider defaulting affordWeight to 5 instead of 0
           - From mate feedback: "Affordability was set to off — didn't realise I needed it"
 
+[ ] [S]   Place-name / city / county search in the postcode search box
+          - Reddit feedback: "I'd love a way to specify specific counties, areas or cities"
+            (users who already know where they want to live, not just a postcode)
+          - The existing search box already handles postcodes (fly to cell);
+            extend it with a geocoding fallback when input doesn't match postcode pattern
+          - Implementation options (no API key needed):
+            a) Nominatim (OSM) — free, rate-limited; query + countrycodes=gb
+               returns bbox → map.fitBounds(); works for cities, counties, streets
+            b) OS Names API — UK-only, higher quality but requires a (free) API key
+            - Preferred: try Nominatim first; add OS Names later if quality poor
+          - UX: if input fails postcode lookup AND geocoder returns ≥1 result,
+            fly to the first result bbox; if ambiguous show a small dropdown
+          - Fallback: if geocoder fails, show "Not found — try a postcode instead"
+          - From Reddit: u/Least-Broccoli9995 (2026-03-08)
+
 
 ────────────────────────────────────────────────────────────────────────────────
 TIER 2 — MEDIUM EFFORT  (M, moderate complexity)
@@ -253,6 +268,25 @@ TIER 2 — MEDIUM EFFORT  (M, moderate complexity)
 ────────────────────────────────────────────────────────────────────────────────
 TIER 3 — LARGER FEATURES  (L, significant work)
 ────────────────────────────────────────────────────────────────────────────────
+
+[ ] [L]   Top-areas list view (non-map browse mode)
+          - Reddit feedback: "a non-map option, simply a list to look at that I can click through"
+            for users who prefer browsing a ranked table over visually scanning the map
+          - Scope: most useful when Find My Area is active (scored areas)
+          - Implementation:
+            a) After "Score areas" is pressed, add a "List" toggle button alongside
+               the existing map view (or a side panel that can be opened)
+            b) Show top-N scored cells grouped by outcode (e.g. "SW1A", "M1")
+               — outcode lookup already built in pipeline (postcode_outcode_index files)
+               — aggregate: median score, median price, tx count for outcode
+            c) Columns: Area name, Match score (bar), Median price, Sales volume,
+               (optionally) Flood / School / Crime sub-scores
+            d) Clicking a row flies the map to that outcode centroid and zooms in
+            e) Sortable by any column; default sort by score descending
+          - Data already available: outcode index in R2; cell scores computed
+            client-side in applyIndexScoring() — just need to surface them as a list
+          - Out of scope for v1: full area descriptions, neighbourhood text, photos
+          - From Reddit: u/Least-Broccoli9995 (2026-03-08)
 
 [ ] [L]   Onboarding rework — non-blocking, "show don't tell"
           a) Default map loads immediately — no startup dialog
@@ -401,6 +435,33 @@ TIER 3 — LARGER FEATURES  (L, significant work)
           - Pipeline: spatial index, nearest stop distance per cell
           - Overlay + popup row alongside the existing station line
           - Scoring: combine rail + bus/tram into a composite transit score
+
+[ ] [XL]  Current property stock / active listing counts per cell
+          - Reddit feedback: "are there 5 houses or 500 houses here?" — users want to
+            know how many homes are actively for sale now in a scored area, not just
+            how many sold previously. Key for gauging whether a good-scoring area
+            actually has anything to buy.
+          - What we already have: `tx_count` is historical sales (past 12 months) —
+            a rough proxy for turnover but NOT current for-sale inventory
+          - The fundamental problem: there is no free, open dataset of current UK
+            property listings. Options:
+            a) Rightmove / Zoopla / OnTheMarket — all require commercial data
+               agreements; not feasible without business arrangement
+            b) Scraping portals — ToS violations, unreliable, not viable
+            c) DLUHC / Land Registry have no real-time listing data
+            d) PropTech APIs (e.g. Homes England, GetAgent, Sprift) — some offer
+               listing count data but all paid/commercial
+          - Best realistic near-term approximation:
+            The EPC dataset (already partially integrated) records every property
+            on the market or newly built that had an EPC lodged. It won't give
+            "currently listed" but can give total housing stock counts per cell
+            (how many known properties of each type exist in the area), which
+            answers "is this a big area with lots of houses or a hamlet with 10?"
+            This is free open data and we're already loading EPC files in the pipeline.
+          - Conclusion: true live listing counts are behind a paywall. Stock count
+            from EPC (total properties in area) is achievable and partially answers
+            the question. Flag as XL / needs data sourcing investigation.
+          - From Reddit: u/Alert_Variation_2579 (2026-03-08)
 
 [ ] [L]   "What does my budget buy me" views
           a) % of listings under budget per cell (needs listing-level data)
