@@ -117,6 +117,7 @@ def ensure_pipeline_dirs() -> None:
         RAW_GEOGRAPHY_DIR,
         RAW_PROPERTY_DIR,
         RAW_EPC_DIR,
+        RAW_STATIONS_DIR,
         INTERMEDIATE_SCHOOLS_DIR,
         INTERMEDIATE_PROPERTY_DIR,
         INTERMEDIATE_EPC_DIR,

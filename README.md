@@ -152,3 +152,42 @@ python pipeline/upload_model_assets_to_r2.py --skip-flood --skip-property
 Example:
 
 `/api/cells?grid=1km&metric=median&propertyType=ALL&newBuild=ALL&endMonth=LATEST&minTxCount=3&refresh=1`
+
+## Raw data — from-scratch checklist
+
+All inputs live under `pipeline/data/raw/`. Run `python pipeline/run_pipeline.py --help` for the full list of `--skip-*` flags.
+
+### Auto-downloaded by the pipeline (no manual action needed)
+
+| Raw file | Downloaded by | Source |
+|---|---|---|
+| `raw/property/pp-2025.txt` (~5 GB) | `build_grids.py` | [HMLR Price Paid Data (complete)](http://prod.publicdata.landregistry.gov.uk.s3-website-eu-west-1.amazonaws.com/pp-complete.txt) — OGL v3 |
+| `raw/crime/latest.zip` (~1.6 GB) | `build_crime_overlay.py` | [data.police.uk bulk archive](https://data.police.uk/data/archive/latest.zip) — OGL v3 |
+| `raw/census/ts007a_age_lsoa21.csv` | `fetch_age_data.py` | Nomis API — dataset NM_2020_1 (TS007A), no key needed |
+| `raw/census/ts058_commute_lsoa21.csv` | `fetch_commute_data.py` | Nomis API — dataset NM_2075_1 (TS058), no key needed |
+| `raw/schools/ofsted_mi_state_schools.csv` | `build_primary_school_ofsted_overlay.py --download` | [Ofsted Management Information](https://www.gov.uk/government/statistical-data-sets/monthly-management-information-ofsteds-school-inspections-outcomes) — OGL v3 |
+
+### Must be downloaded manually before running
+
+| Raw file | Where to get it | Licence |
+|---|---|---|
+| `raw/property/ONSPD_Online_latest_Postcode_Centroids_.csv` | [ONS Geography Portal — ONSPD latest centroids](https://geoportal.statistics.gov.uk/datasets/ons-postcode-directory-latest-centroids) | OGL v3 |
+| `raw/schools/england_ks4revised.csv` | [DfE Compare School Performance — download data, KS4 revised](https://www.compare-school-performance.service.gov.uk/download-data) | OGL v3 |
+| `raw/schools/202425_performance_tables_schools_revised.csv` | Same DfE download portal — select year 2024/25, revised, all schools | OGL v3 |
+| `raw/epc/all-domestic-certificates.zip` (~4 GB) | [MHCLG EPC bulk download](https://epc.opendatacommunities.org/domestic/search) — free registration, download all domestic EPCs | OGL v3 |
+| `raw/elections/HoC-GE2024-results-by-candidate.csv` | [House of Commons Research Briefings — CBP-10077](https://researchbriefings.files.parliament.uk/documents/CBP-10077/HoC-GE2024-results-by-candidate.csv) | OPL v3 |
+| `raw/geography/Westminster_Parliamentary_Constituencies_July_2024_Boundaries_UK_BFE_*.geojson` | [ONS Geography Portal — Westminster Constituencies July 2024 BFE](https://geoportal.statistics.gov.uk/datasets/ons::westminster-parliamentary-constituencies-july-2024-boundaries-uk-bfe) | OGL v3 |
+| `raw/flood/open_flood_risk_by_postcode.csv` | Kaggle (temporary source — official EA integration not yet done) | — |
+| `raw/Stations/GB train stations.json` | **Source not yet documented** — see note below | — |
+
+> **Station data note:** The `GB train stations.json` GeoJSON is not yet linked to a confirmed upstream source in the codebase. Probable candidates are the ORR (Office of Rail and Road), NaPTAN, or an Overpass API export from OpenStreetMap (the file has `name`, `code` (CRS), and `owner` fields). This must be confirmed before a reproducible from-scratch build of the station overlay is possible.
+
+### Upload scripts
+
+| What | Script |
+|---|---|
+| Property, schools, stations, flood, vote, crime, EPC | `python pipeline/upload_model_assets_to_r2.py` |
+| Census age cells | `python pipeline/upload_age_cells_to_r2.py` |
+| Census commute cells | `python pipeline/upload_commute_cells_to_r2.py` |
+| Country lookup assets | `python pipeline/_upload_country_assets.py` |
+

@@ -186,6 +186,59 @@ def run_vote() -> None:
     )
 
 
+def run_census() -> None:
+    """
+    Fetch ONS Census 2021 age and commute data from the Nomis API, then build
+    per-cell grids for all 4 grid sizes.  Data is skipped if the raw CSV already
+    exists (safe to re-run).
+    Uploads via: python pipeline/upload_age_cells_to_r2.py
+                 python pipeline/upload_commute_cells_to_r2.py
+    """
+    run_step("census-age-fetch",     [str(SCRIPT_DIR / "fetch_age_data.py")])
+    run_step("census-age-cells",     [str(SCRIPT_DIR / "build_age_cells.py")])
+    run_step("census-commute-fetch", [str(SCRIPT_DIR / "fetch_commute_data.py")])
+    run_step("census-commute-cells", [str(SCRIPT_DIR / "build_commute_cells.py")])
+
+
+def run_primary_schools() -> None:
+    """
+    Build the primary school Ofsted overlay GeoJSON.
+    The Ofsted MI CSV is auto-downloaded from gov.uk (--download flag).
+    Output is staged inside MODEL_SCHOOLS_DIR and uploaded by
+    upload_model_assets_to_r2.py (included in the default schools group).
+    """
+    run_step(
+        "primary-schools-overlay",
+        [
+            str(SCRIPT_DIR / "build_primary_school_ofsted_overlay.py"),
+            "--download",
+            "--output",
+            str(MODEL_SCHOOLS_DIR / "primary_school_overlay_points.geojson.gz"),
+        ],
+    )
+
+
+def run_epc() -> None:
+    """
+    Build EPC fuel and age-band cell grids from the MHCLG bulk EPC download.
+    Requires: raw/epc/all-domestic-certificates.zip downloaded manually from
+              https://epc.opendatacommunities.org/domestic/search (free registration).
+    Uploads via: upload_model_assets_to_r2.py (--skip-epc to omit).
+    """
+    run_step("epc-enrich", [str(SCRIPT_DIR / "build_epc_enriched.py")])
+    run_step("epc-cells",  [str(SCRIPT_DIR / "build_epc_cells.py")])
+
+
+def run_country_lookup() -> None:
+    """
+    Build slim country-lookup assets (country_cells_{grid}.json.gz and
+    country_by_outward.json.gz) from vote cell outputs and ONSPD.
+    Must run AFTER run_vote() since it reads the staged vote cell files.
+    Uploads via: python pipeline/_upload_country_assets.py
+    """
+    run_step("country-lookup", [str(SCRIPT_DIR / "build_country_lookup_assets.py")])
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run ValueMap pipeline in the correct order")
     parser.add_argument("--skip-property", action="store_true", help="Skip property asset staging")
@@ -194,6 +247,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-stations", action="store_true", help="Skip train station overlay generation")
     parser.add_argument("--skip-vote", action="store_true", help="Skip vote artifact generation")
     parser.add_argument("--skip-crime", action="store_true", help="Skip crime overlay and cell generation")
+    parser.add_argument("--skip-census", action="store_true", help="Skip Census age and commute fetch + cell generation (Nomis API, no key needed)")
+    parser.add_argument("--skip-primary-schools", action="store_true", help="Skip primary school Ofsted overlay generation (auto-downloads Ofsted MI CSV)")
+    parser.add_argument("--skip-epc", action="store_true", help="Skip EPC cell generation (requires all-domestic-certificates.zip manually downloaded)")
+    parser.add_argument("--skip-country-lookup", action="store_true", help="Skip country-lookup asset generation (must run after vote step)")
     parser.add_argument(
         "--mainstream-only",
         action="store_true",
@@ -233,6 +290,18 @@ def main() -> None:
 
     if not args.skip_crime:
         run_crime()
+
+    if not args.skip_census:
+        run_census()
+
+    if not args.skip_primary_schools:
+        run_primary_schools()
+
+    if not args.skip_epc:
+        run_epc()
+
+    if not args.skip_country_lookup:
+        run_country_lookup()
 
     if not args.no_publish_r2_staging:
         copy_model_to_publish()

@@ -27,7 +27,7 @@ export default function ContactPage() {
           For questions, feedback, or collaboration, email:
         </p>
         <a
-          href="mailto:chris.randallse@gmail.com"
+          href="mailto:admin@propertypricemap.co.uk"
           style={{
             color: "#93c5fd",
             textDecoration: "underline",
@@ -35,7 +35,7 @@ export default function ContactPage() {
             wordBreak: "break-word",
           }}
         >
-          chris.randallse@gmail.com
+          admin@propertypricemap.co.uk
         </a>
         <div style={{ marginTop: 16 }}>
           <BackToMapChip />
