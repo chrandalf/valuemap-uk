@@ -3024,9 +3024,11 @@ export default function Home() {
                   </div>
                 )}
               </div>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 0", borderBottom: "1px solid rgba(255,255,255,0.06)", opacity: 0.3 }}>
-                <span style={{ fontSize: 11, fontWeight: 600 }}>🏖️ Coast</span>
-                <span style={{ fontSize: 10, fontStyle: "italic" }}>coming soon</span>
+              {/* Work in progress divider */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0 2px" }}>
+                <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.12)" }} />
+                <span style={{ fontSize: 10, opacity: 0.45, fontStyle: "italic", whiteSpace: "nowrap" }}>Work in progress</span>
+                <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.12)" }} />
               </div>
               <ImportancePicker emoji="📶" label="Internet speed *" value={indexBroadbandWeight} onChange={setIndexBroadbandWeight} color="#a78bfa"
                 levels={[{ label: "Fibre", value: 10 }, { label: "Cable", value: 6 }, { label: "SFBB", value: 3 }, { label: "Off", value: 0 }]} />
