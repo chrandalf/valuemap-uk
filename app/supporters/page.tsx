@@ -84,7 +84,7 @@ export default function SupportersPage() {
         inset: 0,
         background: "#000008",
         overflow: "hidden",
-        fontFamily: "Georgia, 'Times New Roman', serif",
+        fontFamily: "system-ui, -apple-system, sans-serif",
       }}
     >
       <style>{`
