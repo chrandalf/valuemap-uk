@@ -315,6 +315,17 @@ export default function Home() {
   const [instructionsPage, setInstructionsPage] = useState(1);
   const [dataSourcesOpen, setDataSourcesOpen] = useState(false);
   const [electionInfoOpen, setElectionInfoOpen] = useState(false);
+  type FreshnessDataset = { data_date: string; label: string; source: string };
+  type FreshnessManifest = { generated_at: string; datasets: Record<string, FreshnessDataset> };
+  const [dataFreshness, setDataFreshness] = useState<FreshnessManifest | null>(null);
+  // Fetch data freshness manifest once on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const fetchFreshness = () => {
+    fetch("/api/freshness").then(r => r.ok ? r.json() : null).then(data => {
+      if (data && (data as FreshnessManifest).datasets) setDataFreshness(data as FreshnessManifest);
+    }).catch(() => {/* non-critical, silently ignore */});
+  };
+  useState(() => { if (typeof window !== "undefined") fetchFreshness(); });
 
   const [postcodeOpen, setPostcodeOpen] = useState(false);
   const [legendOpen, setLegendOpen] = useState(true);
@@ -2783,19 +2794,23 @@ export default function Home() {
             <span>⚪ Historical</span>
           </div>
           {([
-            { icon: "🏠", label: "House prices",       source: "HM Land Registry + Registers of Scotland",      dataDate: "2025-12-01", dataLabel: "Dec 2025" },
-            { icon: "🚨", label: "Crime",               source: "Home Office Police.uk (LSOA records)",           dataDate: "2025-09-01", dataLabel: "Sep 2025" },
-            { icon: "🌊", label: "Flood risk",          source: "Environment Agency Flood Risk Register",         dataDate: "2025-12-01", dataLabel: "Dec 2025" },
-            { icon: "🏫", label: "Secondary schools",   source: "DfE / Ofsted inspections & KS4 GCSE",           dataDate: "2024-09-01", dataLabel: "2023–24" },
-            { icon: "🏫", label: "Primary schools",     source: "DfE / Ofsted inspections",                      dataDate: "2024-09-01", dataLabel: "2023–24" },
-            { icon: "🚉", label: "Train stations",      source: "Network Rail / OpenStreetMap",                  dataDate: "2026-01-01", dataLabel: "Jan 2026" },
-            { icon: "⚡", label: "Heating fuel (EPC)",  source: "DLUHC — Domestic EPC Register",                 dataDate: "2024-12-01", dataLabel: "Q4 2024" },
-            { icon: "📶", label: "Internet speed",      source: "Ofcom Connected Nations broadband data",        dataDate: "2024-05-01", dataLabel: "May 2024" },
-            { icon: "👥", label: "Community age",       source: "ONS Census 2021 age distributions",             dataDate: "2021-03-01", dataLabel: "Census 2021" },
-            { icon: "🚗", label: "Commute distance",    source: "ONS Census 2021 travel-to-work",                dataDate: "2021-03-01", dataLabel: "Census 2021" },
-            { icon: "🗳️", label: "Election shares",    source: "Electoral Commission — General Election 2024",  dataDate: "static",     dataLabel: "Jul 2024" },
-            { icon: "📮", label: "Postcodes",           source: "ONS ONSPD postcode centroids",                  dataDate: "2025-11-01", dataLabel: "Nov 2025" },
-          ] as Array<{ icon: string; label: string; source: string; dataDate: string; dataLabel: string }>).map(({ icon, label, source, dataDate, dataLabel }) => {
+            { icon: "🏠", label: "House prices",       key: "house_prices",      fallbackDate: "2025-12-01", fallbackLabel: "Dec 2025" },
+            { icon: "🚨", label: "Crime",               key: "crime",             fallbackDate: "2026-01-01", fallbackLabel: "Jan 2026" },
+            { icon: "🌊", label: "Flood risk",          key: "flood",             fallbackDate: "2025-12-01", fallbackLabel: "Dec 2025" },
+            { icon: "🏫", label: "Secondary schools",   key: "schools_secondary", fallbackDate: "2025-04-01", fallbackLabel: "2024–25" },
+            { icon: "🏫", label: "Primary schools",     key: "schools_primary",   fallbackDate: "2025-04-01", fallbackLabel: "2024–25" },
+            { icon: "🚉", label: "Train stations",      key: "stations",          fallbackDate: "2026-02-01", fallbackLabel: "Feb 2026" },
+            { icon: "⚡", label: "Heating fuel (EPC)",  key: "epc",               fallbackDate: "2024-12-01", fallbackLabel: "Q4 2024" },
+            { icon: "📶", label: "Internet speed",      key: "broadband",         fallbackDate: "2025-07-01", fallbackLabel: "Jul 2025" },
+            { icon: "👥", label: "Community age",       key: "community_age",     fallbackDate: "2021-03-21", fallbackLabel: "Census 2021" },
+            { icon: "🚗", label: "Commute distance",    key: "commute",           fallbackDate: "2021-03-21", fallbackLabel: "Census 2021" },
+            { icon: "🗳️", label: "Election shares",    key: "election",          fallbackDate: "static",     fallbackLabel: "Jul 2024" },
+            { icon: "📮", label: "Postcodes",           key: "postcodes",         fallbackDate: "2025-11-01", fallbackLabel: "Nov 2025" },
+          ] as Array<{ icon: string; label: string; key: string; fallbackDate: string; fallbackLabel: string }>).map(({ icon, label, key, fallbackDate, fallbackLabel }) => {
+            const ds = dataFreshness?.datasets[key];
+            const dataDate = ds?.data_date ?? fallbackDate;
+            const dataLabel = ds?.label ?? fallbackLabel;
+            const source = ds?.source;
             const days = dataDate === "static" ? Infinity : (Date.now() - new Date(dataDate).getTime()) / 86400000;
             const ragDot = dataDate === "static" ? "⚪" : days <= 180 ? "🟢" : days <= 540 ? "🟡" : "🔴";
             const ragColor = dataDate === "static" ? "#9ca3af" : days <= 180 ? "#22c55e" : days <= 540 ? "#f59e0b" : "#ef4444";
@@ -2804,7 +2819,7 @@ export default function Home() {
                 <span style={{ fontSize: 13, lineHeight: 1.4 }}>{icon}</span>
                 <div>
                   <div style={{ fontWeight: 600, fontSize: 11 }}>{label}</div>
-                  <div style={{ fontSize: 10, opacity: 0.55, marginTop: 1 }}>{source}</div>
+                  {source && <div style={{ fontSize: 10, opacity: 0.55, marginTop: 1 }}>{source}</div>}
                 </div>
                 <div style={{ textAlign: "right", whiteSpace: "nowrap", paddingTop: 1 }}>
                   <span style={{ fontSize: 10, color: ragColor, fontWeight: 700 }}>{ragDot}</span>
@@ -2813,7 +2828,10 @@ export default function Home() {
               </div>
             );
           })}
-          <div style={{ marginTop: 8, opacity: 0.55, fontSize: 10 }}>Licensing and attribution follow the terms provided by each source.</div>
+          {dataFreshness && (
+            <div style={{ marginTop: 8, fontSize: 10, opacity: 0.4 }}>Last pipeline run: {new Date(dataFreshness.generated_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</div>
+          )}
+          <div style={{ marginTop: 4, opacity: 0.55, fontSize: 10 }}>Licensing and attribution follow the terms provided by each source.</div>
         </div>
       )}
 

@@ -13,6 +13,7 @@ from paths import (
     MODEL_EPC_DIR,
     MODEL_PROPERTY_DIR,
     PUBLISH_CRIME_DIR,
+    PUBLISH_DIR,
     PUBLISH_FLOOD_DIR,
     PUBLISH_PROPERTY_DIR,
     PUBLISH_SCHOOLS_DIR,
@@ -290,32 +291,7 @@ def main() -> None:
     backup_before_upload = not args.no_backup_before_upload
     backup_dir = Path(args.backup_dir)
 
-    if not (include_vote or include_schools or include_stations or include_flood or include_property or include_crime or include_epc or include_model or include_broadband):
-        raise SystemExit("Nothing to upload. Enable at least one asset group.")
-
-    files = collect_assets(
-        vote_dir,
-        schools_dir,
-        flood_dir,
-        property_dir,
-        stations_dir,
-        crime_dir,
-        epc_dir,
-        MODEL_PROPERTY_DIR,
-        broadband_dir,
-        include_vote,
-        include_schools,
-        include_flood,
-        include_property,
-        include_stations,
-        include_crime,
-        include_epc,
-        include_model,
-        include_broadband,
-    )
-    missing = [str(path) for path in files if not path.exists()]
-    if missing:
-        raise SystemExit("Missing staged files:\n- " + "\n- ".join(missing))
+    only_freshness = not (include_vote or include_schools or include_stations or include_flood or include_property or include_crime or include_epc or include_model or include_broadband)
 
     account_id = env_value("R2_ACCOUNT_ID", "CLOUDFLARE_ACCOUNT_ID")
     bucket_name = env_value("R2_BUCKET", "R2_BUCKET_NAME") or "valuemap-uk"
@@ -343,30 +319,69 @@ def main() -> None:
     s3.head_bucket(Bucket=bucket_name)
     print("Bucket access check: OK")
 
-    object_keys = object_keys_for_files(files, prefix, property_dir=property_dir if include_property else None)
-    if backup_before_upload:
-        backup_remote_objects(
-            s3=s3,
-            bucket_name=bucket_name,
-            object_keys=object_keys,
-            backup_dir=backup_dir,
-            prefix=prefix,
+    if not only_freshness:
+        files = collect_assets(
+            vote_dir,
+            schools_dir,
+            flood_dir,
+            property_dir,
+            stations_dir,
+            crime_dir,
+            epc_dir,
+            MODEL_PROPERTY_DIR,
+            broadband_dir,
+            include_vote,
+            include_schools,
+            include_flood,
+            include_property,
+            include_stations,
+            include_crime,
+            include_epc,
+            include_model,
+            include_broadband,
         )
+        missing = [str(path) for path in files if not path.exists()]
+        if missing:
+            raise SystemExit("Missing staged files:\n- " + "\n- ".join(missing))
 
-    for path, object_key in zip(files, object_keys):
-        extra_args: dict = {
-            "ContentType": content_type_for(path),
-            "CacheControl": "public, max-age=86400",
-        }
-        s3.upload_file(
-            str(path),
-            bucket_name,
-            object_key,
-            ExtraArgs=extra_args,
-        )
-        print(f"Uploaded: {object_key}")
+        object_keys = object_keys_for_files(files, prefix, property_dir=property_dir if include_property else None)
+        if backup_before_upload:
+            backup_remote_objects(
+                s3=s3,
+                bucket_name=bucket_name,
+                object_keys=object_keys,
+                backup_dir=backup_dir,
+                prefix=prefix,
+            )
 
-    print(f"R2 upload finished: {len(files)} succeeded, 0 failed")
+        for path, object_key in zip(files, object_keys):
+            extra_args: dict = {
+                "ContentType": content_type_for(path),
+                "CacheControl": "public, max-age=86400",
+            }
+            s3.upload_file(
+                str(path),
+                bucket_name,
+                object_key,
+                ExtraArgs=extra_args,
+            )
+            print(f"Uploaded: {object_key}")
+
+        print(f"R2 upload finished: {len(files)} succeeded, 0 failed")
+
+    # Always regenerate and upload data_freshness.json (regardless of skip flags)
+    print("\n[freshness] Regenerating data_freshness.json ...")
+    from build_data_freshness import build_freshness, OUTPUT_PATH as FRESHNESS_PATH
+    freshness = build_freshness()
+    FRESHNESS_PATH.write_text(__import__("json").dumps(freshness, indent=2))
+    freshness_key = f"{prefix}/data_freshness.json" if prefix else "data_freshness.json"
+    s3.upload_file(
+        str(FRESHNESS_PATH),
+        bucket_name,
+        freshness_key,
+        ExtraArgs={"ContentType": "application/json", "CacheControl": "public, max-age=3600"},
+    )
+    print(f"Uploaded: {freshness_key}")
 
 
 if __name__ == "__main__":
