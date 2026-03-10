@@ -5542,8 +5542,14 @@ function buildIndexFilter(indexPrefs: IndexPrefs | null | undefined) {
   if (mode === "off") return null;
   if (mode === "area_only") return [">=", ["coalesce", ["get", "index_score"], 0], 0.001] as any;
   const threshold = Math.max(0, Math.min(1, Number(indexPrefs.indexFilterThreshold ?? 0.6)));
+  const hasRegions = (indexPrefs.regionBboxes?.length ?? 0) > 0;
+  const score = ["coalesce", ["get", "index_score"], 0] as any;
   const op = mode === "lte" ? "<=" : ">=";
-  return [op, ["coalesce", ["get", "index_score"], 0], threshold] as any;
+  const rangeFilter = [op, score, threshold] as any;
+  // When regions are selected, cells outside the bbox are zeroed out. We must
+  // exclude those zero-score cells so only cells within the selected areas show.
+  if (hasRegions) return ["all", [">", score, 0], rangeFilter] as any;
+  return rangeFilter;
 }
 
 function applyCombinedCellFilters(
