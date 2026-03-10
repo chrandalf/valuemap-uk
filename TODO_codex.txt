@@ -545,10 +545,76 @@ TIER 3 — LARGER FEATURES  (L, significant work)
             "City centres may show elevated rates due to footfall vs residents"
 
 [ ] [L]   Public transport proximity (bus, tram, underground — beyond rail)
-          - Data: NaPTAN dataset (open gov — bus stops, tram, tube, metro)
-          - Pipeline: spatial index, nearest stop distance per cell
-          - Overlay + popup row alongside the existing station line
-          - Scoring: combine rail + bus/tram into a composite transit score
+          - Data: NaPTAN (National Public Transport Access Nodes) — open gov, OGL, free,
+            no API key. Live endpoint:
+              https://naptan.api.dft.gov.uk/v1/access-nodes?dataFormat=csv
+            ~101 MB CSV, 43 columns. Key fields: ATCOCode, CommonName, Longitude,
+            Latitude, StopType, Status. Filter to Status='active'.
+          - Stop type breakdown (active stops, confirmed 2026-05):
+              BCT: 371,094  — on-street bus stops (main layer)
+              BCS:   3,723  — off-street bus/coach bays
+              RSE:   3,631  — rail station entrances (supplement to our stations layer)
+              TMU:   1,376  — tram/metro/underground ENTRANCES ← use this for tube/tram
+              PLT:   1,572  — metro/tram platforms (London Underground DLR etc.)
+              Others: ferry, taxi, airport — low count, optional
+          - Strategy: build TWO sub-layers:
+              a) bus_stop_count_500m — number of unique BCT/BCS stops within 500m
+                 of each cell centroid. Nearest-stop distance is almost always <200m
+                 in urban areas, so count-within-radius is more useful than raw distance.
+              b) metro_tram_dist_km — distance to nearest TMU/PLT stop per cell.
+                 This is the tube/DLR/tram proximity signal.
+          - Dedup note: TMU (station entrance) is preferred over PLT (platform) to avoid
+            counting each platform as a separate station.
+          - Pipeline approach: download NaPTAN CSV → filter active stops by type →
+            build KD-tree → for each cell centroid: count BCT within 500m + nearest
+            TMU distance. Follow Pattern A checklist.
+            Estimated effort: pipeline [M] (NaPTAN download + KD-tree + joins),
+            API [S], Map overlay + right-click row [S], scoring slider [S]
+            Total end-to-end: [L]
+          - Scoring: bus_score (0–100 from bus_stop_count_500m percentile) +
+            metro_score (0–100 inverse-distance from metro_tram_dist_km).
+            Composite transit_score = weighted average (user-tunable).
+          - UI: Transit proximity slider in Find My Area; right-click popup row showing
+            "🚌 Nearest bus stop: Xm | X stops within 500m"
+            "🚇 Nearest tube/tram: Xkm" (only shown if TMU stop exists nearby)
+          - Note: NaPTAN covers bus/tram/tube GB-wide. London Underground, DLR, Elizabeth
+            line, Overground, Metrolink (Manchester), Tyne & Wear Metro all included.
+            Scottish buses included. Ferry terminals included (optional extra).
+          - Scotland/NI: fully covered in NaPTAN — no gap.
+          - Overlay (optional v2): show bus stop dots + tube station markers on map when
+            zoomed in, styled differently from our existing train station dots.
+
+[ ] [M]   Distance to nearest pharmacy
+          - Data: NHS BSA "Consolidated Pharmaceutical List" — quarterly CSV, free,
+            OGL licence. Download URL (latest as at 2026-05):
+              https://opendata.nhsbsa.net/dataset/240d142d-df82-4e97-b051-12371519e4e1/
+              resource/266ef5d3-e094-4677-8bf4-cc226b73cb3d/download/consol_pharmacy_list_202526q2.csv
+            (Update URL each quarter — or query the CKAN API at
+             https://opendata.nhsbsa.net/api/3/action/package_show?id=240d142d-...)
+            10,508 pharmacies in England (2025/26 Q2).
+          - Schema: PHARMACY_ODS_CODE_F_CODE, PHARMACY_TRADING_NAME, ORGANISATION_NAME,
+            ADDRESS_FIELD1–4, POST_CODE, opening hours by day, WEEKLY_TOTAL, CONTRACT_TYPE.
+            ⚠ No lat/lng in file — must geocode via POST_CODE using ONSPD lookup.
+          - Pipeline:
+              1. Download latest quarterly CSV
+              2. Join POST_CODE to ONSPD (already in pipeline) to get lat/lng
+              3. Build KD-tree of pharmacy locations
+              4. For each cell centroid: compute nearest_pharmacy_km
+              5. Bake into cell properties; upload to R2 alongside other cell data
+          - Coverage: England only in this dataset.
+            Scotland: use NHS Scotland Community Pharmacy Dataset (ISD Scotland).
+            Wales: NHS Wales provides a pharmacy register separately.
+            → For MVP, England coverage is fine; flag missing countries to user.
+          - Effort: pipeline [S-M] (postcode join is boilerplate), API [XS],
+            right-click row [XS], scoring factor [XS]. Total end-to-end: [M]
+          - UI: right-click popup row "💊 Nearest pharmacy: Xkm"
+            Find My Area slider: "Pharmacy proximity" (relevant to elderly buyers,
+            families, rural areas). Only surface slider if user enables it —
+            relatively niche vs schools/crime.
+          - Contract types in data: "Community" (standard), "Distance Selling"
+            (online-only — exclude from distance calculation), "Appliance Contractor".
+            Filter to Community type only for meaningful proximity.
+          - Refresh: quarterly. Re-run pipeline each quarter; new CSV replaces old.
 
 [ ] [L]   High-speed broadband as a scoring factor
           - Data: Ofcom Connected Nations dataset (open data, updated annually)

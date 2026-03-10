@@ -14,6 +14,7 @@ from paths import (
     MODEL_FLOOD_DIR,
     MODEL_SCHOOLS_DIR,
     MODEL_STATIONS_DIR,
+    MODEL_TRANSIT_DIR,
     MODEL_VOTE_DIR,
     PUBLIC_DATA_DIR,
     PUBLISH_DIR,
@@ -249,6 +250,39 @@ def run_broadband() -> None:
     run_step("broadband", [str(SCRIPT_DIR / "build_broadband_cells.py")])
 
 
+def run_transit() -> None:
+    """
+    Build bus stop, metro/tram, and pharmacy overlay GeoJSON point files.
+
+    Bus stops and metro/tram: downloaded from the free NaPTAN API (DfT).
+    Pharmacies: downloaded from NHS BSA Consolidated Pharmaceutical List (geocoded
+    via postcodes.io). England only; Scotland/Wales pharmacies are not included.
+
+    Outputs (staged in MODEL_TRANSIT_DIR, then copied to publish by copy_model_to_publish):
+        transit/bus_stop_overlay_points.geojson.gz
+        transit/metro_tram_overlay_points.geojson.gz
+        transit/pharmacy_overlay_points.geojson.gz
+    """
+    run_step(
+        "transit-bus-metro",
+        [
+            str(SCRIPT_DIR / "build_bus_stop_points.py"),
+            "--bus-output",
+            str(MODEL_TRANSIT_DIR / "bus_stop_overlay_points.geojson.gz"),
+            "--metro-output",
+            str(MODEL_TRANSIT_DIR / "metro_tram_overlay_points.geojson.gz"),
+        ],
+    )
+    run_step(
+        "transit-pharmacy",
+        [
+            str(SCRIPT_DIR / "build_pharmacy_points.py"),
+            "--output",
+            str(MODEL_TRANSIT_DIR / "pharmacy_overlay_points.geojson.gz"),
+        ],
+    )
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run ValueMap pipeline in the correct order")
     parser.add_argument("--skip-property", action="store_true", help="Skip property asset staging")
@@ -262,6 +296,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-epc", action="store_true", help="Skip EPC cell generation (requires all-domestic-certificates.zip manually downloaded)")
     parser.add_argument("--skip-country-lookup", action="store_true", help="Skip country-lookup asset generation (must run after vote step)")
     parser.add_argument("--skip-broadband", action="store_true", help="Skip broadband cell generation (requires 202507_fixed_broadband_coverage_r01.zip in raw/broadband/)")
+    parser.add_argument("--skip-transit", action="store_true", help="Skip bus stop, metro/tram, and pharmacy overlay generation (auto-download from NaPTAN + NHS BSA)")
     parser.add_argument(
         "--mainstream-only",
         action="store_true",
@@ -316,6 +351,9 @@ def main() -> None:
 
     if not args.skip_broadband:
         run_broadband()
+
+    if not args.skip_transit:
+        run_transit()
 
     if not args.no_publish_r2_staging:
         copy_model_to_publish()

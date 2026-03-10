@@ -26,6 +26,8 @@ type BroadbandCellOverlayMode = "off" | "on";
 type BroadbandCellMetric = "avg_speed" | "pct_sfbb" | "pct_fast";
 type VoteColorScale = "relative" | "absolute";
 type GridMode = "auto" | "manual";
+type BusStopOverlayMode = "off" | "on" | "on_hide_cells";
+type PharmacyOverlayMode = "off" | "on" | "on_hide_cells";
 
 type IndexScoringPrefs = {
   budget: number;
@@ -42,6 +44,8 @@ type IndexScoringPrefs = {
   epcFuelWeight?: number;
   epcFuelPreference?: string;
   broadbandWeight?: number;
+  busWeight?: number;
+  pharmacyWeight?: number;
 };
 
 type MapState = {
@@ -68,6 +72,8 @@ type MapState = {
   epcFuelType: EpcFuelType;
   broadbandCellOverlayMode: BroadbandCellOverlayMode;
   broadbandCellMetric: BroadbandCellMetric;
+  busStopOverlayMode: BusStopOverlayMode;
+  pharmacyOverlayMode: PharmacyOverlayMode;
   overlayFilterThreshold: number;
   modelledMode?: "actual" | "blend" | "estimated" | "model_only";
 };
@@ -234,6 +240,8 @@ export default function Home() {
       epcFuelType: "gas",
       broadbandCellOverlayMode: "off",
       broadbandCellMetric: "avg_speed",
+      busStopOverlayMode: "off",
+      pharmacyOverlayMode: "off",
       overlayFilterThreshold: 50,
       modelledMode: "blend",
     };
@@ -295,6 +303,8 @@ export default function Home() {
         epcFuelType: "gas",
         broadbandCellOverlayMode: "off",
         broadbandCellMetric: "avg_speed",
+        busStopOverlayMode: "off",
+        pharmacyOverlayMode: "off",
         overlayFilterThreshold: 50,
         modelledMode: "blend",
       };
@@ -395,6 +405,8 @@ export default function Home() {
   const [indexEpcFuelWeight, setIndexEpcFuelWeight] = useState(0);
   const [indexEpcFuelPreference, setIndexEpcFuelPreference] = useState<string>("gas");
   const [indexBroadbandWeight, setIndexBroadbandWeight] = useState(0);
+  const [indexBusWeight, setIndexBusWeight] = useState(0);
+  const [indexPharmacyWeight, setIndexPharmacyWeight] = useState(0);
   const [indexValidationError, setIndexValidationError] = useState<string | null>(null);
   const [indexApplied, setIndexApplied] = useState<IndexScoringPrefs>({
     budget: 300000,
@@ -405,6 +417,8 @@ export default function Home() {
     trainWeight: 0,
     coastWeight: 0,
     crimeWeight: 0,
+    busWeight: 0,
+    pharmacyWeight: 0,
   });
   const [indexSuitabilityMode, setIndexSuitabilityMode] = useState<ValueFilterMode>("off");
   const [indexSuitabilityThreshold, setIndexSuitabilityThreshold] = useState(65);
@@ -440,6 +454,8 @@ export default function Home() {
       epcFuelWeight: indexApplied.epcFuelWeight ?? 0,
       epcFuelPreference: indexApplied.epcFuelPreference ?? "gas",
       broadbandWeight: indexApplied.broadbandWeight ?? 0,
+      busWeight: indexApplied.busWeight ?? 0,
+      pharmacyWeight: indexApplied.pharmacyWeight ?? 0,
       indexFilterMode: indexSuitabilityMode,
       indexFilterThreshold: indexSuitabilityThreshold / 100,
     };
@@ -475,6 +491,8 @@ export default function Home() {
     epcFuelType: "gas",
     broadbandCellOverlayMode: "off",
     broadbandCellMetric: "avg_speed",
+    busStopOverlayMode: "off",
+    pharmacyOverlayMode: "off",
     overlayFilterThreshold: 50,
     modelledMode: "blend",
   };
@@ -520,6 +538,8 @@ export default function Home() {
     setIndexEpcFuelWeight(0);
     setIndexEpcFuelPreference("gas");
     setIndexBroadbandWeight(0);
+    setIndexBusWeight(0);
+    setIndexPharmacyWeight(0);
     setIndexValidationError(null);
     setIndexApplied({
       budget: 300000,
@@ -534,6 +554,8 @@ export default function Home() {
       crimeWeight: 0,
       epcFuelWeight: 0,
       broadbandWeight: 0,
+      busWeight: 0,
+      pharmacyWeight: 0,
     });
   };
 
@@ -1236,7 +1258,7 @@ export default function Home() {
       ? "Off"
       : "On";
   const voteScaleLabel = state.voteColorScale === "relative" ? "Relative" : "Absolute";
-  const anyOverlayActive = state.floodOverlayMode !== "off" || state.schoolOverlayMode !== "off" || state.primarySchoolOverlayMode !== "off" || state.stationOverlayMode !== "off" || state.crimeOverlayMode !== "off" || state.crimeCellMode !== "off" || state.voteOverlayMode !== "off" || state.commuteOverlayMode !== "off" || state.ageOverlayMode !== "off" || state.epcFuelOverlayMode !== "off" || state.broadbandCellOverlayMode !== "off";
+  const anyOverlayActive = state.floodOverlayMode !== "off" || state.schoolOverlayMode !== "off" || state.primarySchoolOverlayMode !== "off" || state.stationOverlayMode !== "off" || state.crimeOverlayMode !== "off" || state.crimeCellMode !== "off" || state.voteOverlayMode !== "off" || state.commuteOverlayMode !== "off" || state.ageOverlayMode !== "off" || state.epcFuelOverlayMode !== "off" || state.broadbandCellOverlayMode !== "off" || state.busStopOverlayMode !== "off" || state.pharmacyOverlayMode !== "off";
 
   const currentFiltersSummary =
     `Grid: ${state.grid} · Metric: ${METRIC_LABEL[state.metric]} · ` +
@@ -1416,7 +1438,7 @@ export default function Home() {
     setTourActive(true);
     setShowMePulse(false);
     // Reset map to default view
-    setState((s) => ({ ...s, grid: "5km", metric: "median", propertyType: "ALL", floodOverlayMode: "off", schoolOverlayMode: "off", primarySchoolOverlayMode: "off", stationOverlayMode: "off", crimeOverlayMode: "off", crimeCellMode: "off", voteOverlayMode: "off", commuteOverlayMode: "off", ageOverlayMode: "off", epcFuelOverlayMode: "off", epcFuelType: "gas", broadbandCellOverlayMode: "off", broadbandCellMetric: "avg_speed" }));
+    setState((s) => ({ ...s, grid: "5km", metric: "median", propertyType: "ALL", floodOverlayMode: "off", schoolOverlayMode: "off", primarySchoolOverlayMode: "off", stationOverlayMode: "off", crimeOverlayMode: "off", crimeCellMode: "off", voteOverlayMode: "off", commuteOverlayMode: "off", ageOverlayMode: "off", epcFuelOverlayMode: "off", epcFuelType: "gas", broadbandCellOverlayMode: "off", broadbandCellMetric: "avg_speed", busStopOverlayMode: "off", pharmacyOverlayMode: "off" }));
     const t = ++flyToSeqRef.current;
     setFlyToRequest({ center: [-1.5, 53.5], zoom: 5, token: t });
   }, []);
@@ -2287,6 +2309,29 @@ export default function Home() {
                       renderOption={(v) => v === "on" ? "On" : v === "on_hide_cells" ? "Hide cells" : "Off"}
                     />
                   </div>
+
+                  {/* Bus stops & metro */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
+                    <div style={{ fontSize: 11, opacity: 0.8, width: 70, flexShrink: 0 }}>🚌 Bus & metro</div>
+                    <Segment
+                      options={["off", "on", "on_hide_cells"]}
+                      value={state.busStopOverlayMode}
+                      onChange={(v) => setState((s) => ({ ...s, busStopOverlayMode: v as BusStopOverlayMode }))}
+                      renderOption={(v) => v === "on" ? "On" : v === "on_hide_cells" ? "Hide cells" : "Off"}
+                    />
+                  </div>
+
+                  {/* Pharmacies */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
+                    <div style={{ fontSize: 11, opacity: 0.8, width: 70, flexShrink: 0 }}>💊 Pharmacy</div>
+                    <Segment
+                      options={["off", "on", "on_hide_cells"]}
+                      value={state.pharmacyOverlayMode}
+                      onChange={(v) => setState((s) => ({ ...s, pharmacyOverlayMode: v as PharmacyOverlayMode }))}
+                      renderOption={(v) => v === "on" ? "On" : v === "on_hide_cells" ? "Hide cells" : "Off"}
+                    />
+                  </div>
+
                   <div style={{ borderTop: "1px solid rgba(255,255,255,0.1)", margin: "8px 0 7px" }} />
                   <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.45, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 7 }}>Cell colour</div>
 
@@ -3082,6 +3127,8 @@ export default function Home() {
               </div>
               <ImportancePicker emoji="📶" label="Internet speed *" value={indexBroadbandWeight} onChange={setIndexBroadbandWeight} color="#a78bfa"
                 levels={[{ label: "Fibre", value: 10 }, { label: "Cable", value: 6 }, { label: "SFBB", value: 3 }, { label: "Off", value: 0 }]} />
+              <ImportancePicker emoji="🚌" label="Bus & metro *" value={indexBusWeight} onChange={setIndexBusWeight} color="#38bdf8" />
+              <ImportancePicker emoji="💊" label="Pharmacy *" value={indexPharmacyWeight} onChange={setIndexPharmacyWeight} color="#f59e0b" />
               </div>{/* end scrollable pickers */}
             </div>
 
@@ -3107,7 +3154,7 @@ export default function Home() {
                   // — Validate before scoring —
                   const totalW = indexAffordWeight + indexFloodWeight + indexSchoolWeight +
                     indexPrimarySchoolWeight + indexTrainWeight + indexCoastWeight + indexAgeWeight + indexCrimeWeight +
-                    indexEpcFuelWeight + indexBroadbandWeight;
+                    indexEpcFuelWeight + indexBroadbandWeight + indexBusWeight + indexPharmacyWeight;
                   if (totalW === 0) {
                     setIndexValidationError("Please set at least one criterion above Off before scoring.");
                     return;
@@ -3133,6 +3180,8 @@ export default function Home() {
                     epcFuelWeight: indexEpcFuelWeight,
                     epcFuelPreference: indexEpcFuelPreference,
                     broadbandWeight: indexBroadbandWeight,
+                    busWeight: indexBusWeight,
+                    pharmacyWeight: indexPharmacyWeight,
                   });
                   setGridMode("manual");
                   setState((s) => ({ ...s, grid: "1km" }));
@@ -4133,6 +4182,8 @@ export default function Home() {
                 { icon: "🔑", label: "Pri. school", html: rightClickInfo.primarySchoolHtml },
                 { icon: "🚂", label: "Station",     html: rightClickInfo.stationHtml },
                 { icon: "🔴", label: "Crime",       html: rightClickInfo.crimeHtml },
+                { icon: "🚌", label: "Bus/metro",   html: rightClickInfo.busStopHtml ?? "" },
+                { icon: "💊", label: "Pharmacy",    html: rightClickInfo.pharmacyHtml ?? "" },
               ] as const).map(({ icon, label, html }) => (
                 <div key={label} style={{ display: "flex", gap: 6, alignItems: "flex-start", padding: "4px 0", borderBottom: "1px solid #f9fafb" }}>
                   <span style={{ width: 16, flexShrink: 0, textAlign: "center", paddingTop: 1 }}>{icon}</span>
@@ -4234,6 +4285,8 @@ export default function Home() {
                 { icon: "🔑", label: "Pri. school", html: rightClickInfo.primarySchoolHtml },
                 { icon: "🚂", label: "Station",     html: rightClickInfo.stationHtml },
                 { icon: "🔴", label: "Crime",       html: rightClickInfo.crimeHtml },
+                { icon: "🚌", label: "Bus/metro",   html: rightClickInfo.busStopHtml ?? "" },
+                { icon: "💊", label: "Pharmacy",    html: rightClickInfo.pharmacyHtml ?? "" },
               ] as const).map(({ icon, label, html }) => (
                 <div key={label} style={{ display: "flex", gap: 6, alignItems: "flex-start", padding: "4px 0", borderBottom: "1px solid #f9fafb" }}>
                   <span style={{ width: 16, flexShrink: 0, textAlign: "center", paddingTop: 1 }}>{icon}</span>
@@ -4324,7 +4377,7 @@ export default function Home() {
                       dc("ValueMap accepts no responsibility or liability for any loss or damage arising from reliance on this data."),
                       dc(""),
                     ];
-                    const header = "Timestamp,Postcode,Lat,Lng,Flood,Sec School,Pri School,Station,Crime,EPC,Internet,Median Price,Price Change %,Price Change £,Tx Count,Constituency";
+                    const header = "Timestamp,Postcode,Lat,Lng,Flood,Sec School,Pri School,Station,Crime,Bus/Metro,Pharmacy,EPC,Internet,Median Price,Price Change %,Price Change £,Tx Count,Constituency";
                     const rows = rgLog.map(e => [
                       e.timestamp,
                       `"${e.postcode}"`,
@@ -4335,6 +4388,8 @@ export default function Home() {
                       e.primarySchoolSummary ? `"${e.primarySchoolSummary.replace(/"/g, '""')}"` : "",
                       `"${e.stationSummary.replace(/"/g, '""')}"`,
                       e.crimeSummary ? `"${e.crimeSummary.replace(/"/g, '""')}"` : "",
+                      e.busStopSummary ? `"${e.busStopSummary.replace(/"/g, '""')}"` : "",
+                      e.pharmacySummary ? `"${e.pharmacySummary.replace(/"/g, '""')}"` : "",
                       e.epcSummary ? `"${e.epcSummary.replace(/"/g, '""')}"` : "",
                       e.broadbandSummary ? `"${e.broadbandSummary.replace(/"/g, '""')}"` : "",
                       e.cellMedian ?? "",
@@ -4369,6 +4424,8 @@ export default function Home() {
                     {entry.primarySchoolSummary && <div>🔑 {entry.primarySchoolSummary}</div>}
                     <div>🚂 {entry.stationSummary}</div>
                     {entry.crimeSummary && <div>🔴 {entry.crimeSummary}</div>}
+                    {entry.busStopSummary && <div>🚌 {entry.busStopSummary}</div>}
+                    {entry.pharmacySummary && <div>💊 {entry.pharmacySummary}</div>}
                     {entry.epcSummary && <div>🏡 {entry.epcSummary}</div>}
                     {entry.broadbandSummary && <div>📶 {entry.broadbandSummary}</div>}
                     {entry.cellMedian && <div>🏠 {entry.cellMedian >= 1000000 ? `£${(entry.cellMedian / 1000000).toFixed(1)}m` : `£${Math.round(entry.cellMedian / 1000)}k`}{entry.cellDeltaPct !== undefined ? ` (${entry.cellDeltaPct >= 0 ? "▲" : "▼"}${Math.abs(entry.cellDeltaPct).toFixed(1)}%)` : ""}</div>}

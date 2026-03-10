@@ -18,6 +18,7 @@ from paths import (
     PUBLISH_PROPERTY_DIR,
     PUBLISH_SCHOOLS_DIR,
     PUBLISH_STATIONS_DIR,
+    PUBLISH_TRANSIT_DIR,
     PUBLISH_VOTE_DIR,
     R2_ARCHIVE_DIR,
     REQUIRED_PROPERTY_ASSET_NAMES,
@@ -63,6 +64,7 @@ def collect_assets(
     epc_dir: Path,
     model_property_dir: Path,
     broadband_dir: Path,
+    transit_dir: Path,
     include_vote: bool,
     include_schools: bool,
     include_flood: bool,
@@ -72,6 +74,7 @@ def collect_assets(
     include_epc: bool,
     include_model: bool,
     include_broadband: bool,
+    include_transit: bool,
 ) -> list[Path]:
     files: list[Path] = []
     if include_vote:
@@ -127,6 +130,15 @@ def collect_assets(
     if include_broadband:
         for grid in ("1km", "5km", "10km", "25km"):
             p = broadband_dir / f"broadband_cells_{grid}.json.gz"
+            if p.exists():
+                files.append(p)
+    if include_transit:
+        for name in (
+            "bus_stop_overlay_points.geojson.gz",
+            "metro_tram_overlay_points.geojson.gz",
+            "pharmacy_overlay_points.geojson.gz",
+        ):
+            p = transit_dir / name
             if p.exists():
                 files.append(p)
     return files
@@ -254,6 +266,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-model", action="store_true", help="Skip modelled price estimate upload")
     parser.add_argument("--broadband-dir", default=str(MODEL_BROADBAND_DIR), help="Broadband cell assets directory")
     parser.add_argument("--skip-broadband", action="store_true", help="Skip broadband cell upload")
+    parser.add_argument("--transit-dir", default=str(PUBLISH_TRANSIT_DIR), help="Staged transit assets directory")
+    parser.add_argument("--skip-transit", action="store_true", help="Skip bus stop, metro/tram, and pharmacy overlay upload")
     parser.add_argument(
         "--no-backup-before-upload",
         action="store_true",
@@ -278,6 +292,7 @@ def main() -> None:
     crime_dir = Path(args.crime_dir)
     epc_dir = Path(args.epc_dir)
     broadband_dir = Path(args.broadband_dir)
+    transit_dir = Path(args.transit_dir)
 
     include_vote = not args.skip_vote
     include_schools = not args.skip_schools
@@ -288,10 +303,11 @@ def main() -> None:
     include_epc = not args.skip_epc
     include_model = not args.skip_model
     include_broadband = not args.skip_broadband
+    include_transit = not args.skip_transit
     backup_before_upload = not args.no_backup_before_upload
     backup_dir = Path(args.backup_dir)
 
-    only_freshness = not (include_vote or include_schools or include_stations or include_flood or include_property or include_crime or include_epc or include_model or include_broadband)
+    only_freshness = not (include_vote or include_schools or include_stations or include_flood or include_property or include_crime or include_epc or include_model or include_broadband or include_transit)
 
     account_id = env_value("R2_ACCOUNT_ID", "CLOUDFLARE_ACCOUNT_ID")
     bucket_name = env_value("R2_BUCKET", "R2_BUCKET_NAME") or "valuemap-uk"
@@ -330,6 +346,7 @@ def main() -> None:
             epc_dir,
             MODEL_PROPERTY_DIR,
             broadband_dir,
+            transit_dir,
             include_vote,
             include_schools,
             include_flood,
@@ -339,6 +356,7 @@ def main() -> None:
             include_epc,
             include_model,
             include_broadband,
+            include_transit,
         )
         missing = [str(path) for path in files if not path.exists()]
         if missing:

@@ -23,6 +23,8 @@ type BroadbandCellMetric = "avg_speed" | "pct_sfbb" | "pct_fast";
 type CrimeCellScale = "absolute" | "relative";
 type CrimeCellSubMode = "total" | "violent" | "property" | "asb";
 type VoteColorScale = "relative" | "absolute";
+type BusStopOverlayMode = "off" | "on" | "on_hide_cells";
+type PharmacyOverlayMode = "off" | "on" | "on_hide_cells";
 
 export type MapState = {
   grid: GridSize;
@@ -50,6 +52,8 @@ export type MapState = {
   broadbandCellMetric?: BroadbandCellMetric;
   overlayFilterThreshold?: number; // threshold for cell-overlay filter (units depend on active overlay)
   modelledMode?: "actual" | "blend" | "estimated" | "model_only";
+  busStopOverlayMode?: BusStopOverlayMode;
+  pharmacyOverlayMode?: PharmacyOverlayMode;
 };
 
 export type IndexPrefs = {
@@ -67,6 +71,8 @@ export type IndexPrefs = {
   epcFuelWeight?: number;       // 0-10 importance (heating fuel preference)
   epcFuelPreference?: string;   // "gas" | "electric" | "oil" | "lpg" | "no_gas"
   broadbandWeight?: number;     // 0-10 importance (internet speed tier: 3=SFBB/30Mb+, 6=Cable/100Mb+, 10=Fibre/300Mb+)
+  busWeight?: number;           // 0-10 importance (bus stop / metro / tram proximity)
+  pharmacyWeight?: number;      // 0-10 importance (nearest community pharmacy distance)
   indexFilterMode?: "off" | "lte" | "gte";
   indexFilterThreshold?: number; // 0..1
 };
@@ -262,6 +268,15 @@ const LOCAL_NEAREST_STATION_MAX_DISTANCE_METERS = 80_467; // 50 miles
 // Distance scoring for train station: full score within 1 mile, zero at 20 miles
 const STATION_GOOD_DISTANCE_METERS = 1_609; // 1 mile
 const STATION_MAX_DISTANCE_METERS = 16_093; // 10 miles
+// Distance scoring for bus stops (BCT/BCS)
+const BUS_STOP_GREAT_METERS   = 500;    // ≤500m = full score
+const BUS_STOP_MAX_METERS     = 1_500;  // ≥1500m = zero
+// Distance scoring for metro/tram (TMU/PLT)
+const METRO_TRAM_GREAT_METERS = 750;    // ≤750m = full score
+const METRO_TRAM_MAX_METERS   = 2_500;  // ≥2500m = zero
+// Distance scoring for community pharmacies
+const PHARMACY_GREAT_METERS   = 800;    // ≤800m (10-min walk) = full score
+const PHARMACY_MAX_METERS     = 5_000;  // ≥5000m (few-min drive) = zero
 
 const VOTE_CELLS_DATA_VERSION = process.env.NEXT_PUBLIC_VOTE_CELLS_DATA_VERSION ?? "20260222b";
 const COMMUTE_CELLS_DATA_VERSION = process.env.NEXT_PUBLIC_COMMUTE_CELLS_DATA_VERSION ?? "20260301a";
@@ -368,12 +383,14 @@ export type RgLogEntry = {
   crimeSummary?: string;
   epcSummary?: string;
   broadbandSummary?: string;
+  busStopSummary?: string;
+  pharmacySummary?: string;
 };
 
 /** Data passed to page.tsx for the right-click info panel. */
 export type RightClickInfoData =
   | { stage: 'loading'; clickLat: number; clickLng: number }
-  | { stage: 'ready'; postcode: string; isOutcode: boolean; floodHtml: string; schoolHtml: string; primarySchoolHtml: string; stationHtml: string; crimeHtml: string; epcHtml?: string; broadbandHtml?: string; clickLat: number; clickLng: number; cellMedian?: number; cellDeltaPct?: number; cellDeltaGbp?: number; cellTxCount?: number; constituency?: string; };
+  | { stage: 'ready'; postcode: string; isOutcode: boolean; floodHtml: string; schoolHtml: string; primarySchoolHtml: string; stationHtml: string; crimeHtml: string; epcHtml?: string; broadbandHtml?: string; busStopHtml?: string; pharmacyHtml?: string; clickLat: number; clickLng: number; cellMedian?: number; cellDeltaPct?: number; cellDeltaGbp?: number; cellTxCount?: number; constituency?: string; };
 
 export default function ValueMap({
   state,
@@ -1193,6 +1210,31 @@ export default function ValueMap({
     data: { type: "FeatureCollection", features: [] },
   });
 
+  // ── Bus stop / metro-tram / pharmacy overlay sources ──
+  map.addSource("bus-stop-overlay", {
+    type: "geojson",
+    data: "/api/bus-stops?plain=1",
+    cluster: true,
+    clusterMaxZoom: 14,
+    clusterRadius: 38,
+  });
+
+  map.addSource("metro-tram-overlay", {
+    type: "geojson",
+    data: "/api/bus-stops?key=metro_tram_overlay_points.geojson.gz&plain=1",
+    cluster: true,
+    clusterMaxZoom: 9,
+    clusterRadius: 40,
+  });
+
+  map.addSource("pharmacy-overlay", {
+    type: "geojson",
+    data: "/api/pharmacies?plain=1",
+    cluster: true,
+    clusterMaxZoom: 10,
+    clusterRadius: 40,
+  });
+
   map.addSource("postcode-search-marker", {
     type: "geojson",
     data: { type: "FeatureCollection", features: [] },
@@ -1577,10 +1619,150 @@ export default function ValueMap({
     },
   });
 
-  // ── Station search focus layers ──
-  // Rail casing (wide white base — ballast/sleeper ground)
+  // ── Bus stop overlay layers (sky-blue) ──
   map.addLayer({
-    id: "station-search-focus-rail-casing",
+    id: "bus-stop-overlay-clusters",
+    type: "circle",
+    source: "bus-stop-overlay",
+    filter: ["has", "point_count"] as any,
+    layout: {
+      visibility: stateRef.current.busStopOverlayMode && stateRef.current.busStopOverlayMode !== "off" ? "visible" : "none",
+    },
+    paint: {
+      "circle-color": ["step", ["get", "point_count"], "rgba(56,189,248,0.6)", 50, "rgba(14,165,233,0.75)", 500, "rgba(2,132,199,0.88)"] as any,
+      "circle-radius": ["step", ["get", "point_count"], 14, 50, 19, 500, 26] as any,
+      "circle-stroke-color": "rgba(255,255,255,0.9)",
+      "circle-stroke-width": 1,
+    },
+  });
+  map.addLayer({
+    id: "bus-stop-overlay-cluster-count",
+    type: "symbol",
+    source: "bus-stop-overlay",
+    filter: ["has", "point_count"] as any,
+    layout: {
+      visibility: stateRef.current.busStopOverlayMode && stateRef.current.busStopOverlayMode !== "off" ? "visible" : "none",
+      "text-field": ["get", "point_count_abbreviated"] as any,
+      "text-size": 11,
+      "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
+    },
+    paint: { "text-color": "rgba(255,255,255,0.95)" },
+  });
+  map.addLayer({
+    id: "bus-stop-overlay-points",
+    type: "circle",
+    source: "bus-stop-overlay",
+    filter: ["!", ["has", "point_count"]] as any,
+    layout: {
+      visibility: stateRef.current.busStopOverlayMode && stateRef.current.busStopOverlayMode !== "off" ? "visible" : "none",
+    },
+    paint: {
+      "circle-color": "#38bdf8",
+      "circle-opacity": 0.88,
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 3, 12, 4.5, 14, 6, 16, 8] as any,
+      "circle-stroke-color": "rgba(255,255,255,0.92)",
+      "circle-stroke-width": 1,
+      "circle-blur": 0.02,
+    },
+  });
+
+  // ── Metro / tram overlay layers (purple) ──
+  map.addLayer({
+    id: "metro-tram-overlay-clusters",
+    type: "circle",
+    source: "metro-tram-overlay",
+    filter: ["has", "point_count"] as any,
+    layout: {
+      visibility: stateRef.current.busStopOverlayMode && stateRef.current.busStopOverlayMode !== "off" ? "visible" : "none",
+    },
+    paint: {
+      "circle-color": ["step", ["get", "point_count"], "rgba(168,85,247,0.6)", 10, "rgba(139,59,217,0.75)", 50, "rgba(109,40,217,0.88)"] as any,
+      "circle-radius": ["step", ["get", "point_count"], 13, 10, 18, 50, 24] as any,
+      "circle-stroke-color": "rgba(255,255,255,0.9)",
+      "circle-stroke-width": 1,
+    },
+  });
+  map.addLayer({
+    id: "metro-tram-overlay-cluster-count",
+    type: "symbol",
+    source: "metro-tram-overlay",
+    filter: ["has", "point_count"] as any,
+    layout: {
+      visibility: stateRef.current.busStopOverlayMode && stateRef.current.busStopOverlayMode !== "off" ? "visible" : "none",
+      "text-field": ["get", "point_count_abbreviated"] as any,
+      "text-size": 11,
+      "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
+    },
+    paint: { "text-color": "rgba(255,255,255,0.95)" },
+  });
+  map.addLayer({
+    id: "metro-tram-overlay-points",
+    type: "circle",
+    source: "metro-tram-overlay",
+    filter: ["!", ["has", "point_count"]] as any,
+    layout: {
+      visibility: stateRef.current.busStopOverlayMode && stateRef.current.busStopOverlayMode !== "off" ? "visible" : "none",
+    },
+    paint: {
+      "circle-color": "#a855f7",
+      "circle-opacity": 0.9,
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 4, 7, 6, 10, 9, 12, 12] as any,
+      "circle-stroke-color": "rgba(255,255,255,0.92)",
+      "circle-stroke-width": 1.5,
+      "circle-blur": 0.02,
+    },
+  });
+
+  // ── Pharmacy overlay layers (amber) ──
+  map.addLayer({
+    id: "pharmacy-overlay-clusters",
+    type: "circle",
+    source: "pharmacy-overlay",
+    filter: ["has", "point_count"] as any,
+    layout: {
+      visibility: stateRef.current.pharmacyOverlayMode && stateRef.current.pharmacyOverlayMode !== "off" ? "visible" : "none",
+    },
+    paint: {
+      "circle-color": ["step", ["get", "point_count"], "rgba(245,158,11,0.6)", 10, "rgba(217,119,6,0.75)", 50, "rgba(180,83,9,0.88)"] as any,
+      "circle-radius": ["step", ["get", "point_count"], 14, 10, 19, 50, 25] as any,
+      "circle-stroke-color": "rgba(255,255,255,0.9)",
+      "circle-stroke-width": 1,
+    },
+  });
+  map.addLayer({
+    id: "pharmacy-overlay-cluster-count",
+    type: "symbol",
+    source: "pharmacy-overlay",
+    filter: ["has", "point_count"] as any,
+    layout: {
+      visibility: stateRef.current.pharmacyOverlayMode && stateRef.current.pharmacyOverlayMode !== "off" ? "visible" : "none",
+      "text-field": ["get", "point_count_abbreviated"] as any,
+      "text-size": 11,
+      "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
+    },
+    paint: { "text-color": "rgba(255,255,255,0.95)" },
+  });
+  map.addLayer({
+    id: "pharmacy-overlay-points",
+    type: "circle",
+    source: "pharmacy-overlay",
+    filter: ["!", ["has", "point_count"]] as any,
+    layout: {
+      visibility: stateRef.current.pharmacyOverlayMode && stateRef.current.pharmacyOverlayMode !== "off" ? "visible" : "none",
+    },
+    paint: {
+      "circle-color": "#f59e0b",
+      "circle-opacity": 0.9,
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 3, 7, 5, 10, 8, 12, 11] as any,
+      "circle-stroke-color": "rgba(255,255,255,0.92)",
+      "circle-stroke-width": 1,
+      "circle-blur": 0.02,
+    },
+  });
+
+  // ── Station search focus layers ──
+  map.addLayer({
+    id: "station-search-focus-outer",
     type: "line",
     source: "station-search-focus",
     filter: ["==", ["geometry-type"], "LineString"] as any,
@@ -2411,7 +2593,7 @@ export default function ValueMap({
     // ── Index scoring breakdown popup ──
     if (indexPrefsRef.current) {
       const prefs = indexPrefsRef.current;
-      const totalPrefWeight = (prefs.affordWeight ?? 0) + (prefs.floodWeight ?? 0) + (prefs.schoolWeight ?? 0) + (prefs.primarySchoolWeight ?? 0) + (prefs.trainWeight ?? 0) + (prefs.ageWeight ?? 0) + (prefs.crimeWeight ?? 0) + (prefs.epcFuelWeight ?? 0) + (prefs.broadbandWeight ?? 0);
+      const totalPrefWeight = (prefs.affordWeight ?? 0) + (prefs.floodWeight ?? 0) + (prefs.schoolWeight ?? 0) + (prefs.primarySchoolWeight ?? 0) + (prefs.trainWeight ?? 0) + (prefs.ageWeight ?? 0) + (prefs.crimeWeight ?? 0) + (prefs.epcFuelWeight ?? 0) + (prefs.broadbandWeight ?? 0) + (prefs.busWeight ?? 0) + (prefs.pharmacyWeight ?? 0);
       if (totalPrefWeight === 0) {
         const html = `<div style="font-family:system-ui;font-size:12px;line-height:1.4;min-width:180px;max-width:220px;">
           <div style="font-weight:700;margin-bottom:6px;font-size:13px;">🗺️ No criteria set</div>
@@ -2500,6 +2682,8 @@ export default function ValueMap({
           const bbVal = Number.isFinite(bbSpeed) ? Math.min(1, bbSpeed / bbThreshold) : NaN;
           html += wRow(`📶 Internet (${bbTierLabel} ≥${bbThreshold}Mb)`, prefs.broadbandWeight!, bar(Number.isFinite(bbVal) ? bbVal : 0.5, !Number.isFinite(bbSpeed)));
         }
+        if ((prefs.busWeight ?? 0) > 0) html += wRow("🚌 Bus & metro *", prefs.busWeight!, bar(Number(p.ix_bus ?? 0.5), p.ix_busn === 1));
+        if ((prefs.pharmacyWeight ?? 0) > 0) html += wRow("💊 Pharmacy *", prefs.pharmacyWeight!, bar(Number(p.ix_phm ?? 0.5), p.ix_phmn === 1));
         html += `</div>`;
         popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
         return;
@@ -3032,6 +3216,52 @@ export default function ValueMap({
       return _indexCrimeGrid;
     };
 
+    const ensureBusStop = async () => {
+      if (_indexBusStopCache === null) {
+        try {
+          const r = await fetch("/api/bus-stops?plain=1");
+          if (r.ok) {
+            _indexBusStopCache = ((await r.json() as any)?.features ?? [])
+              .filter((f: any) => f?.geometry?.type === "Point")
+              .map((f: any) => ({ lon: Number(f.geometry.coordinates[0]), lat: Number(f.geometry.coordinates[1]), name: String(f.properties?.name ?? ""), atco_code: String(f.properties?.atco_code ?? "") }));
+            _indexBusStopGrid = null;
+          }
+        } catch { /* leave null */ }
+      }
+      if (_indexBusStopGrid === null && _indexBusStopCache !== null) _indexBusStopGrid = buildSpatialGrid(_indexBusStopCache, 0.12);
+      return _indexBusStopGrid;
+    };
+    const ensureMetroTram = async () => {
+      if (_indexMetroTramCache === null) {
+        try {
+          const r = await fetch("/api/bus-stops?key=metro_tram_overlay_points.geojson.gz&plain=1");
+          if (r.ok) {
+            _indexMetroTramCache = ((await r.json() as any)?.features ?? [])
+              .filter((f: any) => f?.geometry?.type === "Point")
+              .map((f: any) => ({ lon: Number(f.geometry.coordinates[0]), lat: Number(f.geometry.coordinates[1]), name: String(f.properties?.name ?? ""), stop_type: String(f.properties?.stop_type ?? "") }));
+            _indexMetroTramGrid = null;
+          }
+        } catch { /* leave null */ }
+      }
+      if (_indexMetroTramGrid === null && _indexMetroTramCache !== null) _indexMetroTramGrid = buildSpatialGrid(_indexMetroTramCache, 0.12);
+      return _indexMetroTramGrid;
+    };
+    const ensurePharmacy = async () => {
+      if (_indexPharmacyCache === null) {
+        try {
+          const r = await fetch("/api/pharmacies?plain=1");
+          if (r.ok) {
+            _indexPharmacyCache = ((await r.json() as any)?.features ?? [])
+              .filter((f: any) => f?.geometry?.type === "Point")
+              .map((f: any) => ({ lon: Number(f.geometry.coordinates[0]), lat: Number(f.geometry.coordinates[1]), name: String(f.properties?.name ?? ""), ods_code: String(f.properties?.ods_code ?? "") }));
+            _indexPharmacyGrid = null;
+          }
+        } catch { /* leave null */ }
+      }
+      if (_indexPharmacyGrid === null && _indexPharmacyCache !== null) _indexPharmacyGrid = buildSpatialGrid(_indexPharmacyCache, 0.12);
+      return _indexPharmacyGrid;
+    };
+
     // Clear any previous lines immediately when a new right-click starts
     setFloodSearchFocus(map, null);
     setFloodSearchContext(map, null);
@@ -3043,12 +3273,15 @@ export default function ValueMap({
     void (async () => {
       try {
         // Run postcode lookup and dataset loading in parallel
-        const [floodG, schoolG, primarySchoolG, stationG, crimeG, pcRes] = await Promise.all([
+        const [floodG, schoolG, primarySchoolG, stationG, crimeG, busStopG, metroTramG, pharmacyG, pcRes] = await Promise.all([
           ensureFlood(),
           ensureSchool(),
           ensurePrimarySchool(),
           ensureStation(),
           ensureCrime(),
+          ensureBusStop(),
+          ensureMetroTram(),
+          ensurePharmacy(),
           fetch(`https://api.postcodes.io/postcodes?lon=${lng}&lat=${lat}&limit=1&radius=2000`),
         ]);
 
@@ -3207,6 +3440,51 @@ export default function ValueMap({
           }
         }
 
+        // ── Nearest bus stop / metro-tram ──
+        let busStopHtml = '<span style="color:#6b7280">No transit data</span>';
+        if (busStopG) {
+          const busNear = querySpatialGrid(busStopG, lng, lat, 0.027); // ~3km radius
+          let nearBus: (typeof busNear)[0] | null = null; let nearBusDist = Infinity;
+          for (const sp of busNear) {
+            const d = haversineDistanceMeters(lat, lng, sp.lat, sp.lon);
+            if (d < nearBusDist) { nearBusDist = d; nearBus = sp; }
+          }
+          const col = (d: number) => d <= BUS_STOP_GREAT_METERS ? "#16a34a" : d <= BUS_STOP_MAX_METERS ? "#d97706" : "#6b7280";
+          busStopHtml = nearBus
+            ? `🚌 <span style="color:${col(nearBusDist)}">${escapeHtml(nearBus.name)}</span> <span style="color:#9ca3af">${fmtDist(nearBusDist)}</span>`
+            : '<span style="color:#9ca3af">No bus stop within 3km</span>';
+        }
+        if (metroTramG) {
+          const mtNear = querySpatialGrid(metroTramG, lng, lat, 0.09); // ~10km radius
+          let nearMt: (typeof mtNear)[0] | null = null; let nearMtDist = Infinity;
+          for (const sp of mtNear) {
+            const d = haversineDistanceMeters(lat, lng, sp.lat, sp.lon);
+            if (d < nearMtDist) { nearMtDist = d; nearMt = sp; }
+          }
+          if (nearMt && nearMtDist <= METRO_TRAM_MAX_METERS * 2) {
+            const mtCol = nearMtDist <= METRO_TRAM_GREAT_METERS ? "#16a34a" : nearMtDist <= METRO_TRAM_MAX_METERS ? "#d97706" : "#6b7280";
+            const stopLabel = nearMt.stop_type === "TMU" ? "Metro entrance" : nearMt.stop_type === "PLT" ? "Metro platform" : "Metro";
+            busStopHtml += `<br/><span style="color:#a855f7;font-size:10px">${stopLabel}: ${escapeHtml(nearMt.name)}</span> <span style="color:#9ca3af;font-size:10px">${fmtDist(nearMtDist)}</span>`;
+          }
+        }
+
+        // ── Nearest pharmacy ──
+        let pharmacyHtml = '<span style="color:#6b7280">No pharmacy data</span>';
+        if (pharmacyG) {
+          const pharmNear = querySpatialGrid(pharmacyG, lng, lat, 0.09); // ~10km radius
+          let nearPharm: (typeof pharmNear)[0] | null = null; let nearPharmDist = Infinity;
+          for (const sp of pharmNear) {
+            const d = haversineDistanceMeters(lat, lng, sp.lat, sp.lon);
+            if (d < nearPharmDist) { nearPharmDist = d; nearPharm = sp; }
+          }
+          if (nearPharm) {
+            const pharmCol = nearPharmDist <= PHARMACY_GREAT_METERS ? "#16a34a" : nearPharmDist <= PHARMACY_MAX_METERS ? "#d97706" : "#9ca3af";
+            pharmacyHtml = `💊 <span style="color:${pharmCol}">${escapeHtml(nearPharm.name)}</span> <span style="color:#9ca3af">${fmtDist(nearPharmDist)}</span>`;
+          } else {
+            pharmacyHtml = '<span style="color:#9ca3af">No pharmacy within 10km</span>';
+          }
+        }
+
         // Auto-fit the map so the click origin and all arrow endpoints are visible.
         // Expand the bounding box by 50% of the span on each side so the view sits
         // well clear of the arrow tips, and cap zoom so tightly-clustered arrows
@@ -3344,6 +3622,8 @@ export default function ValueMap({
           crimeSummary: stripHtml(crimeHtml),
           epcSummary: epcHtml ? stripHtml(epcHtml) : undefined,
           broadbandSummary: broadbandHtml ? stripHtml(broadbandHtml) : undefined,
+          busStopSummary: stripHtml(busStopHtml),
+          pharmacySummary: stripHtml(pharmacyHtml),
           cellMedian, cellDeltaPct, cellTxCount, constituency,
           cellDeltaGbp,
         });
@@ -3352,7 +3632,7 @@ export default function ValueMap({
         onRightClickInfoRef.current?.({
           stage: 'ready',
           postcode, isOutcode,
-          floodHtml, schoolHtml, primarySchoolHtml, stationHtml, crimeHtml, epcHtml, broadbandHtml,
+          floodHtml, schoolHtml, primarySchoolHtml, stationHtml, crimeHtml, epcHtml, broadbandHtml, busStopHtml, pharmacyHtml,
           clickLat: lat, clickLng: lng,
           cellMedian, cellDeltaPct, cellDeltaGbp, cellTxCount, constituency,
         });
@@ -3562,12 +3842,16 @@ export default function ValueMap({
     const primarySchoolMode = state.primarySchoolOverlayMode ?? "off";
     const stationMode = state.stationOverlayMode ?? "off";
     const crimeMode = state.crimeOverlayMode ?? "off";
+    const busStopMode = state.busStopOverlayMode ?? "off";
+    const pharmacyMode = state.pharmacyOverlayMode ?? "off";
     const floodVisibility = floodMode === "off" ? "none" : "visible";
     const schoolVisibility = schoolMode === "off" ? "none" : "visible";
     const primarySchoolVisibility = primarySchoolMode === "off" ? "none" : "visible";
     const stationVisibility = stationMode === "off" ? "none" : "visible";
     const crimeVisibility = crimeMode === "off" ? "none" : "visible";
-    const hideCellsMode = floodMode === "on_hide_cells" || schoolMode === "on_hide_cells" || primarySchoolMode === "on_hide_cells" || stationMode === "on_hide_cells" || crimeMode === "on_hide_cells";
+    const busStopVisibility = busStopMode === "off" ? "none" : "visible";
+    const pharmacyVisibility = pharmacyMode === "off" ? "none" : "visible";
+    const hideCellsMode = floodMode === "on_hide_cells" || schoolMode === "on_hide_cells" || primarySchoolMode === "on_hide_cells" || stationMode === "on_hide_cells" || crimeMode === "on_hide_cells" || busStopMode === "on_hide_cells" || pharmacyMode === "on_hide_cells";
 
     const apply = () => {
       try {
@@ -3601,6 +3885,19 @@ export default function ValueMap({
         if (map.getLayer("crime-overlay-cluster-count")) map.setLayoutProperty("crime-overlay-cluster-count", "visibility", crimeVisibility);
         if (crimeMode === "off") setCrimeSearchFocus(map, null, null);
 
+        // Bus stop / metro-tram layer visibility (share the busStopMode toggle)
+        if (map.getLayer("bus-stop-overlay-points")) map.setLayoutProperty("bus-stop-overlay-points", "visibility", busStopVisibility);
+        if (map.getLayer("bus-stop-overlay-clusters")) map.setLayoutProperty("bus-stop-overlay-clusters", "visibility", busStopVisibility);
+        if (map.getLayer("bus-stop-overlay-cluster-count")) map.setLayoutProperty("bus-stop-overlay-cluster-count", "visibility", busStopVisibility);
+        if (map.getLayer("metro-tram-overlay-points")) map.setLayoutProperty("metro-tram-overlay-points", "visibility", busStopVisibility);
+        if (map.getLayer("metro-tram-overlay-clusters")) map.setLayoutProperty("metro-tram-overlay-clusters", "visibility", busStopVisibility);
+        if (map.getLayer("metro-tram-overlay-cluster-count")) map.setLayoutProperty("metro-tram-overlay-cluster-count", "visibility", busStopVisibility);
+
+        // Pharmacy layer visibility
+        if (map.getLayer("pharmacy-overlay-points")) map.setLayoutProperty("pharmacy-overlay-points", "visibility", pharmacyVisibility);
+        if (map.getLayer("pharmacy-overlay-clusters")) map.setLayoutProperty("pharmacy-overlay-clusters", "visibility", pharmacyVisibility);
+        if (map.getLayer("pharmacy-overlay-cluster-count")) map.setLayoutProperty("pharmacy-overlay-cluster-count", "visibility", pharmacyVisibility);
+
         // Cell opacity — applied in the same call so it cannot be skipped by a mid-layout bail
         if (map.getLayer("cells-fill")) {
           map.setLayoutProperty("cells-fill", "visibility", "visible");
@@ -3629,7 +3926,7 @@ export default function ValueMap({
     // before we apply paint property updates.
     const raf = requestAnimationFrame(apply);
     return () => { cancelAnimationFrame(raf); };
-  }, [state.floodOverlayMode, state.schoolOverlayMode, state.primarySchoolOverlayMode, state.stationOverlayMode, state.crimeOverlayMode]);
+  }, [state.floodOverlayMode, state.schoolOverlayMode, state.primarySchoolOverlayMode, state.stationOverlayMode, state.crimeOverlayMode, state.busStopOverlayMode, state.pharmacyOverlayMode]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -5068,6 +5365,8 @@ function buildIndexScoringSignature(prefs: IndexPrefs) {
     prefs.epcFuelWeight ?? 0,
     prefs.epcFuelPreference ?? "gas",
     prefs.broadbandWeight ?? 0,
+    prefs.busWeight ?? 0,
+    prefs.pharmacyWeight ?? 0,
   ].join("|");
 }
 
@@ -5091,6 +5390,12 @@ let _indexPrimarySchoolCache: Array<{ lon: number; lat: number; ofstedGrade: num
 let _indexPrimarySchoolGrid: SpatialGrid<{ lon: number; lat: number; ofstedGrade: number; name: string; urn: string }> | null = null;
 let _indexCrimeCache: Array<{ lon: number; lat: number; lsoa_code: string; lsoa_name: string; crime_score: number; violent_score: number; property_score: number; asb_score: number; total_rate: number }> | null = null;
 let _indexCrimeGrid: SpatialGrid<{ lon: number; lat: number; lsoa_code: string; lsoa_name: string; crime_score: number; violent_score: number; property_score: number; asb_score: number; total_rate: number }> | null = null;
+let _indexBusStopCache: Array<{ lon: number; lat: number; name: string; atco_code: string }> | null = null;
+let _indexBusStopGrid: SpatialGrid<{ lon: number; lat: number; name: string; atco_code: string }> | null = null;
+let _indexMetroTramCache: Array<{ lon: number; lat: number; name: string; stop_type: string }> | null = null;
+let _indexMetroTramGrid: SpatialGrid<{ lon: number; lat: number; name: string; stop_type: string }> | null = null;
+let _indexPharmacyCache: Array<{ lon: number; lat: number; name: string; ods_code: string }> | null = null;
+let _indexPharmacyGrid: SpatialGrid<{ lon: number; lat: number; name: string; ods_code: string }> | null = null;
 
 function buildSpatialGrid<T extends { lon: number; lat: number }>(points: T[], cellSize: number): SpatialGrid<T> {
   const buckets = new Map<number, T[]>();
@@ -5234,6 +5539,53 @@ async function applyIndexScoring(
   if (_indexSchoolGrid === null) _indexSchoolGrid = buildSpatialGrid(_indexSchoolCache!, GRID_CELL);
   if (_indexStationGrid === null && _indexStationCache !== null) _indexStationGrid = buildSpatialGrid(_indexStationCache, GRID_CELL);
   if (_indexPrimarySchoolGrid === null && _indexPrimarySchoolCache !== null) _indexPrimarySchoolGrid = buildSpatialGrid(_indexPrimarySchoolCache, GRID_CELL);
+
+  // — Lazily fetch bus stop data when bus scoring is needed —
+  const busW = prefs.busWeight ?? 0;
+  if (busW > 0) {
+    if (_indexBusStopCache === null) {
+      try {
+        const res = await fetch("/api/bus-stops?plain=1");
+        if (res.ok) {
+          const payload = (await res.json()) as any;
+          _indexBusStopCache = (Array.isArray(payload?.features) ? payload.features : [])
+            .filter((f: any) => f?.geometry?.type === "Point")
+            .map((f: any) => ({ lon: Number(f.geometry.coordinates[0]), lat: Number(f.geometry.coordinates[1]), name: String(f.properties?.name ?? ""), atco_code: String(f.properties?.atco_code ?? "") }));
+          _indexBusStopGrid = null;
+        } else { _indexBusStopCache = []; }
+      } catch { _indexBusStopCache = []; }
+    }
+    if (_indexMetroTramCache === null) {
+      try {
+        const res = await fetch("/api/bus-stops?key=metro_tram_overlay_points.geojson.gz&plain=1");
+        if (res.ok) {
+          const payload = (await res.json()) as any;
+          _indexMetroTramCache = (Array.isArray(payload?.features) ? payload.features : [])
+            .filter((f: any) => f?.geometry?.type === "Point")
+            .map((f: any) => ({ lon: Number(f.geometry.coordinates[0]), lat: Number(f.geometry.coordinates[1]), name: String(f.properties?.name ?? ""), stop_type: String(f.properties?.stop_type ?? "") }));
+          _indexMetroTramGrid = null;
+        } else { _indexMetroTramCache = []; }
+      } catch { _indexMetroTramCache = []; }
+    }
+    if (_indexBusStopGrid === null && _indexBusStopCache !== null) _indexBusStopGrid = buildSpatialGrid(_indexBusStopCache, GRID_CELL);
+    if (_indexMetroTramGrid === null && _indexMetroTramCache !== null) _indexMetroTramGrid = buildSpatialGrid(_indexMetroTramCache, GRID_CELL);
+  }
+
+  // — Lazily fetch pharmacy data when pharmacy scoring is needed —
+  const pharmW = prefs.pharmacyWeight ?? 0;
+  if (pharmW > 0 && _indexPharmacyCache === null) {
+    try {
+      const res = await fetch("/api/pharmacies?plain=1");
+      if (res.ok) {
+        const payload = (await res.json()) as any;
+        _indexPharmacyCache = (Array.isArray(payload?.features) ? payload.features : [])
+          .filter((f: any) => f?.geometry?.type === "Point")
+          .map((f: any) => ({ lon: Number(f.geometry.coordinates[0]), lat: Number(f.geometry.coordinates[1]), name: String(f.properties?.name ?? ""), ods_code: String(f.properties?.ods_code ?? "") }));
+        _indexPharmacyGrid = null;
+      } else { _indexPharmacyCache = []; }
+    } catch { _indexPharmacyCache = []; }
+    if (_indexPharmacyGrid === null && _indexPharmacyCache !== null) _indexPharmacyGrid = buildSpatialGrid(_indexPharmacyCache, GRID_CELL);
+  }
 
   const floodGrid = _indexFloodGrid;
   const schoolGrid = _indexSchoolGrid;
@@ -5641,7 +5993,77 @@ async function applyIndexScoring(
     }
     props.ix_bb = broadbandScore;
 
-    // 9) Coast proximity (placeholder)
+    // 9) Bus stop & metro/tram proximity — score = max(busScore, metroScore)
+    let busTransitScore = 0.5;
+    let busTransitNoData = false;
+    if (busW > 0) {
+      const wideBus = _indexBusStopGrid ? querySpatialGrid(_indexBusStopGrid, cLon, cLat, DATA_DEG) : [];
+      const wideMetro = _indexMetroTramGrid ? querySpatialGrid(_indexMetroTramGrid, cLon, cLat, DATA_DEG) : [];
+      if (wideBus.length === 0 && wideMetro.length === 0) {
+        busTransitNoData = true;
+      } else {
+        let minBusDist = Infinity;
+        if (_indexBusStopGrid) {
+          for (const sp of querySpatialGrid(_indexBusStopGrid, cLon, cLat, 0.027)) {
+            const d = haversineDistanceMeters(cLat, cLon, sp.lat, sp.lon);
+            if (d < minBusDist) minBusDist = d;
+          }
+        }
+        let busScore = 0.0;
+        if (minBusDist <= BUS_STOP_GREAT_METERS) {
+          busScore = 1.0;
+        } else if (minBusDist < BUS_STOP_MAX_METERS) {
+          busScore = 1 - (minBusDist - BUS_STOP_GREAT_METERS) / (BUS_STOP_MAX_METERS - BUS_STOP_GREAT_METERS);
+        }
+        let minMetroDist = Infinity;
+        if (_indexMetroTramGrid) {
+          for (const sp of querySpatialGrid(_indexMetroTramGrid, cLon, cLat, 0.09)) {
+            const d = haversineDistanceMeters(cLat, cLon, sp.lat, sp.lon);
+            if (d < minMetroDist) minMetroDist = d;
+          }
+        }
+        let metroScore = 0.0;
+        if (minMetroDist <= METRO_TRAM_GREAT_METERS) {
+          metroScore = 1.0;
+        } else if (minMetroDist < METRO_TRAM_MAX_METERS) {
+          metroScore = 1 - (minMetroDist - METRO_TRAM_GREAT_METERS) / (METRO_TRAM_MAX_METERS - METRO_TRAM_GREAT_METERS);
+        }
+        busTransitScore = Math.max(busScore, metroScore);
+        totalScore += busW * busTransitScore;
+        totalWeight += busW;
+      }
+    }
+    props.ix_bus = busTransitScore;
+    props.ix_busn = busTransitNoData ? 1 : 0;
+
+    // 10) Pharmacy proximity
+    let pharmacyScore = 0.5;
+    let pharmacyNoData = false;
+    if (pharmW > 0) {
+      const widePharm = _indexPharmacyGrid ? querySpatialGrid(_indexPharmacyGrid, cLon, cLat, DATA_DEG) : [];
+      if (widePharm.length === 0) {
+        pharmacyNoData = true;
+      } else if (_indexPharmacyGrid) {
+        let minPharmDist = Infinity;
+        for (const sp of querySpatialGrid(_indexPharmacyGrid, cLon, cLat, 0.09)) {
+          const d = haversineDistanceMeters(cLat, cLon, sp.lat, sp.lon);
+          if (d < minPharmDist) minPharmDist = d;
+        }
+        if (minPharmDist <= PHARMACY_GREAT_METERS) {
+          pharmacyScore = 1.0;
+        } else if (minPharmDist <= PHARMACY_MAX_METERS) {
+          pharmacyScore = 1 - (minPharmDist - PHARMACY_GREAT_METERS) / (PHARMACY_MAX_METERS - PHARMACY_GREAT_METERS);
+        } else {
+          pharmacyScore = 0.0;
+        }
+        totalScore += pharmW * pharmacyScore;
+        totalWeight += pharmW;
+      }
+    }
+    props.ix_phm = pharmacyScore;
+    props.ix_phmn = pharmacyNoData ? 1 : 0;
+
+    // 11) Coast proximity (placeholder)
     if (prefs.coastWeight > 0) {
       totalScore += prefs.coastWeight * 0.5;
       totalWeight += prefs.coastWeight;
@@ -5689,6 +6111,14 @@ async function applyIndexScoring(
     if (crimeW > 0 && crimeScore < 0.5) {
       const shortfall = (0.5 - crimeScore) / 0.5;
       vetoMultiplier *= Math.max(0, 1 - Math.min(crimeW, VETO_WEIGHT_CAP) * shortfall * 0.5);
+    }
+    if (busW > 0 && !busTransitNoData && busTransitScore < 0.5) {
+      const shortfall = (0.5 - busTransitScore) / 0.5;
+      vetoMultiplier *= Math.max(0, 1 - Math.min(busW, VETO_WEIGHT_CAP) * shortfall * 0.5);
+    }
+    if (pharmW > 0 && !pharmacyNoData && pharmacyScore < 0.5) {
+      const shortfall = (0.5 - pharmacyScore) / 0.5;
+      vetoMultiplier *= Math.max(0, 1 - Math.min(pharmW, VETO_WEIGHT_CAP) * shortfall * 0.5);
     }
 
     const baseScore = totalWeight > 0 ? totalScore / totalWeight : 0.5;

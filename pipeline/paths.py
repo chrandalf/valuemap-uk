@@ -42,6 +42,12 @@ PUBLISH_EPC_DIR = PUBLISH_DIR / "epc"
 PUBLISH_PROPERTY_DIR = PUBLISH_DIR / "property"
 PUBLISH_STATIONS_DIR = PUBLISH_DIR / "stations"
 
+MODEL_TRANSIT_DIR = MODEL_DIR / "transit"
+PUBLISH_TRANSIT_DIR = PUBLISH_DIR / "transit"
+MODEL_BUS_STOP_OVERLAY_POINTS = MODEL_TRANSIT_DIR / "bus_stop_overlay_points.geojson.gz"
+MODEL_METRO_TRAM_OVERLAY_POINTS = MODEL_TRANSIT_DIR / "metro_tram_overlay_points.geojson.gz"
+MODEL_PHARMACY_OVERLAY_POINTS = MODEL_TRANSIT_DIR / "pharmacy_overlay_points.geojson.gz"
+
 PUBLIC_DATA_DIR = ROOT / "public" / "data"
 
 RAW_SCHOOL_KS4 = RAW_SCHOOLS_DIR / "england_ks4revised.csv"
@@ -146,5 +152,7 @@ def ensure_pipeline_dirs() -> None:
         PUBLISH_CRIME_DIR,
         RAW_BROADBAND_DIR,
         MODEL_BROADBAND_DIR,
+        MODEL_TRANSIT_DIR,
+        PUBLISH_TRANSIT_DIR,
     ]:
         p.mkdir(parents=True, exist_ok=True)
