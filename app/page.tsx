@@ -46,6 +46,8 @@ type IndexScoringPrefs = {
   broadbandWeight?: number;
   busWeight?: number;
   pharmacyWeight?: number;
+  regionBbox?: [number, number, number, number] | null;
+  regionLabel?: string | null;
 };
 
 type MapState = {
@@ -158,6 +160,51 @@ const IMP_LEVELS = [
   { label: "Nice",  value: 3  },
   { label: "Off",   value: 0  },
 ] as const;
+
+type RegionCandidate = {
+  label: string;
+  context: string; // e.g. "County • South West England"
+  bbox: [number, number, number, number];
+};
+
+async function geocodeUkPlaceCandidates(query: string): Promise<RegionCandidate[]> {
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&countrycodes=gb&format=json&limit=5`;
+    const res = await fetch(url, { headers: { "Accept-Language": "en" } });
+    if (!res.ok) return [];
+    const results: any[] = await res.json();
+    if (!Array.isArray(results) || results.length === 0) return [];
+    const ranked = [...results].sort((a, b) => {
+      const score = (r: any) => (r.class === "boundary" ? 0 : r.class === "place" ? 1 : 2);
+      return score(a) - score(b);
+    });
+    const SKIP = new Set(["United Kingdom", "England", "Scotland", "Wales", "Northern Ireland"]);
+    const seen = new Set<string>();
+    const candidates: RegionCandidate[] = [];
+    for (const r of ranked) {
+      if (candidates.length >= 3) break;
+      const bb: string[] = r.boundingbox; // [latMin, latMax, lonMin, lonMax]
+      if (!Array.isArray(bb) || bb.length < 4) continue;
+      const minLon = parseFloat(bb[2]);
+      const minLat = parseFloat(bb[0]);
+      const maxLon = parseFloat(bb[3]);
+      const maxLat = parseFloat(bb[1]);
+      if (!Number.isFinite(minLon) || !Number.isFinite(minLat) || !Number.isFinite(maxLon) || !Number.isFinite(maxLat)) continue;
+      const label = (r.name || r.display_name || query).split(",")[0].trim();
+      if (seen.has(label.toLowerCase())) continue;
+      seen.add(label.toLowerCase());
+      const parts = (r.display_name || "").split(",").map((p: string) => p.trim()).filter(Boolean);
+      const typeStr: string = r.addresstype || r.type || "";
+      const typeLabel = typeStr ? typeStr.charAt(0).toUpperCase() + typeStr.slice(1) : "";
+      const contextParts = parts.slice(1).filter((p: string) => !SKIP.has(p)).slice(0, 2);
+      const context = [typeLabel, ...contextParts].filter(Boolean).join(" • ");
+      candidates.push({ label, context, bbox: [minLon, minLat, maxLon, maxLat] });
+    }
+    return candidates;
+  } catch {
+    return [];
+  }
+}
 
 function snapToLevel(v: number): number {
   return IMP_LEVELS.reduce<number>(
@@ -410,6 +457,11 @@ export default function Home() {
   const [indexBroadbandWeight, setIndexBroadbandWeight] = useState(0);
   const [indexBusWeight, setIndexBusWeight] = useState(0);
   const [indexPharmacyWeight, setIndexPharmacyWeight] = useState(0);
+  const [indexRegion, setIndexRegion] = useState<{ label: string; bbox: [number, number, number, number] } | null>(null);
+  const [indexRegionInput, setIndexRegionInput] = useState("");
+  const [indexRegionLoading, setIndexRegionLoading] = useState(false);
+  const [indexRegionError, setIndexRegionError] = useState<string | null>(null);
+  const [indexRegionSuggestions, setIndexRegionSuggestions] = useState<RegionCandidate[] | null>(null);
   const [indexValidationError, setIndexValidationError] = useState<string | null>(null);
   const [indexApplied, setIndexApplied] = useState<IndexScoringPrefs>({
     budget: 300000,
@@ -459,6 +511,7 @@ export default function Home() {
       broadbandWeight: indexApplied.broadbandWeight ?? 0,
       busWeight: indexApplied.busWeight ?? 0,
       pharmacyWeight: indexApplied.pharmacyWeight ?? 0,
+      regionBbox: indexApplied.regionBbox ?? null,
       indexFilterMode: indexSuitabilityMode,
       indexFilterThreshold: indexSuitabilityThreshold / 100,
     };
@@ -544,6 +597,10 @@ export default function Home() {
     setIndexBusWeight(0);
     setIndexPharmacyWeight(0);
     setIndexValidationError(null);
+    setIndexRegion(null);
+    setIndexRegionInput("");
+    setIndexRegionError(null);
+    setIndexRegionSuggestions(null);
     setIndexApplied({
       budget: 300000,
       propertyType: "ALL",
@@ -559,8 +616,44 @@ export default function Home() {
       broadbandWeight: 0,
       busWeight: 0,
       pharmacyWeight: 0,
+      regionBbox: null,
+      regionLabel: null,
     });
     setRgLinesShown({ flood: true, school: true, primarySchool: true, station: true, crime: true, busStop: true, pharmacy: true });
+  };
+
+  const applyRegionCandidate = (c: RegionCandidate) => {
+    setIndexRegion(c);
+    setIndexRegionInput("");
+    setIndexRegionSuggestions(null);
+    setIndexRegionError(null);
+    const cx = (c.bbox[0] + c.bbox[2]) / 2;
+    const cy = (c.bbox[1] + c.bbox[3]) / 2;
+    const bboxSpan = Math.max(c.bbox[2] - c.bbox[0], c.bbox[3] - c.bbox[1]);
+    const zoom = Math.max(5, Math.min(10, Math.round(Math.log2(8 / bboxSpan) + 7)));
+    const t = ++flyToSeqRef.current;
+    setFlyToRequest({ center: [cx, cy], zoom, token: t });
+  };
+
+  const handleRegionGeocode = async (query: string) => {
+    const q = query.trim();
+    if (!q) return;
+    setIndexRegionLoading(true);
+    setIndexRegionError(null);
+    setIndexRegionSuggestions(null);
+    try {
+      const candidates = await geocodeUkPlaceCandidates(q);
+      if (candidates.length === 0) {
+        setIndexRegionError("Area not found — try a county, city or town name");
+      } else if (candidates.length === 1) {
+        applyRegionCandidate(candidates[0]);
+      } else {
+        setIndexRegionSuggestions(candidates);
+      }
+    } catch {
+      setIndexRegionError("Search unavailable — check your connection");
+    }
+    setIndexRegionLoading(false);
   };
 
   // Close dropdowns when clicking outside
@@ -3163,6 +3256,66 @@ export default function Home() {
               * = Work in progress — results may be incomplete
             </div>
 
+            {/* Region area filter */}
+            <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", padding: "8px 0 6px", marginBottom: 4 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, opacity: 0.65, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                📍 Limit to area (optional)
+              </div>
+              {indexRegion ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ background: "rgba(56,189,248,0.15)", border: "1px solid rgba(56,189,248,0.4)", borderRadius: 999, padding: "4px 11px", fontSize: 11, fontWeight: 600, color: "#38bdf8" }}>
+                    📍 {indexRegion.label}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => { setIndexRegion(null); setIndexRegionInput(""); setIndexRegionError(null); setIndexRegionSuggestions(null); }}
+                    style={{ cursor: "pointer", background: "none", border: "none", color: "rgba(255,255,255,0.55)", fontSize: 16, lineHeight: 1, padding: "1px 5px" }}
+                    aria-label="Clear area filter"
+                  >×</button>
+                </div>
+              ) : (
+                <>
+                  <div style={{ display: "flex", gap: 5 }}>
+                    <input
+                      type="text"
+                      placeholder="e.g. Devon, Leeds, Yorkshire…"
+                      value={indexRegionInput}
+                      onChange={(e) => { setIndexRegionInput(e.target.value); setIndexRegionError(null); setIndexRegionSuggestions(null); }}
+                      onKeyDown={(e) => { if (e.key === "Enter") void handleRegionGeocode(indexRegionInput); }}
+                      style={{ flex: 1, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 8, color: "white", fontSize: 11, padding: "5px 8px", outline: "none" }}
+                    />
+                    <button
+                      type="button"
+                      disabled={indexRegionLoading || !indexRegionInput.trim()}
+                      onClick={() => void handleRegionGeocode(indexRegionInput)}
+                      style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 8, background: "rgba(255,255,255,0.07)", color: "white", fontSize: 11, padding: "5px 10px", opacity: indexRegionLoading || !indexRegionInput.trim() ? 0.4 : 1 }}
+                    >
+                      {indexRegionLoading ? "…" : "Find"}
+                    </button>
+                  </div>
+                  {indexRegionSuggestions && indexRegionSuggestions.length > 0 && (
+                    <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 4 }}>
+                      <div style={{ fontSize: 10, opacity: 0.55, marginBottom: 1 }}>Did you mean one of these?</div>
+                      {indexRegionSuggestions.map((c, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => applyRegionCandidate(c)}
+                          style={{ cursor: "pointer", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, color: "white", padding: "6px 10px", textAlign: "left", display: "flex", flexDirection: "column", gap: 2 }}
+                        >
+                          <span style={{ fontSize: 11, fontWeight: 600 }}>📍 {c.label}</span>
+                          {c.context && <span style={{ fontSize: 10, opacity: 0.55 }}>{c.context}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+              {indexRegionError && (
+                <div style={{ fontSize: 10, color: "#f87171", marginTop: 4 }}>{indexRegionError}</div>
+              )}
+            </div>
+
             {indexActive && (
               <div style={{ fontSize: 10, opacity: 0.6, marginBottom: 8, lineHeight: 1.3, textAlign: "center" }}>
                 🟢 Great match · 🟡 Average · 🔴 Poor match · After scoring, the map will hide weaker areas automatically — you can adjust the threshold in the filter below.
@@ -3205,6 +3358,8 @@ export default function Home() {
                     broadbandWeight: indexBroadbandWeight,
                     busWeight: indexBusWeight,
                     pharmacyWeight: indexPharmacyWeight,
+                    regionBbox: indexRegion?.bbox ?? null,
+                    regionLabel: indexRegion?.label ?? null,
                   });
                   setGridMode("manual");
                   setState((s) => ({ ...s, grid: "1km" }));
@@ -3627,6 +3782,14 @@ export default function Home() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                 <div style={{ fontWeight: 700, fontSize: 14 }}>🎯 Show only good matches</div>
               </div>
+
+              {indexApplied.regionLabel && (
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ background: "rgba(56,189,248,0.15)", border: "1px solid rgba(56,189,248,0.4)", borderRadius: 999, padding: "3px 10px", fontSize: 10, fontWeight: 600, color: "#38bdf8" }}>
+                    📍 {indexApplied.regionLabel}
+                  </span>
+                </div>
+              )}
 
               <div style={{ display: "grid", gridTemplateColumns: "84px 1fr", gap: 8, alignItems: "center" }}>
                 <div style={{ fontSize: 11, opacity: 0.8 }}>Show</div>
