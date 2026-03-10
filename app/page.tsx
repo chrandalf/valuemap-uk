@@ -9,6 +9,7 @@ type Metric = "median" | "median_ppsf" | "delta_gbp" | "delta_pct";
 type PropertyType = "ALL" | "D" | "S" | "T" | "F"; // Detached / Semi / Terraced / Flat
 type NewBuild = "ALL" | "Y" | "N";
 type ValueFilterMode = "off" | "lte" | "gte";
+type IndexSuitabilityMode = "off" | "lte" | "gte" | "area_only";
 type FloodOverlayMode = "off" | "on" | "on_hide_cells";
 type SchoolOverlayMode = "off" | "on" | "on_hide_cells";
 type PrimarySchoolOverlayMode = "off" | "on" | "on_hide_cells";
@@ -46,8 +47,8 @@ type IndexScoringPrefs = {
   broadbandWeight?: number;
   busWeight?: number;
   pharmacyWeight?: number;
-  regionBbox?: [number, number, number, number] | null;
-  regionLabel?: string | null;
+  regionBboxes?: [number, number, number, number][] | null;
+  regionLabels?: string[] | null;
 };
 
 type MapState = {
@@ -457,7 +458,7 @@ export default function Home() {
   const [indexBroadbandWeight, setIndexBroadbandWeight] = useState(0);
   const [indexBusWeight, setIndexBusWeight] = useState(0);
   const [indexPharmacyWeight, setIndexPharmacyWeight] = useState(0);
-  const [indexRegion, setIndexRegion] = useState<{ label: string; bbox: [number, number, number, number] } | null>(null);
+  const [indexRegions, setIndexRegions] = useState<RegionCandidate[]>([]);
   const [indexRegionInput, setIndexRegionInput] = useState("");
   const [indexRegionLoading, setIndexRegionLoading] = useState(false);
   const [indexRegionError, setIndexRegionError] = useState<string | null>(null);
@@ -475,7 +476,7 @@ export default function Home() {
     busWeight: 0,
     pharmacyWeight: 0,
   });
-  const [indexSuitabilityMode, setIndexSuitabilityMode] = useState<ValueFilterMode>("off");
+  const [indexSuitabilityMode, setIndexSuitabilityMode] = useState<IndexSuitabilityMode>("off");
   const [indexSuitabilityThreshold, setIndexSuitabilityThreshold] = useState(65);
   const [tourActive, setTourActive] = useState(false);
   const [tourStep, setTourStep] = useState(0);
@@ -511,8 +512,8 @@ export default function Home() {
       broadbandWeight: indexApplied.broadbandWeight ?? 0,
       busWeight: indexApplied.busWeight ?? 0,
       pharmacyWeight: indexApplied.pharmacyWeight ?? 0,
-      regionBbox: indexApplied.regionBbox ?? null,
-      indexFilterMode: indexSuitabilityMode,
+      regionBboxes: indexApplied.regionBboxes ?? [],
+      indexFilterMode: indexSuitabilityMode === "area_only" ? "area_only" : indexSuitabilityMode,
       indexFilterThreshold: indexSuitabilityThreshold / 100,
     };
   }, [
@@ -597,7 +598,7 @@ export default function Home() {
     setIndexBusWeight(0);
     setIndexPharmacyWeight(0);
     setIndexValidationError(null);
-    setIndexRegion(null);
+    setIndexRegions([]);
     setIndexRegionInput("");
     setIndexRegionError(null);
     setIndexRegionSuggestions(null);
@@ -616,14 +617,14 @@ export default function Home() {
       broadbandWeight: 0,
       busWeight: 0,
       pharmacyWeight: 0,
-      regionBbox: null,
-      regionLabel: null,
+      regionBboxes: [],
+      regionLabels: [],
     });
     setRgLinesShown({ flood: true, school: true, primarySchool: true, station: true, crime: true, busStop: true, pharmacy: true });
   };
 
   const applyRegionCandidate = (c: RegionCandidate) => {
-    setIndexRegion(c);
+    setIndexRegions(prev => prev.length >= 5 || prev.some(r => r.label === c.label) ? prev : [...prev, c]);
     setIndexRegionInput("");
     setIndexRegionSuggestions(null);
     setIndexRegionError(null);
@@ -1346,7 +1347,9 @@ export default function Home() {
   const indexSuitabilityLabel =
     indexSuitabilityMode === "off"
       ? "Off (all areas shown)"
-      : `${indexSuitabilityMode === "lte" ? "Score ≤" : "Score ≥"} ${indexSuitabilityThreshold}%`;
+      : indexSuitabilityMode === "area_only"
+        ? "Area only (all scored areas within selected region(s))"
+        : `${indexSuitabilityMode === "lte" ? "Score ≤" : "Score ≥"} ${indexSuitabilityThreshold}%`;
   const compactIndexUi = isMobileViewport;
   const floodOverlayLabel =
     state.floodOverlayMode === "off"
@@ -3261,24 +3264,29 @@ export default function Home() {
               <div style={{ fontSize: 10, fontWeight: 700, opacity: 0.65, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>
                 📍 Limit to area (optional)
               </div>
-              {indexRegion ? (
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ background: "rgba(56,189,248,0.15)", border: "1px solid rgba(56,189,248,0.4)", borderRadius: 999, padding: "4px 11px", fontSize: 11, fontWeight: 600, color: "#38bdf8" }}>
-                    📍 {indexRegion.label}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => { setIndexRegion(null); setIndexRegionInput(""); setIndexRegionError(null); setIndexRegionSuggestions(null); }}
-                    style={{ cursor: "pointer", background: "none", border: "none", color: "rgba(255,255,255,0.55)", fontSize: 16, lineHeight: 1, padding: "1px 5px" }}
-                    aria-label="Clear area filter"
-                  >×</button>
+              {indexRegions.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 6 }}>
+                  {indexRegions.map((r, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                      <span style={{ background: "rgba(56,189,248,0.15)", border: "1px solid rgba(56,189,248,0.4)", borderRadius: 999, padding: "4px 10px", fontSize: 11, fontWeight: 600, color: "#38bdf8" }}>
+                        📍 {r.label}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setIndexRegions(prev => prev.filter((_, j) => j !== i))}
+                        style={{ cursor: "pointer", background: "none", border: "none", color: "rgba(255,255,255,0.55)", fontSize: 16, lineHeight: 1, padding: "1px 4px" }}
+                        aria-label={`Remove ${r.label}`}
+                      >×</button>
+                    </div>
+                  ))}
                 </div>
-              ) : (
+              )}
+              {indexRegions.length < 5 ? (
                 <>
                   <div style={{ display: "flex", gap: 5 }}>
                     <input
                       type="text"
-                      placeholder="e.g. Devon, Leeds, Yorkshire…"
+                      placeholder={indexRegions.length === 0 ? "e.g. Devon, Leeds, Yorkshire…" : "Add another area…"}
                       value={indexRegionInput}
                       onChange={(e) => { setIndexRegionInput(e.target.value); setIndexRegionError(null); setIndexRegionSuggestions(null); }}
                       onKeyDown={(e) => { if (e.key === "Enter") void handleRegionGeocode(indexRegionInput); }}
@@ -3310,6 +3318,8 @@ export default function Home() {
                     </div>
                   )}
                 </>
+              ) : (
+                <div style={{ fontSize: 10, opacity: 0.5, fontStyle: "italic" }}>Maximum 5 areas added</div>
               )}
               {indexRegionError && (
                 <div style={{ fontSize: 10, color: "#f87171", marginTop: 4 }}>{indexRegionError}</div>
@@ -3358,8 +3368,8 @@ export default function Home() {
                     broadbandWeight: indexBroadbandWeight,
                     busWeight: indexBusWeight,
                     pharmacyWeight: indexPharmacyWeight,
-                    regionBbox: indexRegion?.bbox ?? null,
-                    regionLabel: indexRegion?.label ?? null,
+                    regionBboxes: indexRegions.map(r => r.bbox),
+                    regionLabels: indexRegions.map(r => r.label),
                   });
                   setGridMode("manual");
                   setState((s) => ({ ...s, grid: "1km" }));
@@ -3783,23 +3793,26 @@ export default function Home() {
                 <div style={{ fontWeight: 700, fontSize: 14 }}>🎯 Show only good matches</div>
               </div>
 
-              {indexApplied.regionLabel && (
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ background: "rgba(56,189,248,0.15)", border: "1px solid rgba(56,189,248,0.4)", borderRadius: 999, padding: "3px 10px", fontSize: 10, fontWeight: 600, color: "#38bdf8" }}>
-                    📍 {indexApplied.regionLabel}
-                  </span>
+              {(indexApplied.regionLabels ?? []).length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                  {(indexApplied.regionLabels ?? []).map((lbl, i) => (
+                    <span key={i} style={{ background: "rgba(56,189,248,0.15)", border: "1px solid rgba(56,189,248,0.4)", borderRadius: 999, padding: "3px 10px", fontSize: 10, fontWeight: 600, color: "#38bdf8" }}>
+                      📍 {lbl}
+                    </span>
+                  ))}
                 </div>
               )}
 
               <div style={{ display: "grid", gridTemplateColumns: "84px 1fr", gap: 8, alignItems: "center" }}>
                 <div style={{ fontSize: 11, opacity: 0.8 }}>Show</div>
                 <Segment
-                  options={["off", "lte", "gte"]}
+                  options={(indexApplied.regionBboxes ?? []).length > 0 ? ["off", "area_only", "lte", "gte"] : ["off", "lte", "gte"]}
                   value={indexSuitabilityMode}
-                  onChange={(v) => setIndexSuitabilityMode(v as ValueFilterMode)}
+                  onChange={(v) => setIndexSuitabilityMode(v as IndexSuitabilityMode)}
                   renderOption={(v) => {
                     const labels: Record<string, string> = {
                       off: "All",
+                      area_only: "Area only",
                       lte: "Weak areas",
                       gte: "Good matches",
                     };
@@ -3809,7 +3822,7 @@ export default function Home() {
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "84px 1fr", gap: 8, alignItems: "center" }}>
-                <div style={{ fontSize: 11, opacity: indexSuitabilityMode === "off" ? 0.5 : 0.8 }}>Min score</div>
+                <div style={{ fontSize: 11, opacity: indexSuitabilityMode === "off" || indexSuitabilityMode === "area_only" ? 0.5 : 0.8 }}>Min score</div>
                 <div style={{ display: "grid", gap: 6 }}>
                   <input
                     type="range"
@@ -3818,15 +3831,17 @@ export default function Home() {
                     step={1}
                     value={indexSuitabilityThreshold}
                     onChange={(e) => setIndexSuitabilityThreshold(Number(e.target.value))}
-                    style={{ width: "100%", accentColor: "#22c55e", opacity: indexSuitabilityMode === "off" ? 0.55 : 1 }}
-                    disabled={indexSuitabilityMode === "off"}
+                    style={{ width: "100%", accentColor: "#22c55e", opacity: indexSuitabilityMode === "off" || indexSuitabilityMode === "area_only" ? 0.55 : 1 }}
+                    disabled={indexSuitabilityMode === "off" || indexSuitabilityMode === "area_only"}
                   />
                   <div style={{ fontSize: 10, opacity: 0.8 }}>
                     {indexSuitabilityMode === "off"
                       ? "All scored areas visible"
-                      : indexSuitabilityMode === "gte"
-                        ? `Showing areas scoring ≥ ${indexSuitabilityThreshold}% — raise to narrow further`
-                        : `Showing areas scoring ≤ ${indexSuitabilityThreshold}% — lower-scoring areas only`}
+                      : indexSuitabilityMode === "area_only"
+                        ? "All scored areas within selected region(s)"
+                        : indexSuitabilityMode === "gte"
+                          ? `Showing areas scoring ≥ ${indexSuitabilityThreshold}% — raise to narrow further`
+                          : `Showing areas scoring ≤ ${indexSuitabilityThreshold}% — lower-scoring areas only`}
                   </div>
                 </div>
               </div>

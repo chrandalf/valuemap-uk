@@ -73,8 +73,8 @@ export type IndexPrefs = {
   broadbandWeight?: number;     // 0-10 importance (internet speed tier: 3=SFBB/30Mb+, 6=Cable/100Mb+, 10=Fibre/300Mb+)
   busWeight?: number;           // 0-10 importance (bus stop / metro / tram proximity)
   pharmacyWeight?: number;      // 0-10 importance (nearest community pharmacy distance)
-  regionBbox?: [number, number, number, number] | null; // [minLon, minLat, maxLon, maxLat] — restrict scored cells to this area
-  indexFilterMode?: "off" | "lte" | "gte";
+  regionBboxes?: [number, number, number, number][] | null; // restrict scored cells to any of these [minLon, minLat, maxLon, maxLat] bboxes
+  indexFilterMode?: "off" | "lte" | "gte" | "area_only";
   indexFilterThreshold?: number; // 0..1
 };
 
@@ -5540,6 +5540,7 @@ function buildIndexFilter(indexPrefs: IndexPrefs | null | undefined) {
   if (!indexPrefs) return null;
   const mode = indexPrefs.indexFilterMode ?? "off";
   if (mode === "off") return null;
+  if (mode === "area_only") return [">=", ["coalesce", ["get", "index_score"], 0], 0.001] as any;
   const threshold = Math.max(0, Math.min(1, Number(indexPrefs.indexFilterThreshold ?? 0.6)));
   const op = mode === "lte" ? "<=" : ">=";
   return [op, ["coalesce", ["get", "index_score"], 0], threshold] as any;
@@ -5938,13 +5939,12 @@ async function applyIndexScoring(
     const cLon = (coords[0][0] + coords[2][0]) / 2;
     const cLat = (coords[0][1] + coords[2][1]) / 2;
 
-    // — Region bbox filter: skip cells whose centroid falls outside the selected area —
-    if (prefs.regionBbox) {
-      const [minLon, minLat, maxLon, maxLat] = prefs.regionBbox;
-      if (cLon < minLon || cLon > maxLon || cLat < minLat || cLat > maxLat) {
-        props.index_score = 0;
-        continue;
-      }
+    // — Region bbox filter: skip cells whose centroid falls outside ALL selected areas —
+    if (prefs.regionBboxes && prefs.regionBboxes.length > 0) {
+      const inAny = prefs.regionBboxes.some(([minLon, minLat, maxLon, maxLat]) =>
+        cLon >= minLon && cLon <= maxLon && cLat >= minLat && cLat <= maxLat
+      );
+      if (!inAny) { props.index_score = 0; continue; }
     }
 
     let totalWeight = 0;
