@@ -5540,15 +5540,26 @@ function buildIndexFilter(indexPrefs: IndexPrefs | null | undefined) {
   if (!indexPrefs) return null;
   const mode = indexPrefs.indexFilterMode ?? "off";
   if (mode === "off") return null;
-  if (mode === "area_only") return [">=", ["coalesce", ["get", "index_score"], 0], 0.001] as any;
-  const threshold = Math.max(0, Math.min(1, Number(indexPrefs.indexFilterThreshold ?? 0.6)));
   const hasRegions = (indexPrefs.regionBboxes?.length ?? 0) > 0;
   const score = ["coalesce", ["get", "index_score"], 0] as any;
+  // When regions are active, cells outside the bbox are tagged ix_oor=1.
+  // Always exclude those regardless of sub-mode so only cells within the selected
+  // areas (and their 10 km buffer) are ever visible.
+  const inRegion = hasRegions
+    ? (["!=", ["coalesce", ["get", "ix_oor"], 0], 1] as any)
+    : null;
+
+  if (mode === "area_only") {
+    // Show ALL in-region scored cells, including 0-score (very poor) ones.
+    // score > -0.5 excludes -1 (no data) but includes 0 (poor match).
+    const hasScore = [">", score, -0.5] as any;
+    return inRegion ? ["all", inRegion, hasScore] as any : hasScore;
+  }
+
+  const threshold = Math.max(0, Math.min(1, Number(indexPrefs.indexFilterThreshold ?? 0.6)));
   const op = mode === "lte" ? "<=" : ">=";
   const rangeFilter = [op, score, threshold] as any;
-  // When regions are selected, cells outside the bbox are zeroed out. We must
-  // exclude those zero-score cells so only cells within the selected areas show.
-  if (hasRegions) return ["all", [">", score, 0], rangeFilter] as any;
+  if (inRegion) return ["all", inRegion, rangeFilter] as any;
   return rangeFilter;
 }
 
@@ -5598,6 +5609,8 @@ function buildIndexScoringSignature(prefs: IndexPrefs) {
     prefs.broadbandWeight ?? 0,
     prefs.busWeight ?? 0,
     prefs.pharmacyWeight ?? 0,
+    // Region bboxes must be included so changing the area always triggers a full rescore
+    JSON.stringify(prefs.regionBboxes ?? []),
   ].join("|");
 }
 
@@ -5945,9 +5958,12 @@ async function applyIndexScoring(
     const cLon = (coords[0][0] + coords[2][0]) / 2;
     const cLat = (coords[0][1] + coords[2][1]) / 2;
 
-    // — Region bbox filter: skip cells whose centroid falls outside ALL selected areas —
+    // — Region bbox filter: tag cells outside ALL selected areas with ix_oor=1 —
     // A 10 km buffer is added around each bbox so nearby cells just outside a border still show.
     // 10 km ≈ 0.090° lat; for lon we use the centroid latitude to keep it accurate across GB.
+    // We use a dedicated flag (ix_oor) rather than zeroing the score so the filter can
+    // distinguish "outside region" from "inside region but scored 0 (poor match)" — the
+    // latter should still be visible in Area only / Weak areas modes.
     if (prefs.regionBboxes && prefs.regionBboxes.length > 0) {
       const bufLat = 0.090; // ~10 km in latitude
       const bufLon = 0.090 / Math.cos(cLat * Math.PI / 180); // ~10 km in longitude at this latitude
@@ -5955,8 +5971,9 @@ async function applyIndexScoring(
         cLon >= minLon - bufLon && cLon <= maxLon + bufLon &&
         cLat >= minLat - bufLat && cLat <= maxLat + bufLat
       );
-      if (!inAny) { props.index_score = 0; continue; }
+      if (!inAny) { props.index_score = 0; (props as any).ix_oor = 1; continue; }
     }
+    (props as any).ix_oor = 0; // clear flag from any previous scoring run
 
     let totalWeight = 0;
     let totalScore = 0;
