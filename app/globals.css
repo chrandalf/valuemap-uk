@@ -48,6 +48,12 @@ textarea {
   color: inherit;
 }
 
+/* Flash animation for the mobile detail-panel restore button */
+@keyframes rgRestorePulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.25; transform: scale(0.8); }
+}
+
 .maplibregl-popup-tip {
   border-top-color: #ffffff;
   border-bottom-color: #ffffff;

@@ -367,7 +367,9 @@ export default function Home() {
   const [rightClickInfo, setRightClickInfo] = useState<RightClickInfoData | null>(null);
   const [rgPanelMinimized, setRgPanelMinimized] = useState(false);
   const [rgDismissToken, setRgDismissToken] = useState(0);
-  const [rgLinesVisible, setRgLinesVisible] = useState(true);
+  const [rgLinesShown, setRgLinesShown] = useState({ flood: true, school: true, primarySchool: true, station: true, crime: true, busStop: true, pharmacy: true });
+  const [rgRestoreFlash, setRgRestoreFlash] = useState(false);
+  const overlaysWasOpenRef = useRef(false);
   const [locateMeToken, setLocateMeToken] = useState(0);
   const [locateMeStatus, setLocateMeStatus] = useState<string | null>(null);
   const [locateMeSummary, setLocateMeSummary] = useState<string | null>(null);
@@ -558,6 +560,7 @@ export default function Home() {
       busWeight: 0,
       pharmacyWeight: 0,
     });
+    setRgLinesShown({ flood: true, school: true, primarySchool: true, station: true, crime: true, busStop: true, pharmacy: true });
   };
 
   // Close dropdowns when clicking outside
@@ -577,6 +580,16 @@ export default function Home() {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [controlsDropOpen, infoDropOpen, overlaysDropOpen]);
+
+  // Flash the mobile expand button when the overlay menu closes while the detail panel is still minimised.
+  useEffect(() => {
+    if (!overlaysDropOpen && overlaysWasOpenRef.current && isMobileViewport && rgPanelMinimized && !!rightClickInfo) {
+      setRgRestoreFlash(true);
+      const t = window.setTimeout(() => setRgRestoreFlash(false), 2100);
+      return () => clearTimeout(t);
+    }
+    overlaysWasOpenRef.current = overlaysDropOpen;
+  }, [overlaysDropOpen]);
 
   useEffect(() => {
     if (!activePostcodeSearch.trim()) return;
@@ -2012,9 +2025,9 @@ export default function Home() {
         rgLogCount={rgLog.length}
         onOpenLog={() => setRgLogOpen(true)}
         onLocationLogged={(entry) => setRgLog((prev) => [entry, ...prev])}
-        onRightClickInfo={(info) => { setRightClickInfo(info); if (info) { setRgPanelMinimized(false); if (info.stage === "loading") setRgLinesVisible(true); } }}
+        onRightClickInfo={(info) => { setRightClickInfo(info); if (info) { setRgPanelMinimized(false); if (info.stage === "loading") setRgLinesShown({ flood: true, school: true, primarySchool: true, station: true, crime: true, busStop: true, pharmacy: true }); } }}
         rgDismissToken={rgDismissToken}
-        showRgLines={rgLinesVisible}
+        showRgLines={rgLinesShown}
         onPostcodeSearchResult={(result) => {
           const floodLookupActive = result.lookupMode !== "schools" && state.floodOverlayMode !== "off";
           const schoolLookupActive = result.lookupMode !== "flood" && state.schoolOverlayMode !== "off";
@@ -2233,7 +2246,7 @@ export default function Home() {
             <div ref={overlaysDropRef} style={{ position: "relative", flexShrink: 0 }}>
               <button
                 type="button"
-                onClick={(e) => { e.stopPropagation(); setOverlaysDropOpen(v => !v); setControlsDropOpen(false); setInfoDropOpen(false); }}
+                onClick={(e) => { e.stopPropagation(); const next = !overlaysDropOpen; setOverlaysDropOpen(next); setControlsDropOpen(false); setInfoDropOpen(false); if (next && isMobileViewport && rightClickInfo) setRgPanelMinimized(true); }}
                 style={{
                   cursor: "pointer",
                   border: overlaysDropOpen ? "1px solid rgba(74,222,128,0.7)" : anyOverlayActive ? "1px solid rgba(74,222,128,0.45)" : "1px solid rgba(255,255,255,0.2)",
@@ -2266,6 +2279,7 @@ export default function Home() {
                       onChange={(v) => setState((s) => ({ ...s, floodOverlayMode: v as FloodOverlayMode }))}
                       renderOption={(v) => v === "on" ? "On" : v === "on_hide_cells" ? "Hide cells" : "Off"}
                     />
+                    {rightClickInfo?.stage === "ready" && <button type="button" onClick={() => setRgLinesShown(v => ({ ...v, flood: !v.flood }))} title={rgLinesShown.flood ? "Hide flood lines" : "Show flood lines"} style={{ cursor: "pointer", border: "none", borderRadius: 3, background: rgLinesShown.flood ? "rgba(74,222,128,0.1)" : "transparent", color: rgLinesShown.flood ? "rgba(74,222,128,0.85)" : "rgba(255,255,255,0.25)", fontSize: 10, padding: "2px 5px", flexShrink: 0, textDecoration: rgLinesShown.flood ? "none" : "line-through" }}>Lines</button>}
                   </div>
 
                   {/* Schools */}
@@ -2277,6 +2291,7 @@ export default function Home() {
                       onChange={(v) => setState((s) => ({ ...s, schoolOverlayMode: v as SchoolOverlayMode }))}
                       renderOption={(v) => v === "on" ? "On" : v === "on_hide_cells" ? "Hide cells" : "Off"}
                     />
+                    {rightClickInfo?.stage === "ready" && <button type="button" onClick={() => setRgLinesShown(v => ({ ...v, school: !v.school }))} title={rgLinesShown.school ? "Hide school lines" : "Show school lines"} style={{ cursor: "pointer", border: "none", borderRadius: 3, background: rgLinesShown.school ? "rgba(74,222,128,0.1)" : "transparent", color: rgLinesShown.school ? "rgba(74,222,128,0.85)" : "rgba(255,255,255,0.25)", fontSize: 10, padding: "2px 5px", flexShrink: 0, textDecoration: rgLinesShown.school ? "none" : "line-through" }}>Lines</button>}
                   </div>
 
                   {/* Primary schools (Ofsted) */}
@@ -2288,6 +2303,7 @@ export default function Home() {
                       onChange={(v) => setState((s) => ({ ...s, primarySchoolOverlayMode: v as PrimarySchoolOverlayMode }))}
                       renderOption={(v) => v === "on" ? "On" : v === "on_hide_cells" ? "Hide cells" : "Off"}
                     />
+                    {rightClickInfo?.stage === "ready" && <button type="button" onClick={() => setRgLinesShown(v => ({ ...v, primarySchool: !v.primarySchool }))} title={rgLinesShown.primarySchool ? "Hide primary school lines" : "Show primary school lines"} style={{ cursor: "pointer", border: "none", borderRadius: 3, background: rgLinesShown.primarySchool ? "rgba(74,222,128,0.1)" : "transparent", color: rgLinesShown.primarySchool ? "rgba(74,222,128,0.85)" : "rgba(255,255,255,0.25)", fontSize: 10, padding: "2px 5px", flexShrink: 0, textDecoration: rgLinesShown.primarySchool ? "none" : "line-through" }}>Lines</button>}
                   </div>
 
                   {/* Train stations */}
@@ -2299,6 +2315,7 @@ export default function Home() {
                       onChange={(v) => setState((s) => ({ ...s, stationOverlayMode: v as StationOverlayMode }))}
                       renderOption={(v) => v === "on" ? "On" : v === "on_hide_cells" ? "Hide cells" : "Off"}
                     />
+                    {rightClickInfo?.stage === "ready" && <button type="button" onClick={() => setRgLinesShown(v => ({ ...v, station: !v.station }))} title={rgLinesShown.station ? "Hide station lines" : "Show station lines"} style={{ cursor: "pointer", border: "none", borderRadius: 3, background: rgLinesShown.station ? "rgba(74,222,128,0.1)" : "transparent", color: rgLinesShown.station ? "rgba(74,222,128,0.85)" : "rgba(255,255,255,0.25)", fontSize: 10, padding: "2px 5px", flexShrink: 0, textDecoration: rgLinesShown.station ? "none" : "line-through" }}>Lines</button>}
                   </div>
 
                   {/* Crime (LSOA) */}
@@ -2310,6 +2327,7 @@ export default function Home() {
                       onChange={(v) => setState((s) => ({ ...s, crimeOverlayMode: v as CrimeOverlayMode }))}
                       renderOption={(v) => v === "on" ? "On" : v === "on_hide_cells" ? "Hide cells" : "Off"}
                     />
+                    {rightClickInfo?.stage === "ready" && <button type="button" onClick={() => setRgLinesShown(v => ({ ...v, crime: !v.crime }))} title={rgLinesShown.crime ? "Hide crime lines" : "Show crime lines"} style={{ cursor: "pointer", border: "none", borderRadius: 3, background: rgLinesShown.crime ? "rgba(74,222,128,0.1)" : "transparent", color: rgLinesShown.crime ? "rgba(74,222,128,0.85)" : "rgba(255,255,255,0.25)", fontSize: 10, padding: "2px 5px", flexShrink: 0, textDecoration: rgLinesShown.crime ? "none" : "line-through" }}>Lines</button>}
                   </div>
 
                   {/* Bus stops & metro */}
@@ -2321,6 +2339,7 @@ export default function Home() {
                       onChange={(v) => setState((s) => ({ ...s, busStopOverlayMode: v as BusStopOverlayMode }))}
                       renderOption={(v) => v === "on" ? "On" : v === "on_hide_cells" ? "Hide cells" : "Off"}
                     />
+                    {rightClickInfo?.stage === "ready" && <button type="button" onClick={() => setRgLinesShown(v => ({ ...v, busStop: !v.busStop }))} title={rgLinesShown.busStop ? "Hide bus stop lines" : "Show bus stop lines"} style={{ cursor: "pointer", border: "none", borderRadius: 3, background: rgLinesShown.busStop ? "rgba(74,222,128,0.1)" : "transparent", color: rgLinesShown.busStop ? "rgba(74,222,128,0.85)" : "rgba(255,255,255,0.25)", fontSize: 10, padding: "2px 5px", flexShrink: 0, textDecoration: rgLinesShown.busStop ? "none" : "line-through" }}>Lines</button>}
                   </div>
 
                   {/* Pharmacies */}
@@ -2332,6 +2351,7 @@ export default function Home() {
                       onChange={(v) => setState((s) => ({ ...s, pharmacyOverlayMode: v as PharmacyOverlayMode }))}
                       renderOption={(v) => v === "on" ? "On" : v === "on_hide_cells" ? "Hide cells" : "Off"}
                     />
+                    {rightClickInfo?.stage === "ready" && <button type="button" onClick={() => setRgLinesShown(v => ({ ...v, pharmacy: !v.pharmacy }))} title={rgLinesShown.pharmacy ? "Hide pharmacy lines" : "Show pharmacy lines"} style={{ cursor: "pointer", border: "none", borderRadius: 3, background: rgLinesShown.pharmacy ? "rgba(74,222,128,0.1)" : "transparent", color: rgLinesShown.pharmacy ? "rgba(74,222,128,0.85)" : "rgba(255,255,255,0.25)", fontSize: 10, padding: "2px 5px", flexShrink: 0, textDecoration: rgLinesShown.pharmacy ? "none" : "line-through" }}>Lines</button>}
                   </div>
 
                   <div style={{ borderTop: "1px solid rgba(255,255,255,0.1)", margin: "8px 0 7px" }} />
@@ -4171,12 +4191,7 @@ export default function Home() {
               📍 {rightClickInfo.stage === "ready" ? rightClickInfo.postcode : "…"}
               {rightClickInfo.stage === "ready" && rightClickInfo.isOutcode && <span style={{ fontSize: 11, fontWeight: 400, color: "#9ca3af", marginLeft: 5 }}>district</span>}
             </span>
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              {rightClickInfo.stage === "ready" && (
-                <button type="button" onClick={() => setRgLinesVisible(v => !v)} title={rgLinesVisible ? "Hide map lines" : "Show map lines"} style={{ cursor: "pointer", border: "none", borderRadius: 4, background: rgLinesVisible ? "#eff6ff" : "#f3f4f6", color: rgLinesVisible ? "#2563eb" : "#9ca3af", fontSize: 11, padding: "2px 6px", fontWeight: 500 }}>Lines {rgLinesVisible ? "on" : "off"}</button>
-              )}
-              <button type="button" onClick={() => { setRightClickInfo(null); setRgDismissToken(v => v + 1); }} style={{ cursor: "pointer", border: "none", background: "transparent", color: "#9ca3af", fontSize: 16, lineHeight: 1, padding: "0 2px" }}>✕</button>
-            </div>
+            <button type="button" onClick={() => { setRightClickInfo(null); setRgDismissToken(v => v + 1); }} style={{ cursor: "pointer", border: "none", background: "transparent", color: "#9ca3af", fontSize: 16, lineHeight: 1, padding: "0 2px" }}>✕</button>
           </div>
           {/* Content */}
           {rightClickInfo.stage === "loading" ? (
@@ -4276,10 +4291,7 @@ export default function Home() {
               📍 {rightClickInfo.stage === "ready" ? rightClickInfo.postcode : "Looking up…"}
             </span>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              {rightClickInfo.stage === "ready" && (
-                <button type="button" onClick={() => setRgLinesVisible(v => !v)} title={rgLinesVisible ? "Hide map lines" : "Show map lines"} style={{ cursor: "pointer", border: "none", borderRadius: 4, background: rgLinesVisible ? "#eff6ff" : "#f3f4f6", color: rgLinesVisible ? "#2563eb" : "#9ca3af", fontSize: 11, padding: "2px 6px", fontWeight: 500 }}>Lines {rgLinesVisible ? "on" : "off"}</button>
-              )}
-              <button type="button" title={rgPanelMinimized ? "Expand" : "Minimise"} onClick={() => setRgPanelMinimized(v => !v)} style={{ cursor: "pointer", border: "none", background: "transparent", color: "#9ca3af", fontSize: 13, padding: "0 4px" }}>
+              <button type="button" title={rgPanelMinimized ? "Expand" : "Minimise"} onClick={() => { setRgPanelMinimized(v => !v); setRgRestoreFlash(false); }} style={{ cursor: "pointer", border: "none", background: "transparent", color: rgRestoreFlash ? "#2563eb" : "#9ca3af", fontSize: 13, padding: "0 4px", animation: rgRestoreFlash ? "rgRestorePulse 0.7s ease-in-out 3" : "none" }}>
                 {rgPanelMinimized ? "▲" : "▼"}
               </button>
               <button type="button" onClick={() => { setRightClickInfo(null); setRgDismissToken(v => v + 1); setRgPanelMinimized(false); }} style={{ cursor: "pointer", border: "none", background: "transparent", color: "#9ca3af", fontSize: 16, lineHeight: 1, padding: "0 2px" }}>✕</button>

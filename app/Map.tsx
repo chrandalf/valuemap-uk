@@ -451,8 +451,8 @@ export default function ValueMap({
   rgDismissToken?: number;
   /** When false, suppresses on-map hint bubbles (cell-click nudge etc.). User can toggle in Controls. */
   hintsEnabled?: boolean;
-  /** When false, all right-click focus lines and the click-dot are hidden on the map. Defaults to true. */
-  showRgLines?: boolean;
+  /** Controls per-category visibility of right-click focus/connection lines on the map. Each key defaults to true. */
+  showRgLines?: { flood?: boolean; school?: boolean; primarySchool?: boolean; station?: boolean; crime?: boolean; busStop?: boolean; pharmacy?: boolean };
 }) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -551,28 +551,23 @@ export default function ValueMap({
     clearRgOverlayRef.current?.();
   }, [rgDismissToken]);
 
-  // Toggle visibility of all right-click focus lines + the click-dot marker.
+  // Toggle per-category visibility of right-click focus/connection lines.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const vis = (showRgLines ?? true) ? "visible" : "none";
-    const focusLayers = [
-      "flood-search-focus-ring", "flood-search-focus-dot",
-      "school-search-focus-nearest-line", "school-search-focus-nearest-label",
-      "school-search-focus-good-line", "school-search-focus-good-label",
-      "school-search-focus-ring", "school-search-focus-good-ring",
-      "primary-school-search-focus-line", "primary-school-search-focus-label", "primary-school-search-focus-ring",
-      "station-search-focus-outer", "station-search-focus-link", "station-search-focus-label", "station-search-focus-ring", "station-search-focus-dot",
-      "crime-search-focus-line", "crime-search-focus-label", "crime-search-focus-ring",
-      "bus-stop-search-focus-line", "bus-stop-search-focus-label", "bus-stop-search-focus-ring",
-      "pharmacy-search-focus-line", "pharmacy-search-focus-label", "pharmacy-search-focus-ring",
-    ];
-    for (const id of focusLayers) {
-      if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", vis);
-    }
-    const el = rgClickMarkerRef.current?.getElement();
-    if (el) el.style.display = vis === "visible" ? "" : "none";
-  }, [showRgLines]);
+    const setVis = (ids: string[], on: boolean) => {
+      const v = on ? "visible" : "none";
+      for (const id of ids) if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", v);
+    };
+    const cfg = showRgLines;
+    setVis(["flood-search-focus-ring", "flood-search-focus-dot"], cfg?.flood ?? true);
+    setVis(["school-search-focus-nearest-line", "school-search-focus-nearest-label", "school-search-focus-good-line", "school-search-focus-good-label", "school-search-focus-ring", "school-search-focus-good-ring"], cfg?.school ?? true);
+    setVis(["primary-school-search-focus-line", "primary-school-search-focus-label", "primary-school-search-focus-ring"], cfg?.primarySchool ?? true);
+    setVis(["station-search-focus-outer", "station-search-focus-link", "station-search-focus-label", "station-search-focus-ring", "station-search-focus-dot"], cfg?.station ?? true);
+    setVis(["crime-search-focus-line", "crime-search-focus-label", "crime-search-focus-ring"], cfg?.crime ?? true);
+    setVis(["bus-stop-search-focus-line", "bus-stop-search-focus-label", "bus-stop-search-focus-ring"], cfg?.busStop ?? true);
+    setVis(["pharmacy-search-focus-line", "pharmacy-search-focus-label", "pharmacy-search-focus-ring"], cfg?.pharmacy ?? true);
+  }, [showRgLines?.flood, showRgLines?.school, showRgLines?.primarySchool, showRgLines?.station, showRgLines?.crime, showRgLines?.busStop, showRgLines?.pharmacy]);
 
   useEffect(() => {
     onLocateMeResultRef.current = onLocateMeResult;
