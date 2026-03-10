@@ -2688,6 +2688,88 @@ export default function ValueMap({
     showCrimeClusterPopup(e);
   });
 
+  const busStopOverlayClickable = () => stateRef.current.busStopOverlayMode !== "off";
+  const pharmacyOverlayClickable = () => stateRef.current.pharmacyOverlayMode !== "off";
+
+  const showBusStopPointPopup = (e: any, isMetro: boolean) => {
+    const f = e.features?.[0] as any;
+    if (!f) return;
+    const p = f.properties || {};
+    const name = escapeHtml(String(p.name ?? (isMetro ? "Metro/tram stop" : "Bus stop")));
+    const atco = escapeHtml(String(p.atco_code ?? ""));
+    const stopType = escapeHtml(String(p.stop_type ?? ""));
+    const icon = isMetro ? "🚇" : "🚌";
+    const typeLabel = stopType ? `<div style="font-size:11px;color:#6b7280">Type: <b style="color:#374151">${stopType}</b></div>` : "";
+    const atcoLabel = atco ? `<div style="font-size:11px;color:#6b7280">ATCO: <b style="color:#374151">${atco}</b></div>` : "";
+    const html = `
+      <div style="font:12px/1.5 system-ui,sans-serif;color:#374151;min-width:150px">
+        <div style="font-weight:700;font-size:13px;margin-bottom:4px">${icon} ${name}</div>
+        ${typeLabel}
+        ${atcoLabel}
+      </div>
+    `;
+    popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+  };
+
+  const showBusStopClusterPopup = (e: any, isMetro: boolean) => {
+    const f = e.features?.[0] as any;
+    if (!f) return;
+    const count = Number(f.properties?.point_count ?? 0);
+    const label = isMetro ? "Metro/tram stops" : "Bus stops";
+    const icon = isMetro ? "🚇" : "🚌";
+    const html = `
+      <div style="font-family:system-ui;font-size:12px;line-height:1.25;">
+        <div style="font-weight:700;margin-bottom:4px">${icon} ${label} cluster</div>
+        <div>${label} in cluster: <b>${count.toLocaleString()}</b></div>
+        <div style="opacity:0.8;margin-top:2px">Zoom in to see individual stops.</div>
+      </div>
+    `;
+    popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+  };
+
+  const showPharmacyPointPopup = (e: any) => {
+    const f = e.features?.[0] as any;
+    if (!f) return;
+    const p = f.properties || {};
+    const name = escapeHtml(String(p.name ?? "Pharmacy"));
+    const ods = escapeHtml(String(p.ods_code ?? ""));
+    const postcode = escapeHtml(String(p.post_code ?? ""));
+    const weekly = Number(p.weekly_total ?? 0);
+    const html = `
+      <div style="font:12px/1.5 system-ui,sans-serif;color:#374151;min-width:160px">
+        <div style="font-weight:700;font-size:13px;margin-bottom:4px">💊 ${name}</div>
+        ${postcode ? `<div style="font-size:11px;color:#6b7280">Postcode: <b style="color:#374151">${postcode}</b></div>` : ""}
+        ${weekly > 0 ? `<div style="font-size:11px;color:#6b7280">Weekly items: <b style="color:#374151">${weekly.toLocaleString()}</b></div>` : ""}
+        ${ods ? `<div style="font-size:11px;color:#6b7280">ODS code: <b style="color:#374151">${ods}</b></div>` : ""}
+      </div>
+    `;
+    popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+  };
+
+  const showPharmacyClusterPopup = (e: any) => {
+    const f = e.features?.[0] as any;
+    if (!f) return;
+    const count = Number(f.properties?.point_count ?? 0);
+    const html = `
+      <div style="font-family:system-ui;font-size:12px;line-height:1.25;">
+        <div style="font-weight:700;margin-bottom:4px">💊 Pharmacy cluster</div>
+        <div>Pharmacies in cluster: <b>${count.toLocaleString()}</b></div>
+        <div style="opacity:0.8;margin-top:2px">Zoom in to see individual pharmacies.</div>
+      </div>
+    `;
+    popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+  };
+
+  map.on("click", "bus-stop-overlay-points",       (e) => { if (!busStopOverlayClickable()) return; showBusStopPointPopup(e, false); });
+  map.on("click", "bus-stop-overlay-clusters",     (e) => { if (!busStopOverlayClickable()) return; showBusStopClusterPopup(e, false); });
+  map.on("click", "bus-stop-overlay-cluster-count",(e) => { if (!busStopOverlayClickable()) return; showBusStopClusterPopup(e, false); });
+  map.on("click", "metro-tram-overlay-points",       (e) => { if (!busStopOverlayClickable()) return; showBusStopPointPopup(e, true); });
+  map.on("click", "metro-tram-overlay-clusters",     (e) => { if (!busStopOverlayClickable()) return; showBusStopClusterPopup(e, true); });
+  map.on("click", "metro-tram-overlay-cluster-count",(e) => { if (!busStopOverlayClickable()) return; showBusStopClusterPopup(e, true); });
+  map.on("click", "pharmacy-overlay-points",       (e) => { if (!pharmacyOverlayClickable()) return; showPharmacyPointPopup(e); });
+  map.on("click", "pharmacy-overlay-clusters",     (e) => { if (!pharmacyOverlayClickable()) return; showPharmacyClusterPopup(e); });
+  map.on("click", "pharmacy-overlay-cluster-count",(e) => { if (!pharmacyOverlayClickable()) return; showPharmacyClusterPopup(e); });
+
   // Pointer cursor when hovering clickable overlay features
   const overlayHoverLayers = [
     "flood-overlay-points", "flood-overlay-clusters", "flood-overlay-cluster-count",
@@ -2695,6 +2777,9 @@ export default function ValueMap({
     "primary-school-overlay-points", "primary-school-overlay-clusters", "primary-school-overlay-cluster-count",
     "station-overlay-points", "station-overlay-clusters", "station-overlay-cluster-count",
     "crime-overlay-points", "crime-overlay-clusters", "crime-overlay-cluster-count",
+    "bus-stop-overlay-points", "bus-stop-overlay-clusters", "bus-stop-overlay-cluster-count",
+    "metro-tram-overlay-points", "metro-tram-overlay-clusters", "metro-tram-overlay-cluster-count",
+    "pharmacy-overlay-points", "pharmacy-overlay-clusters", "pharmacy-overlay-cluster-count",
   ];
   overlayHoverLayers.forEach((id) => {
     map.on("mouseenter", id, () => { map.getCanvas().style.cursor = "pointer"; });
@@ -4007,7 +4092,6 @@ export default function ValueMap({
         if (map.getLayer("school-overlay-points")) map.setLayoutProperty("school-overlay-points", "visibility", schoolVisibility);
         if (map.getLayer("school-overlay-clusters")) map.setLayoutProperty("school-overlay-clusters", "visibility", schoolVisibility);
         if (map.getLayer("school-overlay-cluster-count")) map.setLayoutProperty("school-overlay-cluster-count", "visibility", schoolVisibility);
-        if (schoolMode === "off") setSchoolSearchFocus(map, null, null, null);
 
         // Primary school (Ofsted) layer visibility
         if (map.getLayer("primary-school-overlay-points")) map.setLayoutProperty("primary-school-overlay-points", "visibility", primarySchoolVisibility);
@@ -4018,15 +4102,11 @@ export default function ValueMap({
         if (map.getLayer("station-overlay-points")) map.setLayoutProperty("station-overlay-points", "visibility", stationVisibility);
         if (map.getLayer("station-overlay-clusters")) map.setLayoutProperty("station-overlay-clusters", "visibility", stationVisibility);
         if (map.getLayer("station-overlay-cluster-count")) map.setLayoutProperty("station-overlay-cluster-count", "visibility", stationVisibility);
-        if (stationMode === "off") setStationSearchFocus(map, null, null);
 
         // Crime (LSOA) layer visibility
         if (map.getLayer("crime-overlay-points")) map.setLayoutProperty("crime-overlay-points", "visibility", crimeVisibility);
         if (map.getLayer("crime-overlay-clusters")) map.setLayoutProperty("crime-overlay-clusters", "visibility", crimeVisibility);
         if (map.getLayer("crime-overlay-cluster-count")) map.setLayoutProperty("crime-overlay-cluster-count", "visibility", crimeVisibility);
-        if (crimeMode === "off") setCrimeSearchFocus(map, null, null);
-        if (busStopMode === "off") setBusStopSearchFocus(map, null, null);
-        if (pharmacyMode === "off") setPharmacySearchFocus(map, null, null);
 
         // Bus stop / metro-tram layer visibility (share the busStopMode toggle)
         if (map.getLayer("bus-stop-overlay-points")) map.setLayoutProperty("bus-stop-overlay-points", "visibility", busStopVisibility);
