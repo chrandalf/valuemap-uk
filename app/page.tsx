@@ -367,6 +367,7 @@ export default function Home() {
   const [rightClickInfo, setRightClickInfo] = useState<RightClickInfoData | null>(null);
   const [rgPanelMinimized, setRgPanelMinimized] = useState(false);
   const [rgDismissToken, setRgDismissToken] = useState(0);
+  const [rgLinesVisible, setRgLinesVisible] = useState(true);
   const [locateMeToken, setLocateMeToken] = useState(0);
   const [locateMeStatus, setLocateMeStatus] = useState<string | null>(null);
   const [locateMeSummary, setLocateMeSummary] = useState<string | null>(null);
@@ -2011,8 +2012,9 @@ export default function Home() {
         rgLogCount={rgLog.length}
         onOpenLog={() => setRgLogOpen(true)}
         onLocationLogged={(entry) => setRgLog((prev) => [entry, ...prev])}
-        onRightClickInfo={(info) => { setRightClickInfo(info); if (info) setRgPanelMinimized(false); }}
+        onRightClickInfo={(info) => { setRightClickInfo(info); if (info) { setRgPanelMinimized(false); if (info.stage === "loading") setRgLinesVisible(true); } }}
         rgDismissToken={rgDismissToken}
+        showRgLines={rgLinesVisible}
         onPostcodeSearchResult={(result) => {
           const floodLookupActive = result.lookupMode !== "schools" && state.floodOverlayMode !== "off";
           const schoolLookupActive = result.lookupMode !== "flood" && state.schoolOverlayMode !== "off";
@@ -4169,7 +4171,12 @@ export default function Home() {
               📍 {rightClickInfo.stage === "ready" ? rightClickInfo.postcode : "…"}
               {rightClickInfo.stage === "ready" && rightClickInfo.isOutcode && <span style={{ fontSize: 11, fontWeight: 400, color: "#9ca3af", marginLeft: 5 }}>district</span>}
             </span>
-            <button type="button" onClick={() => { setRightClickInfo(null); setRgDismissToken(v => v + 1); }} style={{ cursor: "pointer", border: "none", background: "transparent", color: "#9ca3af", fontSize: 16, lineHeight: 1, padding: "0 2px" }}>✕</button>
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              {rightClickInfo.stage === "ready" && (
+                <button type="button" onClick={() => setRgLinesVisible(v => !v)} title={rgLinesVisible ? "Hide map lines" : "Show map lines"} style={{ cursor: "pointer", border: "none", borderRadius: 4, background: rgLinesVisible ? "#eff6ff" : "#f3f4f6", color: rgLinesVisible ? "#2563eb" : "#9ca3af", fontSize: 11, padding: "2px 6px", fontWeight: 500 }}>Lines {rgLinesVisible ? "on" : "off"}</button>
+              )}
+              <button type="button" onClick={() => { setRightClickInfo(null); setRgDismissToken(v => v + 1); }} style={{ cursor: "pointer", border: "none", background: "transparent", color: "#9ca3af", fontSize: 16, lineHeight: 1, padding: "0 2px" }}>✕</button>
+            </div>
           </div>
           {/* Content */}
           {rightClickInfo.stage === "loading" ? (
@@ -4269,6 +4276,9 @@ export default function Home() {
               📍 {rightClickInfo.stage === "ready" ? rightClickInfo.postcode : "Looking up…"}
             </span>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              {rightClickInfo.stage === "ready" && (
+                <button type="button" onClick={() => setRgLinesVisible(v => !v)} title={rgLinesVisible ? "Hide map lines" : "Show map lines"} style={{ cursor: "pointer", border: "none", borderRadius: 4, background: rgLinesVisible ? "#eff6ff" : "#f3f4f6", color: rgLinesVisible ? "#2563eb" : "#9ca3af", fontSize: 11, padding: "2px 6px", fontWeight: 500 }}>Lines {rgLinesVisible ? "on" : "off"}</button>
+              )}
               <button type="button" title={rgPanelMinimized ? "Expand" : "Minimise"} onClick={() => setRgPanelMinimized(v => !v)} style={{ cursor: "pointer", border: "none", background: "transparent", color: "#9ca3af", fontSize: 13, padding: "0 4px" }}>
                 {rgPanelMinimized ? "▲" : "▼"}
               </button>

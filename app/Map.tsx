@@ -416,6 +416,7 @@ export default function ValueMap({
   onRightClickInfo,
   rgDismissToken,
   hintsEnabled,
+  showRgLines,
 }: {
   state: MapState;
   onLegendChange?: (legend: LegendData | null) => void;
@@ -450,6 +451,8 @@ export default function ValueMap({
   rgDismissToken?: number;
   /** When false, suppresses on-map hint bubbles (cell-click nudge etc.). User can toggle in Controls. */
   hintsEnabled?: boolean;
+  /** When false, all right-click focus lines and the click-dot are hidden on the map. Defaults to true. */
+  showRgLines?: boolean;
 }) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -468,6 +471,7 @@ export default function ValueMap({
   const tapToSearchRef = useRef<boolean>(!!tapToSearch);
   const onRightClickInfoRef = useRef<typeof onRightClickInfo>(onRightClickInfo);
   const clearRgOverlayRef = useRef<(() => void) | null>(null);
+  const rgClickMarkerRef = useRef<maplibregl.Marker | null>(null);
   const locateMarkerRef = useRef<maplibregl.Marker | null>(null);
 
   const [postcodeCell, setPostcodeCell] = useState<string | null>(null);
@@ -546,6 +550,29 @@ export default function ValueMap({
     if (!rgDismissToken) return;
     clearRgOverlayRef.current?.();
   }, [rgDismissToken]);
+
+  // Toggle visibility of all right-click focus lines + the click-dot marker.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const vis = (showRgLines ?? true) ? "visible" : "none";
+    const focusLayers = [
+      "flood-search-focus-ring", "flood-search-focus-dot",
+      "school-search-focus-nearest-line", "school-search-focus-nearest-label",
+      "school-search-focus-good-line", "school-search-focus-good-label",
+      "school-search-focus-ring", "school-search-focus-good-ring",
+      "primary-school-search-focus-line", "primary-school-search-focus-label", "primary-school-search-focus-ring",
+      "station-search-focus-outer", "station-search-focus-link", "station-search-focus-label", "station-search-focus-ring", "station-search-focus-dot",
+      "crime-search-focus-line", "crime-search-focus-label", "crime-search-focus-ring",
+      "bus-stop-search-focus-line", "bus-stop-search-focus-label", "bus-stop-search-focus-ring",
+      "pharmacy-search-focus-line", "pharmacy-search-focus-label", "pharmacy-search-focus-ring",
+    ];
+    for (const id of focusLayers) {
+      if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", vis);
+    }
+    const el = rgClickMarkerRef.current?.getElement();
+    if (el) el.style.display = vis === "visible" ? "" : "none";
+  }, [showRgLines]);
 
   useEffect(() => {
     onLocateMeResultRef.current = onLocateMeResult;
@@ -3201,13 +3228,12 @@ export default function ValueMap({
 
   // ── Right-click → reverse postcode lookup  /  tap-to-search mode ──
   // Info is piped to page.tsx via onRightClickInfo; no MapLibre popup is created.
-  let rgClickMarker: maplibregl.Marker | null = null;
-  const clearRgClickDot = () => { if (rgClickMarker) { rgClickMarker.remove(); rgClickMarker = null; } };
+  const clearRgClickDot = () => { if (rgClickMarkerRef.current) { rgClickMarkerRef.current.remove(); rgClickMarkerRef.current = null; } };
   const setRgClickDot = (lon: number, lat: number) => {
     clearRgClickDot();
     const el = document.createElement('div');
     el.style.cssText = 'width:14px;height:14px;border-radius:50%;background:#2563eb;border:3px solid white;box-shadow:0 0 0 3px #2563eb55;pointer-events:none;';
-    rgClickMarker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([lon, lat]).addTo(map);
+    rgClickMarkerRef.current = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([lon, lat]).addTo(map);
   };
   const clearRgOverlay = () => {
     clearRgClickDot();
