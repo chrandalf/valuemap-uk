@@ -51,8 +51,47 @@ export default function NextStepsPage() {
           <li style={{ marginBottom: 8 }}>
             Interactive guided tour (&ldquo;Show me&rdquo;) walking through every feature section by section.
           </li>
-          <li>
+          <li style={{ marginBottom: 8 }}>
             Back-to-map docs navigation now restores the previous map state instead of resetting.
+          </li>
+          <li style={{ marginBottom: 8 }}>
+            <strong>Coastal proximity scoring</strong> &mdash; how close to the coast an area is can now
+            be weighted in Find My Area, useful for anyone prioritising seaside or waterfront living.
+          </li>
+          <li style={{ marginBottom: 8 }}>
+            <strong>Heating fuel type overlay</strong> &mdash; see which areas rely on gas, electricity,
+            oil, or LPG for heating (based on EPC data), with fuel type available as a Find My Area
+            scoring factor.
+          </li>
+          <li style={{ marginBottom: 8 }}>
+            <strong>Internet speed overlay &amp; scoring</strong> &mdash; Ofcom broadband data shown as a
+            map overlay (average speed, superfast, and full-fibre coverage). Internet speed can also be
+            weighted in Find My Area — particularly useful for remote workers.
+          </li>
+          <li style={{ marginBottom: 8 }}>
+            <strong>Modelled price estimates for sparse areas</strong> &mdash; areas with few recent sales
+            now show model-blended price estimates so the map fills in more completely. A toggle lets you
+            switch between actual data only, blended, or model estimates everywhere.
+          </li>
+          <li style={{ marginBottom: 8 }}>
+            <strong>Bus stop &amp; metro/tram overlay</strong> &mdash; all NaPTAN bus stops and metro/tram
+            stations shown on the map as a toggleable layer. Click any stop for its name and ATCO code.
+            Bus &amp; metro access is also a scoring factor in Find My Area.
+          </li>
+          <li style={{ marginBottom: 8 }}>
+            <strong>Pharmacy overlay</strong> &mdash; every NHS community pharmacy in England shown as a
+            toggleable layer with name, postcode, and dispensing volume on click. Pharmacy access can also
+            be weighted in Find My Area.
+          </li>
+          <li style={{ marginBottom: 8 }}>
+            <strong>Right-click detail panel</strong> &mdash; right-click (or long-press on mobile) anywhere
+            on the map to get a postcode lookup showing flood risk, school quality, nearest station,
+            crime level, bus access, and pharmacy distance all in one panel.
+          </li>
+          <li>
+            <strong>Per-overlay connection lines</strong> &mdash; after a right-click lookup, dotted lines
+            connect your chosen point to the nearest stop, school, station, and pharmacy. Each line can
+            be toggled on or off individually from the Overlays menu.
           </li>
         </ol>
 
@@ -84,39 +123,21 @@ export default function NextStepsPage() {
             works in both directions.
           </li>
           <li style={{ marginBottom: 8 }}>
-            <strong>School quality based on Ofsted grades</strong> &mdash; school scoring will
-            reflect actual Ofsted inspection outcomes (Outstanding / Good / Requires Improvement
-            / Inadequate) rather than exam results alone, giving a fairer picture across all
-            school types including specialist schools.
-          </li>
-          <li style={{ marginBottom: 8 }}>
-            <strong>Fast broadband coverage</strong> &mdash; full-fibre and superfast broadband
-            availability added as a scoring factor and map overlay, sourced from Ofcom open data.
-            Particularly useful for remote workers or anyone moving out of a city.
-          </li>
-          <li style={{ marginBottom: 8 }}>
             <strong>Housing stock breakdown per area</strong> &mdash; rough counts of 2-bed
             flats, 3-bed semis, 4-bed detacheds, and other types in each cell (based on EPC
             records), so you can see whether your top-scoring areas actually have the kind of
             home you&rsquo;re looking for.
           </li>
           <li style={{ marginBottom: 8 }}>
-            <strong>Modelled price estimates for sparse areas</strong> &mdash; using up to five
-            years of local price history relative to the surrounding area, the map will fill in
-            estimated values for cells with too few recent sales to give a reliable median. A
-            toggle lets you switch between actual data only, blended, or estimates everywhere for
-            a fuller picture.
+            <strong>Commute filter</strong> &mdash; enter a work location and a maximum journey
+            time, and the map shows only areas within that commute. Initial version covers driving
+            times, with public transport estimates to follow.
           </li>
           <li style={{ marginBottom: 8 }}>
             <strong>Smoother match scores near borders</strong> &mdash; a refinement pass on
             crime and school scoring to reduce cases where two adjacent streets end up with
             unrealistically different match scores due to administrative boundary edges in the
             underlying data.
-          </li>
-          <li style={{ marginBottom: 8 }}>
-            <strong>Commute filter</strong> &mdash; enter a work location and a maximum journey
-            time, and the map shows only areas within that commute. Initial version covers driving
-            times, with public transport estimates to follow.
           </li>
           <li>
             <strong>Underrated best-value areas near a chosen location</strong> &mdash; a ranked
