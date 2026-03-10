@@ -5940,9 +5940,14 @@ async function applyIndexScoring(
     const cLat = (coords[0][1] + coords[2][1]) / 2;
 
     // — Region bbox filter: skip cells whose centroid falls outside ALL selected areas —
+    // A 10 km buffer is added around each bbox so nearby cells just outside a border still show.
+    // 10 km ≈ 0.090° lat; for lon we use the centroid latitude to keep it accurate across GB.
     if (prefs.regionBboxes && prefs.regionBboxes.length > 0) {
+      const bufLat = 0.090; // ~10 km in latitude
+      const bufLon = 0.090 / Math.cos(cLat * Math.PI / 180); // ~10 km in longitude at this latitude
       const inAny = prefs.regionBboxes.some(([minLon, minLat, maxLon, maxLat]) =>
-        cLon >= minLon && cLon <= maxLon && cLat >= minLat && cLat <= maxLat
+        cLon >= minLon - bufLon && cLon <= maxLon + bufLon &&
+        cLat >= minLat - bufLat && cLat <= maxLat + bufLat
       );
       if (!inAny) { props.index_score = 0; continue; }
     }
