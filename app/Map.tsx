@@ -1210,6 +1210,16 @@ export default function ValueMap({
     data: { type: "FeatureCollection", features: [] },
   });
 
+  map.addSource("bus-stop-search-focus", {
+    type: "geojson",
+    data: { type: "FeatureCollection", features: [] },
+  });
+
+  map.addSource("pharmacy-search-focus", {
+    type: "geojson",
+    data: { type: "FeatureCollection", features: [] },
+  });
+
   // ── Bus stop / metro-tram / pharmacy overlay sources ──
   map.addSource("bus-stop-overlay", {
     type: "geojson",
@@ -2116,6 +2126,106 @@ export default function ValueMap({
       "circle-color": "rgba(0,0,0,0)",
       "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 9, 8, 13, 12, 17] as any,
       "circle-stroke-color": "#dc2626",
+      "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 4, 2.2, 8, 3, 12, 3.8] as any,
+      "circle-stroke-opacity": 0.98,
+    },
+  });
+
+  // ── Bus stop search focus (right-click dashed line + ring) ──
+  map.addLayer({
+    id: "bus-stop-search-focus-line",
+    type: "line",
+    source: "bus-stop-search-focus",
+    filter: ["==", ["geometry-type"], "LineString"] as any,
+    paint: {
+      "line-color": "#38bdf8",
+      "line-width": 3.5,
+      "line-dasharray": [3, 1.5],
+      "line-opacity": 0.95,
+    },
+  });
+
+  map.addLayer({
+    id: "bus-stop-search-focus-label",
+    type: "symbol",
+    source: "bus-stop-search-focus",
+    filter: ["==", ["geometry-type"], "LineString"] as any,
+    layout: {
+      "symbol-placement": "line-center",
+      "text-field": ["get", "label"] as any,
+      "text-size": 12,
+      "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
+      "text-allow-overlap": true,
+      "text-ignore-placement": true,
+      "text-offset": [0, -1.2] as any,
+    },
+    paint: {
+      "text-color": "#38bdf8",
+      "text-halo-color": "#0f172a",
+      "text-halo-width": 2.5,
+      "text-halo-blur": 0.5,
+    },
+  });
+
+  map.addLayer({
+    id: "bus-stop-search-focus-ring",
+    type: "circle",
+    source: "bus-stop-search-focus",
+    filter: ["==", ["geometry-type"], "Point"] as any,
+    paint: {
+      "circle-color": "rgba(0,0,0,0)",
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 9, 8, 13, 12, 17] as any,
+      "circle-stroke-color": "#38bdf8",
+      "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 4, 2.2, 8, 3, 12, 3.8] as any,
+      "circle-stroke-opacity": 0.98,
+    },
+  });
+
+  // ── Pharmacy search focus (right-click dashed line + ring) ──
+  map.addLayer({
+    id: "pharmacy-search-focus-line",
+    type: "line",
+    source: "pharmacy-search-focus",
+    filter: ["==", ["geometry-type"], "LineString"] as any,
+    paint: {
+      "line-color": "#f59e0b",
+      "line-width": 3.5,
+      "line-dasharray": [3, 1.5],
+      "line-opacity": 0.95,
+    },
+  });
+
+  map.addLayer({
+    id: "pharmacy-search-focus-label",
+    type: "symbol",
+    source: "pharmacy-search-focus",
+    filter: ["==", ["geometry-type"], "LineString"] as any,
+    layout: {
+      "symbol-placement": "line-center",
+      "text-field": "Pharmacy",
+      "text-size": 12,
+      "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
+      "text-allow-overlap": true,
+      "text-ignore-placement": true,
+      "text-offset": [0, -1.2] as any,
+    },
+    paint: {
+      "text-color": "#f59e0b",
+      "text-halo-color": "#0f172a",
+      "text-halo-width": 2.5,
+      "text-halo-blur": 0.5,
+    },
+  });
+
+  map.addLayer({
+    id: "pharmacy-search-focus-ring",
+    type: "circle",
+    source: "pharmacy-search-focus",
+    filter: ["==", ["geometry-type"], "Point"] as any,
+    paint: {
+      "circle-color": "rgba(0,0,0,0)",
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 9, 8, 13, 12, 17] as any,
+      "circle-stroke-color": "#f59e0b",
       "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 4, 2.2, 8, 3, 12, 3.8] as any,
       "circle-stroke-opacity": 0.98,
     },
@@ -3107,6 +3217,8 @@ export default function ValueMap({
     setPrimarySchoolSearchFocus(map, null, null);
     setStationSearchFocus(map, null, null);
     setCrimeSearchFocus(map, null, null);
+    setBusStopSearchFocus(map, null, null);
+    setPharmacySearchFocus(map, null, null);
   };
   clearRgOverlayRef.current = clearRgOverlay;
   const closeActiveRg = () => {
@@ -3269,6 +3381,8 @@ export default function ValueMap({
     setPrimarySchoolSearchFocus(map, null, null);
     setStationSearchFocus(map, null, null);
     setCrimeSearchFocus(map, null, null);
+    setBusStopSearchFocus(map, null, null);
+    setPharmacySearchFocus(map, null, null);
 
     void (async () => {
       try {
@@ -3450,9 +3564,13 @@ export default function ValueMap({
             if (d < nearBusDist) { nearBusDist = d; nearBus = sp; }
           }
           const col = (d: number) => d <= BUS_STOP_GREAT_METERS ? "#16a34a" : d <= BUS_STOP_MAX_METERS ? "#d97706" : "#6b7280";
-          busStopHtml = nearBus
-            ? `🚌 <span style="color:${col(nearBusDist)}">${escapeHtml(nearBus.name)}</span> <span style="color:#9ca3af">${fmtDist(nearBusDist)}</span>`
-            : '<span style="color:#9ca3af">No bus stop within 3km</span>';
+          if (nearBus) {
+            busStopHtml = `🚌 <span style="color:${col(nearBusDist)}">${escapeHtml(nearBus.name)}</span> <span style="color:#9ca3af">${fmtDist(nearBusDist)}</span>`;
+            lineTargets.push([nearBus.lon, nearBus.lat]);
+            setBusStopSearchFocus(map, { lon: nearBus.lon, lat: nearBus.lat, name: nearBus.name }, { lon: lng, lat });
+          } else {
+            busStopHtml = '<span style="color:#9ca3af">No bus stop within 3km</span>';
+          }
         }
         if (metroTramG) {
           const mtNear = querySpatialGrid(metroTramG, lng, lat, 0.09); // ~10km radius
@@ -3480,6 +3598,8 @@ export default function ValueMap({
           if (nearPharm) {
             const pharmCol = nearPharmDist <= PHARMACY_GREAT_METERS ? "#16a34a" : nearPharmDist <= PHARMACY_MAX_METERS ? "#d97706" : "#9ca3af";
             pharmacyHtml = `💊 <span style="color:${pharmCol}">${escapeHtml(nearPharm.name)}</span> <span style="color:#9ca3af">${fmtDist(nearPharmDist)}</span>`;
+            lineTargets.push([nearPharm.lon, nearPharm.lat]);
+            setPharmacySearchFocus(map, { lon: nearPharm.lon, lat: nearPharm.lat, name: nearPharm.name }, { lon: lng, lat });
           } else {
             pharmacyHtml = '<span style="color:#9ca3af">No pharmacy within 10km</span>';
           }
@@ -3884,6 +4004,8 @@ export default function ValueMap({
         if (map.getLayer("crime-overlay-clusters")) map.setLayoutProperty("crime-overlay-clusters", "visibility", crimeVisibility);
         if (map.getLayer("crime-overlay-cluster-count")) map.setLayoutProperty("crime-overlay-cluster-count", "visibility", crimeVisibility);
         if (crimeMode === "off") setCrimeSearchFocus(map, null, null);
+        if (busStopMode === "off") setBusStopSearchFocus(map, null, null);
+        if (pharmacyMode === "off") setPharmacySearchFocus(map, null, null);
 
         // Bus stop / metro-tram layer visibility (share the busStopMode toggle)
         if (map.getLayer("bus-stop-overlay-points")) map.setLayoutProperty("bus-stop-overlay-points", "visibility", busStopVisibility);
@@ -6946,6 +7068,66 @@ function setStationSearchFocus(
             [requested.lon, requested.lat],
             [nearest.lon, nearest.lat],
           ],
+        },
+      });
+    }
+  }
+
+  source.setData({ type: "FeatureCollection", features } as any);
+}
+
+function setBusStopSearchFocus(
+  map: maplibregl.Map,
+  nearest: { lon: number; lat: number; name: string } | null,
+  requested: { lon: number; lat: number } | null
+) {
+  const source = map.getSource("bus-stop-search-focus") as maplibregl.GeoJSONSource | undefined;
+  if (!source) return;
+
+  const features: any[] = [];
+  if (nearest) {
+    features.push({
+      type: "Feature",
+      properties: { role: "nearest", name: nearest.name },
+      geometry: { type: "Point", coordinates: [nearest.lon, nearest.lat] },
+    });
+    if (requested) {
+      features.push({
+        type: "Feature",
+        properties: { role: "link", label: "Bus stop" },
+        geometry: {
+          type: "LineString",
+          coordinates: [[requested.lon, requested.lat], [nearest.lon, nearest.lat]],
+        },
+      });
+    }
+  }
+
+  source.setData({ type: "FeatureCollection", features } as any);
+}
+
+function setPharmacySearchFocus(
+  map: maplibregl.Map,
+  nearest: { lon: number; lat: number; name: string } | null,
+  requested: { lon: number; lat: number } | null
+) {
+  const source = map.getSource("pharmacy-search-focus") as maplibregl.GeoJSONSource | undefined;
+  if (!source) return;
+
+  const features: any[] = [];
+  if (nearest) {
+    features.push({
+      type: "Feature",
+      properties: { role: "nearest", name: nearest.name },
+      geometry: { type: "Point", coordinates: [nearest.lon, nearest.lat] },
+    });
+    if (requested) {
+      features.push({
+        type: "Feature",
+        properties: { role: "link", label: "Pharmacy" },
+        geometry: {
+          type: "LineString",
+          coordinates: [[requested.lon, requested.lat], [nearest.lon, nearest.lat]],
         },
       });
     }
