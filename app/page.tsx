@@ -394,7 +394,7 @@ export default function Home() {
   const [indexActive, setIndexActive] = useState(false);
   const [indexScoringPending, setIndexScoringPending] = useState(false);
   const [indexToken, setIndexToken] = useState(0);
-  const [indexBudget, setIndexBudget] = useState(300000);
+  const [indexBudget, setIndexBudget] = useState(0);
   const [indexPropertyType, setIndexPropertyType] = useState<string>("ALL");
   const [indexAffordWeight, setIndexAffordWeight] = useState(0);
   const [indexFloodWeight, setIndexFloodWeight] = useState(0);
@@ -527,7 +527,7 @@ export default function Home() {
     setIndexOpen(false);
     setIndexActive(false);
     setIndexScoringPending(false);
-    setIndexBudget(300000);
+    setIndexBudget(0);
     setIndexPropertyType("ALL");
     setIndexAffordWeight(0);
     setIndexFloodWeight(0);
@@ -3008,12 +3008,13 @@ export default function Home() {
                     min={state.metric === "median_ppsf" ? 50 : 50000}
                     max={state.metric === "median_ppsf" ? 1000 : 2000000}
                     step={state.metric === "median_ppsf" ? 10 : 5000}
-                    value={indexBudget}
-                    onChange={(e) => { const v = Number(e.target.value); if (v > 0) setIndexBudget(v); }}
+                    placeholder={state.metric === "median_ppsf" ? "e.g. 300" : "e.g. 300000"}
+                    value={indexBudget === 0 ? "" : indexBudget}
+                    onChange={(e) => { const v = Number(e.target.value); setIndexBudget(v > 0 ? v : 0); }}
                     onBlur={(e) => {
                       const min = state.metric === "median_ppsf" ? 50 : 50000;
                       const max = state.metric === "median_ppsf" ? 1000 : 2000000;
-                      setIndexBudget((v) => Math.max(min, Math.min(max, v)));
+                      setIndexBudget((v) => v > 0 ? Math.max(min, Math.min(max, v)) : 0);
                       void e;
                     }}
                     style={{ background: "none", border: "none", color: "white", fontSize: 13, fontWeight: 700, width: 95, outline: "none", textAlign: "right" }}
