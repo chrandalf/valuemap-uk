@@ -450,6 +450,8 @@ export default function Home() {
   const overlaysDropRef = useRef<HTMLDivElement | null>(null);
   const overlayScrollRef = useRef<HTMLDivElement | null>(null);
   const [overlayScrollEdge, setOverlayScrollEdge] = useState<"top" | "middle" | "bottom">("top");
+  const cellScrollRef = useRef<HTMLDivElement | null>(null);
+  const [cellScrollEdge, setCellScrollEdge] = useState<"top" | "middle" | "bottom">("top");
   const [mobileOverlayRatio, setMobileOverlayRatio] = useState(0);
   const [mobileQuickFilterKey, setMobileQuickFilterKey] = useState<MobileQuickFilterKey>("grid");
   const [indexOpen, setIndexOpen] = useState(false);
@@ -2395,12 +2397,46 @@ export default function Home() {
                 ⊕ Overlays ▾
               </button>
               {overlaysDropOpen && (() => {
-                const panelW = 272;
-                const lbl: React.CSSProperties = { fontSize: 10.5, fontWeight: 500, letterSpacing: "-0.01em", opacity: 0.72, width: 64, flexShrink: 0, lineHeight: 1.2 };
-                const row: React.CSSProperties = { display: "flex", alignItems: "center", gap: 8, padding: "3px 0" };
+                const panelW = 260;
+                const lbl: React.CSSProperties = { fontSize: 10.5, fontWeight: 500, letterSpacing: "-0.01em", opacity: 0.72, width: 62, flexShrink: 0, lineHeight: 1.2 };
+                const row: React.CSSProperties = { display: "flex", alignItems: "center", gap: 7, padding: "2px 0" };
                 const rowTop: React.CSSProperties = { ...row, alignItems: "flex-start" };
-                const sectionHdr: React.CSSProperties = { fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.09em", opacity: 0.38, marginBottom: 5, marginTop: 2 };
-                const divider: React.CSSProperties = { height: 1, background: "rgba(255,255,255,0.07)", margin: "7px 0" };
+                const sectionHdr: React.CSSProperties = { fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.09em", opacity: 0.38, marginBottom: 4, marginTop: 1 };
+                const divider: React.CSSProperties = { height: 1, background: "rgba(255,255,255,0.07)", margin: "5px 0" };
+                const arrowBtn = (dir: "up" | "down", onClick: () => void): React.CSSProperties => ({
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  border: "none", cursor: "pointer", padding: "2px 0", fontSize: 9, flexShrink: 0,
+                  letterSpacing: 1, color: "rgba(255,255,255,0.4)",
+                  background: dir === "up"
+                    ? "linear-gradient(to bottom, rgba(5,7,16,0.97) 50%, transparent)"
+                    : "linear-gradient(to top, rgba(5,7,16,0.97) 50%, transparent)",
+                });
+                const subSection = (
+                  edge: "top" | "middle" | "bottom",
+                  scrollRef: React.RefObject<HTMLDivElement | null>,
+                  onScroll: () => void,
+                  children: React.ReactNode,
+                ) => (
+                  <div style={{ flex: "1 1 0", minHeight: 72, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+                    {edge !== "top" && (
+                      <button type="button" style={arrowBtn("up", () => {})} onClick={() => scrollRef.current?.scrollBy({ top: -110, behavior: "smooth" })}>▲</button>
+                    )}
+                    <div ref={scrollRef} className="overlay-panel-scroll" onScroll={onScroll}
+                      style={{ overflowY: "auto", flex: 1, padding: "6px 12px 6px" }}>
+                      {children}
+                    </div>
+                    {edge !== "bottom" && (
+                      <button type="button" style={arrowBtn("down", () => {})} onClick={() => scrollRef.current?.scrollBy({ top: 110, behavior: "smooth" })}>▼</button>
+                    )}
+                  </div>
+                );
+                const mkOnScroll = (
+                  ref: React.RefObject<HTMLDivElement | null>,
+                  set: (v: "top" | "middle" | "bottom") => void,
+                ) => () => {
+                  const el = ref.current; if (!el) return;
+                  set(el.scrollTop <= 4 ? "top" : el.scrollTop + el.clientHeight >= el.scrollHeight - 4 ? "bottom" : "middle");
+                };
                 return (
                   <div style={{
                     position: isMobileViewport ? "fixed" : "absolute",
@@ -2408,7 +2444,7 @@ export default function Home() {
                     left: isMobileViewport ? "50%" : 0,
                     ...(isMobileViewport ? { transform: "translateX(-50%)" } : {}),
                     width: isMobileViewport ? Math.min(panelW, window.innerWidth - 16) : panelW,
-                    maxHeight: isMobileViewport ? "calc(100dvh - 110px)" : "calc(100vh - 74px)",
+                    maxHeight: "66dvh",
                     display: "flex",
                     flexDirection: "column",
                     background: "rgba(5,7,16,0.97)",
@@ -2421,182 +2457,132 @@ export default function Home() {
                     overflow: "hidden",
                     fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif",
                   }}>
-                    {/* ── Scroll up arrow ── */}
-                    {overlayScrollEdge !== "top" && (
-                      <button type="button" onClick={() => overlayScrollRef.current?.scrollBy({ top: -120, behavior: "smooth" })} style={{ display: "flex", alignItems: "center", justifyContent: "center", border: "none", background: "linear-gradient(to bottom, rgba(5,7,16,0.97) 60%, transparent)", color: "rgba(255,255,255,0.5)", cursor: "pointer", padding: "5px 0 2px", fontSize: 11, flexShrink: 0, letterSpacing: 1 }}>▲</button>
-                    )}
-                    {/* ── Scrollable content ── */}
-                    <div
-                      ref={overlayScrollRef}
-                      className="overlay-panel-scroll"
-                      onScroll={() => {
-                        const el = overlayScrollRef.current;
-                        if (!el) return;
-                        const atTop = el.scrollTop <= 4;
-                        const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 4;
-                        setOverlayScrollEdge(atTop ? "top" : atBottom ? "bottom" : "middle");
-                      }}
-                      style={{ overflowY: "auto", flex: 1, padding: "10px 12px 12px" }}
-                    >
 
-                    <div style={sectionHdr}>Overlay layers</div>
-
-                    {/* Flood */}
-                    <div style={row}>
-                      <div style={lbl}>🌊 Flood</div>
-                      <Segment slim options={["off", "on", "on_hide_cells"]} value={state.floodOverlayMode} onChange={(v) => setState((s) => ({ ...s, floodOverlayMode: v as FloodOverlayMode }))} renderOption={(v) => v === "on" ? "On" : v === "on_hide_cells" ? "Hide cells" : "Off"} />
-                      {rightClickInfo?.stage === "ready" && <button type="button" onClick={() => setRgLinesShown(v => ({ ...v, flood: !v.flood }))} title={rgLinesShown.flood ? "Hide flood lines" : "Show flood lines"} style={{ cursor: "pointer", border: "none", borderRadius: 3, background: rgLinesShown.flood ? "rgba(74,222,128,0.1)" : "transparent", color: rgLinesShown.flood ? "rgba(74,222,128,0.85)" : "rgba(255,255,255,0.22)", fontSize: 9.5, padding: "2px 5px", flexShrink: 0, textDecoration: rgLinesShown.flood ? "none" : "line-through" }}>lines</button>}
-                    </div>
-
-                    {/* Schools */}
-                    <div style={row}>
-                      <div style={lbl}>🏫 Schools</div>
-                      <Segment slim options={["off", "on", "on_hide_cells"]} value={state.schoolOverlayMode} onChange={(v) => setState((s) => ({ ...s, schoolOverlayMode: v as SchoolOverlayMode }))} renderOption={(v) => v === "on" ? "On" : v === "on_hide_cells" ? "Hide cells" : "Off"} />
-                      {rightClickInfo?.stage === "ready" && <button type="button" onClick={() => setRgLinesShown(v => ({ ...v, school: !v.school }))} title={rgLinesShown.school ? "Hide school lines" : "Show school lines"} style={{ cursor: "pointer", border: "none", borderRadius: 3, background: rgLinesShown.school ? "rgba(74,222,128,0.1)" : "transparent", color: rgLinesShown.school ? "rgba(74,222,128,0.85)" : "rgba(255,255,255,0.22)", fontSize: 9.5, padding: "2px 5px", flexShrink: 0, textDecoration: rgLinesShown.school ? "none" : "line-through" }}>lines</button>}
-                    </div>
-
-                    {/* Primary schools */}
-                    <div style={row}>
-                      <div style={lbl}>🏫 Primary</div>
-                      <Segment slim options={["off", "on", "on_hide_cells"]} value={state.primarySchoolOverlayMode} onChange={(v) => setState((s) => ({ ...s, primarySchoolOverlayMode: v as PrimarySchoolOverlayMode }))} renderOption={(v) => v === "on" ? "On" : v === "on_hide_cells" ? "Hide cells" : "Off"} />
-                      {rightClickInfo?.stage === "ready" && <button type="button" onClick={() => setRgLinesShown(v => ({ ...v, primarySchool: !v.primarySchool }))} title={rgLinesShown.primarySchool ? "Hide primary school lines" : "Show primary school lines"} style={{ cursor: "pointer", border: "none", borderRadius: 3, background: rgLinesShown.primarySchool ? "rgba(74,222,128,0.1)" : "transparent", color: rgLinesShown.primarySchool ? "rgba(74,222,128,0.85)" : "rgba(255,255,255,0.22)", fontSize: 9.5, padding: "2px 5px", flexShrink: 0, textDecoration: rgLinesShown.primarySchool ? "none" : "line-through" }}>lines</button>}
-                    </div>
-
-                    {/* Stations */}
-                    <div style={row}>
-                      <div style={lbl}>🚂 Stations</div>
-                      <Segment slim options={["off", "on", "on_hide_cells"]} value={state.stationOverlayMode} onChange={(v) => setState((s) => ({ ...s, stationOverlayMode: v as StationOverlayMode }))} renderOption={(v) => v === "on" ? "On" : v === "on_hide_cells" ? "Hide cells" : "Off"} />
-                      {rightClickInfo?.stage === "ready" && <button type="button" onClick={() => setRgLinesShown(v => ({ ...v, station: !v.station }))} title={rgLinesShown.station ? "Hide station lines" : "Show station lines"} style={{ cursor: "pointer", border: "none", borderRadius: 3, background: rgLinesShown.station ? "rgba(74,222,128,0.1)" : "transparent", color: rgLinesShown.station ? "rgba(74,222,128,0.85)" : "rgba(255,255,255,0.22)", fontSize: 9.5, padding: "2px 5px", flexShrink: 0, textDecoration: rgLinesShown.station ? "none" : "line-through" }}>lines</button>}
-                    </div>
-
-                    {/* Crime overlay */}
-                    <div style={row}>
-                      <div style={lbl}>🔴 Crime</div>
-                      <Segment slim options={["off", "on", "on_hide_cells"]} value={state.crimeOverlayMode} onChange={(v) => setState((s) => ({ ...s, crimeOverlayMode: v as CrimeOverlayMode }))} renderOption={(v) => v === "on" ? "On" : v === "on_hide_cells" ? "Hide cells" : "Off"} />
-                      {rightClickInfo?.stage === "ready" && <button type="button" onClick={() => setRgLinesShown(v => ({ ...v, crime: !v.crime }))} title={rgLinesShown.crime ? "Hide crime lines" : "Show crime lines"} style={{ cursor: "pointer", border: "none", borderRadius: 3, background: rgLinesShown.crime ? "rgba(74,222,128,0.1)" : "transparent", color: rgLinesShown.crime ? "rgba(74,222,128,0.85)" : "rgba(255,255,255,0.22)", fontSize: 9.5, padding: "2px 5px", flexShrink: 0, textDecoration: rgLinesShown.crime ? "none" : "line-through" }}>lines</button>}
-                    </div>
-
-                    {/* Bus & metro */}
-                    <div style={row}>
-                      <div style={lbl}>🚌 Bus & metro</div>
-                      <Segment slim options={["off", "on", "on_hide_cells"]} value={state.busStopOverlayMode} onChange={(v) => setState((s) => ({ ...s, busStopOverlayMode: v as BusStopOverlayMode }))} renderOption={(v) => v === "on" ? "On" : v === "on_hide_cells" ? "Hide cells" : "Off"} />
-                      {rightClickInfo?.stage === "ready" && <button type="button" onClick={() => setRgLinesShown(v => ({ ...v, busStop: !v.busStop }))} title={rgLinesShown.busStop ? "Hide bus stop lines" : "Show bus stop lines"} style={{ cursor: "pointer", border: "none", borderRadius: 3, background: rgLinesShown.busStop ? "rgba(74,222,128,0.1)" : "transparent", color: rgLinesShown.busStop ? "rgba(74,222,128,0.85)" : "rgba(255,255,255,0.22)", fontSize: 9.5, padding: "2px 5px", flexShrink: 0, textDecoration: rgLinesShown.busStop ? "none" : "line-through" }}>lines</button>}
-                    </div>
-
-                    {/* Pharmacies */}
-                    <div style={row}>
-                      <div style={lbl}>💊 Pharmacy</div>
-                      <Segment slim options={["off", "on", "on_hide_cells"]} value={state.pharmacyOverlayMode} onChange={(v) => setState((s) => ({ ...s, pharmacyOverlayMode: v as PharmacyOverlayMode }))} renderOption={(v) => v === "on" ? "On" : v === "on_hide_cells" ? "Hide cells" : "Off"} />
-                      {rightClickInfo?.stage === "ready" && <button type="button" onClick={() => setRgLinesShown(v => ({ ...v, pharmacy: !v.pharmacy }))} title={rgLinesShown.pharmacy ? "Hide pharmacy lines" : "Show pharmacy lines"} style={{ cursor: "pointer", border: "none", borderRadius: 3, background: rgLinesShown.pharmacy ? "rgba(74,222,128,0.1)" : "transparent", color: rgLinesShown.pharmacy ? "rgba(74,222,128,0.85)" : "rgba(255,255,255,0.22)", fontSize: 9.5, padding: "2px 5px", flexShrink: 0, textDecoration: rgLinesShown.pharmacy ? "none" : "line-through" }}>lines</button>}
-                    </div>
-
-                    {/* Listed buildings */}
-                    <div style={row}>
-                      <div style={lbl}>🏛️ Listed bldgs</div>
-                      <Segment slim options={["off", "on", "on_hide_cells"]} value={state.listedBuildingOverlayMode} onChange={(v) => setState((s) => ({ ...s, listedBuildingOverlayMode: v as ListedBuildingOverlayMode }))} renderOption={(v) => v === "on" ? "On" : v === "on_hide_cells" ? "Hide cells" : "Off"} />
-                    </div>
-
-                    {/* ── Work in progress ── */}
-                    <div style={divider} />
-                    <div style={{ ...sectionHdr, opacity: 0.28 }}>🚧 Work in progress</div>
-
-                    {/* Planning */}
-                    <div style={row}>
-                      <div style={{ ...lbl, opacity: 0.6 }}>📋 Planning</div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                        <Segment slim options={["off", "on", "on_hide_cells"]} value={state.planningOverlayMode} onChange={(v) => setState((s) => ({ ...s, planningOverlayMode: v as PlanningOverlayMode }))} renderOption={(v) => v === "on" ? "On" : v === "on_hide_cells" ? "Hide cells" : "Off"} />
-                        <div style={{ fontSize: 9, opacity: 0.35 }}>Brighton &amp; London only</div>
+                    {/* ── TOP SECTION: Overlay layers ── */}
+                    {subSection(overlayScrollEdge, overlayScrollRef, mkOnScroll(overlayScrollRef, setOverlayScrollEdge), <>
+                      <div style={sectionHdr}>Overlay layers</div>
+                      <div style={row}>
+                        <div style={lbl}>🌊 Flood</div>
+                        <Segment slim options={["off", "on", "on_hide_cells"]} value={state.floodOverlayMode} onChange={(v) => setState((s) => ({ ...s, floodOverlayMode: v as FloodOverlayMode }))} renderOption={(v) => v === "on_hide_cells" ? "Hide" : v === "on" ? "On" : "Off"} />
+                        {rightClickInfo?.stage === "ready" && <button type="button" onClick={() => setRgLinesShown(v => ({ ...v, flood: !v.flood }))} style={{ cursor: "pointer", border: "none", borderRadius: 3, background: "transparent", color: rgLinesShown.flood ? "rgba(74,222,128,0.8)" : "rgba(255,255,255,0.2)", fontSize: 9, padding: "2px 4px", flexShrink: 0, textDecoration: rgLinesShown.flood ? "none" : "line-through" }}>lines</button>}
                       </div>
-                    </div>
-
-                    {/* ── Cell colour ── */}
-                    <div style={divider} />
-                    <div style={sectionHdr}>Cell colour</div>
-
-                    {/* Crime cells */}
-                    <div style={rowTop}>
-                      <div style={{ ...lbl, paddingTop: 2 }}>🔴 Crime</div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                        <Segment slim options={["off", "on"] as CrimeCellMode[]} value={state.crimeCellMode} onChange={(v) => setState((s) => ({ ...s, crimeCellMode: v as CrimeCellMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, listedBuildingCellOverlayMode: "off" as ListedBuildingCellOverlayMode, overlayFilterThreshold: 50 } : {}) }))} renderOption={(v) => v === "on" ? "On" : "Off"} />
-                        {state.crimeCellMode === "on" && (<>
-                          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                            <div style={{ fontSize: 9.5, opacity: 0.45, width: 32, flexShrink: 0 }}>Scale</div>
-                            <Segment slim options={["absolute", "relative"] as CrimeCellScale[]} value={state.crimeCellScale} onChange={(v) => setState((s) => ({ ...s, crimeCellScale: v as CrimeCellScale }))} renderOption={(v) => v === "absolute" ? "Absolute" : "Local"} />
-                          </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                            <div style={{ fontSize: 9.5, opacity: 0.45, width: 32, flexShrink: 0 }}>Type</div>
-                            <Segment slim options={["total", "violent", "property", "asb"] as CrimeCellSubMode[]} value={state.crimeCellSubMode} onChange={(v) => setState((s) => ({ ...s, crimeCellSubMode: v as CrimeCellSubMode }))} renderOption={(v) => v === "total" ? "All" : v === "violent" ? "Violent" : v === "property" ? "Property" : "ASB"} />
-                          </div>
-                        </>)}
+                      <div style={row}>
+                        <div style={lbl}>🏫 Schools</div>
+                        <Segment slim options={["off", "on", "on_hide_cells"]} value={state.schoolOverlayMode} onChange={(v) => setState((s) => ({ ...s, schoolOverlayMode: v as SchoolOverlayMode }))} renderOption={(v) => v === "on_hide_cells" ? "Hide" : v === "on" ? "On" : "Off"} />
+                        {rightClickInfo?.stage === "ready" && <button type="button" onClick={() => setRgLinesShown(v => ({ ...v, school: !v.school }))} style={{ cursor: "pointer", border: "none", borderRadius: 3, background: "transparent", color: rgLinesShown.school ? "rgba(74,222,128,0.8)" : "rgba(255,255,255,0.2)", fontSize: 9, padding: "2px 4px", flexShrink: 0, textDecoration: rgLinesShown.school ? "none" : "line-through" }}>lines</button>}
                       </div>
-                    </div>
-
-                    {/* Politics */}
-                    <div style={rowTop}>
-                      <div style={{ ...lbl, paddingTop: 2 }}>🗳 Politics</div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                        <Segment slim options={["off", "on"]} value={state.voteOverlayMode} onChange={(v) => setState((s) => ({ ...s, voteOverlayMode: v as VoteOverlayMode, ...(v === "on" ? { commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, crimeCellMode: "off" as CrimeCellMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, listedBuildingCellOverlayMode: "off" as ListedBuildingCellOverlayMode } : {}) }))} renderOption={(v) => v === "on" ? "On" : "Off"} />
-                        {state.voteOverlayMode === "on" && (
-                          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                            <div style={{ fontSize: 9.5, opacity: 0.45, width: 32, flexShrink: 0 }}>Scale</div>
-                            <Segment slim options={["relative", "absolute"]} value={state.voteColorScale} onChange={(v) => setState((s) => ({ ...s, voteColorScale: v as VoteColorScale }))} renderOption={(v) => v === "relative" ? "Relative" : "Absolute"} />
-                          </div>
-                        )}
+                      <div style={row}>
+                        <div style={lbl}>🏫 Primary</div>
+                        <Segment slim options={["off", "on", "on_hide_cells"]} value={state.primarySchoolOverlayMode} onChange={(v) => setState((s) => ({ ...s, primarySchoolOverlayMode: v as PrimarySchoolOverlayMode }))} renderOption={(v) => v === "on_hide_cells" ? "Hide" : v === "on" ? "On" : "Off"} />
+                        {rightClickInfo?.stage === "ready" && <button type="button" onClick={() => setRgLinesShown(v => ({ ...v, primarySchool: !v.primarySchool }))} style={{ cursor: "pointer", border: "none", borderRadius: 3, background: "transparent", color: rgLinesShown.primarySchool ? "rgba(74,222,128,0.8)" : "rgba(255,255,255,0.2)", fontSize: 9, padding: "2px 4px", flexShrink: 0, textDecoration: rgLinesShown.primarySchool ? "none" : "line-through" }}>lines</button>}
                       </div>
-                    </div>
-
-                    {/* Commute */}
-                    <div style={row}>
-                      <div style={lbl}>🚗 Commute</div>
-                      <Segment slim options={["off", "on"]} value={state.commuteOverlayMode} onChange={(v) => setState((s) => ({ ...s, commuteOverlayMode: v as CommuteOverlayMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, crimeCellMode: "off" as CrimeCellMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, listedBuildingCellOverlayMode: "off" as ListedBuildingCellOverlayMode, overlayFilterThreshold: 15 } : {}) }))} renderOption={(v) => v === "on" ? "On" : "Off"} />
-                    </div>
-
-                    {/* Age mix */}
-                    <div style={row}>
-                      <div style={lbl}>👥 Age mix</div>
-                      <Segment slim options={["off", "on"]} value={state.ageOverlayMode} onChange={(v) => setState((s) => ({ ...s, ageOverlayMode: v as AgeOverlayMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, crimeCellMode: "off" as CrimeCellMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, listedBuildingCellOverlayMode: "off" as ListedBuildingCellOverlayMode, overlayFilterThreshold: 50 } : {}) }))} renderOption={(v) => v === "on" ? "On" : "Off"} />
-                    </div>
-
-                    {/* Fuel type */}
-                    <div style={rowTop}>
-                      <div style={{ ...lbl, paddingTop: 2 }}>⚡ Fuel type</div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                        <Segment slim options={["off", "on"] as EpcFuelOverlayMode[]} value={state.epcFuelOverlayMode} onChange={(v) => setState((s) => ({ ...s, epcFuelOverlayMode: v as EpcFuelOverlayMode, ...(v === "on" ? { crimeCellMode: "off" as CrimeCellMode, voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, listedBuildingCellOverlayMode: "off" as ListedBuildingCellOverlayMode, overlayFilterThreshold: 50 } : {}) }))} renderOption={(v) => v === "on" ? "On" : "Off"} />
-                        {state.epcFuelOverlayMode === "on" && (
-                          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                            <div style={{ fontSize: 9.5, opacity: 0.45, width: 32, flexShrink: 0 }}>Fuel</div>
-                            <Segment slim options={["gas", "electric", "oil", "lpg"] as EpcFuelType[]} value={state.epcFuelType} onChange={(v) => setState((s) => ({ ...s, epcFuelType: v as EpcFuelType }))} renderOption={(v) => v === "gas" ? "Gas" : v === "electric" ? "Electric" : v === "oil" ? "Oil" : "LPG"} />
-                          </div>
-                        )}
+                      <div style={row}>
+                        <div style={lbl}>🚂 Stations</div>
+                        <Segment slim options={["off", "on", "on_hide_cells"]} value={state.stationOverlayMode} onChange={(v) => setState((s) => ({ ...s, stationOverlayMode: v as StationOverlayMode }))} renderOption={(v) => v === "on_hide_cells" ? "Hide" : v === "on" ? "On" : "Off"} />
+                        {rightClickInfo?.stage === "ready" && <button type="button" onClick={() => setRgLinesShown(v => ({ ...v, station: !v.station }))} style={{ cursor: "pointer", border: "none", borderRadius: 3, background: "transparent", color: rgLinesShown.station ? "rgba(74,222,128,0.8)" : "rgba(255,255,255,0.2)", fontSize: 9, padding: "2px 4px", flexShrink: 0, textDecoration: rgLinesShown.station ? "none" : "line-through" }}>lines</button>}
                       </div>
-                    </div>
-
-                    {/* Internet */}
-                    <div style={rowTop}>
-                      <div style={{ ...lbl, paddingTop: 2 }}>📶 Internet</div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                        <Segment slim options={["off", "on"] as BroadbandCellOverlayMode[]} value={state.broadbandCellOverlayMode} onChange={(v) => setState((s) => ({ ...s, broadbandCellOverlayMode: v as BroadbandCellOverlayMode, ...(v === "on" ? { crimeCellMode: "off" as CrimeCellMode, voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, epcFuelOverlayMode: "off" as EpcFuelOverlayMode, listedBuildingCellOverlayMode: "off" as ListedBuildingCellOverlayMode, overlayFilterThreshold: s.broadbandCellMetric === "avg_speed" ? 100 : 50 } : {}) }))} renderOption={(v) => v === "on" ? "On" : "Off"} />
-                        {state.broadbandCellOverlayMode === "on" && (
-                          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                            <div style={{ fontSize: 9.5, opacity: 0.45, width: 32, flexShrink: 0 }}>Show</div>
-                            <Segment slim options={["avg_speed", "pct_sfbb", "pct_fast"] as BroadbandCellMetric[]} value={state.broadbandCellMetric} onChange={(v) => setState((s) => ({ ...s, broadbandCellMetric: v as BroadbandCellMetric, overlayFilterThreshold: v === "avg_speed" ? 100 : 50 }))} renderOption={(v) => v === "avg_speed" ? "Avg speed" : v === "pct_sfbb" ? "% SFBB+" : "% Fibre"} />
-                          </div>
-                        )}
+                      <div style={row}>
+                        <div style={lbl}>🔴 Crime</div>
+                        <Segment slim options={["off", "on", "on_hide_cells"]} value={state.crimeOverlayMode} onChange={(v) => setState((s) => ({ ...s, crimeOverlayMode: v as CrimeOverlayMode }))} renderOption={(v) => v === "on_hide_cells" ? "Hide" : v === "on" ? "On" : "Off"} />
+                        {rightClickInfo?.stage === "ready" && <button type="button" onClick={() => setRgLinesShown(v => ({ ...v, crime: !v.crime }))} style={{ cursor: "pointer", border: "none", borderRadius: 3, background: "transparent", color: rgLinesShown.crime ? "rgba(74,222,128,0.8)" : "rgba(255,255,255,0.2)", fontSize: 9, padding: "2px 4px", flexShrink: 0, textDecoration: rgLinesShown.crime ? "none" : "line-through" }}>lines</button>}
                       </div>
-                    </div>
+                      <div style={row}>
+                        <div style={lbl}>🚌 Bus & metro</div>
+                        <Segment slim options={["off", "on", "on_hide_cells"]} value={state.busStopOverlayMode} onChange={(v) => setState((s) => ({ ...s, busStopOverlayMode: v as BusStopOverlayMode }))} renderOption={(v) => v === "on_hide_cells" ? "Hide" : v === "on" ? "On" : "Off"} />
+                        {rightClickInfo?.stage === "ready" && <button type="button" onClick={() => setRgLinesShown(v => ({ ...v, busStop: !v.busStop }))} style={{ cursor: "pointer", border: "none", borderRadius: 3, background: "transparent", color: rgLinesShown.busStop ? "rgba(74,222,128,0.8)" : "rgba(255,255,255,0.2)", fontSize: 9, padding: "2px 4px", flexShrink: 0, textDecoration: rgLinesShown.busStop ? "none" : "line-through" }}>lines</button>}
+                      </div>
+                      <div style={row}>
+                        <div style={lbl}>💊 Pharmacy</div>
+                        <Segment slim options={["off", "on", "on_hide_cells"]} value={state.pharmacyOverlayMode} onChange={(v) => setState((s) => ({ ...s, pharmacyOverlayMode: v as PharmacyOverlayMode }))} renderOption={(v) => v === "on_hide_cells" ? "Hide" : v === "on" ? "On" : "Off"} />
+                        {rightClickInfo?.stage === "ready" && <button type="button" onClick={() => setRgLinesShown(v => ({ ...v, pharmacy: !v.pharmacy }))} style={{ cursor: "pointer", border: "none", borderRadius: 3, background: "transparent", color: rgLinesShown.pharmacy ? "rgba(74,222,128,0.8)" : "rgba(255,255,255,0.2)", fontSize: 9, padding: "2px 4px", flexShrink: 0, textDecoration: rgLinesShown.pharmacy ? "none" : "line-through" }}>lines</button>}
+                      </div>
+                      <div style={row}>
+                        <div style={lbl}>🏛️ Listed</div>
+                        <Segment slim options={["off", "on", "on_hide_cells"]} value={state.listedBuildingOverlayMode} onChange={(v) => setState((s) => ({ ...s, listedBuildingOverlayMode: v as ListedBuildingOverlayMode }))} renderOption={(v) => v === "on_hide_cells" ? "Hide" : v === "on" ? "On" : "Off"} />
+                      </div>
+                      <div style={divider} />
+                      <div style={{ ...sectionHdr, opacity: 0.26 }}>🚧 WIP</div>
+                      <div style={row}>
+                        <div style={{ ...lbl, opacity: 0.55 }}>📋 Planning</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                          <Segment slim options={["off", "on", "on_hide_cells"]} value={state.planningOverlayMode} onChange={(v) => setState((s) => ({ ...s, planningOverlayMode: v as PlanningOverlayMode }))} renderOption={(v) => v === "on_hide_cells" ? "Hide" : v === "on" ? "On" : "Off"} />
+                          <div style={{ fontSize: 8.5, opacity: 0.32, paddingLeft: 1 }}>Brighton &amp; London only</div>
+                        </div>
+                      </div>
+                    </>)}
 
-                    {/* Heritage */}
-                    <div style={row}>
-                      <div style={lbl}>🏛️ Heritage</div>
-                      <Segment slim options={["off", "on"] as ListedBuildingCellOverlayMode[]} value={state.listedBuildingCellOverlayMode} onChange={(v) => setState((s) => ({ ...s, listedBuildingCellOverlayMode: v as ListedBuildingCellOverlayMode, ...(v === "on" ? { crimeCellMode: "off" as CrimeCellMode, voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, epcFuelOverlayMode: "off" as EpcFuelOverlayMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, overlayFilterThreshold: 0 } : {}) }))} renderOption={(v) => v === "on" ? "On" : "Off"} />
-                    </div>
+                    {/* ── Divider between sections ── */}
+                    <div style={{ height: 1, background: "rgba(255,255,255,0.1)", flexShrink: 0 }} />
 
-                    </div>{/* end scrollable */}
+                    {/* ── BOTTOM SECTION: Cell colour ── */}
+                    {subSection(cellScrollEdge, cellScrollRef, mkOnScroll(cellScrollRef, setCellScrollEdge), <>
+                      <div style={sectionHdr}>Cell colour</div>
+                      <div style={rowTop}>
+                        <div style={{ ...lbl, paddingTop: 2 }}>🔴 Crime</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                          <Segment slim options={["off", "on"] as CrimeCellMode[]} value={state.crimeCellMode} onChange={(v) => setState((s) => ({ ...s, crimeCellMode: v as CrimeCellMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, listedBuildingCellOverlayMode: "off" as ListedBuildingCellOverlayMode, overlayFilterThreshold: 50 } : {}) }))} renderOption={(v) => v === "on" ? "On" : "Off"} />
+                          {state.crimeCellMode === "on" && (<>
+                            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                              <div style={{ fontSize: 9, opacity: 0.42, width: 28, flexShrink: 0 }}>Scale</div>
+                              <Segment slim options={["absolute", "relative"] as CrimeCellScale[]} value={state.crimeCellScale} onChange={(v) => setState((s) => ({ ...s, crimeCellScale: v as CrimeCellScale }))} renderOption={(v) => v === "absolute" ? "Abs" : "Local"} />
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                              <div style={{ fontSize: 9, opacity: 0.42, width: 28, flexShrink: 0 }}>Type</div>
+                              <Segment slim options={["total", "violent", "property", "asb"] as CrimeCellSubMode[]} value={state.crimeCellSubMode} onChange={(v) => setState((s) => ({ ...s, crimeCellSubMode: v as CrimeCellSubMode }))} renderOption={(v) => v === "total" ? "All" : v === "violent" ? "Violent" : v === "property" ? "Property" : "ASB"} />
+                            </div>
+                          </>)}
+                        </div>
+                      </div>
+                      <div style={rowTop}>
+                        <div style={{ ...lbl, paddingTop: 2 }}>🗳 Politics</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                          <Segment slim options={["off", "on"]} value={state.voteOverlayMode} onChange={(v) => setState((s) => ({ ...s, voteOverlayMode: v as VoteOverlayMode, ...(v === "on" ? { commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, crimeCellMode: "off" as CrimeCellMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, listedBuildingCellOverlayMode: "off" as ListedBuildingCellOverlayMode } : {}) }))} renderOption={(v) => v === "on" ? "On" : "Off"} />
+                          {state.voteOverlayMode === "on" && (
+                            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                              <div style={{ fontSize: 9, opacity: 0.42, width: 28, flexShrink: 0 }}>Scale</div>
+                              <Segment slim options={["relative", "absolute"]} value={state.voteColorScale} onChange={(v) => setState((s) => ({ ...s, voteColorScale: v as VoteColorScale }))} renderOption={(v) => v === "relative" ? "Relative" : "Absolute"} />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div style={row}>
+                        <div style={lbl}>🚗 Commute</div>
+                        <Segment slim options={["off", "on"]} value={state.commuteOverlayMode} onChange={(v) => setState((s) => ({ ...s, commuteOverlayMode: v as CommuteOverlayMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, crimeCellMode: "off" as CrimeCellMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, listedBuildingCellOverlayMode: "off" as ListedBuildingCellOverlayMode, overlayFilterThreshold: 15 } : {}) }))} renderOption={(v) => v === "on" ? "On" : "Off"} />
+                      </div>
+                      <div style={row}>
+                        <div style={lbl}>👥 Age mix</div>
+                        <Segment slim options={["off", "on"]} value={state.ageOverlayMode} onChange={(v) => setState((s) => ({ ...s, ageOverlayMode: v as AgeOverlayMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, crimeCellMode: "off" as CrimeCellMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, listedBuildingCellOverlayMode: "off" as ListedBuildingCellOverlayMode, overlayFilterThreshold: 50 } : {}) }))} renderOption={(v) => v === "on" ? "On" : "Off"} />
+                      </div>
+                      <div style={rowTop}>
+                        <div style={{ ...lbl, paddingTop: 2 }}>⚡ Fuel</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                          <Segment slim options={["off", "on"] as EpcFuelOverlayMode[]} value={state.epcFuelOverlayMode} onChange={(v) => setState((s) => ({ ...s, epcFuelOverlayMode: v as EpcFuelOverlayMode, ...(v === "on" ? { crimeCellMode: "off" as CrimeCellMode, voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, listedBuildingCellOverlayMode: "off" as ListedBuildingCellOverlayMode, overlayFilterThreshold: 50 } : {}) }))} renderOption={(v) => v === "on" ? "On" : "Off"} />
+                          {state.epcFuelOverlayMode === "on" && (
+                            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                              <div style={{ fontSize: 9, opacity: 0.42, width: 28, flexShrink: 0 }}>Fuel</div>
+                              <Segment slim options={["gas", "electric", "oil", "lpg"] as EpcFuelType[]} value={state.epcFuelType} onChange={(v) => setState((s) => ({ ...s, epcFuelType: v as EpcFuelType }))} renderOption={(v) => v === "gas" ? "Gas" : v === "electric" ? "Elec" : v === "oil" ? "Oil" : "LPG"} />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div style={rowTop}>
+                        <div style={{ ...lbl, paddingTop: 2 }}>📶 Internet</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                          <Segment slim options={["off", "on"] as BroadbandCellOverlayMode[]} value={state.broadbandCellOverlayMode} onChange={(v) => setState((s) => ({ ...s, broadbandCellOverlayMode: v as BroadbandCellOverlayMode, ...(v === "on" ? { crimeCellMode: "off" as CrimeCellMode, voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, epcFuelOverlayMode: "off" as EpcFuelOverlayMode, listedBuildingCellOverlayMode: "off" as ListedBuildingCellOverlayMode, overlayFilterThreshold: s.broadbandCellMetric === "avg_speed" ? 100 : 50 } : {}) }))} renderOption={(v) => v === "on" ? "On" : "Off"} />
+                          {state.broadbandCellOverlayMode === "on" && (
+                            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                              <div style={{ fontSize: 9, opacity: 0.42, width: 28, flexShrink: 0 }}>Show</div>
+                              <Segment slim options={["avg_speed", "pct_sfbb", "pct_fast"] as BroadbandCellMetric[]} value={state.broadbandCellMetric} onChange={(v) => setState((s) => ({ ...s, broadbandCellMetric: v as BroadbandCellMetric, overlayFilterThreshold: v === "avg_speed" ? 100 : 50 }))} renderOption={(v) => v === "avg_speed" ? "Speed" : v === "pct_sfbb" ? "SFBB+" : "Fibre"} />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div style={row}>
+                        <div style={lbl}>🏛️ Heritage</div>
+                        <Segment slim options={["off", "on"] as ListedBuildingCellOverlayMode[]} value={state.listedBuildingCellOverlayMode} onChange={(v) => setState((s) => ({ ...s, listedBuildingCellOverlayMode: v as ListedBuildingCellOverlayMode, ...(v === "on" ? { crimeCellMode: "off" as CrimeCellMode, voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, epcFuelOverlayMode: "off" as EpcFuelOverlayMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, overlayFilterThreshold: 0 } : {}) }))} renderOption={(v) => v === "on" ? "On" : "Off"} />
+                      </div>
+                    </>)}
 
-                    {/* ── Scroll down arrow ── */}
-                    {overlayScrollEdge !== "bottom" && (
-                      <button type="button" onClick={() => overlayScrollRef.current?.scrollBy({ top: 120, behavior: "smooth" })} style={{ display: "flex", alignItems: "center", justifyContent: "center", border: "none", background: "linear-gradient(to top, rgba(5,7,16,0.97) 60%, transparent)", color: "rgba(255,255,255,0.5)", cursor: "pointer", padding: "2px 0 5px", fontSize: 11, flexShrink: 0, letterSpacing: 1 }}>▼</button>
-                    )}
                   </div>
                 );
               })()}
