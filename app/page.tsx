@@ -2399,7 +2399,6 @@ export default function Home() {
               {overlaysDropOpen && (() => {
                 const panelW = 290;
 
-                // Individual button — matches Find My Area button style exactly
                 const ob = (label: string, active: boolean, onClick: () => void, accent = "rgba(200,210,255,0.9)") => (
                   <button type="button" onClick={onClick} style={{
                     cursor: "pointer", padding: "3px 8px", borderRadius: 6, minWidth: 34,
@@ -2411,7 +2410,6 @@ export default function Home() {
                   }}>{label}</button>
                 );
 
-                // "lines" toggle button shown only when right-click info is ready
                 const linesBtn = (key: "flood" | "school" | "primarySchool" | "station" | "crime" | "busStop" | "pharmacy") =>
                   rightClickInfo?.stage === "ready" ? (
                     <button type="button" onClick={() => setRgLinesShown(v => ({ ...v, [key]: !v[key] }))} style={{
@@ -2421,27 +2419,17 @@ export default function Home() {
                     }}>lines</button>
                   ) : null;
 
-                // A row: fixed-width label, buttons, optional lines toggle
-                const row = (
-                  icon: string, label: string,
-                  btns: React.ReactNode,
-                  lines?: React.ReactNode,
-                  sub?: React.ReactNode,
-                  dimmed = false,
-                ) => (
+                const row = (icon: string, label: string, btns: React.ReactNode, lines?: React.ReactNode, subContent?: React.ReactNode, dimmed = false) => (
                   <div style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", padding: "5px 0" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ fontSize: 11, fontWeight: 600, flex: "0 0 auto", minWidth: 90, lineHeight: 1.25, opacity: dimmed ? 0.5 : 1 }}>
-                        {icon} {label}
-                      </span>
+                      <span style={{ fontSize: 11, fontWeight: 600, flex: "0 0 auto", minWidth: 90, lineHeight: 1.25, opacity: dimmed ? 0.5 : 1 }}>{icon} {label}</span>
                       <div style={{ display: "flex", gap: 3 }}>{btns}</div>
                       {lines}
                     </div>
-                    {sub && <div style={{ paddingLeft: 2, paddingTop: 4 }}>{sub}</div>}
+                    {subContent && <div style={{ paddingLeft: 2, paddingTop: 4 }}>{subContent}</div>}
                   </div>
                 );
 
-                // Sub-option row (Scale / Type / Fuel etc.)
                 const sub = (label: string, btns: React.ReactNode) => (
                   <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "2px 0" }}>
                     <span style={{ fontSize: 9, opacity: 0.4, minWidth: 26, flex: "0 0 auto" }}>{label}</span>
@@ -2449,45 +2437,22 @@ export default function Home() {
                   </div>
                 );
 
-                // Locked section header (rendered OUTSIDE scroll so it never moves)
+                // Sticky section header — sticks to top of the scroll container as you scroll past it
                 const sectionHdr = (text: string, wip = false) => (
                   <div style={{
-                    padding: "7px 14px 5px", flexShrink: 0,
-                    borderBottom: "1px solid rgba(255,255,255,0.08)",
+                    position: "sticky", top: 0, zIndex: 2,
+                    padding: "7px 14px 5px",
+                    background: "rgba(8,10,22,0.98)",
+                    borderBottom: "1px solid rgba(255,255,255,0.09)",
                     fontSize: 9, fontWeight: 700, letterSpacing: "0.09em", textTransform: "uppercase" as const,
-                    color: wip ? "rgba(255,255,255,0.28)" : "rgba(255,255,255,0.42)",
+                    color: wip ? "rgba(255,255,255,0.28)" : "rgba(255,255,255,0.45)",
                   }}>{text}</div>
                 );
 
-                const mkOnScroll = (ref: React.RefObject<HTMLDivElement | null>, set: (v: "top" | "middle" | "bottom") => void) => () => {
-                  const el = ref.current; if (!el) return;
-                  set(el.scrollTop <= 4 ? "top" : el.scrollTop + el.clientHeight >= el.scrollHeight - 4 ? "bottom" : "middle");
+                const handleScroll = () => {
+                  const el = overlayScrollRef.current; if (!el) return;
+                  setOverlayScrollEdge(el.scrollTop <= 4 ? "top" : el.scrollTop + el.clientHeight >= el.scrollHeight - 4 ? "bottom" : "middle");
                 };
-
-                const arrowStyle = (dir: "up" | "down"): React.CSSProperties => ({
-                  border: "none", cursor: "pointer", flexShrink: 0,
-                  background: dir === "up" ? "linear-gradient(to bottom, rgba(8,10,22,0.98) 55%, transparent)" : "linear-gradient(to top, rgba(8,10,22,0.98) 55%, transparent)",
-                  color: "rgba(255,255,255,0.32)", fontSize: 9, padding: "3px 0", letterSpacing: 1, display: "block", width: "100%", textAlign: "center" as const,
-                });
-
-                const section = (
-                  hdr: string,
-                  edge: "top" | "middle" | "bottom",
-                  scrollRef: React.RefObject<HTMLDivElement | null>,
-                  onScroll: () => void,
-                  children: React.ReactNode,
-                  wip = false,
-                ) => (
-                  <div style={{ flex: "1 1 0", minHeight: 82, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-                    {sectionHdr(hdr, wip)}
-                    {edge !== "top" && <button type="button" style={arrowStyle("up")} onClick={() => scrollRef.current?.scrollBy({ top: -110, behavior: "smooth" })}>▲</button>}
-                    <div ref={scrollRef} className="overlay-panel-scroll" onScroll={onScroll}
-                      style={{ overflowY: "auto", flex: 1, padding: "0 14px 8px" }}>
-                      {children}
-                    </div>
-                    {edge !== "bottom" && <button type="button" style={arrowStyle("down")} onClick={() => scrollRef.current?.scrollBy({ top: 110, behavior: "smooth" })}>▼</button>}
-                  </div>
-                );
 
                 return (
                   <div style={{
@@ -2496,7 +2461,7 @@ export default function Home() {
                     left: isMobileViewport ? "50%" : 0,
                     ...(isMobileViewport ? { transform: "translateX(-50%)" } : {}),
                     width: isMobileViewport ? Math.min(panelW, window.innerWidth - 16) : panelW,
-                    maxHeight: "66dvh",
+                    maxHeight: isMobileViewport ? `calc(100dvh - ${topBarHeight + 16}px)` : "calc(100vh - 60px)",
                     display: "flex", flexDirection: "column",
                     background: "rgba(8,10,22,0.97)",
                     backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
@@ -2508,73 +2473,65 @@ export default function Home() {
                     color: "white",
                   }}>
 
-                    {/* ── OVERLAY LAYERS section ── */}
-                    {section("Overlay layers", overlayScrollEdge, overlayScrollRef, mkOnScroll(overlayScrollRef, setOverlayScrollEdge), <>
-                      {row("🌊", "Flood",
-                        <>{ob("Off", state.floodOverlayMode === "off", () => setState(s => ({ ...s, floodOverlayMode: "off" as FloodOverlayMode })))}{ob("On", state.floodOverlayMode === "on", () => setState(s => ({ ...s, floodOverlayMode: "on" as FloodOverlayMode })))}{ob("Hide", state.floodOverlayMode === "on_hide_cells", () => setState(s => ({ ...s, floodOverlayMode: "on_hide_cells" as FloodOverlayMode })))}</>,
-                        linesBtn("flood"))}
-                      {row("🏫", "Schools",
-                        <>{ob("Off", state.schoolOverlayMode === "off", () => setState(s => ({ ...s, schoolOverlayMode: "off" as SchoolOverlayMode })))}{ob("On", state.schoolOverlayMode === "on", () => setState(s => ({ ...s, schoolOverlayMode: "on" as SchoolOverlayMode })))}{ob("Hide", state.schoolOverlayMode === "on_hide_cells", () => setState(s => ({ ...s, schoolOverlayMode: "on_hide_cells" as SchoolOverlayMode })))}</>,
-                        linesBtn("school"))}
-                      {row("🎒", "Primary",
-                        <>{ob("Off", state.primarySchoolOverlayMode === "off", () => setState(s => ({ ...s, primarySchoolOverlayMode: "off" as PrimarySchoolOverlayMode })))}{ob("On", state.primarySchoolOverlayMode === "on", () => setState(s => ({ ...s, primarySchoolOverlayMode: "on" as PrimarySchoolOverlayMode })))}{ob("Hide", state.primarySchoolOverlayMode === "on_hide_cells", () => setState(s => ({ ...s, primarySchoolOverlayMode: "on_hide_cells" as PrimarySchoolOverlayMode })))}</>,
-                        linesBtn("primarySchool"))}
-                      {row("🚂", "Stations",
-                        <>{ob("Off", state.stationOverlayMode === "off", () => setState(s => ({ ...s, stationOverlayMode: "off" as StationOverlayMode })))}{ob("On", state.stationOverlayMode === "on", () => setState(s => ({ ...s, stationOverlayMode: "on" as StationOverlayMode })))}{ob("Hide", state.stationOverlayMode === "on_hide_cells", () => setState(s => ({ ...s, stationOverlayMode: "on_hide_cells" as StationOverlayMode })))}</>,
-                        linesBtn("station"))}
-                      {row("🔴", "Crime",
-                        <>{ob("Off", state.crimeOverlayMode === "off", () => setState(s => ({ ...s, crimeOverlayMode: "off" as CrimeOverlayMode })))}{ob("On", state.crimeOverlayMode === "on", () => setState(s => ({ ...s, crimeOverlayMode: "on" as CrimeOverlayMode })))}{ob("Hide", state.crimeOverlayMode === "on_hide_cells", () => setState(s => ({ ...s, crimeOverlayMode: "on_hide_cells" as CrimeOverlayMode })))}</>,
-                        linesBtn("crime"))}
-                      {row("🚌", "Bus & metro",
-                        <>{ob("Off", state.busStopOverlayMode === "off", () => setState(s => ({ ...s, busStopOverlayMode: "off" as BusStopOverlayMode })))}{ob("On", state.busStopOverlayMode === "on", () => setState(s => ({ ...s, busStopOverlayMode: "on" as BusStopOverlayMode })))}{ob("Hide", state.busStopOverlayMode === "on_hide_cells", () => setState(s => ({ ...s, busStopOverlayMode: "on_hide_cells" as BusStopOverlayMode })))}</>,
-                        linesBtn("busStop"))}
-                      {row("💊", "Pharmacy",
-                        <>{ob("Off", state.pharmacyOverlayMode === "off", () => setState(s => ({ ...s, pharmacyOverlayMode: "off" as PharmacyOverlayMode })))}{ob("On", state.pharmacyOverlayMode === "on", () => setState(s => ({ ...s, pharmacyOverlayMode: "on" as PharmacyOverlayMode })))}{ob("Hide", state.pharmacyOverlayMode === "on_hide_cells", () => setState(s => ({ ...s, pharmacyOverlayMode: "on_hide_cells" as PharmacyOverlayMode })))}</>,
-                        linesBtn("pharmacy"))}
-                      {row("🏛️", "Listed",
-                        <>{ob("Off", state.listedBuildingOverlayMode === "off", () => setState(s => ({ ...s, listedBuildingOverlayMode: "off" as ListedBuildingOverlayMode })))}{ob("On", state.listedBuildingOverlayMode === "on", () => setState(s => ({ ...s, listedBuildingOverlayMode: "on" as ListedBuildingOverlayMode })))}{ob("Hide", state.listedBuildingOverlayMode === "on_hide_cells", () => setState(s => ({ ...s, listedBuildingOverlayMode: "on_hide_cells" as ListedBuildingOverlayMode })))}</>)}
-                      {/* WIP sub-section */}
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0 2px" }}>
-                        <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.08)" }} />
-                        <span style={{ fontSize: 9, opacity: 0.32 }}>🚧 WIP</span>
-                        <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.08)" }} />
+                    {/* ── single scroll arrow up ── */}
+                    {overlayScrollEdge !== "top" && (
+                      <button type="button" onClick={() => overlayScrollRef.current?.scrollBy({ top: -120, behavior: "smooth" })} style={{ border: "none", cursor: "pointer", flexShrink: 0, background: "linear-gradient(to bottom, rgba(8,10,22,0.98) 55%, transparent)", color: "rgba(255,255,255,0.32)", fontSize: 9, padding: "4px 0", letterSpacing: 1, display: "block", width: "100%", textAlign: "center" }}>▲</button>
+                    )}
+
+                    {/* ── ONE scrollable list ── */}
+                    <div ref={overlayScrollRef} className="overlay-panel-scroll" onScroll={handleScroll}
+                      style={{ overflowY: "auto", flex: 1 }}>
+
+                      {sectionHdr("Overlay layers")}
+                      <div style={{ padding: "0 14px" }}>
+                        {row("🌊", "Flood",       <>{ob("Off", state.floodOverlayMode === "off", () => setState(s => ({ ...s, floodOverlayMode: "off" as FloodOverlayMode })))}{ob("On", state.floodOverlayMode === "on", () => setState(s => ({ ...s, floodOverlayMode: "on" as FloodOverlayMode })))}{ob("Hide", state.floodOverlayMode === "on_hide_cells", () => setState(s => ({ ...s, floodOverlayMode: "on_hide_cells" as FloodOverlayMode })))}</>, linesBtn("flood"))}
+                        {row("🏫", "Schools",      <>{ob("Off", state.schoolOverlayMode === "off", () => setState(s => ({ ...s, schoolOverlayMode: "off" as SchoolOverlayMode })))}{ob("On", state.schoolOverlayMode === "on", () => setState(s => ({ ...s, schoolOverlayMode: "on" as SchoolOverlayMode })))}{ob("Hide", state.schoolOverlayMode === "on_hide_cells", () => setState(s => ({ ...s, schoolOverlayMode: "on_hide_cells" as SchoolOverlayMode })))}</>, linesBtn("school"))}
+                        {row("🎒", "Primary",      <>{ob("Off", state.primarySchoolOverlayMode === "off", () => setState(s => ({ ...s, primarySchoolOverlayMode: "off" as PrimarySchoolOverlayMode })))}{ob("On", state.primarySchoolOverlayMode === "on", () => setState(s => ({ ...s, primarySchoolOverlayMode: "on" as PrimarySchoolOverlayMode })))}{ob("Hide", state.primarySchoolOverlayMode === "on_hide_cells", () => setState(s => ({ ...s, primarySchoolOverlayMode: "on_hide_cells" as PrimarySchoolOverlayMode })))}</>, linesBtn("primarySchool"))}
+                        {row("🚂", "Stations",     <>{ob("Off", state.stationOverlayMode === "off", () => setState(s => ({ ...s, stationOverlayMode: "off" as StationOverlayMode })))}{ob("On", state.stationOverlayMode === "on", () => setState(s => ({ ...s, stationOverlayMode: "on" as StationOverlayMode })))}{ob("Hide", state.stationOverlayMode === "on_hide_cells", () => setState(s => ({ ...s, stationOverlayMode: "on_hide_cells" as StationOverlayMode })))}</>, linesBtn("station"))}
+                        {row("🔴", "Crime",        <>{ob("Off", state.crimeOverlayMode === "off", () => setState(s => ({ ...s, crimeOverlayMode: "off" as CrimeOverlayMode })))}{ob("On", state.crimeOverlayMode === "on", () => setState(s => ({ ...s, crimeOverlayMode: "on" as CrimeOverlayMode })))}{ob("Hide", state.crimeOverlayMode === "on_hide_cells", () => setState(s => ({ ...s, crimeOverlayMode: "on_hide_cells" as CrimeOverlayMode })))}</>, linesBtn("crime"))}
+                        {row("🚌", "Bus & metro",  <>{ob("Off", state.busStopOverlayMode === "off", () => setState(s => ({ ...s, busStopOverlayMode: "off" as BusStopOverlayMode })))}{ob("On", state.busStopOverlayMode === "on", () => setState(s => ({ ...s, busStopOverlayMode: "on" as BusStopOverlayMode })))}{ob("Hide", state.busStopOverlayMode === "on_hide_cells", () => setState(s => ({ ...s, busStopOverlayMode: "on_hide_cells" as BusStopOverlayMode })))}</>, linesBtn("busStop"))}
+                        {row("💊", "Pharmacy",     <>{ob("Off", state.pharmacyOverlayMode === "off", () => setState(s => ({ ...s, pharmacyOverlayMode: "off" as PharmacyOverlayMode })))}{ob("On", state.pharmacyOverlayMode === "on", () => setState(s => ({ ...s, pharmacyOverlayMode: "on" as PharmacyOverlayMode })))}{ob("Hide", state.pharmacyOverlayMode === "on_hide_cells", () => setState(s => ({ ...s, pharmacyOverlayMode: "on_hide_cells" as PharmacyOverlayMode })))}</>, linesBtn("pharmacy"))}
+                        {row("🏛️", "Listed",       <>{ob("Off", state.listedBuildingOverlayMode === "off", () => setState(s => ({ ...s, listedBuildingOverlayMode: "off" as ListedBuildingOverlayMode })))}{ob("On", state.listedBuildingOverlayMode === "on", () => setState(s => ({ ...s, listedBuildingOverlayMode: "on" as ListedBuildingOverlayMode })))}{ob("Hide", state.listedBuildingOverlayMode === "on_hide_cells", () => setState(s => ({ ...s, listedBuildingOverlayMode: "on_hide_cells" as ListedBuildingOverlayMode })))}</>)}
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0 2px" }}>
+                          <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.07)" }} />
+                          <span style={{ fontSize: 9, opacity: 0.28 }}>🚧 WIP</span>
+                          <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.07)" }} />
+                        </div>
+                        {row("📋", "Planning", <>{ob("Off", state.planningOverlayMode === "off", () => setState(s => ({ ...s, planningOverlayMode: "off" as PlanningOverlayMode })))}{ob("On", state.planningOverlayMode === "on", () => setState(s => ({ ...s, planningOverlayMode: "on" as PlanningOverlayMode })))}{ob("Hide", state.planningOverlayMode === "on_hide_cells", () => setState(s => ({ ...s, planningOverlayMode: "on_hide_cells" as PlanningOverlayMode })))}</>, undefined, <div style={{ fontSize: 9, opacity: 0.28 }}>Brighton &amp; London only</div>, true)}
                       </div>
-                      {row("📋", "Planning",
-                        <>{ob("Off", state.planningOverlayMode === "off", () => setState(s => ({ ...s, planningOverlayMode: "off" as PlanningOverlayMode })))}{ob("On", state.planningOverlayMode === "on", () => setState(s => ({ ...s, planningOverlayMode: "on" as PlanningOverlayMode })))}{ob("Hide", state.planningOverlayMode === "on_hide_cells", () => setState(s => ({ ...s, planningOverlayMode: "on_hide_cells" as PlanningOverlayMode })))}</>,
-                        undefined, <div style={{ fontSize: 9, opacity: 0.3 }}>Brighton &amp; London only</div>, true)}
-                    </>)}
 
-                    {/* ── separator ── */}
-                    <div style={{ height: 1, background: "rgba(255,255,255,0.1)", flexShrink: 0 }} />
+                      {sectionHdr("Cell colour")}
+                      <div style={{ padding: "0 14px 10px" }}>
+                        {row("🔴", "Crime",
+                          <>{ob("Off", state.crimeCellMode === "off", () => setState(s => ({ ...s, crimeCellMode: "off" as CrimeCellMode })))}{ob("On", state.crimeCellMode === "on", () => setState(s => ({ ...s, crimeCellMode: "on" as CrimeCellMode, voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, listedBuildingCellOverlayMode: "off" as ListedBuildingCellOverlayMode, overlayFilterThreshold: 50 })))}  </>,
+                          undefined,
+                          state.crimeCellMode === "on" ? <>
+                            {sub("Scale", <>{ob("Abs", state.crimeCellScale === "absolute", () => setState(s => ({ ...s, crimeCellScale: "absolute" as CrimeCellScale })), "#f97316")}{ob("Local", state.crimeCellScale === "relative", () => setState(s => ({ ...s, crimeCellScale: "relative" as CrimeCellScale })), "#f97316")}</>)}
+                            {sub("Type",  <>{ob("All", state.crimeCellSubMode === "total", () => setState(s => ({ ...s, crimeCellSubMode: "total" as CrimeCellSubMode })), "#ef4444")}{ob("Violent", state.crimeCellSubMode === "violent", () => setState(s => ({ ...s, crimeCellSubMode: "violent" as CrimeCellSubMode })), "#ef4444")}{ob("Property", state.crimeCellSubMode === "property", () => setState(s => ({ ...s, crimeCellSubMode: "property" as CrimeCellSubMode })), "#ef4444")}{ob("ASB", state.crimeCellSubMode === "asb", () => setState(s => ({ ...s, crimeCellSubMode: "asb" as CrimeCellSubMode })), "#ef4444")}</>)}
+                          </> : undefined)}
+                        {row("🗳️", "Politics",
+                          <>{ob("Off", state.voteOverlayMode === "off", () => setState(s => ({ ...s, voteOverlayMode: "off" as VoteOverlayMode })))}{ob("On", state.voteOverlayMode === "on", () => setState(s => ({ ...s, voteOverlayMode: "on" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, crimeCellMode: "off" as CrimeCellMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, listedBuildingCellOverlayMode: "off" as ListedBuildingCellOverlayMode })))}  </>,
+                          undefined,
+                          state.voteOverlayMode === "on" ? sub("Scale", <>{ob("Relative", state.voteColorScale === "relative", () => setState(s => ({ ...s, voteColorScale: "relative" as VoteColorScale })), "#a78bfa")}{ob("Absolute", state.voteColorScale === "absolute", () => setState(s => ({ ...s, voteColorScale: "absolute" as VoteColorScale })), "#a78bfa")}</>) : undefined)}
+                        {row("🚗", "Commute",  <>{ob("Off", state.commuteOverlayMode === "off", () => setState(s => ({ ...s, commuteOverlayMode: "off" as CommuteOverlayMode })))}{ob("On", state.commuteOverlayMode === "on", () => setState(s => ({ ...s, commuteOverlayMode: "on" as CommuteOverlayMode, voteOverlayMode: "off" as VoteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, crimeCellMode: "off" as CrimeCellMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, listedBuildingCellOverlayMode: "off" as ListedBuildingCellOverlayMode, overlayFilterThreshold: 15 })))}  </>)}
+                        {row("👥", "Age mix",  <>{ob("Off", state.ageOverlayMode === "off", () => setState(s => ({ ...s, ageOverlayMode: "off" as AgeOverlayMode })))}{ob("On", state.ageOverlayMode === "on", () => setState(s => ({ ...s, ageOverlayMode: "on" as AgeOverlayMode, voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, crimeCellMode: "off" as CrimeCellMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, listedBuildingCellOverlayMode: "off" as ListedBuildingCellOverlayMode, overlayFilterThreshold: 50 })))}  </>)}
+                        {row("⚡", "Fuel type",
+                          <>{ob("Off", state.epcFuelOverlayMode === "off", () => setState(s => ({ ...s, epcFuelOverlayMode: "off" as EpcFuelOverlayMode })))}{ob("On", state.epcFuelOverlayMode === "on", () => setState(s => ({ ...s, epcFuelOverlayMode: "on" as EpcFuelOverlayMode, crimeCellMode: "off" as CrimeCellMode, voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, listedBuildingCellOverlayMode: "off" as ListedBuildingCellOverlayMode, overlayFilterThreshold: 50 })))}  </>,
+                          undefined,
+                          state.epcFuelOverlayMode === "on" ? sub("Fuel", <>{ob("Gas", state.epcFuelType === "gas", () => setState(s => ({ ...s, epcFuelType: "gas" as EpcFuelType })), "#38bdf8")}{ob("Elec", state.epcFuelType === "electric", () => setState(s => ({ ...s, epcFuelType: "electric" as EpcFuelType })), "#38bdf8")}{ob("Oil", state.epcFuelType === "oil", () => setState(s => ({ ...s, epcFuelType: "oil" as EpcFuelType })), "#38bdf8")}{ob("LPG", state.epcFuelType === "lpg", () => setState(s => ({ ...s, epcFuelType: "lpg" as EpcFuelType })), "#38bdf8")}</>) : undefined)}
+                        {row("📶", "Internet",
+                          <>{ob("Off", state.broadbandCellOverlayMode === "off", () => setState(s => ({ ...s, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode })))}{ob("On", state.broadbandCellOverlayMode === "on", () => setState(s => ({ ...s, broadbandCellOverlayMode: "on" as BroadbandCellOverlayMode, crimeCellMode: "off" as CrimeCellMode, voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, epcFuelOverlayMode: "off" as EpcFuelOverlayMode, listedBuildingCellOverlayMode: "off" as ListedBuildingCellOverlayMode, overlayFilterThreshold: s.broadbandCellMetric === "avg_speed" ? 100 : 50 })))}  </>,
+                          undefined,
+                          state.broadbandCellOverlayMode === "on" ? sub("Show", <>{ob("Speed", state.broadbandCellMetric === "avg_speed", () => setState(s => ({ ...s, broadbandCellMetric: "avg_speed" as BroadbandCellMetric, overlayFilterThreshold: 100 })), "#a78bfa")}{ob("SFBB+", state.broadbandCellMetric === "pct_sfbb", () => setState(s => ({ ...s, broadbandCellMetric: "pct_sfbb" as BroadbandCellMetric, overlayFilterThreshold: 50 })), "#a78bfa")}{ob("Fibre", state.broadbandCellMetric === "pct_fast", () => setState(s => ({ ...s, broadbandCellMetric: "pct_fast" as BroadbandCellMetric, overlayFilterThreshold: 50 })), "#a78bfa")}</>) : undefined)}
+                        {row("🏛️", "Heritage", <>{ob("Off", state.listedBuildingCellOverlayMode === "off", () => setState(s => ({ ...s, listedBuildingCellOverlayMode: "off" as ListedBuildingCellOverlayMode })))}{ob("On", state.listedBuildingCellOverlayMode === "on", () => setState(s => ({ ...s, listedBuildingCellOverlayMode: "on" as ListedBuildingCellOverlayMode, crimeCellMode: "off" as CrimeCellMode, voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, epcFuelOverlayMode: "off" as EpcFuelOverlayMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, overlayFilterThreshold: 0 })))}  </>)}
+                      </div>
 
-                    {/* ── CELL COLOUR section ── */}
-                    {section("Cell colour", cellScrollEdge, cellScrollRef, mkOnScroll(cellScrollRef, setCellScrollEdge), <>
-                      {row("🔴", "Crime",
-                        <>{ob("Off", state.crimeCellMode === "off", () => setState(s => ({ ...s, crimeCellMode: "off" as CrimeCellMode })))}{ob("On", state.crimeCellMode === "on", () => setState(s => ({ ...s, crimeCellMode: "on" as CrimeCellMode, voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, listedBuildingCellOverlayMode: "off" as ListedBuildingCellOverlayMode, overlayFilterThreshold: 50 })))}  </>,
-                        undefined,
-                        state.crimeCellMode === "on" ? <>
-                          {sub("Scale", <>{ob("Abs", state.crimeCellScale === "absolute", () => setState(s => ({ ...s, crimeCellScale: "absolute" as CrimeCellScale })), "#f97316")}{ob("Local", state.crimeCellScale === "relative", () => setState(s => ({ ...s, crimeCellScale: "relative" as CrimeCellScale })), "#f97316")}</>)}
-                          {sub("Type", <>{ob("All", state.crimeCellSubMode === "total", () => setState(s => ({ ...s, crimeCellSubMode: "total" as CrimeCellSubMode })), "#ef4444")}{ob("Violent", state.crimeCellSubMode === "violent", () => setState(s => ({ ...s, crimeCellSubMode: "violent" as CrimeCellSubMode })), "#ef4444")}{ob("Property", state.crimeCellSubMode === "property", () => setState(s => ({ ...s, crimeCellSubMode: "property" as CrimeCellSubMode })), "#ef4444")}{ob("ASB", state.crimeCellSubMode === "asb", () => setState(s => ({ ...s, crimeCellSubMode: "asb" as CrimeCellSubMode })), "#ef4444")}</>)}
-                        </> : undefined)}
-                      {row("🗳️", "Politics",
-                        <>{ob("Off", state.voteOverlayMode === "off", () => setState(s => ({ ...s, voteOverlayMode: "off" as VoteOverlayMode })))}{ob("On", state.voteOverlayMode === "on", () => setState(s => ({ ...s, voteOverlayMode: "on" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, crimeCellMode: "off" as CrimeCellMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, listedBuildingCellOverlayMode: "off" as ListedBuildingCellOverlayMode })))}  </>,
-                        undefined,
-                        state.voteOverlayMode === "on" ? sub("Scale", <>{ob("Relative", state.voteColorScale === "relative", () => setState(s => ({ ...s, voteColorScale: "relative" as VoteColorScale })), "#a78bfa")}{ob("Absolute", state.voteColorScale === "absolute", () => setState(s => ({ ...s, voteColorScale: "absolute" as VoteColorScale })), "#a78bfa")}</>) : undefined)}
-                      {row("🚗", "Commute",
-                        <>{ob("Off", state.commuteOverlayMode === "off", () => setState(s => ({ ...s, commuteOverlayMode: "off" as CommuteOverlayMode })))}{ob("On", state.commuteOverlayMode === "on", () => setState(s => ({ ...s, commuteOverlayMode: "on" as CommuteOverlayMode, voteOverlayMode: "off" as VoteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, crimeCellMode: "off" as CrimeCellMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, listedBuildingCellOverlayMode: "off" as ListedBuildingCellOverlayMode, overlayFilterThreshold: 15 })))}  </>)}
-                      {row("👥", "Age mix",
-                        <>{ob("Off", state.ageOverlayMode === "off", () => setState(s => ({ ...s, ageOverlayMode: "off" as AgeOverlayMode })))}{ob("On", state.ageOverlayMode === "on", () => setState(s => ({ ...s, ageOverlayMode: "on" as AgeOverlayMode, voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, crimeCellMode: "off" as CrimeCellMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, listedBuildingCellOverlayMode: "off" as ListedBuildingCellOverlayMode, overlayFilterThreshold: 50 })))}  </>)}
-                      {row("⚡", "Fuel type",
-                        <>{ob("Off", state.epcFuelOverlayMode === "off", () => setState(s => ({ ...s, epcFuelOverlayMode: "off" as EpcFuelOverlayMode })))}{ob("On", state.epcFuelOverlayMode === "on", () => setState(s => ({ ...s, epcFuelOverlayMode: "on" as EpcFuelOverlayMode, crimeCellMode: "off" as CrimeCellMode, voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, listedBuildingCellOverlayMode: "off" as ListedBuildingCellOverlayMode, overlayFilterThreshold: 50 })))}  </>,
-                        undefined,
-                        state.epcFuelOverlayMode === "on" ? sub("Fuel", <>{ob("Gas", state.epcFuelType === "gas", () => setState(s => ({ ...s, epcFuelType: "gas" as EpcFuelType })), "#38bdf8")}{ob("Elec", state.epcFuelType === "electric", () => setState(s => ({ ...s, epcFuelType: "electric" as EpcFuelType })), "#38bdf8")}{ob("Oil", state.epcFuelType === "oil", () => setState(s => ({ ...s, epcFuelType: "oil" as EpcFuelType })), "#38bdf8")}{ob("LPG", state.epcFuelType === "lpg", () => setState(s => ({ ...s, epcFuelType: "lpg" as EpcFuelType })), "#38bdf8")}</>) : undefined)}
-                      {row("📶", "Internet",
-                        <>{ob("Off", state.broadbandCellOverlayMode === "off", () => setState(s => ({ ...s, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode })))}{ob("On", state.broadbandCellOverlayMode === "on", () => setState(s => ({ ...s, broadbandCellOverlayMode: "on" as BroadbandCellOverlayMode, crimeCellMode: "off" as CrimeCellMode, voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, epcFuelOverlayMode: "off" as EpcFuelOverlayMode, listedBuildingCellOverlayMode: "off" as ListedBuildingCellOverlayMode, overlayFilterThreshold: s.broadbandCellMetric === "avg_speed" ? 100 : 50 })))}  </>,
-                        undefined,
-                        state.broadbandCellOverlayMode === "on" ? sub("Show", <>{ob("Speed", state.broadbandCellMetric === "avg_speed", () => setState(s => ({ ...s, broadbandCellMetric: "avg_speed" as BroadbandCellMetric, overlayFilterThreshold: 100 })), "#a78bfa")}{ob("SFBB+", state.broadbandCellMetric === "pct_sfbb", () => setState(s => ({ ...s, broadbandCellMetric: "pct_sfbb" as BroadbandCellMetric, overlayFilterThreshold: 50 })), "#a78bfa")}{ob("Fibre", state.broadbandCellMetric === "pct_fast", () => setState(s => ({ ...s, broadbandCellMetric: "pct_fast" as BroadbandCellMetric, overlayFilterThreshold: 50 })), "#a78bfa")}</>) : undefined)}
-                      {row("🏛️", "Heritage",
-                        <>{ob("Off", state.listedBuildingCellOverlayMode === "off", () => setState(s => ({ ...s, listedBuildingCellOverlayMode: "off" as ListedBuildingCellOverlayMode })))}{ob("On", state.listedBuildingCellOverlayMode === "on", () => setState(s => ({ ...s, listedBuildingCellOverlayMode: "on" as ListedBuildingCellOverlayMode, crimeCellMode: "off" as CrimeCellMode, voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, epcFuelOverlayMode: "off" as EpcFuelOverlayMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, overlayFilterThreshold: 0 })))}  </>)}
-                    </>)}
+                    </div>{/* end scroll */}
+
+                    {/* ── single scroll arrow down ── */}
+                    {overlayScrollEdge !== "bottom" && (
+                      <button type="button" onClick={() => overlayScrollRef.current?.scrollBy({ top: 120, behavior: "smooth" })} style={{ border: "none", cursor: "pointer", flexShrink: 0, background: "linear-gradient(to top, rgba(8,10,22,0.98) 55%, transparent)", color: "rgba(255,255,255,0.32)", fontSize: 9, padding: "4px 0", letterSpacing: 1, display: "block", width: "100%", textAlign: "center" }}>▼</button>
+                    )}
 
                   </div>
                 );
