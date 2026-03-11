@@ -2692,13 +2692,21 @@ export default function ValueMap({
   const busStopOverlayClickable = () => stateRef.current.busStopOverlayMode !== "off";
   const pharmacyOverlayClickable = () => stateRef.current.pharmacyOverlayMode !== "off";
 
+  const STOP_TYPE_LABELS: Record<string, string> = {
+    BCT: "On-street bus stop",
+    BCS: "Bus station bay",
+    PLT: "Rail / metro platform",
+    TMU: "Tram / metro stop",
+  };
+
   const showBusStopPointPopup = (e: any, isMetro: boolean) => {
     const f = e.features?.[0] as any;
     if (!f) return;
     const p = f.properties || {};
     const name = escapeHtml(String(p.name ?? (isMetro ? "Metro/tram stop" : "Bus stop")));
     const atco = escapeHtml(String(p.atco_code ?? ""));
-    const stopType = escapeHtml(String(p.stop_type ?? ""));
+    const rawType = String(p.stop_type ?? "");
+    const stopType = escapeHtml(STOP_TYPE_LABELS[rawType] ?? rawType);
     const icon = isMetro ? "🚇" : "🚌";
     const typeLabel = stopType ? `<div style="font-size:11px;color:#6b7280">Type: <b style="color:#374151">${stopType}</b></div>` : "";
     const atcoLabel = atco ? `<div style="font-size:11px;color:#6b7280">ATCO: <b style="color:#374151">${atco}</b></div>` : "";
