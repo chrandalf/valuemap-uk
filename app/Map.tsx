@@ -2725,32 +2725,38 @@ export default function ValueMap({
     if (count <= 2 && clusterId != null) {
       const src = map.getSource(sourceId) as maplibregl.GeoJSONSource | undefined;
       if (src && typeof (src as any).getClusterLeaves === "function") {
-        (src as any).getClusterLeaves(clusterId, count, 0, (err: any, leaves: any[]) => {
-          if (err || !leaves?.length) {
-            // Fallback to generic message on error
-            popup.setLngLat(e.lngLat).setHTML(`
+        const lngLat = e.lngLat;
+        (async () => {
+          try {
+            // MapLibre v5+ returns a Promise; earlier versions used a callback — handle both
+            const result = (src as any).getClusterLeaves(clusterId, count, 0);
+            const leaves: any[] = (result && typeof result.then === "function")
+              ? await result
+              : await new Promise((res, rej) => (src as any).getClusterLeaves(clusterId, count, 0, (err: any, l: any) => err ? rej(err) : res(l)));
+            if (!leaves?.length) throw new Error("no leaves");
+            const rows = leaves.map((lf: any) => {
+              const p = lf.properties || {};
+              const name = escapeHtml(String(p.name ?? (isMetro ? "Metro/tram stop" : "Bus stop")));
+              const stopType = escapeHtml(String(p.stop_type ?? ""));
+              const atco = escapeHtml(String(p.atco_code ?? ""));
+              return `<div style="padding:4px 0;${leaves.length > 1 ? "border-bottom:1px solid #e5e7eb;" : ""}">
+                <div style="font-weight:600">${icon} ${name}</div>
+                ${stopType ? `<div style="font-size:11px;color:#6b7280">Type: <b style="color:#374151">${stopType}</b></div>` : ""}
+                ${atco ? `<div style="font-size:11px;color:#6b7280">ATCO: <b style="color:#374151">${atco}</b></div>` : ""}
+              </div>`;
+            }).join("");
+            popup.setLngLat(lngLat).setHTML(`
+              <div style="font:12px/1.5 system-ui,sans-serif;color:#374151;min-width:160px">
+                ${rows}
+              </div>`).addTo(map);
+          } catch {
+            popup.setLngLat(lngLat).setHTML(`
               <div style="font-family:system-ui;font-size:12px;line-height:1.25;">
                 <div style="font-weight:700;margin-bottom:4px">${icon} ${label}</div>
                 <div style="opacity:0.8;">Zoom in to see individual stops.</div>
               </div>`).addTo(map);
-            return;
           }
-          const rows = leaves.map((lf: any) => {
-            const p = lf.properties || {};
-            const name = escapeHtml(String(p.name ?? (isMetro ? "Metro/tram stop" : "Bus stop")));
-            const stopType = escapeHtml(String(p.stop_type ?? ""));
-            const atco = escapeHtml(String(p.atco_code ?? ""));
-            return `<div style="padding:4px 0;${leaves.length > 1 ? "border-bottom:1px solid #e5e7eb;" : ""}">
-              <div style="font-weight:600">${icon} ${name}</div>
-              ${stopType ? `<div style="font-size:11px;color:#6b7280">Type: <b style="color:#374151">${stopType}</b></div>` : ""}
-              ${atco ? `<div style="font-size:11px;color:#6b7280">ATCO: <b style="color:#374151">${atco}</b></div>` : ""}
-            </div>`;
-          }).join("");
-          popup.setLngLat(e.lngLat).setHTML(`
-            <div style="font:12px/1.5 system-ui,sans-serif;color:#374151;min-width:160px">
-              ${rows}
-            </div>`).addTo(map);
-        });
+        })();
         return;
       }
     }
