@@ -5184,17 +5184,34 @@ function applyBroadbandCellOverlayColorExpression(map: maplibregl.Map, metric: B
 /* ── Listed building heritage density cell overlay ── */
 
 function listedBuildingCellColorExpression(): any {
-  // lb_score 0–100 (normalised, 99th-pct cap). -1 = no data → grey.
-  const score = ["case", ["has", "lb_score"], ["to-number", ["get", "lb_score"]], -1] as any;
-  return [
+  // Prefer lb_density (weighted listed buildings per property, × 1000).
+  // Fall back to lb_score (0–100 normalised) if density not available.
+  // No data → transparent (hide the cell entirely).
+  const densityPer1k = ["*", 1000, ["to-number", ["get", "lb_density"], 0]] as any;
+  const densityStops = [
+    "interpolate", ["linear"], densityPer1k,
+     0,  "#fefce8",  // none
+     2,  "#fde68a",  // low
+     5,  "#f59e0b",  // moderate
+    10,  "#b45309",  // medium
+    30,  "#78350f",  // high
+    80,  "#431407",  // very high
+  ] as any;
+  const score = ["to-number", ["get", "lb_score"], 0] as any;
+  const fallbackStops = [
     "interpolate", ["linear"], score,
-    -1,  "#aaaaaa",  // no data
-     0,  "#fefce8",  // pale cream
-    20,  "#fde68a",  // light amber
-    40,  "#f59e0b",  // amber
-    60,  "#b45309",  // dark amber
-    80,  "#78350f",  // deep brown
-   100,  "#431407",  // very dark terracotta
+     0,  "#fefce8",
+    20,  "#fde68a",
+    40,  "#f59e0b",
+    60,  "#b45309",
+    80,  "#78350f",
+   100,  "#431407",
+  ] as any;
+  return [
+    "case",
+    ["!", ["has", "lb_score"]], "rgba(0,0,0,0)",  // no heritage data → hide cell
+    ["has", "lb_density"], densityStops,           // per-property density colouring
+    fallbackStops,                                  // fallback: normalised score
   ];
 }
 

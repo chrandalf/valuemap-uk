@@ -134,6 +134,7 @@ def main() -> None:
             rows.append({
                 "gx": gx,
                 "gy": gy,
+                "lb_raw": v["raw"],
                 "lb_score": lb_score,
                 "lb_count": v["count"],
                 "lb_grade1": v["g1"],

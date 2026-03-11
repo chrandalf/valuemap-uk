@@ -802,7 +802,7 @@ async function getCachedBroadbandLookup(env: Env, grid: GridKey): Promise<Map<st
 
 /* ---------- listed building cell data ---------- */
 
-type ListedBuildingEntry = { score: number; count: number; grade1: number; grade2s: number; grade2: number };
+type ListedBuildingEntry = { raw: number; score: number; count: number; grade1: number; grade2s: number; grade2: number };
 const LB_CELLS_CACHE_BY_GRID: Partial<Record<GridKey, { lookup: Map<string, ListedBuildingEntry>; loadedAtMs: number }>> = {};
 
 async function getCachedListedBuildingLookup(env: Env, grid: GridKey): Promise<Map<string, ListedBuildingEntry> | null> {
@@ -819,11 +819,11 @@ async function getCachedListedBuildingLookup(env: Env, grid: GridKey): Promise<M
 
   const gz = await obj.arrayBuffer();
   const jsonText = await gunzipToString(gz);
-  const rows = JSON.parse(jsonText) as Array<{ gx: number; gy: number; lb_score: number; lb_count: number; lb_grade1: number; lb_grade2s: number; lb_grade2: number }>;
+  const rows = JSON.parse(jsonText) as Array<{ gx: number; gy: number; lb_raw: number; lb_score: number; lb_count: number; lb_grade1: number; lb_grade2s: number; lb_grade2: number }>;
 
   const lookup = new Map<string, ListedBuildingEntry>();
   for (const row of rows) {
-    lookup.set(`${row.gx}_${row.gy}`, { score: row.lb_score, count: row.lb_count, grade1: row.lb_grade1, grade2s: row.lb_grade2s, grade2: row.lb_grade2 });
+    lookup.set(`${row.gx}_${row.gy}`, { raw: row.lb_raw ?? 0, score: row.lb_score, count: row.lb_count, grade1: row.lb_grade1, grade2s: row.lb_grade2s, grade2: row.lb_grade2 });
   }
 
   LB_CELLS_CACHE_BY_GRID[grid] = { lookup, loadedAtMs: Date.now() };
@@ -1053,7 +1053,12 @@ async function backfillAll(env: Env, grid: GridKey, rows: CellRow[]): Promise<Ce
     if (broadband !== undefined) out = { ...out, bb_avg_speed: broadband.avg_speed, bb_pct_sfbb: broadband.pct_sfbb, bb_pct_fast: broadband.pct_fast };
 
     const lb = lbLookup?.get(key);
-    if (lb) out = { ...out, lb_score: lb.score, lb_count: lb.count, lb_grade1: lb.grade1, lb_grade2s: lb.grade2s, lb_grade2: lb.grade2 };
+    if (lb) {
+      const epc_n = Number((out as any).epc_n ?? 0);
+      const lb_density = epc_n > 0 ? lb.raw / epc_n : null;
+      out = { ...out, lb_score: lb.score, lb_count: lb.count, lb_grade1: lb.grade1, lb_grade2s: lb.grade2s, lb_grade2: lb.grade2,
+        ...(lb_density !== null ? { lb_density } : {}) };
+    }
 
     return out;
   });
