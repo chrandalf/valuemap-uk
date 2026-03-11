@@ -25,6 +25,7 @@ type EpcFuelOverlayMode = "off" | "on";
 type EpcFuelType = "gas" | "electric" | "oil" | "lpg";
 type BroadbandCellOverlayMode = "off" | "on";
 type BroadbandCellMetric = "avg_speed" | "pct_sfbb" | "pct_fast";
+type ListedBuildingCellOverlayMode = "off" | "on";
 type VoteColorScale = "relative" | "absolute";
 type GridMode = "auto" | "manual";
 type BusStopOverlayMode = "off" | "on" | "on_hide_cells";
@@ -77,6 +78,7 @@ type MapState = {
   epcFuelType: EpcFuelType;
   broadbandCellOverlayMode: BroadbandCellOverlayMode;
   broadbandCellMetric: BroadbandCellMetric;
+  listedBuildingCellOverlayMode: ListedBuildingCellOverlayMode;
   busStopOverlayMode: BusStopOverlayMode;
   pharmacyOverlayMode: PharmacyOverlayMode;
   listedBuildingOverlayMode: ListedBuildingOverlayMode;
@@ -292,6 +294,7 @@ export default function Home() {
       epcFuelType: "gas",
       broadbandCellOverlayMode: "off",
       broadbandCellMetric: "avg_speed",
+      listedBuildingCellOverlayMode: "off",
       busStopOverlayMode: "off",
       pharmacyOverlayMode: "off",
       listedBuildingOverlayMode: "off",
@@ -357,6 +360,7 @@ export default function Home() {
         epcFuelType: "gas",
         broadbandCellOverlayMode: "off",
         broadbandCellMetric: "avg_speed",
+        listedBuildingCellOverlayMode: "off",
         busStopOverlayMode: "off",
         pharmacyOverlayMode: "off",
         listedBuildingOverlayMode: "off",
@@ -556,6 +560,7 @@ export default function Home() {
     epcFuelType: "gas",
     broadbandCellOverlayMode: "off",
     broadbandCellMetric: "avg_speed",
+    listedBuildingCellOverlayMode: "off",
     busStopOverlayMode: "off",
     pharmacyOverlayMode: "off",
     listedBuildingOverlayMode: "off",
@@ -1197,7 +1202,19 @@ export default function Home() {
           </div>
         </div>
       )}
-      {!indexActive && state.ageOverlayMode !== "on" && state.commuteOverlayMode !== "on" && state.voteOverlayMode !== "on" && state.crimeCellMode !== "on" && state.epcFuelOverlayMode !== "on" && state.broadbandCellOverlayMode !== "on" && (
+      {!indexActive && state.listedBuildingCellOverlayMode === "on" && (
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, opacity: 0.9 }}>
+          🏛️ Heritage density
+          <div style={{ marginTop: 6, display: "flex", height: 12, borderRadius: 6, overflow: "hidden" }}>
+            {["#fefce8", "#fde68a", "#f59e0b", "#b45309", "#78350f", "#431407"].map((c, i) => <div key={i} style={{ flex: 1, backgroundColor: c }} />)}
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, opacity: 0.6, marginTop: 3 }}>
+            <span>Low</span>
+            <span>High</span>
+          </div>
+        </div>
+      )}
+      {!indexActive && state.ageOverlayMode !== "on" && state.commuteOverlayMode !== "on" && state.voteOverlayMode !== "on" && state.crimeCellMode !== "on" && state.epcFuelOverlayMode !== "on" && state.broadbandCellOverlayMode !== "on" && state.listedBuildingCellOverlayMode !== "on" && (
       <>
       <div className="legend-title" style={{ fontWeight: 600, marginBottom: 12, fontSize: 16, opacity: 0.9 }}>
         {state.metric === "median"
@@ -1327,6 +1344,7 @@ export default function Home() {
 
   const activeCellOverlay =
     state.broadbandCellOverlayMode === "on" ? "broadband" :
+    state.listedBuildingCellOverlayMode === "on" ? "listedBuilding" :
     state.crimeCellMode === "on" ? "crime" :
     state.epcFuelOverlayMode === "on" ? "epc" :
     state.ageOverlayMode === "on" ? "age" :
@@ -1338,6 +1356,7 @@ export default function Home() {
       if (metric === "avg_speed") return { title: "Internet speed filter", min: 0, max: 500, step: 10, format: (v: number) => `${v} Mbit/s` };
       return { title: metric === "pct_sfbb" ? "Superfast coverage filter" : "Fibre/cable filter", min: 0, max: 100, step: 1, format: (v: number) => `${v}% of homes` };
     }
+    if (activeCellOverlay === "listedBuilding") return { title: "Heritage score filter", min: 0, max: 100, step: 1, format: (v: number) => `Score ≥ ${v}/100` };
     if (activeCellOverlay === "crime") return { title: "Safety score filter", min: 0, max: 100, step: 1, format: (v: number) => `Score ${v}/100` };
     if (activeCellOverlay === "epc") {
       const fuel = state.epcFuelType ?? "gas";
@@ -1378,7 +1397,7 @@ export default function Home() {
       ? "Off"
       : "On";
   const voteScaleLabel = state.voteColorScale === "relative" ? "Relative" : "Absolute";
-  const anyOverlayActive = state.floodOverlayMode !== "off" || state.schoolOverlayMode !== "off" || state.primarySchoolOverlayMode !== "off" || state.stationOverlayMode !== "off" || state.crimeOverlayMode !== "off" || state.crimeCellMode !== "off" || state.voteOverlayMode !== "off" || state.commuteOverlayMode !== "off" || state.ageOverlayMode !== "off" || state.epcFuelOverlayMode !== "off" || state.broadbandCellOverlayMode !== "off" || state.busStopOverlayMode !== "off" || state.pharmacyOverlayMode !== "off" || state.listedBuildingOverlayMode !== "off" || state.planningOverlayMode !== "off";
+  const anyOverlayActive = state.floodOverlayMode !== "off" || state.schoolOverlayMode !== "off" || state.primarySchoolOverlayMode !== "off" || state.stationOverlayMode !== "off" || state.crimeOverlayMode !== "off" || state.crimeCellMode !== "off" || state.voteOverlayMode !== "off" || state.commuteOverlayMode !== "off" || state.ageOverlayMode !== "off" || state.epcFuelOverlayMode !== "off" || state.broadbandCellOverlayMode !== "off" || state.listedBuildingCellOverlayMode !== "off" || state.busStopOverlayMode !== "off" || state.pharmacyOverlayMode !== "off" || state.listedBuildingOverlayMode !== "off" || state.planningOverlayMode !== "off";
 
   const currentFiltersSummary =
     `Grid: ${state.grid} · Metric: ${METRIC_LABEL[state.metric]} · ` +
@@ -1392,7 +1411,8 @@ export default function Home() {
     `Commute: ${state.commuteOverlayMode === "on" ? "On" : "Off"} · ` +
     `Age mix: ${state.ageOverlayMode === "on" ? "On" : "Off"} · ` +
     `Heating fuel: ${state.epcFuelOverlayMode === "on" ? state.epcFuelType : "Off"} · ` +
-    `Internet: ${state.broadbandCellOverlayMode !== "on" ? "Off" : state.broadbandCellMetric === "avg_speed" ? "On (Avg speed)" : state.broadbandCellMetric === "pct_sfbb" ? "On (% SFBB+)" : "On (% Fibre)"}`;
+    `Internet: ${state.broadbandCellOverlayMode !== "on" ? "Off" : state.broadbandCellMetric === "avg_speed" ? "On (Avg speed)" : state.broadbandCellMetric === "pct_sfbb" ? "On (% SFBB+)" : "On (% Fibre)"} · ` +
+    `Heritage: ${state.listedBuildingCellOverlayMode === "on" ? "On" : "Off"}`;
   const headerFilterSummary =
     `${state.grid} · ${METRIC_LABEL[state.metric]} · ${propertyTypeLabel(state.propertyType)} · ${NEWBUILD_LABEL[state.newBuild]} · ${periodLabel}`;
   const headerMedianSummary =
@@ -1558,7 +1578,7 @@ export default function Home() {
     setTourActive(true);
     setShowMePulse(false);
     // Reset map to default view
-    setState((s) => ({ ...s, grid: "5km", metric: "median", propertyType: "ALL", floodOverlayMode: "off", schoolOverlayMode: "off", primarySchoolOverlayMode: "off", stationOverlayMode: "off", crimeOverlayMode: "off", crimeCellMode: "off", voteOverlayMode: "off", commuteOverlayMode: "off", ageOverlayMode: "off", epcFuelOverlayMode: "off", epcFuelType: "gas", broadbandCellOverlayMode: "off", broadbandCellMetric: "avg_speed", busStopOverlayMode: "off", pharmacyOverlayMode: "off", listedBuildingOverlayMode: "off", planningOverlayMode: "off" }));
+    setState((s) => ({ ...s, grid: "5km", metric: "median", propertyType: "ALL", floodOverlayMode: "off", schoolOverlayMode: "off", primarySchoolOverlayMode: "off", stationOverlayMode: "off", crimeOverlayMode: "off", crimeCellMode: "off", voteOverlayMode: "off", commuteOverlayMode: "off", ageOverlayMode: "off", epcFuelOverlayMode: "off", epcFuelType: "gas", broadbandCellOverlayMode: "off", broadbandCellMetric: "avg_speed", listedBuildingCellOverlayMode: "off", busStopOverlayMode: "off", pharmacyOverlayMode: "off", listedBuildingOverlayMode: "off", planningOverlayMode: "off" }));
     const t = ++flyToSeqRef.current;
     setFlyToRequest({ center: [-1.5, 53.5], zoom: 5, token: t });
   }, []);
@@ -2373,8 +2393,9 @@ export default function Home() {
                 ⊕ Overlays ▾
               </button>
               {overlaysDropOpen && (
-                <div style={isMobileViewport ? { position: "fixed", top: topBarHeight + 6, left: 8, right: 8, width: "auto", maxHeight: "calc(100vh - 110px)", overflowY: "auto", background: "rgba(8,10,22,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,0.16)", borderRadius: 10, padding: "8px 12px 10px", boxShadow: "0 10px 40px rgba(0,0,0,0.65)", zIndex: 600 } : { position: "absolute", top: "calc(100% + 4px)", left: 0, width: 278, background: "rgba(8,10,22,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,0.16)", borderRadius: 10, padding: "8px 12px 10px", boxShadow: "0 10px 40px rgba(0,0,0,0.65)", zIndex: 200 }}>
+                <div style={isMobileViewport ? { position: "fixed", top: topBarHeight + 6, left: 8, right: 8, width: "auto", maxHeight: "calc(100vh - 110px)", overflowY: "auto", background: "rgba(8,10,22,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,0.16)", borderRadius: 10, padding: "8px 12px 10px", boxShadow: "0 10px 40px rgba(0,0,0,0.65)", zIndex: 600 } : { position: "absolute", top: "calc(100% + 4px)", left: 0, width: 278, maxHeight: "calc(100vh - 80px)", overflowY: "auto", background: "rgba(8,10,22,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,0.16)", borderRadius: 10, padding: "8px 12px 10px", boxShadow: "0 10px 40px rgba(0,0,0,0.65)", zIndex: 200 }}>
                   <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.55, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Overlay layers</div>
+                  <div style={{ maxHeight: 220, overflowY: "auto", marginBottom: 2 }}>
 
                   {/* Flood */}
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
@@ -2471,15 +2492,24 @@ export default function Home() {
                     />
                   </div>
 
+                  </div>
+
+                  {/* ── Work in progress ── */}
+                  <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", margin: "8px 0 6px" }} />
+                  <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.35, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>🚧 Work in progress</div>
+
                   {/* Planning applications */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
-                    <div style={{ fontSize: 11, opacity: 0.8, width: 70, flexShrink: 0 }}>📋 Planning</div>
-                    <Segment
-                      options={["off", "on", "on_hide_cells"]}
-                      value={state.planningOverlayMode}
-                      onChange={(v) => setState((s) => ({ ...s, planningOverlayMode: v as PlanningOverlayMode }))}
-                      renderOption={(v) => v === "on" ? "On" : v === "on_hide_cells" ? "Hide cells" : "Off"}
-                    />
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                    <div style={{ fontSize: 11, opacity: 0.7, width: 70, flexShrink: 0 }}>📋 Planning</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                      <Segment
+                        options={["off", "on", "on_hide_cells"]}
+                        value={state.planningOverlayMode}
+                        onChange={(v) => setState((s) => ({ ...s, planningOverlayMode: v as PlanningOverlayMode }))}
+                        renderOption={(v) => v === "on" ? "On" : v === "on_hide_cells" ? "Hide cells" : "Off"}
+                      />
+                      <div style={{ fontSize: 10, opacity: 0.4, lineHeight: 1.3 }}>Brighton &amp; London only</div>
+                    </div>
                   </div>
 
                   <div style={{ borderTop: "1px solid rgba(255,255,255,0.1)", margin: "8px 0 7px" }} />
@@ -2492,7 +2522,7 @@ export default function Home() {
                       <Segment
                         options={["off", "on"] as CrimeCellMode[]}
                         value={state.crimeCellMode}
-                        onChange={(v) => setState((s) => ({ ...s, crimeCellMode: v as CrimeCellMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, overlayFilterThreshold: 50 } : {}) }))}
+                        onChange={(v) => setState((s) => ({ ...s, crimeCellMode: v as CrimeCellMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, listedBuildingCellOverlayMode: "off" as ListedBuildingCellOverlayMode, overlayFilterThreshold: 50 } : {}) }))}
                         renderOption={(v) => v === "on" ? "On" : "Off"}
                       />
                       {state.crimeCellMode === "on" && (<>
@@ -2530,7 +2560,7 @@ export default function Home() {
                       <Segment
                         options={["off", "on"]}
                         value={state.voteOverlayMode}
-                        onChange={(v) => setState((s) => ({ ...s, voteOverlayMode: v as VoteOverlayMode, ...(v === "on" ? { commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, crimeCellMode: "off" as CrimeCellMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode } : {}) }))}
+                        onChange={(v) => setState((s) => ({ ...s, voteOverlayMode: v as VoteOverlayMode, ...(v === "on" ? { commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, crimeCellMode: "off" as CrimeCellMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, listedBuildingCellOverlayMode: "off" as ListedBuildingCellOverlayMode } : {}) }))}
                         renderOption={(v) => v === "on" ? "On" : "Off"}
                       />
                       {state.voteOverlayMode === "on" && (
@@ -2553,7 +2583,7 @@ export default function Home() {
                     <Segment
                       options={["off", "on"]}
                       value={state.commuteOverlayMode}
-                      onChange={(v) => setState((s) => ({ ...s, commuteOverlayMode: v as CommuteOverlayMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, crimeCellMode: "off" as CrimeCellMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, overlayFilterThreshold: 15 } : {}) }))}
+                      onChange={(v) => setState((s) => ({ ...s, commuteOverlayMode: v as CommuteOverlayMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, crimeCellMode: "off" as CrimeCellMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, listedBuildingCellOverlayMode: "off" as ListedBuildingCellOverlayMode, overlayFilterThreshold: 15 } : {}) }))}
                       renderOption={(v) => v === "on" ? "On" : "Off"}
                     />
                   </div>
@@ -2564,7 +2594,7 @@ export default function Home() {
                     <Segment
                       options={["off", "on"]}
                       value={state.ageOverlayMode}
-                      onChange={(v) => setState((s) => ({ ...s, ageOverlayMode: v as AgeOverlayMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, crimeCellMode: "off" as CrimeCellMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, overlayFilterThreshold: 50 } : {}) }))}
+                      onChange={(v) => setState((s) => ({ ...s, ageOverlayMode: v as AgeOverlayMode, ...(v === "on" ? { voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, crimeCellMode: "off" as CrimeCellMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, listedBuildingCellOverlayMode: "off" as ListedBuildingCellOverlayMode, overlayFilterThreshold: 50 } : {}) }))}
                       renderOption={(v) => v === "on" ? "On" : "Off"}
                     />
                   </div>
@@ -2576,7 +2606,7 @@ export default function Home() {
                       <Segment
                         options={["off", "on"] as EpcFuelOverlayMode[]}
                         value={state.epcFuelOverlayMode}
-                        onChange={(v) => setState((s) => ({ ...s, epcFuelOverlayMode: v as EpcFuelOverlayMode, ...(v === "on" ? { crimeCellMode: "off" as CrimeCellMode, voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, overlayFilterThreshold: 50 } : {}) }))}
+                        onChange={(v) => setState((s) => ({ ...s, epcFuelOverlayMode: v as EpcFuelOverlayMode, ...(v === "on" ? { crimeCellMode: "off" as CrimeCellMode, voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, listedBuildingCellOverlayMode: "off" as ListedBuildingCellOverlayMode, overlayFilterThreshold: 50 } : {}) }))}
                         renderOption={(v) => v === "on" ? "On" : "Off"}
                       />
                       {state.epcFuelOverlayMode === "on" && (
@@ -2600,7 +2630,7 @@ export default function Home() {
                       <Segment
                         options={["off", "on"] as BroadbandCellOverlayMode[]}
                         value={state.broadbandCellOverlayMode}
-                        onChange={(v) => setState((s) => ({ ...s, broadbandCellOverlayMode: v as BroadbandCellOverlayMode, ...(v === "on" ? { crimeCellMode: "off" as CrimeCellMode, voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, epcFuelOverlayMode: "off" as EpcFuelOverlayMode, overlayFilterThreshold: s.broadbandCellMetric === "avg_speed" ? 100 : 50 } : {}) }))}
+                        onChange={(v) => setState((s) => ({ ...s, broadbandCellOverlayMode: v as BroadbandCellOverlayMode, ...(v === "on" ? { crimeCellMode: "off" as CrimeCellMode, voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, epcFuelOverlayMode: "off" as EpcFuelOverlayMode, listedBuildingCellOverlayMode: "off" as ListedBuildingCellOverlayMode, overlayFilterThreshold: s.broadbandCellMetric === "avg_speed" ? 100 : 50 } : {}) }))}
                         renderOption={(v) => v === "on" ? "On" : "Off"}
                       />
                       {state.broadbandCellOverlayMode === "on" && (
@@ -2615,6 +2645,17 @@ export default function Home() {
                         </div>
                       )}
                     </div>
+                  </div>
+
+                  {/* Heritage density */}
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                    <div style={{ fontSize: 11, opacity: 0.8, width: 70, flexShrink: 0, paddingTop: 2 }}>🏛️ Heritage</div>
+                    <Segment
+                      options={["off", "on"] as ListedBuildingCellOverlayMode[]}
+                      value={state.listedBuildingCellOverlayMode}
+                      onChange={(v) => setState((s) => ({ ...s, listedBuildingCellOverlayMode: v as ListedBuildingCellOverlayMode, ...(v === "on" ? { crimeCellMode: "off" as CrimeCellMode, voteOverlayMode: "off" as VoteOverlayMode, commuteOverlayMode: "off" as CommuteOverlayMode, ageOverlayMode: "off" as AgeOverlayMode, epcFuelOverlayMode: "off" as EpcFuelOverlayMode, broadbandCellOverlayMode: "off" as BroadbandCellOverlayMode, overlayFilterThreshold: 0 } : {}) }))}
+                      renderOption={(v) => v === "on" ? "On" : "Off"}
+                    />
                   </div>
                 </div>
               )}

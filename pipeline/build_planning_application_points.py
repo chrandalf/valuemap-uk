@@ -132,6 +132,8 @@ def main() -> None:
         decision = normalise_decision(decision_raw, status_raw)
 
         decision_counts[decision] = decision_counts.get(decision, 0) + 1
+        if decision not in ("pending", "approved", "prior_approval"):
+            continue
 
         desc = val("description")
         if len(desc) > DESC_MAX_LEN:

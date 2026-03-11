@@ -23,6 +23,7 @@ from paths import (
     R2_ARCHIVE_DIR,
     REQUIRED_PROPERTY_ASSET_NAMES,
     MODEL_BROADBAND_DIR,
+    MODEL_LISTED_BUILDING_CELLS_DIR,
 )
 
 
@@ -65,6 +66,7 @@ def collect_assets(
     model_property_dir: Path,
     broadband_dir: Path,
     transit_dir: Path,
+    listed_building_cells_dir: Path,
     include_vote: bool,
     include_schools: bool,
     include_flood: bool,
@@ -75,6 +77,7 @@ def collect_assets(
     include_model: bool,
     include_broadband: bool,
     include_transit: bool,
+    include_listed_building_cells: bool,
 ) -> list[Path]:
     files: list[Path] = []
     if include_vote:
@@ -141,6 +144,11 @@ def collect_assets(
             "planning_application_overlay_points.geojson.gz",
         ):
             p = transit_dir / name
+            if p.exists():
+                files.append(p)
+    if include_listed_building_cells:
+        for grid in ("1km", "5km", "10km", "25km"):
+            p = listed_building_cells_dir / f"listed_building_cells_{grid}.json.gz"
             if p.exists():
                 files.append(p)
     return files
@@ -270,6 +278,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-broadband", action="store_true", help="Skip broadband cell upload")
     parser.add_argument("--transit-dir", default=str(PUBLISH_TRANSIT_DIR), help="Staged transit assets directory")
     parser.add_argument("--skip-transit", action="store_true", help="Skip bus stop, metro/tram, and pharmacy overlay upload")
+    parser.add_argument("--listed-building-cells-dir", default=str(MODEL_LISTED_BUILDING_CELLS_DIR), help="Listed building cell assets directory")
+    parser.add_argument("--skip-listed-building-cells", action="store_true", help="Skip listed building cell upload")
     parser.add_argument(
         "--no-backup-before-upload",
         action="store_true",
@@ -295,6 +305,7 @@ def main() -> None:
     epc_dir = Path(args.epc_dir)
     broadband_dir = Path(args.broadband_dir)
     transit_dir = Path(args.transit_dir)
+    listed_building_cells_dir = Path(args.listed_building_cells_dir)
 
     include_vote = not args.skip_vote
     include_schools = not args.skip_schools
@@ -306,10 +317,11 @@ def main() -> None:
     include_model = not args.skip_model
     include_broadband = not args.skip_broadband
     include_transit = not args.skip_transit
+    include_listed_building_cells = not args.skip_listed_building_cells
     backup_before_upload = not args.no_backup_before_upload
     backup_dir = Path(args.backup_dir)
 
-    only_freshness = not (include_vote or include_schools or include_stations or include_flood or include_property or include_crime or include_epc or include_model or include_broadband or include_transit)
+    only_freshness = not (include_vote or include_schools or include_stations or include_flood or include_property or include_crime or include_epc or include_model or include_broadband or include_transit or include_listed_building_cells)
 
     account_id = env_value("R2_ACCOUNT_ID", "CLOUDFLARE_ACCOUNT_ID")
     bucket_name = env_value("R2_BUCKET", "R2_BUCKET_NAME") or "valuemap-uk"
@@ -349,6 +361,7 @@ def main() -> None:
             MODEL_PROPERTY_DIR,
             broadband_dir,
             transit_dir,
+            listed_building_cells_dir,
             include_vote,
             include_schools,
             include_flood,
@@ -359,6 +372,7 @@ def main() -> None:
             include_model,
             include_broadband,
             include_transit,
+            include_listed_building_cells,
         )
         missing = [str(path) for path in files if not path.exists()]
         if missing:

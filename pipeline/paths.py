@@ -88,6 +88,9 @@ RAW_BROADBAND_DIR = RAW_DIR / "broadband"
 MODEL_BROADBAND_DIR = MODEL_DIR / "broadband"
 MODEL_BROADBAND_CELLS_TEMPLATE = MODEL_BROADBAND_DIR / "broadband_cells_{grid}.json.gz"
 
+MODEL_LISTED_BUILDING_CELLS_DIR = MODEL_DIR / "listed_building_cells"
+MODEL_LISTED_BUILDING_CELLS_TEMPLATE = MODEL_LISTED_BUILDING_CELLS_DIR / "listed_building_cells_{grid}.json.gz"
+
 MODEL_EPC_FUEL_CELLS_TEMPLATE = MODEL_EPC_DIR / "epc_fuel_cells_{grid}.json.gz"
 MODEL_EPC_AGE_CELLS_TEMPLATE  = MODEL_EPC_DIR / "epc_age_cells_{grid}.json.gz"
 
@@ -154,5 +157,6 @@ def ensure_pipeline_dirs() -> None:
         MODEL_BROADBAND_DIR,
         MODEL_TRANSIT_DIR,
         PUBLISH_TRANSIT_DIR,
+        MODEL_LISTED_BUILDING_CELLS_DIR,
     ]:
         p.mkdir(parents=True, exist_ok=True)

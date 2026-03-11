@@ -20,6 +20,7 @@ type EpcFuelOverlayMode = "off" | "on";
 type EpcFuelType = "gas" | "electric" | "oil" | "lpg";
 type BroadbandCellOverlayMode = "off" | "on";
 type BroadbandCellMetric = "avg_speed" | "pct_sfbb" | "pct_fast";
+type ListedBuildingCellOverlayMode = "off" | "on";
 type CrimeCellScale = "absolute" | "relative";
 type CrimeCellSubMode = "total" | "violent" | "property" | "asb";
 type VoteColorScale = "relative" | "absolute";
@@ -52,6 +53,7 @@ export type MapState = {
   epcFuelType?: EpcFuelType;
   broadbandCellOverlayMode?: BroadbandCellOverlayMode;
   broadbandCellMetric?: BroadbandCellMetric;
+  listedBuildingCellOverlayMode?: ListedBuildingCellOverlayMode;
   overlayFilterThreshold?: number; // threshold for cell-overlay filter (units depend on active overlay)
   modelledMode?: "actual" | "blend" | "estimated" | "model_only";
   busStopOverlayMode?: BusStopOverlayMode;
@@ -197,6 +199,9 @@ function getActiveCellOverlayFilterField(state: MapState): { field: string; divi
   }
   if ((state.commuteOverlayMode ?? "off") !== "off") {
     return { field: "mean_dist_km" };
+  }
+  if ((state.listedBuildingCellOverlayMode ?? "off") !== "off") {
+    return { field: "lb_score" };
   }
   return null;
 }
@@ -1897,7 +1902,7 @@ export default function ValueMap({
     id: "planning-application-overlay-points",
     type: "circle",
     source: "planning-application-overlay",
-    filter: ["!", ["has", "point_count"]] as any,
+    filter: ["all", ["!", ["has", "point_count"]], ["in", ["get", "decision"], ["literal", ["pending", "approved", "prior_approval"]]]] as any,
     layout: {
       visibility: stateRef.current.planningOverlayMode && stateRef.current.planningOverlayMode !== "off" ? "visible" : "none",
     },
@@ -1905,8 +1910,6 @@ export default function ValueMap({
       "circle-color": [
         "match", ["get", "decision"],
         "approved",       "#16a34a",
-        "refused",        "#dc2626",
-        "withdrawn",      "#6b7280",
         "pending",        "#f97316",
         "prior_approval", "#2563eb",
         "#9ca3af",
@@ -3378,6 +3381,36 @@ export default function ValueMap({
       return;
     }
 
+    const lbCellPopupMode = stateRef.current.listedBuildingCellOverlayMode ?? "off";
+    if (lbCellPopupMode !== "off") {
+      const lbScore  = Number(p.lb_score  ?? NaN);
+      const lbCount  = Number(p.lb_count  ?? NaN);
+      const lbGrade1 = Number(p.lb_grade1 ?? NaN);
+      const lbGrade2s = Number(p.lb_grade2s ?? NaN);
+      const lbGrade2 = Number(p.lb_grade2 ?? NaN);
+      const hasLb = Number.isFinite(lbCount) && lbCount > 0;
+      const metricFooter = Number.isFinite(median) && median > 0
+        ? `<div style="border-top:1px solid rgba(0,0,0,0.1);margin-top:7px;padding-top:6px;font-size:11px;opacity:0.65;">${stateRef.current.metric === "median_ppsf" ? `GBP ${Math.round(median).toLocaleString()} / ft²` : `GBP ${median.toLocaleString()}`} · ${tx} sales</div>`
+        : "";
+      if (hasLb) {
+        const html = `<div style="font-family:system-ui;font-size:12px;line-height:1.6;min-width:195px;">
+          <div style="font-weight:700;margin-bottom:5px;">🏛️ Heritage density</div>
+          <div>Heritage score: <b>${Number.isFinite(lbScore) ? lbScore : "—"} / 100</b></div>
+          <div>Listed buildings: <b>${Number.isFinite(lbCount) ? lbCount.toLocaleString() : "—"}</b> in this cell</div>
+          <div style="margin-top:4px;border-top:1px solid rgba(0,0,0,0.07);padding-top:4px;font-size:11px;">
+          <div>Grade I: <b>${Number.isFinite(lbGrade1) ? lbGrade1.toLocaleString() : "—"}</b></div>
+          <div>Grade II*: <b>${Number.isFinite(lbGrade2s) ? lbGrade2s.toLocaleString() : "—"}</b></div>
+          <div>Grade II: <b>${Number.isFinite(lbGrade2) ? lbGrade2.toLocaleString() : "—"}</b></div>
+          </div>
+          ${metricFooter}
+        </div>`;
+        popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+      } else {
+        popup.setLngLat(e.lngLat).setHTML(`<div style="font-family:system-ui;font-size:12px;"><b>🏛️ No listed buildings</b><div style="opacity:0.6;font-size:11px;margin-top:3px;">No listed buildings recorded in this cell</div>${metricFooter}</div>`).addTo(map);
+      }
+      return;
+    }
+
     if (epcFuelPopupMode !== "off") {
       const pctGas      = Number(p.pct_gas      ?? NaN);
       const pctElectric = Number(p.pct_electric ?? NaN);
@@ -4246,6 +4279,9 @@ export default function ValueMap({
             if ((activeOverlay.broadbandCellOverlayMode ?? "off") !== "off") {
               onLegendChange?.(null);
               applyBroadbandCellOverlayColorExpression(map, (activeOverlay.broadbandCellMetric ?? "avg_speed") as BroadbandCellMetric, easyColoursRef.current);
+            } else if ((activeOverlay.listedBuildingCellOverlayMode ?? "off") !== "off") {
+              onLegendChange?.(null);
+              applyListedBuildingCellOverlayColorExpression(map);
             } else if ((activeOverlay.crimeCellMode ?? "off") !== "off") {
               onLegendChange?.(null);
               applyCrimeCellOverlayColorExpression(map, activeOverlay.crimeCellSubMode, activeOverlay.crimeCellScale, easyColoursRef.current);
@@ -4290,7 +4326,7 @@ export default function ValueMap({
   }, [state.metric, state.valueFilterMode, state.valueThreshold, state.overlayFilterThreshold,
       state.broadbandCellOverlayMode, state.broadbandCellMetric,
       state.crimeCellMode, state.epcFuelOverlayMode, state.epcFuelType,
-      state.ageOverlayMode, state.commuteOverlayMode]);
+      state.ageOverlayMode, state.commuteOverlayMode, state.listedBuildingCellOverlayMode]);
 
   // Index scoring effect
   useEffect(() => {
@@ -4614,6 +4650,42 @@ export default function ValueMap({
     } catch (e) { /* ignore */ }
   }, [state.broadbandCellOverlayMode, state.broadbandCellMetric, onLegendChange]);
 
+  // Listed building cell overlay: apply/remove heritage density colours on cells.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.getLayer("cells-fill")) return;
+    const lbMode = state.listedBuildingCellOverlayMode ?? "off";
+    const crimeMode = stateRef.current.crimeCellMode ?? "off";
+    const epcFuelMode = stateRef.current.epcFuelOverlayMode ?? "off";
+    const ageMode = stateRef.current.ageOverlayMode ?? "off";
+    const commuteMode = stateRef.current.commuteOverlayMode ?? "off";
+    const voteMode = stateRef.current.voteOverlayMode ?? "off";
+    const broadbandMode = stateRef.current.broadbandCellOverlayMode ?? "off";
+    try {
+      if (lbMode !== "off") {
+        applyListedBuildingCellOverlayColorExpression(map);
+        onLegendChange?.(null);
+      } else if (broadbandMode !== "off") {
+        applyBroadbandCellOverlayColorExpression(map, (stateRef.current.broadbandCellMetric ?? "avg_speed") as BroadbandCellMetric, easyColoursRef.current);
+        onLegendChange?.(null);
+      } else if (crimeMode !== "off") {
+        applyCrimeCellOverlayColorExpression(map, stateRef.current.crimeCellSubMode, stateRef.current.crimeCellScale, easyColoursRef.current);
+        onLegendChange?.(null);
+      } else if (epcFuelMode !== "off") {
+        applyEpcFuelOverlayColorExpression(map, (stateRef.current.epcFuelType ?? "gas") as EpcFuelType, easyColoursRef.current);
+        onLegendChange?.(null);
+      } else if (ageMode !== "off") {
+        applyAgeOverlayColorExpression(map, easyColoursRef.current);
+      } else if (commuteMode !== "off") {
+        applyCommuteOverlayColorExpression(map, easyColoursRef.current);
+      } else if (voteMode !== "off") {
+        applyVoteOverlayColorFromSource(map, stateRef.current.voteColorScale ?? "relative");
+      } else {
+        void ensureAggregatesAndUpdate(map, stateRef.current, geoCacheRef.current, onLegendChange, onStatsUpdateRef.current, easyColoursRef.current, !!indexPrefsRef.current);
+      }
+    } catch (e) { /* ignore */ }
+  }, [state.listedBuildingCellOverlayMode, onLegendChange]);
+
   // Re-apply colour ramps whenever the easy-colours (colourblind) preference changes.
   useEffect(() => {
     const map = mapRef.current;
@@ -4626,6 +4698,8 @@ export default function ValueMap({
     const broadbandMode = stateRef.current.broadbandCellOverlayMode ?? "off";
     if (broadbandMode !== "off") {
       applyBroadbandCellOverlayColorExpression(map, (stateRef.current.broadbandCellMetric ?? "avg_speed") as BroadbandCellMetric, easyColours ?? false);
+    } else if ((stateRef.current.listedBuildingCellOverlayMode ?? "off") !== "off") {
+      applyListedBuildingCellOverlayColorExpression(map); // no easy-colour variant needed
     } else if (crimeMode !== "off") {
       applyCrimeCellOverlayColorExpression(map, stateRef.current.crimeCellSubMode, stateRef.current.crimeCellScale, easyColours ?? false);
     } else if (epcFuelMode !== "off") {
@@ -5104,6 +5178,29 @@ function broadbandCellColorExpression(metric: BroadbandCellMetric, easy = false)
 function applyBroadbandCellOverlayColorExpression(map: maplibregl.Map, metric: BroadbandCellMetric, easy = false) {
   if (map.getLayer("cells-fill")) {
     map.setPaintProperty("cells-fill", "fill-color", broadbandCellColorExpression(metric, easy));
+  }
+}
+
+/* ── Listed building heritage density cell overlay ── */
+
+function listedBuildingCellColorExpression(): any {
+  // lb_score 0–100 (normalised, 99th-pct cap). -1 = no data → grey.
+  const score = ["case", ["has", "lb_score"], ["to-number", ["get", "lb_score"]], -1] as any;
+  return [
+    "interpolate", ["linear"], score,
+    -1,  "#aaaaaa",  // no data
+     0,  "#fefce8",  // pale cream
+    20,  "#fde68a",  // light amber
+    40,  "#f59e0b",  // amber
+    60,  "#b45309",  // dark amber
+    80,  "#78350f",  // deep brown
+   100,  "#431407",  // very dark terracotta
+  ];
+}
+
+function applyListedBuildingCellOverlayColorExpression(map: maplibregl.Map) {
+  if (map.getLayer("cells-fill")) {
+    map.setPaintProperty("cells-fill", "fill-color", listedBuildingCellColorExpression());
   }
 }
 

@@ -800,6 +800,36 @@ async function getCachedBroadbandLookup(env: Env, grid: GridKey): Promise<Map<st
   return lookup.size > 0 ? lookup : null;
 }
 
+/* ---------- listed building cell data ---------- */
+
+type ListedBuildingEntry = { score: number; count: number; grade1: number; grade2s: number; grade2: number };
+const LB_CELLS_CACHE_BY_GRID: Partial<Record<GridKey, { lookup: Map<string, ListedBuildingEntry>; loadedAtMs: number }>> = {};
+
+async function getCachedListedBuildingLookup(env: Env, grid: GridKey): Promise<Map<string, ListedBuildingEntry> | null> {
+  const now = Date.now();
+  const cached = LB_CELLS_CACHE_BY_GRID[grid];
+  if (cached && now - cached.loadedAtMs <= CACHE_TTL_MS) return cached.lookup.size > 0 ? cached.lookup : null;
+
+  const bucket = getBucket(env);
+  const obj = await bucket.get(`listed_building_cells_${grid}.json.gz`);
+  if (!obj) {
+    LB_CELLS_CACHE_BY_GRID[grid] = { lookup: new Map(), loadedAtMs: Date.now() };
+    return null;
+  }
+
+  const gz = await obj.arrayBuffer();
+  const jsonText = await gunzipToString(gz);
+  const rows = JSON.parse(jsonText) as Array<{ gx: number; gy: number; lb_score: number; lb_count: number; lb_grade1: number; lb_grade2s: number; lb_grade2: number }>;
+
+  const lookup = new Map<string, ListedBuildingEntry>();
+  for (const row of rows) {
+    lookup.set(`${row.gx}_${row.gy}`, { score: row.lb_score, count: row.lb_count, grade1: row.lb_grade1, grade2s: row.lb_grade2s, grade2: row.lb_grade2 });
+  }
+
+  LB_CELLS_CACHE_BY_GRID[grid] = { lookup, loadedAtMs: Date.now() };
+  return lookup.size > 0 ? lookup : null;
+}
+
 /* ---------- modelled price estimates ---------- */
 
 type ModelledRow = { estimated_median: number; model_confidence: number; n_years: number; ratio_cv: number };
@@ -935,7 +965,7 @@ async function backfillAll(env: Env, grid: GridKey, rows: CellRow[]): Promise<Ce
   const broadbandGrid: GridKey = grid === "1km" ? "5km" : grid;
   const broadbandPromise = getCachedBroadbandLookup(env, broadbandGrid).catch(() => null);
 
-  const [voteLookup, countryLookup, commuteLookup, ageLookup, crimeLookup, epcFuelLookup, broadbandLookup] = await Promise.all([
+  const [voteLookup, countryLookup, commuteLookup, ageLookup, crimeLookup, epcFuelLookup, broadbandLookup, lbLookup] = await Promise.all([
     votePromise,
     getCachedCountryLookup(env, grid).catch(() => null),
     getCachedCommuteLookup(env, grid).catch(() => null),
@@ -943,6 +973,7 @@ async function backfillAll(env: Env, grid: GridKey, rows: CellRow[]): Promise<Ce
     getCachedCrimeLookup(env, grid).catch(() => null),
     getCachedEpcFuelLookup(env, grid).catch(() => null),
     broadbandPromise,
+    getCachedListedBuildingLookup(env, grid).catch(() => null),
   ]);
 
   return rows.map((row) => {
@@ -1020,6 +1051,9 @@ async function backfillAll(env: Env, grid: GridKey, rows: CellRow[]): Promise<Ce
         : key
     );
     if (broadband !== undefined) out = { ...out, bb_avg_speed: broadband.avg_speed, bb_pct_sfbb: broadband.pct_sfbb, bb_pct_fast: broadband.pct_fast };
+
+    const lb = lbLookup?.get(key);
+    if (lb) out = { ...out, lb_score: lb.score, lb_count: lb.count, lb_grade1: lb.grade1, lb_grade2s: lb.grade2s, lb_grade2: lb.grade2 };
 
     return out;
   });
