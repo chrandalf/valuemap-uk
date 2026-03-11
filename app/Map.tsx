@@ -2745,7 +2745,8 @@ export default function ValueMap({
             const rows = leaves.map((lf: any) => {
               const p = lf.properties || {};
               const name = escapeHtml(String(p.name ?? (isMetro ? "Metro/tram stop" : "Bus stop")));
-              const stopType = escapeHtml(String(p.stop_type ?? ""));
+              const rawType = String(p.stop_type ?? "");
+              const stopType = escapeHtml(STOP_TYPE_LABELS[rawType] ?? rawType);
               const atco = escapeHtml(String(p.atco_code ?? ""));
               return `<div style="padding:4px 0;${leaves.length > 1 ? "border-bottom:1px solid #e5e7eb;" : ""}">
                 <div style="font-weight:600">${icon} ${name}</div>
