@@ -252,16 +252,18 @@ def run_broadband() -> None:
 
 def run_transit() -> None:
     """
-    Build bus stop, metro/tram, and pharmacy overlay GeoJSON point files.
+    Build bus stop, metro/tram, pharmacy, and listed building overlay GeoJSON point files.
 
     Bus stops and metro/tram: downloaded from the free NaPTAN API (DfT).
     Pharmacies: downloaded from NHS BSA Consolidated Pharmaceutical List (geocoded
     via postcodes.io). England only; Scotland/Wales pharmacies are not included.
+    Listed buildings: downloaded from MHCLG Planning Data (Historic England data).
 
     Outputs (staged in MODEL_TRANSIT_DIR, then copied to publish by copy_model_to_publish):
         transit/bus_stop_overlay_points.geojson.gz
         transit/metro_tram_overlay_points.geojson.gz
         transit/pharmacy_overlay_points.geojson.gz
+        transit/listed_building_overlay_points.geojson.gz
     """
     run_step(
         "transit-bus-metro",
@@ -279,6 +281,14 @@ def run_transit() -> None:
             str(SCRIPT_DIR / "build_pharmacy_points.py"),
             "--output",
             str(MODEL_TRANSIT_DIR / "pharmacy_overlay_points.geojson.gz"),
+        ],
+    )
+    run_step(
+        "transit-listed-buildings",
+        [
+            str(SCRIPT_DIR / "build_listed_building_points.py"),
+            "--output",
+            str(MODEL_TRANSIT_DIR / "listed_building_overlay_points.geojson.gz"),
         ],
     )
 

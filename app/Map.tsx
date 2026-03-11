@@ -25,6 +25,7 @@ type CrimeCellSubMode = "total" | "violent" | "property" | "asb";
 type VoteColorScale = "relative" | "absolute";
 type BusStopOverlayMode = "off" | "on" | "on_hide_cells";
 type PharmacyOverlayMode = "off" | "on" | "on_hide_cells";
+type ListedBuildingOverlayMode = "off" | "on" | "on_hide_cells";
 
 export type MapState = {
   grid: GridSize;
@@ -54,6 +55,7 @@ export type MapState = {
   modelledMode?: "actual" | "blend" | "estimated" | "model_only";
   busStopOverlayMode?: BusStopOverlayMode;
   pharmacyOverlayMode?: PharmacyOverlayMode;
+  listedBuildingOverlayMode?: ListedBuildingOverlayMode;
 };
 
 export type IndexPrefs = {
@@ -1268,6 +1270,14 @@ export default function ValueMap({
     clusterRadius: 40,
   });
 
+  map.addSource("listed-building-overlay", {
+    type: "geojson",
+    data: "/api/listed-buildings?plain=1",
+    cluster: true,
+    clusterMaxZoom: 13,
+    clusterRadius: 35,
+  });
+
   map.addSource("postcode-search-marker", {
     type: "geojson",
     data: { type: "FeatureCollection", features: [] },
@@ -1790,6 +1800,57 @@ export default function ValueMap({
       "circle-stroke-color": "rgba(255,255,255,0.92)",
       "circle-stroke-width": 1,
       "circle-blur": 0.02,
+    },
+  });
+
+  // ── Listed building overlay layers ──
+  map.addLayer({
+    id: "listed-building-overlay-clusters",
+    type: "circle",
+    source: "listed-building-overlay",
+    filter: ["has", "point_count"] as any,
+    layout: {
+      visibility: stateRef.current.listedBuildingOverlayMode && stateRef.current.listedBuildingOverlayMode !== "off" ? "visible" : "none",
+    },
+    paint: {
+      "circle-color": ["step", ["get", "point_count"], "rgba(161,109,32,0.65)", 10, "rgba(133,77,14,0.80)", 50, "rgba(109,40,217,0.85)"] as any,
+      "circle-radius": ["step", ["get", "point_count"], 14, 10, 19, 50, 25] as any,
+      "circle-stroke-color": "rgba(255,255,255,0.9)",
+      "circle-stroke-width": 1,
+    },
+  });
+  map.addLayer({
+    id: "listed-building-overlay-cluster-count",
+    type: "symbol",
+    source: "listed-building-overlay",
+    filter: ["has", "point_count"] as any,
+    layout: {
+      visibility: stateRef.current.listedBuildingOverlayMode && stateRef.current.listedBuildingOverlayMode !== "off" ? "visible" : "none",
+      "text-field": ["get", "point_count_abbreviated"] as any,
+      "text-size": 11,
+      "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
+    },
+    paint: { "text-color": "rgba(255,255,255,0.95)" },
+  });
+  map.addLayer({
+    id: "listed-building-overlay-points",
+    type: "circle",
+    source: "listed-building-overlay",
+    filter: ["!", ["has", "point_count"]] as any,
+    layout: {
+      visibility: stateRef.current.listedBuildingOverlayMode && stateRef.current.listedBuildingOverlayMode !== "off" ? "visible" : "none",
+    },
+    paint: {
+      "circle-color": [
+        "match", ["get", "grade"],
+        "I",   "#dc2626",
+        "II*", "#ea580c",
+        "#ca8a04",
+      ] as any,
+      "circle-opacity": 0.88,
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 3, 7, 5, 10, 7, 12, 10] as any,
+      "circle-stroke-color": "rgba(255,255,255,0.9)",
+      "circle-stroke-width": 1,
     },
   });
 
@@ -2814,6 +2875,43 @@ export default function ValueMap({
     popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
   };
 
+  const listedBuildingOverlayClickable = () => stateRef.current.listedBuildingOverlayMode !== "off";
+
+  const showListedBuildingPointPopup = (e: any) => {
+    const f = e.features?.[0] as any;
+    if (!f) return;
+    const p = f.properties || {};
+    const name = escapeHtml(String(p.name ?? "Listed building"));
+    const grade = escapeHtml(String(p.grade ?? ""));
+    const reference = escapeHtml(String(p.reference ?? ""));
+    const docUrl = String(p.doc_url ?? "");
+    const gradeLabel = grade === "I" ? "Grade I" : grade === "II*" ? "Grade II*" : grade === "II" ? "Grade II" : grade;
+    const gradeColor = grade === "I" ? "#dc2626" : grade === "II*" ? "#ea580c" : "#ca8a04";
+    const html = `
+      <div style="font:12px/1.5 system-ui,sans-serif;color:#374151;min-width:170px">
+        <div style="font-weight:700;font-size:13px;margin-bottom:4px">🏛️ ${name}</div>
+        ${gradeLabel ? `<div style="font-size:11px;color:#6b7280">Grade: <b style="color:${gradeColor}">${gradeLabel}</b></div>` : ""}
+        ${reference ? `<div style="font-size:11px;color:#6b7280">List entry: <b style="color:#374151">${reference}</b></div>` : ""}
+        ${docUrl ? `<div style="font-size:11px;margin-top:3px"><a href="${escapeHtml(docUrl)}" target="_blank" rel="noopener noreferrer" style="color:#2563eb">Historic England record ↗</a></div>` : ""}
+      </div>
+    `;
+    popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+  };
+
+  const showListedBuildingClusterPopup = (e: any) => {
+    const f = e.features?.[0] as any;
+    if (!f) return;
+    const count = Number(f.properties?.point_count ?? 0);
+    const html = `
+      <div style="font-family:system-ui;font-size:12px;line-height:1.25;">
+        <div style="font-weight:700;margin-bottom:4px">🏛️ Listed buildings</div>
+        <div>Buildings in cluster: <b>${count.toLocaleString()}</b></div>
+        <div style="opacity:0.8;margin-top:2px">Zoom in to see individual buildings.</div>
+      </div>
+    `;
+    popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+  };
+
   map.on("click", "bus-stop-overlay-points",       (e) => { if (!busStopOverlayClickable()) return; showBusStopPointPopup(e, false); });
   map.on("click", "bus-stop-overlay-clusters",     (e) => { if (!busStopOverlayClickable()) return; showBusStopClusterPopup(e, false); });
   map.on("click", "bus-stop-overlay-cluster-count",(e) => { if (!busStopOverlayClickable()) return; showBusStopClusterPopup(e, false); });
@@ -2823,6 +2921,9 @@ export default function ValueMap({
   map.on("click", "pharmacy-overlay-points",       (e) => { if (!pharmacyOverlayClickable()) return; showPharmacyPointPopup(e); });
   map.on("click", "pharmacy-overlay-clusters",     (e) => { if (!pharmacyOverlayClickable()) return; showPharmacyClusterPopup(e); });
   map.on("click", "pharmacy-overlay-cluster-count",(e) => { if (!pharmacyOverlayClickable()) return; showPharmacyClusterPopup(e); });
+  map.on("click", "listed-building-overlay-points",       (e) => { if (!listedBuildingOverlayClickable()) return; showListedBuildingPointPopup(e); });
+  map.on("click", "listed-building-overlay-clusters",     (e) => { if (!listedBuildingOverlayClickable()) return; showListedBuildingClusterPopup(e); });
+  map.on("click", "listed-building-overlay-cluster-count",(e) => { if (!listedBuildingOverlayClickable()) return; showListedBuildingClusterPopup(e); });
 
   // Pointer cursor when hovering clickable overlay features
   const overlayHoverLayers = [
@@ -2834,6 +2935,7 @@ export default function ValueMap({
     "bus-stop-overlay-points", "bus-stop-overlay-clusters", "bus-stop-overlay-cluster-count",
     "metro-tram-overlay-points", "metro-tram-overlay-clusters", "metro-tram-overlay-cluster-count",
     "pharmacy-overlay-points", "pharmacy-overlay-clusters", "pharmacy-overlay-cluster-count",
+    "listed-building-overlay-points", "listed-building-overlay-clusters", "listed-building-overlay-cluster-count",
   ];
   overlayHoverLayers.forEach((id) => {
     map.on("mouseenter", id, () => { map.getCanvas().style.cursor = "pointer"; });
@@ -4124,6 +4226,7 @@ export default function ValueMap({
     const crimeMode = state.crimeOverlayMode ?? "off";
     const busStopMode = state.busStopOverlayMode ?? "off";
     const pharmacyMode = state.pharmacyOverlayMode ?? "off";
+    const listedBuildingMode = state.listedBuildingOverlayMode ?? "off";
     const floodVisibility = floodMode === "off" ? "none" : "visible";
     const schoolVisibility = schoolMode === "off" ? "none" : "visible";
     const primarySchoolVisibility = primarySchoolMode === "off" ? "none" : "visible";
@@ -4131,7 +4234,8 @@ export default function ValueMap({
     const crimeVisibility = crimeMode === "off" ? "none" : "visible";
     const busStopVisibility = busStopMode === "off" ? "none" : "visible";
     const pharmacyVisibility = pharmacyMode === "off" ? "none" : "visible";
-    const hideCellsMode = floodMode === "on_hide_cells" || schoolMode === "on_hide_cells" || primarySchoolMode === "on_hide_cells" || stationMode === "on_hide_cells" || crimeMode === "on_hide_cells" || busStopMode === "on_hide_cells" || pharmacyMode === "on_hide_cells";
+    const listedBuildingVisibility = listedBuildingMode === "off" ? "none" : "visible";
+    const hideCellsMode = floodMode === "on_hide_cells" || schoolMode === "on_hide_cells" || primarySchoolMode === "on_hide_cells" || stationMode === "on_hide_cells" || crimeMode === "on_hide_cells" || busStopMode === "on_hide_cells" || pharmacyMode === "on_hide_cells" || listedBuildingMode === "on_hide_cells";
 
     const apply = () => {
       try {
@@ -4175,6 +4279,11 @@ export default function ValueMap({
         if (map.getLayer("pharmacy-overlay-clusters")) map.setLayoutProperty("pharmacy-overlay-clusters", "visibility", pharmacyVisibility);
         if (map.getLayer("pharmacy-overlay-cluster-count")) map.setLayoutProperty("pharmacy-overlay-cluster-count", "visibility", pharmacyVisibility);
 
+        // Listed building layer visibility
+        if (map.getLayer("listed-building-overlay-points")) map.setLayoutProperty("listed-building-overlay-points", "visibility", listedBuildingVisibility);
+        if (map.getLayer("listed-building-overlay-clusters")) map.setLayoutProperty("listed-building-overlay-clusters", "visibility", listedBuildingVisibility);
+        if (map.getLayer("listed-building-overlay-cluster-count")) map.setLayoutProperty("listed-building-overlay-cluster-count", "visibility", listedBuildingVisibility);
+
         // Cell opacity — applied in the same call so it cannot be skipped by a mid-layout bail
         if (map.getLayer("cells-fill")) {
           map.setLayoutProperty("cells-fill", "visibility", "visible");
@@ -4203,7 +4312,7 @@ export default function ValueMap({
     // before we apply paint property updates.
     const raf = requestAnimationFrame(apply);
     return () => { cancelAnimationFrame(raf); };
-  }, [state.floodOverlayMode, state.schoolOverlayMode, state.primarySchoolOverlayMode, state.stationOverlayMode, state.crimeOverlayMode, state.busStopOverlayMode, state.pharmacyOverlayMode]);
+  }, [state.floodOverlayMode, state.schoolOverlayMode, state.primarySchoolOverlayMode, state.stationOverlayMode, state.crimeOverlayMode, state.busStopOverlayMode, state.pharmacyOverlayMode, state.listedBuildingOverlayMode]);
 
   useEffect(() => {
     const map = mapRef.current;

@@ -29,6 +29,7 @@ type VoteColorScale = "relative" | "absolute";
 type GridMode = "auto" | "manual";
 type BusStopOverlayMode = "off" | "on" | "on_hide_cells";
 type PharmacyOverlayMode = "off" | "on" | "on_hide_cells";
+type ListedBuildingOverlayMode = "off" | "on" | "on_hide_cells";
 
 type IndexScoringPrefs = {
   budget: number;
@@ -77,6 +78,7 @@ type MapState = {
   broadbandCellMetric: BroadbandCellMetric;
   busStopOverlayMode: BusStopOverlayMode;
   pharmacyOverlayMode: PharmacyOverlayMode;
+  listedBuildingOverlayMode: ListedBuildingOverlayMode;
   overlayFilterThreshold: number;
   modelledMode?: "actual" | "blend" | "estimated" | "model_only";
 };
@@ -290,6 +292,7 @@ export default function Home() {
       broadbandCellMetric: "avg_speed",
       busStopOverlayMode: "off",
       pharmacyOverlayMode: "off",
+      listedBuildingOverlayMode: "off",
       overlayFilterThreshold: 50,
       modelledMode: "blend",
     };
@@ -353,6 +356,7 @@ export default function Home() {
         broadbandCellMetric: "avg_speed",
         busStopOverlayMode: "off",
         pharmacyOverlayMode: "off",
+        listedBuildingOverlayMode: "off",
         overlayFilterThreshold: 50,
         modelledMode: "blend",
       };
@@ -550,6 +554,7 @@ export default function Home() {
     broadbandCellMetric: "avg_speed",
     busStopOverlayMode: "off",
     pharmacyOverlayMode: "off",
+    listedBuildingOverlayMode: "off",
     overlayFilterThreshold: 50,
     modelledMode: "blend",
   };
@@ -1368,7 +1373,7 @@ export default function Home() {
       ? "Off"
       : "On";
   const voteScaleLabel = state.voteColorScale === "relative" ? "Relative" : "Absolute";
-  const anyOverlayActive = state.floodOverlayMode !== "off" || state.schoolOverlayMode !== "off" || state.primarySchoolOverlayMode !== "off" || state.stationOverlayMode !== "off" || state.crimeOverlayMode !== "off" || state.crimeCellMode !== "off" || state.voteOverlayMode !== "off" || state.commuteOverlayMode !== "off" || state.ageOverlayMode !== "off" || state.epcFuelOverlayMode !== "off" || state.broadbandCellOverlayMode !== "off" || state.busStopOverlayMode !== "off" || state.pharmacyOverlayMode !== "off";
+  const anyOverlayActive = state.floodOverlayMode !== "off" || state.schoolOverlayMode !== "off" || state.primarySchoolOverlayMode !== "off" || state.stationOverlayMode !== "off" || state.crimeOverlayMode !== "off" || state.crimeCellMode !== "off" || state.voteOverlayMode !== "off" || state.commuteOverlayMode !== "off" || state.ageOverlayMode !== "off" || state.epcFuelOverlayMode !== "off" || state.broadbandCellOverlayMode !== "off" || state.busStopOverlayMode !== "off" || state.pharmacyOverlayMode !== "off" || state.listedBuildingOverlayMode !== "off";
 
   const currentFiltersSummary =
     `Grid: ${state.grid} · Metric: ${METRIC_LABEL[state.metric]} · ` +
@@ -1548,7 +1553,7 @@ export default function Home() {
     setTourActive(true);
     setShowMePulse(false);
     // Reset map to default view
-    setState((s) => ({ ...s, grid: "5km", metric: "median", propertyType: "ALL", floodOverlayMode: "off", schoolOverlayMode: "off", primarySchoolOverlayMode: "off", stationOverlayMode: "off", crimeOverlayMode: "off", crimeCellMode: "off", voteOverlayMode: "off", commuteOverlayMode: "off", ageOverlayMode: "off", epcFuelOverlayMode: "off", epcFuelType: "gas", broadbandCellOverlayMode: "off", broadbandCellMetric: "avg_speed", busStopOverlayMode: "off", pharmacyOverlayMode: "off" }));
+    setState((s) => ({ ...s, grid: "5km", metric: "median", propertyType: "ALL", floodOverlayMode: "off", schoolOverlayMode: "off", primarySchoolOverlayMode: "off", stationOverlayMode: "off", crimeOverlayMode: "off", crimeCellMode: "off", voteOverlayMode: "off", commuteOverlayMode: "off", ageOverlayMode: "off", epcFuelOverlayMode: "off", epcFuelType: "gas", broadbandCellOverlayMode: "off", broadbandCellMetric: "avg_speed", busStopOverlayMode: "off", pharmacyOverlayMode: "off", listedBuildingOverlayMode: "off" }));
     const t = ++flyToSeqRef.current;
     setFlyToRequest({ center: [-1.5, 53.5], zoom: 5, token: t });
   }, []);
@@ -2448,6 +2453,17 @@ export default function Home() {
                       renderOption={(v) => v === "on" ? "On" : v === "on_hide_cells" ? "Hide cells" : "Off"}
                     />
                     {rightClickInfo?.stage === "ready" && <button type="button" onClick={() => setRgLinesShown(v => ({ ...v, pharmacy: !v.pharmacy }))} title={rgLinesShown.pharmacy ? "Hide pharmacy lines" : "Show pharmacy lines"} style={{ cursor: "pointer", border: "none", borderRadius: 3, background: rgLinesShown.pharmacy ? "rgba(74,222,128,0.1)" : "transparent", color: rgLinesShown.pharmacy ? "rgba(74,222,128,0.85)" : "rgba(255,255,255,0.25)", fontSize: 10, padding: "2px 5px", flexShrink: 0, textDecoration: rgLinesShown.pharmacy ? "none" : "line-through" }}>Lines</button>}
+                  </div>
+
+                  {/* Listed buildings */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
+                    <div style={{ fontSize: 11, opacity: 0.8, width: 70, flexShrink: 0 }}>🏛️ Listed bldgs</div>
+                    <Segment
+                      options={["off", "on", "on_hide_cells"]}
+                      value={state.listedBuildingOverlayMode}
+                      onChange={(v) => setState((s) => ({ ...s, listedBuildingOverlayMode: v as ListedBuildingOverlayMode }))}
+                      renderOption={(v) => v === "on" ? "On" : v === "on_hide_cells" ? "Hide cells" : "Off"}
+                    />
                   </div>
 
                   <div style={{ borderTop: "1px solid rgba(255,255,255,0.1)", margin: "8px 0 7px" }} />
