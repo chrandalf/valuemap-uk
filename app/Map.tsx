@@ -2718,6 +2718,44 @@ export default function ValueMap({
     const count = Number(f.properties?.point_count ?? 0);
     const label = isMetro ? "Metro/tram stops" : "Bus stops";
     const icon = isMetro ? "🚇" : "🚌";
+    const sourceId = isMetro ? "metro-tram-overlay" : "bus-stop-overlay";
+    const clusterId = f.properties?.cluster_id;
+
+    // For small clusters (≤2 stops) expand immediately into a list of individual stops
+    if (count <= 2 && clusterId != null) {
+      const src = map.getSource(sourceId) as maplibregl.GeoJSONSource | undefined;
+      if (src && typeof (src as any).getClusterLeaves === "function") {
+        (src as any).getClusterLeaves(clusterId, count, 0, (err: any, leaves: any[]) => {
+          if (err || !leaves?.length) {
+            // Fallback to generic message on error
+            popup.setLngLat(e.lngLat).setHTML(`
+              <div style="font-family:system-ui;font-size:12px;line-height:1.25;">
+                <div style="font-weight:700;margin-bottom:4px">${icon} ${label}</div>
+                <div style="opacity:0.8;">Zoom in to see individual stops.</div>
+              </div>`).addTo(map);
+            return;
+          }
+          const rows = leaves.map((lf: any) => {
+            const p = lf.properties || {};
+            const name = escapeHtml(String(p.name ?? (isMetro ? "Metro/tram stop" : "Bus stop")));
+            const stopType = escapeHtml(String(p.stop_type ?? ""));
+            const atco = escapeHtml(String(p.atco_code ?? ""));
+            return `<div style="padding:4px 0;${leaves.length > 1 ? "border-bottom:1px solid #e5e7eb;" : ""}">
+              <div style="font-weight:600">${icon} ${name}</div>
+              ${stopType ? `<div style="font-size:11px;color:#6b7280">Type: <b style="color:#374151">${stopType}</b></div>` : ""}
+              ${atco ? `<div style="font-size:11px;color:#6b7280">ATCO: <b style="color:#374151">${atco}</b></div>` : ""}
+            </div>`;
+          }).join("");
+          popup.setLngLat(e.lngLat).setHTML(`
+            <div style="font:12px/1.5 system-ui,sans-serif;color:#374151;min-width:160px">
+              ${rows}
+            </div>`).addTo(map);
+        });
+        return;
+      }
+    }
+
+    // Large clusters: show count + zoom hint
     const html = `
       <div style="font-family:system-ui;font-size:12px;line-height:1.25;">
         <div style="font-weight:700;margin-bottom:4px">${icon} ${label} cluster</div>
