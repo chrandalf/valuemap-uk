@@ -26,6 +26,7 @@ type VoteColorScale = "relative" | "absolute";
 type BusStopOverlayMode = "off" | "on" | "on_hide_cells";
 type PharmacyOverlayMode = "off" | "on" | "on_hide_cells";
 type ListedBuildingOverlayMode = "off" | "on" | "on_hide_cells";
+type PlanningOverlayMode = "off" | "on" | "on_hide_cells";
 
 export type MapState = {
   grid: GridSize;
@@ -56,6 +57,7 @@ export type MapState = {
   busStopOverlayMode?: BusStopOverlayMode;
   pharmacyOverlayMode?: PharmacyOverlayMode;
   listedBuildingOverlayMode?: ListedBuildingOverlayMode;
+  planningOverlayMode?: PlanningOverlayMode;
 };
 
 export type IndexPrefs = {
@@ -1278,6 +1280,14 @@ export default function ValueMap({
     clusterRadius: 35,
   });
 
+  map.addSource("planning-application-overlay", {
+    type: "geojson",
+    data: "/api/planning-applications?plain=1",
+    cluster: true,
+    clusterMaxZoom: 14,
+    clusterRadius: 40,
+  });
+
   map.addSource("postcode-search-marker", {
     type: "geojson",
     data: { type: "FeatureCollection", features: [] },
@@ -1849,6 +1859,60 @@ export default function ValueMap({
       ] as any,
       "circle-opacity": 0.88,
       "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 3, 7, 5, 10, 7, 12, 10] as any,
+      "circle-stroke-color": "rgba(255,255,255,0.9)",
+      "circle-stroke-width": 1,
+    },
+  });
+
+  // ── Planning application overlay layers ──
+  map.addLayer({
+    id: "planning-application-overlay-clusters",
+    type: "circle",
+    source: "planning-application-overlay",
+    filter: ["has", "point_count"] as any,
+    layout: {
+      visibility: stateRef.current.planningOverlayMode && stateRef.current.planningOverlayMode !== "off" ? "visible" : "none",
+    },
+    paint: {
+      "circle-color": ["step", ["get", "point_count"], "rgba(37,99,235,0.65)", 10, "rgba(29,78,216,0.80)", 50, "rgba(109,40,217,0.85)"] as any,
+      "circle-radius": ["step", ["get", "point_count"], 14, 10, 19, 50, 25] as any,
+      "circle-stroke-color": "rgba(255,255,255,0.9)",
+      "circle-stroke-width": 1,
+    },
+  });
+  map.addLayer({
+    id: "planning-application-overlay-cluster-count",
+    type: "symbol",
+    source: "planning-application-overlay",
+    filter: ["has", "point_count"] as any,
+    layout: {
+      visibility: stateRef.current.planningOverlayMode && stateRef.current.planningOverlayMode !== "off" ? "visible" : "none",
+      "text-field": ["get", "point_count_abbreviated"] as any,
+      "text-size": 11,
+      "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
+    },
+    paint: { "text-color": "rgba(255,255,255,0.95)" },
+  });
+  map.addLayer({
+    id: "planning-application-overlay-points",
+    type: "circle",
+    source: "planning-application-overlay",
+    filter: ["!", ["has", "point_count"]] as any,
+    layout: {
+      visibility: stateRef.current.planningOverlayMode && stateRef.current.planningOverlayMode !== "off" ? "visible" : "none",
+    },
+    paint: {
+      "circle-color": [
+        "match", ["get", "decision"],
+        "approved",       "#16a34a",
+        "refused",        "#dc2626",
+        "withdrawn",      "#6b7280",
+        "pending",        "#f97316",
+        "prior_approval", "#2563eb",
+        "#9ca3af",
+      ] as any,
+      "circle-opacity": 0.88,
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 3, 7, 5, 10, 7, 12, 9] as any,
       "circle-stroke-color": "rgba(255,255,255,0.9)",
       "circle-stroke-width": 1,
     },
@@ -2925,6 +2989,65 @@ export default function ValueMap({
   map.on("click", "listed-building-overlay-clusters",     (e) => { if (!listedBuildingOverlayClickable()) return; showListedBuildingClusterPopup(e); });
   map.on("click", "listed-building-overlay-cluster-count",(e) => { if (!listedBuildingOverlayClickable()) return; showListedBuildingClusterPopup(e); });
 
+  const planningOverlayClickable = () => stateRef.current.planningOverlayMode !== "off";
+
+  const showPlanningPointPopup = (e: any) => {
+    const f = e.features?.[0] as any;
+    if (!f) return;
+    const p = f.properties || {};
+    const ref = escapeHtml(String(p.ref ?? ""));
+    const address = escapeHtml(String(p.address ?? ""));
+    const description = escapeHtml(String(p.description ?? ""));
+    const decision = String(p.decision ?? "");
+    const startDate = escapeHtml(String(p.start_date ?? ""));
+    const decisionDate = escapeHtml(String(p.decision_date ?? ""));
+    const docUrl = String(p.doc_url ?? "");
+    const decisionLabel: Record<string, string> = {
+      approved: "✅ Approved",
+      refused: "❌ Refused",
+      withdrawn: "↩️ Withdrawn",
+      pending: "🕐 Pending",
+      prior_approval: "📋 Prior approval not required",
+      other: "Unknown",
+    };
+    const decisionColor: Record<string, string> = {
+      approved: "#16a34a", refused: "#dc2626", withdrawn: "#6b7280",
+      pending: "#f97316", prior_approval: "#2563eb", other: "#9ca3af",
+    };
+    const html = `
+      <div style="font:12px/1.5 system-ui,sans-serif;color:#374151;min-width:200px;max-width:270px">
+        <div style="font-weight:700;font-size:13px;margin-bottom:4px">📋 Planning application</div>
+        ${ref ? `<div style="font-size:11px;color:#6b7280">Ref: <b style="color:#374151">${ref}</b></div>` : ""}
+        ${address ? `<div style="font-size:11px;color:#374151;margin-top:2px">${address}</div>` : ""}
+        ${decision ? `<div style="font-size:11px;margin-top:3px;color:${decisionColor[decision] ?? '#374151'}">${decisionLabel[decision] ?? decision}</div>` : ""}
+        ${description ? `<div style="font-size:11px;color:#6b7280;margin-top:3px">${description}</div>` : ""}
+        ${startDate ? `<div style="font-size:10px;color:#9ca3af;margin-top:3px">Applied: ${startDate}${decisionDate ? ` · Decided: ${decisionDate}` : ""}</div>` : ""}
+        ${docUrl ? `<div style="font-size:11px;margin-top:3px"><a href="${escapeHtml(docUrl)}" target="_blank" rel="noopener noreferrer" style="color:#2563eb">View on council portal ↗</a></div>` : ""}
+        <div style="font-size:9px;color:#9ca3af;margin-top:4px">Source: planning.data.gov.uk (MHCLG)</div>
+      </div>
+    `;
+    popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+  };
+
+  const showPlanningClusterPopup = (e: any) => {
+    const f = e.features?.[0] as any;
+    if (!f) return;
+    const count = Number(f.properties?.point_count ?? 0);
+    const html = `
+      <div style="font-family:system-ui;font-size:12px;line-height:1.25;">
+        <div style="font-weight:700;margin-bottom:4px">📋 Planning applications</div>
+        <div>Applications in cluster: <b>${count.toLocaleString()}</b></div>
+        <div style="opacity:0.8;margin-top:2px">Zoom in to see individual records.</div>
+        <div style="font-size:9px;color:#9ca3af;margin-top:3px">Source: planning.data.gov.uk (MHCLG)</div>
+      </div>
+    `;
+    popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+  };
+
+  map.on("click", "planning-application-overlay-points",       (e) => { if (!planningOverlayClickable()) return; showPlanningPointPopup(e); });
+  map.on("click", "planning-application-overlay-clusters",     (e) => { if (!planningOverlayClickable()) return; showPlanningClusterPopup(e); });
+  map.on("click", "planning-application-overlay-cluster-count",(e) => { if (!planningOverlayClickable()) return; showPlanningClusterPopup(e); });
+
   // Pointer cursor when hovering clickable overlay features
   const overlayHoverLayers = [
     "flood-overlay-points", "flood-overlay-clusters", "flood-overlay-cluster-count",
@@ -2936,6 +3059,7 @@ export default function ValueMap({
     "metro-tram-overlay-points", "metro-tram-overlay-clusters", "metro-tram-overlay-cluster-count",
     "pharmacy-overlay-points", "pharmacy-overlay-clusters", "pharmacy-overlay-cluster-count",
     "listed-building-overlay-points", "listed-building-overlay-clusters", "listed-building-overlay-cluster-count",
+    "planning-application-overlay-points", "planning-application-overlay-clusters", "planning-application-overlay-cluster-count",
   ];
   overlayHoverLayers.forEach((id) => {
     map.on("mouseenter", id, () => { map.getCanvas().style.cursor = "pointer"; });
@@ -4227,6 +4351,7 @@ export default function ValueMap({
     const busStopMode = state.busStopOverlayMode ?? "off";
     const pharmacyMode = state.pharmacyOverlayMode ?? "off";
     const listedBuildingMode = state.listedBuildingOverlayMode ?? "off";
+    const planningMode = state.planningOverlayMode ?? "off";
     const floodVisibility = floodMode === "off" ? "none" : "visible";
     const schoolVisibility = schoolMode === "off" ? "none" : "visible";
     const primarySchoolVisibility = primarySchoolMode === "off" ? "none" : "visible";
@@ -4235,7 +4360,8 @@ export default function ValueMap({
     const busStopVisibility = busStopMode === "off" ? "none" : "visible";
     const pharmacyVisibility = pharmacyMode === "off" ? "none" : "visible";
     const listedBuildingVisibility = listedBuildingMode === "off" ? "none" : "visible";
-    const hideCellsMode = floodMode === "on_hide_cells" || schoolMode === "on_hide_cells" || primarySchoolMode === "on_hide_cells" || stationMode === "on_hide_cells" || crimeMode === "on_hide_cells" || busStopMode === "on_hide_cells" || pharmacyMode === "on_hide_cells" || listedBuildingMode === "on_hide_cells";
+    const planningVisibility = planningMode === "off" ? "none" : "visible";
+    const hideCellsMode = floodMode === "on_hide_cells" || schoolMode === "on_hide_cells" || primarySchoolMode === "on_hide_cells" || stationMode === "on_hide_cells" || crimeMode === "on_hide_cells" || busStopMode === "on_hide_cells" || pharmacyMode === "on_hide_cells" || listedBuildingMode === "on_hide_cells" || planningMode === "on_hide_cells";
 
     const apply = () => {
       try {
@@ -4284,6 +4410,11 @@ export default function ValueMap({
         if (map.getLayer("listed-building-overlay-clusters")) map.setLayoutProperty("listed-building-overlay-clusters", "visibility", listedBuildingVisibility);
         if (map.getLayer("listed-building-overlay-cluster-count")) map.setLayoutProperty("listed-building-overlay-cluster-count", "visibility", listedBuildingVisibility);
 
+        // Planning application layer visibility
+        if (map.getLayer("planning-application-overlay-points")) map.setLayoutProperty("planning-application-overlay-points", "visibility", planningVisibility);
+        if (map.getLayer("planning-application-overlay-clusters")) map.setLayoutProperty("planning-application-overlay-clusters", "visibility", planningVisibility);
+        if (map.getLayer("planning-application-overlay-cluster-count")) map.setLayoutProperty("planning-application-overlay-cluster-count", "visibility", planningVisibility);
+
         // Cell opacity — applied in the same call so it cannot be skipped by a mid-layout bail
         if (map.getLayer("cells-fill")) {
           map.setLayoutProperty("cells-fill", "visibility", "visible");
@@ -4312,7 +4443,7 @@ export default function ValueMap({
     // before we apply paint property updates.
     const raf = requestAnimationFrame(apply);
     return () => { cancelAnimationFrame(raf); };
-  }, [state.floodOverlayMode, state.schoolOverlayMode, state.primarySchoolOverlayMode, state.stationOverlayMode, state.crimeOverlayMode, state.busStopOverlayMode, state.pharmacyOverlayMode, state.listedBuildingOverlayMode]);
+  }, [state.floodOverlayMode, state.schoolOverlayMode, state.primarySchoolOverlayMode, state.stationOverlayMode, state.crimeOverlayMode, state.busStopOverlayMode, state.pharmacyOverlayMode, state.listedBuildingOverlayMode, state.planningOverlayMode]);
 
   useEffect(() => {
     const map = mapRef.current;
