@@ -4591,7 +4591,7 @@ export default function ValueMap({
     // before we apply paint property updates.
     const raf = requestAnimationFrame(apply);
     return () => { cancelAnimationFrame(raf); };
-  }, [state.floodOverlayMode, state.schoolOverlayMode, state.primarySchoolOverlayMode, state.stationOverlayMode, state.crimeOverlayMode, state.busStopOverlayMode, state.pharmacyOverlayMode, state.listedBuildingOverlayMode, state.planningOverlayMode]);
+  }, [state.floodOverlayMode, state.schoolOverlayMode, state.primarySchoolOverlayMode, state.stationOverlayMode, state.crimeOverlayMode, state.busStopOverlayMode, state.pharmacyOverlayMode, state.listedBuildingOverlayMode, state.planningOverlayMode, state.holidayLetOverlayMode]);
 
   useEffect(() => {
     const map = mapRef.current;
