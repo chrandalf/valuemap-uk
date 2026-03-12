@@ -28,6 +28,7 @@ type BusStopOverlayMode = "off" | "on" | "on_hide_cells";
 type PharmacyOverlayMode = "off" | "on" | "on_hide_cells";
 type ListedBuildingOverlayMode = "off" | "on" | "on_hide_cells";
 type PlanningOverlayMode = "off" | "on" | "on_hide_cells";
+type HolidayLetOverlayMode = "off" | "on" | "on_hide_cells";
 
 export type MapState = {
   grid: GridSize;
@@ -60,6 +61,7 @@ export type MapState = {
   pharmacyOverlayMode?: PharmacyOverlayMode;
   listedBuildingOverlayMode?: ListedBuildingOverlayMode;
   planningOverlayMode?: PlanningOverlayMode;
+  holidayLetOverlayMode?: HolidayLetOverlayMode;
 };
 
 export type IndexPrefs = {
@@ -1293,6 +1295,14 @@ export default function ValueMap({
     clusterRadius: 40,
   });
 
+  map.addSource("holiday-let-overlay", {
+    type: "geojson",
+    data: "/api/holiday-lets?plain=1",
+    cluster: true,
+    clusterMaxZoom: 14,
+    clusterRadius: 38,
+  });
+
   map.addSource("postcode-search-marker", {
     type: "geojson",
     data: { type: "FeatureCollection", features: [] },
@@ -1915,6 +1925,52 @@ export default function ValueMap({
         "#9ca3af",
       ] as any,
       "circle-opacity": 0.88,
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 3, 7, 5, 10, 7, 12, 9] as any,
+      "circle-stroke-color": "rgba(255,255,255,0.9)",
+      "circle-stroke-width": 1,
+    },
+  });
+
+  // ── Holiday let overlay layers ──
+  map.addLayer({
+    id: "holiday-let-overlay-clusters",
+    type: "circle",
+    source: "holiday-let-overlay",
+    filter: ["has", "point_count"] as any,
+    layout: {
+      visibility: stateRef.current.holidayLetOverlayMode && stateRef.current.holidayLetOverlayMode !== "off" ? "visible" : "none",
+    },
+    paint: {
+      "circle-color": ["step", ["get", "point_count"], "rgba(234,88,12,0.65)", 10, "rgba(194,65,12,0.80)", 50, "rgba(154,52,18,0.85)"] as any,
+      "circle-radius": ["step", ["get", "point_count"], 14, 10, 19, 50, 25] as any,
+      "circle-stroke-color": "rgba(255,255,255,0.9)",
+      "circle-stroke-width": 1,
+    },
+  });
+  map.addLayer({
+    id: "holiday-let-overlay-cluster-count",
+    type: "symbol",
+    source: "holiday-let-overlay",
+    filter: ["has", "point_count"] as any,
+    layout: {
+      visibility: stateRef.current.holidayLetOverlayMode && stateRef.current.holidayLetOverlayMode !== "off" ? "visible" : "none",
+      "text-field": ["get", "point_count_abbreviated"] as any,
+      "text-size": 11,
+      "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
+    },
+    paint: { "text-color": "rgba(255,255,255,0.95)" },
+  });
+  map.addLayer({
+    id: "holiday-let-overlay-points",
+    type: "circle",
+    source: "holiday-let-overlay",
+    filter: ["!", ["has", "point_count"]] as any,
+    layout: {
+      visibility: stateRef.current.holidayLetOverlayMode && stateRef.current.holidayLetOverlayMode !== "off" ? "visible" : "none",
+    },
+    paint: {
+      "circle-color": "#ea580c",
+      "circle-opacity": 0.85,
       "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 3, 7, 5, 10, 7, 12, 9] as any,
       "circle-stroke-color": "rgba(255,255,255,0.9)",
       "circle-stroke-width": 1,
@@ -3051,6 +3107,54 @@ export default function ValueMap({
   map.on("click", "planning-application-overlay-clusters",     (e) => { if (!planningOverlayClickable()) return; showPlanningClusterPopup(e); });
   map.on("click", "planning-application-overlay-cluster-count",(e) => { if (!planningOverlayClickable()) return; showPlanningClusterPopup(e); });
 
+  const holidayLetOverlayClickable = () => stateRef.current.holidayLetOverlayMode !== "off";
+
+  const showHolidayLetPointPopup = (e: any) => {
+    const f = e.features?.[0] as any;
+    if (!f) return;
+    const p = f.properties || {};
+    const name = escapeHtml(String(p.name ?? ""));
+    const city = escapeHtml(String(p.city ?? ""));
+    const price = escapeHtml(String(p.price ?? ""));
+    const minNights = Number(p.min_nights ?? 0);
+    const reviews = Number(p.reviews ?? 0);
+    const hostCount = Number(p.host_count ?? 1);
+    const availability = Number(p.availability ?? 0);
+    const operatorLabel = hostCount > 1 ? `Professional operator (${hostCount} listings)` : "Individual host";
+    const html = `
+      <div style="font:12px/1.5 system-ui,sans-serif;color:#374151;min-width:200px;max-width:270px">
+        <div style="font-weight:700;font-size:13px;margin-bottom:4px">🏠 Holiday let</div>
+        ${name ? `<div style="font-size:11px;color:#374151;margin-bottom:2px">${name}</div>` : ""}
+        ${city ? `<div style="font-size:11px;color:#6b7280">${city}</div>` : ""}
+        ${price ? `<div style="font-size:11px;margin-top:3px">From <b>${price}</b> / night</div>` : ""}
+        ${minNights > 1 ? `<div style="font-size:11px;color:#6b7280">Min stay: ${minNights} nights</div>` : ""}
+        <div style="font-size:11px;color:#6b7280;margin-top:2px">Available ${availability} days/yr · ${reviews} reviews</div>
+        <div style="font-size:11px;color:#6b7280">${operatorLabel}</div>
+        <div style="font-size:9px;color:#9ca3af;margin-top:4px">Source: Inside Airbnb (insideairbnb.com) — CC BY 4.0 · Major cities only</div>
+      </div>
+    `;
+    popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+  };
+
+  const showHolidayLetClusterPopup = (e: any) => {
+    const f = e.features?.[0] as any;
+    if (!f) return;
+    const count = Number(f.properties?.point_count ?? 0);
+    const html = `
+      <div style="font-family:system-ui;font-size:12px;line-height:1.25;">
+        <div style="font-weight:700;margin-bottom:4px">🏠 Holiday lets</div>
+        <div>Listings in cluster: <b>${count.toLocaleString()}</b></div>
+        <div style="opacity:0.8;margin-top:2px">Zoom in to see individual listings.</div>
+        <div style="font-size:9px;color:#9ca3af;margin-top:3px">Source: Inside Airbnb — major cities only (London, Manchester, Edinburgh, Bristol)</div>
+      </div>
+    `;
+    popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+  };
+
+  map.on("click", "holiday-let-overlay-points",       (e) => { if (!holidayLetOverlayClickable()) return; showHolidayLetPointPopup(e); });
+  map.on("click", "holiday-let-overlay-clusters",     (e) => { if (!holidayLetOverlayClickable()) return; showHolidayLetClusterPopup(e); });
+  map.on("click", "holiday-let-overlay-cluster-count",(e) => { if (!holidayLetOverlayClickable()) return; showHolidayLetClusterPopup(e); });
+
   // Pointer cursor when hovering clickable overlay features
   const overlayHoverLayers = [
     "flood-overlay-points", "flood-overlay-clusters", "flood-overlay-cluster-count",
@@ -3063,6 +3167,7 @@ export default function ValueMap({
     "pharmacy-overlay-points", "pharmacy-overlay-clusters", "pharmacy-overlay-cluster-count",
     "listed-building-overlay-points", "listed-building-overlay-clusters", "listed-building-overlay-cluster-count",
     "planning-application-overlay-points", "planning-application-overlay-clusters", "planning-application-overlay-cluster-count",
+    "holiday-let-overlay-points", "holiday-let-overlay-clusters", "holiday-let-overlay-cluster-count",
   ];
   overlayHoverLayers.forEach((id) => {
     map.on("mouseenter", id, () => { map.getCanvas().style.cursor = "pointer"; });
@@ -4388,6 +4493,7 @@ export default function ValueMap({
     const pharmacyMode = state.pharmacyOverlayMode ?? "off";
     const listedBuildingMode = state.listedBuildingOverlayMode ?? "off";
     const planningMode = state.planningOverlayMode ?? "off";
+    const holidayLetMode = state.holidayLetOverlayMode ?? "off";
     const floodVisibility = floodMode === "off" ? "none" : "visible";
     const schoolVisibility = schoolMode === "off" ? "none" : "visible";
     const primarySchoolVisibility = primarySchoolMode === "off" ? "none" : "visible";
@@ -4397,7 +4503,8 @@ export default function ValueMap({
     const pharmacyVisibility = pharmacyMode === "off" ? "none" : "visible";
     const listedBuildingVisibility = listedBuildingMode === "off" ? "none" : "visible";
     const planningVisibility = planningMode === "off" ? "none" : "visible";
-    const hideCellsMode = floodMode === "on_hide_cells" || schoolMode === "on_hide_cells" || primarySchoolMode === "on_hide_cells" || stationMode === "on_hide_cells" || crimeMode === "on_hide_cells" || busStopMode === "on_hide_cells" || pharmacyMode === "on_hide_cells" || listedBuildingMode === "on_hide_cells" || planningMode === "on_hide_cells";
+    const holidayLetVisibility = holidayLetMode === "off" ? "none" : "visible";
+    const hideCellsMode = floodMode === "on_hide_cells" || schoolMode === "on_hide_cells" || primarySchoolMode === "on_hide_cells" || stationMode === "on_hide_cells" || crimeMode === "on_hide_cells" || busStopMode === "on_hide_cells" || pharmacyMode === "on_hide_cells" || listedBuildingMode === "on_hide_cells" || planningMode === "on_hide_cells" || holidayLetMode === "on_hide_cells";
 
     const apply = () => {
       try {
@@ -4450,6 +4557,11 @@ export default function ValueMap({
         if (map.getLayer("planning-application-overlay-points")) map.setLayoutProperty("planning-application-overlay-points", "visibility", planningVisibility);
         if (map.getLayer("planning-application-overlay-clusters")) map.setLayoutProperty("planning-application-overlay-clusters", "visibility", planningVisibility);
         if (map.getLayer("planning-application-overlay-cluster-count")) map.setLayoutProperty("planning-application-overlay-cluster-count", "visibility", planningVisibility);
+
+        // Holiday let layer visibility
+        if (map.getLayer("holiday-let-overlay-points")) map.setLayoutProperty("holiday-let-overlay-points", "visibility", holidayLetVisibility);
+        if (map.getLayer("holiday-let-overlay-clusters")) map.setLayoutProperty("holiday-let-overlay-clusters", "visibility", holidayLetVisibility);
+        if (map.getLayer("holiday-let-overlay-cluster-count")) map.setLayoutProperty("holiday-let-overlay-cluster-count", "visibility", holidayLetVisibility);
 
         // Cell opacity — applied in the same call so it cannot be skipped by a mid-layout bail
         if (map.getLayer("cells-fill")) {

@@ -265,6 +265,7 @@ def run_transit() -> None:
         transit/pharmacy_overlay_points.geojson.gz
         transit/listed_building_overlay_points.geojson.gz
         transit/planning_application_overlay_points.geojson.gz
+        transit/holiday_let_overlay_points.geojson.gz
     """
     run_step(
         "transit-bus-metro",
@@ -298,6 +299,14 @@ def run_transit() -> None:
             str(SCRIPT_DIR / "build_planning_application_points.py"),
             "--output",
             str(MODEL_TRANSIT_DIR / "planning_application_overlay_points.geojson.gz"),
+        ],
+    )
+    run_step(
+        "transit-holiday-lets",
+        [
+            str(SCRIPT_DIR / "build_holiday_let_points.py"),
+            "--output",
+            str(MODEL_TRANSIT_DIR / "holiday_let_overlay_points.geojson.gz"),
         ],
     )
 

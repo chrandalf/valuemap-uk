@@ -142,6 +142,7 @@ def collect_assets(
             "pharmacy_overlay_points.geojson.gz",
             "listed_building_overlay_points.geojson.gz",
             "planning_application_overlay_points.geojson.gz",
+            "holiday_let_overlay_points.geojson.gz",
         ):
             p = transit_dir / name
             if p.exists():

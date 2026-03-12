@@ -32,6 +32,7 @@ type BusStopOverlayMode = "off" | "on" | "on_hide_cells";
 type PharmacyOverlayMode = "off" | "on" | "on_hide_cells";
 type ListedBuildingOverlayMode = "off" | "on" | "on_hide_cells";
 type PlanningOverlayMode = "off" | "on" | "on_hide_cells";
+type HolidayLetOverlayMode = "off" | "on" | "on_hide_cells";
 
 type IndexScoringPrefs = {
   budget: number;
@@ -83,6 +84,7 @@ type MapState = {
   pharmacyOverlayMode: PharmacyOverlayMode;
   listedBuildingOverlayMode: ListedBuildingOverlayMode;
   planningOverlayMode: PlanningOverlayMode;
+  holidayLetOverlayMode: HolidayLetOverlayMode;
   overlayFilterThreshold: number;
   modelledMode?: "actual" | "blend" | "estimated" | "model_only";
 };
@@ -299,6 +301,7 @@ export default function Home() {
       pharmacyOverlayMode: "off",
       listedBuildingOverlayMode: "off",
       planningOverlayMode: "off",
+      holidayLetOverlayMode: "off",
       overlayFilterThreshold: 50,
       modelledMode: "blend",
     };
@@ -365,6 +368,7 @@ export default function Home() {
         pharmacyOverlayMode: "off",
         listedBuildingOverlayMode: "off",
         planningOverlayMode: "off",
+        holidayLetOverlayMode: "off",
         overlayFilterThreshold: 50,
         modelledMode: "blend",
       };
@@ -569,6 +573,7 @@ export default function Home() {
     pharmacyOverlayMode: "off",
     listedBuildingOverlayMode: "off",
     planningOverlayMode: "off",
+    holidayLetOverlayMode: "off",
     overlayFilterThreshold: 50,
     modelledMode: "blend",
   };
@@ -1401,7 +1406,7 @@ export default function Home() {
       ? "Off"
       : "On";
   const voteScaleLabel = state.voteColorScale === "relative" ? "Relative" : "Absolute";
-  const anyOverlayActive = state.floodOverlayMode !== "off" || state.schoolOverlayMode !== "off" || state.primarySchoolOverlayMode !== "off" || state.stationOverlayMode !== "off" || state.crimeOverlayMode !== "off" || state.crimeCellMode !== "off" || state.voteOverlayMode !== "off" || state.commuteOverlayMode !== "off" || state.ageOverlayMode !== "off" || state.epcFuelOverlayMode !== "off" || state.broadbandCellOverlayMode !== "off" || state.listedBuildingCellOverlayMode !== "off" || state.busStopOverlayMode !== "off" || state.pharmacyOverlayMode !== "off" || state.listedBuildingOverlayMode !== "off" || state.planningOverlayMode !== "off";
+  const anyOverlayActive = state.floodOverlayMode !== "off" || state.schoolOverlayMode !== "off" || state.primarySchoolOverlayMode !== "off" || state.stationOverlayMode !== "off" || state.crimeOverlayMode !== "off" || state.crimeCellMode !== "off" || state.voteOverlayMode !== "off" || state.commuteOverlayMode !== "off" || state.ageOverlayMode !== "off" || state.epcFuelOverlayMode !== "off" || state.broadbandCellOverlayMode !== "off" || state.listedBuildingCellOverlayMode !== "off" || state.busStopOverlayMode !== "off" || state.pharmacyOverlayMode !== "off" || state.listedBuildingOverlayMode !== "off" || state.planningOverlayMode !== "off" || state.holidayLetOverlayMode !== "off";
 
   const currentFiltersSummary =
     `Grid: ${state.grid} · Metric: ${METRIC_LABEL[state.metric]} · ` +
@@ -1582,7 +1587,7 @@ export default function Home() {
     setTourActive(true);
     setShowMePulse(false);
     // Reset map to default view
-    setState((s) => ({ ...s, grid: "5km", metric: "median", propertyType: "ALL", floodOverlayMode: "off", schoolOverlayMode: "off", primarySchoolOverlayMode: "off", stationOverlayMode: "off", crimeOverlayMode: "off", crimeCellMode: "off", voteOverlayMode: "off", commuteOverlayMode: "off", ageOverlayMode: "off", epcFuelOverlayMode: "off", epcFuelType: "gas", broadbandCellOverlayMode: "off", broadbandCellMetric: "avg_speed", listedBuildingCellOverlayMode: "off", busStopOverlayMode: "off", pharmacyOverlayMode: "off", listedBuildingOverlayMode: "off", planningOverlayMode: "off" }));
+    setState((s) => ({ ...s, grid: "5km", metric: "median", propertyType: "ALL", floodOverlayMode: "off", schoolOverlayMode: "off", primarySchoolOverlayMode: "off", stationOverlayMode: "off", crimeOverlayMode: "off", crimeCellMode: "off", voteOverlayMode: "off", commuteOverlayMode: "off", ageOverlayMode: "off", epcFuelOverlayMode: "off", epcFuelType: "gas", broadbandCellOverlayMode: "off", broadbandCellMetric: "avg_speed", listedBuildingCellOverlayMode: "off", busStopOverlayMode: "off", pharmacyOverlayMode: "off", listedBuildingOverlayMode: "off", planningOverlayMode: "off", holidayLetOverlayMode: "off" }));
     const t = ++flyToSeqRef.current;
     setFlyToRequest({ center: [-1.5, 53.5], zoom: 5, token: t });
   }, []);
@@ -2498,6 +2503,7 @@ export default function Home() {
                           <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.07)" }} />
                         </div>
                         {row("📋", "Planning", <>{ob("Off", state.planningOverlayMode === "off", () => setState(s => ({ ...s, planningOverlayMode: "off" as PlanningOverlayMode })))}{ob("On", state.planningOverlayMode === "on", () => setState(s => ({ ...s, planningOverlayMode: "on" as PlanningOverlayMode })))}{ob("Hide", state.planningOverlayMode === "on_hide_cells", () => setState(s => ({ ...s, planningOverlayMode: "on_hide_cells" as PlanningOverlayMode })))}</>, undefined, <div style={{ fontSize: 9, opacity: 0.28 }}>Brighton &amp; London only</div>, true)}
+                        {row("🏠", "Holiday lets", <>{ob("Off", state.holidayLetOverlayMode === "off", () => setState(s => ({ ...s, holidayLetOverlayMode: "off" as HolidayLetOverlayMode })))}{ob("On", state.holidayLetOverlayMode === "on", () => setState(s => ({ ...s, holidayLetOverlayMode: "on" as HolidayLetOverlayMode })))}{ob("Hide", state.holidayLetOverlayMode === "on_hide_cells", () => setState(s => ({ ...s, holidayLetOverlayMode: "on_hide_cells" as HolidayLetOverlayMode })))}</>, undefined, <div style={{ fontSize: 9, opacity: 0.28 }}>Major cities only</div>, true)}
                       </div>
 
                       {sectionHdr("Cell colour")}
