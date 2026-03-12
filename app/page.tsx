@@ -4375,6 +4375,13 @@ export default function Home() {
                     {rightClickInfo.cellTxCount !== undefined && (
                       <span style={{ color: "#9ca3af", fontSize: 10, marginLeft: 5 }}>({rightClickInfo.cellTxCount} sales)</span>
                     )}
+                    {rightClickInfo.cellP70 !== undefined && (
+                      <div style={{ fontSize: 10, color: "#9ca3af", marginTop: 2, lineHeight: 1.4 }}>
+                        70% under <span style={{ color: "#374151", fontWeight: 500 }}>£{Math.round(rightClickInfo.cellP70 / 1000)}k</span>
+                        {rightClickInfo.cellP90 !== undefined && (<> · 90% under <span style={{ color: "#374151", fontWeight: 500 }}>£{Math.round(rightClickInfo.cellP90 / 1000)}k</span></>)}
+                        {rightClickInfo.cellPSource && rightClickInfo.cellPSource !== "direct" && <span style={{ opacity: 0.55 }}> (est.)</span>}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -4472,6 +4479,13 @@ export default function Home() {
                     )}
                     {rightClickInfo.cellTxCount !== undefined && (
                       <span style={{ color: "#9ca3af", fontSize: 10, marginLeft: 5 }}>({rightClickInfo.cellTxCount} sales)</span>
+                    )}
+                    {rightClickInfo.cellP70 !== undefined && (
+                      <div style={{ fontSize: 10, color: "#9ca3af", marginTop: 2, lineHeight: 1.4 }}>
+                        70% under <span style={{ color: "#374151", fontWeight: 500 }}>£{Math.round(rightClickInfo.cellP70 / 1000)}k</span>
+                        {rightClickInfo.cellP90 !== undefined && (<> · 90% under <span style={{ color: "#374151", fontWeight: 500 }}>£{Math.round(rightClickInfo.cellP90 / 1000)}k</span></>)}
+                        {rightClickInfo.cellPSource && rightClickInfo.cellPSource !== "direct" && <span style={{ opacity: 0.55 }}> (est.)</span>}
+                      </div>
                     )}
                   </div>
                 </div>

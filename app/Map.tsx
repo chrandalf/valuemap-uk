@@ -402,7 +402,7 @@ export type RgLogEntry = {
 /** Data passed to page.tsx for the right-click info panel. */
 export type RightClickInfoData =
   | { stage: 'loading'; clickLat: number; clickLng: number }
-  | { stage: 'ready'; postcode: string; isOutcode: boolean; floodHtml: string; schoolHtml: string; primarySchoolHtml: string; stationHtml: string; crimeHtml: string; epcHtml?: string; broadbandHtml?: string; busStopHtml?: string; pharmacyHtml?: string; clickLat: number; clickLng: number; cellMedian?: number; cellDeltaPct?: number; cellDeltaGbp?: number; cellTxCount?: number; constituency?: string; };
+  | { stage: 'ready'; postcode: string; isOutcode: boolean; floodHtml: string; schoolHtml: string; primarySchoolHtml: string; stationHtml: string; crimeHtml: string; epcHtml?: string; broadbandHtml?: string; busStopHtml?: string; pharmacyHtml?: string; clickLat: number; clickLng: number; cellMedian?: number; cellDeltaPct?: number; cellDeltaGbp?: number; cellTxCount?: number; cellP25?: number; cellP70?: number; cellP90?: number; cellPSource?: string; constituency?: string; };
 
 export default function ValueMap({
   state,
@@ -4176,6 +4176,10 @@ export default function ValueMap({
         const cp = (cellFeats?.[0]?.properties ?? {}) as Record<string, unknown>;
         const cellMedian  = cp.median   !== undefined && cp.median   !== null ? Number(cp.median)   : undefined;
         const cellTxCount = cp.tx_count  !== undefined && cp.tx_count  !== null ? Number(cp.tx_count) : undefined;
+        const cellP25 = cp.p25 !== undefined && cp.p25 !== null ? Number(cp.p25) : undefined;
+        const cellP70 = cp.p70 !== undefined && cp.p70 !== null ? Number(cp.p70) : undefined;
+        const cellP90 = cp.p90 !== undefined && cp.p90 !== null ? Number(cp.p90) : undefined;
+        const cellPSource = cp.p_source ? String(cp.p_source) : undefined;
         const constituency = cp.constituency ? String(cp.constituency) : undefined;
         const rawGx = cp.gx !== undefined ? Number(cp.gx) : NaN;
         const rawGy = cp.gy !== undefined ? Number(cp.gy) : NaN;
@@ -4278,7 +4282,7 @@ export default function ValueMap({
           postcode, isOutcode,
           floodHtml, schoolHtml, primarySchoolHtml, stationHtml, crimeHtml, epcHtml, broadbandHtml, busStopHtml, pharmacyHtml,
           clickLat: lat, clickLng: lng,
-          cellMedian, cellDeltaPct, cellDeltaGbp, cellTxCount, constituency,
+          cellMedian, cellDeltaPct, cellDeltaGbp, cellTxCount, cellP25, cellP70, cellP90, cellPSource, constituency,
         });
       } catch {
         closeActiveRg();

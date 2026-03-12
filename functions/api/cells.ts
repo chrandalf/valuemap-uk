@@ -197,6 +197,10 @@ type CellRow = {
   bb_avg_speed?: number;       // weighted avg max available download speed (Mbit/s)
   bb_pct_sfbb?: number;        // % of premises capable of SFBB+ (≥30 Mbit/s)
   bb_pct_fast?: number;        // % of premises capable of ultrafast (≥300 Mbit/s, proxy for fibre/cable)
+  p25?: number;                // 25th percentile price (GBP)
+  p70?: number;                // 70th percentile price (GBP)
+  p90?: number;                // 90th percentile price (GBP)
+  p_source?: string;           // "direct" | "parent" | "national" (1km only)
 };
 
 type VoteCellRow = {

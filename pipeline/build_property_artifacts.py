@@ -16,6 +16,11 @@ GRID_SIZES = [1000, 5000, 10000, 25000]
 DELTA_GRID_SIZES = [5000, 10000, 25000]
 MEDIAN_YEARS_BACK_BY_GRID = {1000: 0, 5000: 5, 10000: 5, 25000: 5}
 PPSF_YEARS_BACK_BY_GRID = {1000: 0, 5000: 5, 10000: 5, 25000: 5}
+# 1km cells with fewer than this many transactions borrow their percentile shape
+# from the parent 5km cell (scaled to the 1km cell's own median).
+PERCENTILE_DIRECT_TX_THRESHOLD = 10
+# Hard-coded last-resort ratios used when no parent 5km data is available.
+DEFAULT_RATIOS: dict[str, float] = {"r25": 0.78, "r70": 1.24, "r90": 1.65}
 SCOTLAND_DAILY_THRESHOLD = 50
 SQFT_PER_M2 = 10.76391041671
 
@@ -385,32 +390,30 @@ def aggregate_segments(window: pd.DataFrame, g: int) -> pd.DataFrame:
     gx = f"gx_{g}"
     gy = f"gy_{g}"
 
-    a = (
-        window.groupby([gx, gy, "property_type", "new_build"], as_index=False)
-        .agg(median=("price", "median"), tx_count=("price", "size"))
-    )
+    def _seg(grp_cols: list, extra: dict) -> pd.DataFrame:
+        base = (
+            window.groupby(grp_cols, as_index=False)
+            .agg(median=("price", "median"), tx_count=("price", "size"))
+        )
+        perc = (
+            window.groupby(grp_cols)["price"]
+            .quantile([0.25, 0.7, 0.9])
+            .unstack()
+            .rename(columns={0.25: "p25", 0.7: "p70", 0.9: "p90"})
+            .reset_index()[grp_cols + ["p25", "p70", "p90"]]
+        )
+        df = base.merge(perc, on=grp_cols, how="left")
+        for col, val in extra.items():
+            df[col] = val
+        return df
 
-    b = (
-        window.groupby([gx, gy, "property_type"], as_index=False)
-        .agg(median=("price", "median"), tx_count=("price", "size"))
-    )
-    b["new_build"] = "ALL"
-
-    c = (
-        window.groupby([gx, gy, "new_build"], as_index=False)
-        .agg(median=("price", "median"), tx_count=("price", "size"))
-    )
-    c["property_type"] = "ALL"
-
-    d = (
-        window.groupby([gx, gy], as_index=False)
-        .agg(median=("price", "median"), tx_count=("price", "size"))
-    )
-    d["property_type"] = "ALL"
-    d["new_build"] = "ALL"
+    a = _seg([gx, gy, "property_type", "new_build"], {})
+    b = _seg([gx, gy, "property_type"], {"new_build": "ALL"})
+    c = _seg([gx, gy, "new_build"], {"property_type": "ALL"})
+    d = _seg([gx, gy], {"property_type": "ALL", "new_build": "ALL"})
 
     out = pd.concat([a, b, c, d], ignore_index=True)
-    return out[[gx, gy, "property_type", "new_build", "median", "tx_count"]]
+    return out[[gx, gy, "property_type", "new_build", "median", "tx_count", "p25", "p70", "p90"]]
 
 
 def aggregate_segments_metric(window: pd.DataFrame, g: int, metric_col: str, out_metric_col: str) -> pd.DataFrame:
@@ -445,6 +448,100 @@ def aggregate_segments_metric(window: pd.DataFrame, g: int, metric_col: str, out
     return out[[gx, gy, "property_type", "new_build", out_metric_col, "tx_count"]]
 
 
+def compute_national_ratios(agg_5km: pd.DataFrame) -> dict[tuple[str, str], dict[str, float]]:
+    """Compute national median-normalised percentile ratios grouped by (property_type, new_build).
+    Used as a fallback when a 1km cell has no parent 5km data to borrow from.
+    """
+    if agg_5km.empty or "p25" not in agg_5km.columns:
+        return {}
+    valid = agg_5km[
+        (agg_5km["tx_count"] >= PERCENTILE_DIRECT_TX_THRESHOLD) & (agg_5km["median"] > 0)
+    ].copy()
+    if valid.empty:
+        return {}
+    ratios: dict[tuple[str, str], dict[str, float]] = {}
+    for (pt, nb), grp in valid.groupby(["property_type", "new_build"]):
+        ratios[(str(pt), str(nb))] = {
+            "r25": float((grp["p25"] / grp["median"]).median()),
+            "r70": float((grp["p70"] / grp["median"]).median()),
+            "r90": float((grp["p90"] / grp["median"]).median()),
+        }
+    return ratios
+
+
+def apply_1km_percentile_borrowing(
+    agg_1km: pd.DataFrame,
+    agg_5km: pd.DataFrame,
+    national_ratios: dict[tuple[str, str], dict[str, float]],
+) -> pd.DataFrame:
+    """For 1km cells with < PERCENTILE_DIRECT_TX_THRESHOLD sales, replace their
+    directly-computed percentiles with values borrowed from the parent 5km cell
+    (scaled by the 1km cell's median).  Falls back to national ratios when no
+    parent 5km cell is available.
+    """
+    agg = agg_1km.copy()
+
+    # Parent 5km grid coordinates for each 1km cell
+    agg["_pgx"] = ((agg["gx_1000"] // 5000) * 5000).astype("int64")
+    agg["_pgy"] = ((agg["gy_1000"] // 5000) * 5000).astype("int64")
+
+    # Build ratio lookup from well-sampled 5km cells
+    if not agg_5km.empty and "p25" in agg_5km.columns:
+        valid_5km = agg_5km[
+            (agg_5km["tx_count"] >= PERCENTILE_DIRECT_TX_THRESHOLD) & (agg_5km["median"] > 0)
+        ].copy()
+        if not valid_5km.empty:
+            valid_5km["_r25"] = valid_5km["p25"] / valid_5km["median"]
+            valid_5km["_r70"] = valid_5km["p70"] / valid_5km["median"]
+            valid_5km["_r90"] = valid_5km["p90"] / valid_5km["median"]
+            parent_df = valid_5km.rename(columns={"gx_5000": "_pgx", "gy_5000": "_pgy"})[
+                ["_pgx", "_pgy", "property_type", "new_build", "_r25", "_r70", "_r90"]
+            ]
+        else:
+            parent_df = pd.DataFrame(columns=["_pgx", "_pgy", "property_type", "new_build", "_r25", "_r70", "_r90"])
+    else:
+        parent_df = pd.DataFrame(columns=["_pgx", "_pgy", "property_type", "new_build", "_r25", "_r70", "_r90"])
+
+    agg = agg.merge(parent_df, on=["_pgx", "_pgy", "property_type", "new_build"], how="left")
+
+    # Track which rows matched a parent 5km cell before filling national fallbacks
+    agg["_has_parent"] = agg["_r25"].notna()
+
+    # Fill missing ratios from national_ratios (per type → ALL/ALL → hard-coded)
+    missing_mask = agg["_r25"].isna()
+    if missing_mask.any():
+        def _nat(pt: str, nb: str) -> dict[str, float]:
+            return (
+                national_ratios.get((pt, nb))
+                or national_ratios.get((pt, "ALL"))
+                or national_ratios.get(("ALL", "ALL"))
+                or DEFAULT_RATIOS
+            )
+        for idx in agg[missing_mask].index:
+            r = _nat(str(agg.at[idx, "property_type"]), str(agg.at[idx, "new_build"]))
+            agg.at[idx, "_r25"] = r["r25"]
+            agg.at[idx, "_r70"] = r["r70"]
+            agg.at[idx, "_r90"] = r["r90"]
+
+    # Override percentiles for sparse cells
+    needs_borrow = agg["tx_count"] < PERCENTILE_DIRECT_TX_THRESHOLD
+    agg.loc[needs_borrow, "p25"] = (agg.loc[needs_borrow, "median"] * agg.loc[needs_borrow, "_r25"]).round()
+    agg.loc[needs_borrow, "p70"] = (agg.loc[needs_borrow, "median"] * agg.loc[needs_borrow, "_r70"]).round()
+    agg.loc[needs_borrow, "p90"] = (agg.loc[needs_borrow, "median"] * agg.loc[needs_borrow, "_r90"]).round()
+
+    # Round direct percentiles too
+    for col in ["p25", "p70", "p90"]:
+        agg[col] = agg[col].round()
+
+    # p_source flag
+    agg["p_source"] = "direct"
+    agg.loc[needs_borrow & agg["_has_parent"], "p_source"] = "parent"
+    agg.loc[needs_borrow & ~agg["_has_parent"], "p_source"] = "national"
+
+    agg = agg.drop(columns=["_pgx", "_pgy", "_r25", "_r70", "_r90", "_has_parent"], errors="ignore")
+    return agg
+
+
 def yearly_end_months(month_col: pd.Series, years_back: int) -> list[pd.Timestamp]:
     latest = month_col.max()
     end_months = [latest]
@@ -457,6 +554,13 @@ def yearly_end_months(month_col: pd.Series, years_back: int) -> list[pd.Timestam
 
 
 def build_grid_outputs(df: pd.DataFrame, output_dir: Path, latest_end_month: pd.Timestamp) -> None:
+    # Pre-compute 5km aggregate for the latest 12-month window.  Used to borrow
+    # percentile shapes into 1km cells with < PERCENTILE_DIRECT_TX_THRESHOLD sales.
+    latest_start = (latest_end_month - pd.DateOffset(months=11)).to_period("M").to_timestamp()
+    latest_window = df[(df["month"] >= latest_start) & (df["month"] <= latest_end_month)].copy()
+    parent_5km_agg = aggregate_segments(latest_window, 5000) if not latest_window.empty else pd.DataFrame()
+    national_ratios = compute_national_ratios(parent_5km_agg)
+
     for g in GRID_SIZES:
         years_back = MEDIAN_YEARS_BACK_BY_GRID.get(g, 0)
         end_months = yearly_end_months(df["month"], years_back=years_back)
@@ -471,19 +575,27 @@ def build_grid_outputs(df: pd.DataFrame, output_dir: Path, latest_end_month: pd.
                 continue
 
             agg = aggregate_segments(window, g)
+            if g == 1000:
+                agg = apply_1km_percentile_borrowing(agg, parent_5km_agg, national_ratios)
             end_month_str = pd.to_datetime(end_month).strftime("%Y-%m-%d")
             for r in agg.itertuples(index=False):
-                rows.append(
-                    {
-                        "gx": int(getattr(r, gx)),
-                        "gy": int(getattr(r, gy)),
-                        "end_month": end_month_str,
-                        "property_type": str(r.property_type),
-                        "new_build": str(r.new_build),
-                        "median": float(r.median),
-                        "tx_count": int(r.tx_count),
-                    }
-                )
+                row: dict = {
+                    "gx": int(getattr(r, gx)),
+                    "gy": int(getattr(r, gy)),
+                    "end_month": end_month_str,
+                    "property_type": str(r.property_type),
+                    "new_build": str(r.new_build),
+                    "median": float(r.median),
+                    "tx_count": int(r.tx_count),
+                }
+                raw_p25 = getattr(r, "p25", None)
+                if raw_p25 is not None and pd.notna(raw_p25):
+                    row["p25"] = int(round(float(raw_p25)))
+                    row["p70"] = int(round(float(getattr(r, "p70"))))
+                    row["p90"] = int(round(float(getattr(r, "p90"))))
+                if g == 1000:
+                    row["p_source"] = str(getattr(r, "p_source", "direct"))
+                rows.append(row)
 
         dump_json_gz(output_dir / f"grid_{g//1000}km_full.json.gz", rows)
 
