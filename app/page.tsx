@@ -9,7 +9,7 @@ type Metric = "median" | "median_ppsf" | "delta_gbp" | "delta_pct";
 type PropertyType = "ALL" | "D" | "S" | "T" | "F"; // Detached / Semi / Terraced / Flat
 type NewBuild = "ALL" | "Y" | "N";
 type ValueFilterMode = "off" | "lte" | "gte";
-type IndexSuitabilityMode = "off" | "lte" | "gte" | "area_only";
+type IndexSuitabilityMode = "off" | "lte" | "gte" | "area_only" | "top_pct";
 type FloodOverlayMode = "off" | "on" | "on_hide_cells";
 type SchoolOverlayMode = "off" | "on" | "on_hide_cells";
 type PrimarySchoolOverlayMode = "off" | "on" | "on_hide_cells";
@@ -1436,7 +1436,9 @@ export default function Home() {
       ? "Off (all areas shown)"
       : indexSuitabilityMode === "area_only"
         ? "Area only (all scored areas within selected region(s))"
-        : `${indexSuitabilityMode === "lte" ? "Score ≤" : "Score ≥"} ${indexSuitabilityThreshold}%`;
+        : indexSuitabilityMode === "top_pct"
+          ? `Top ${indexSuitabilityThreshold}% of scored areas`
+          : `${indexSuitabilityMode === "lte" ? "Score ≤" : "Score ≥"} ${indexSuitabilityThreshold}%`;
   const compactIndexUi = isMobileViewport;
   const floodOverlayLabel =
     state.floodOverlayMode === "off"
@@ -3797,7 +3799,7 @@ export default function Home() {
               <div style={{ display: "grid", gridTemplateColumns: "84px 1fr", gap: 8, alignItems: "center" }}>
                 <div style={{ fontSize: 11, opacity: 0.8 }}>Show</div>
                 <Segment
-                  options={(indexApplied.regionBboxes ?? []).length > 0 ? ["off", "area_only", "lte", "gte"] : ["off", "lte", "gte"]}
+                  options={(indexApplied.regionBboxes ?? []).length > 0 ? ["off", "area_only", "lte", "gte", "top_pct"] : ["off", "lte", "gte", "top_pct"]}
                   value={indexSuitabilityMode}
                   onChange={(v) => setIndexSuitabilityMode(v as IndexSuitabilityMode)}
                   renderOption={(v) => {
@@ -3806,6 +3808,7 @@ export default function Home() {
                       area_only: "Area only",
                       lte: "Weak areas",
                       gte: "Good matches",
+                      top_pct: "Top %",
                     };
                     return labels[v] ?? v;
                   }}
@@ -3813,11 +3816,13 @@ export default function Home() {
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "84px 1fr", gap: 8, alignItems: "center" }}>
-                <div style={{ fontSize: 11, opacity: indexSuitabilityMode === "off" || indexSuitabilityMode === "area_only" ? 0.5 : 0.8 }}>Min score</div>
+                <div style={{ fontSize: 11, opacity: indexSuitabilityMode === "off" || indexSuitabilityMode === "area_only" ? 0.5 : 0.8 }}>
+                  {indexSuitabilityMode === "top_pct" ? "Top %" : "Min score"}
+                </div>
                 <div style={{ display: "grid", gap: 6 }}>
                   <input
                     type="range"
-                    min={0}
+                    min={indexSuitabilityMode === "top_pct" ? 1 : 0}
                     max={100}
                     step={1}
                     value={indexSuitabilityThresholdLive}
@@ -3835,10 +3840,29 @@ export default function Home() {
                       ? "All scored areas visible"
                       : indexSuitabilityMode === "area_only"
                         ? "All scored areas within selected region(s)"
-                        : indexSuitabilityMode === "gte"
-                          ? `Showing areas scoring ≥ ${indexSuitabilityThresholdLive}% — raise to narrow further`
-                          : `Showing areas scoring ≤ ${indexSuitabilityThresholdLive}% — lower-scoring areas only`}
+                        : indexSuitabilityMode === "top_pct"
+                          ? `Showing top ${indexSuitabilityThresholdLive}% of scored areas — lower to narrow further`
+                          : indexSuitabilityMode === "gte"
+                            ? `Showing areas scoring ≥ ${indexSuitabilityThresholdLive}% — raise to narrow further`
+                            : `Showing areas scoring ≤ ${indexSuitabilityThresholdLive}% — lower-scoring areas only`}
                   </div>
+                  {indexSuitabilityMode === "top_pct" && (
+                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                      {([{ label: "Top 1%", v: 1, mode: "top_pct" }, { label: "Top 10%", v: 10, mode: "top_pct" }, { label: "Top 25%", v: 25, mode: "top_pct" }, { label: "Bot 10%", v: 10, mode: "lte" }] as const).map(({ label: lbl, v, mode }) => (
+                        <button
+                          key={lbl}
+                          type="button"
+                          onClick={() => {
+                            setIndexSuitabilityMode(mode as IndexSuitabilityMode);
+                            setIndexSuitabilityThresholdLive(v);
+                            setIndexSuitabilityThreshold(v);
+                            indexFilterApplyRef.current?.(v / 100);
+                          }}
+                          style={{ cursor: "pointer", padding: "2px 7px", borderRadius: 999, fontSize: 10, fontWeight: 600, border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.8)", lineHeight: 1.4 }}
+                        >{lbl}</button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -3866,22 +3890,38 @@ export default function Home() {
 
               {isMobileViewport && (
                 <div style={{ marginTop: 2 }}>
-                  <button
-                    type="button"
-                    onClick={() => setMobileFiltersActiveOpen((v) => !v)}
-                    style={{
-                      cursor: "pointer",
-                      border: "1px solid rgba(255,255,255,0.2)",
-                      background: "rgba(255,255,255,0.08)",
-                      color: "white",
-                      padding: "5px 9px",
-                      borderRadius: 999,
-                      fontSize: 10,
-                      fontWeight: 700,
-                    }}
-                  >
-                    {mobileFiltersActiveOpen ? "Hide filters" : "Filters Active"}
-                  </button>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                    <button
+                      type="button"
+                      onClick={() => setMobileFiltersActiveOpen((v) => !v)}
+                      style={{
+                        cursor: "pointer",
+                        border: "1px solid rgba(255,255,255,0.2)",
+                        background: "rgba(255,255,255,0.08)",
+                        color: "white",
+                        padding: "5px 9px",
+                        borderRadius: 999,
+                        fontSize: 10,
+                        fontWeight: 700,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {mobileFiltersActiveOpen ? "Hide filters" : "Filters Active"}
+                    </button>
+                    {([{ label: "Top 1%", v: 1, mode: "top_pct" }, { label: "Top 10%", v: 10, mode: "top_pct" }, { label: "Bot 10%", v: 10, mode: "lte" }] as const).map(({ label: lbl, v, mode }) => (
+                      <button
+                        key={lbl}
+                        type="button"
+                        onClick={() => {
+                          setIndexSuitabilityMode(mode as IndexSuitabilityMode);
+                          setIndexSuitabilityThresholdLive(v);
+                          setIndexSuitabilityThreshold(v);
+                          indexFilterApplyRef.current?.(v / 100);
+                        }}
+                        style={{ cursor: "pointer", padding: "4px 8px", borderRadius: 999, fontSize: 10, fontWeight: 600, border: "1px solid rgba(255,255,255,0.18)", background: (indexSuitabilityMode === mode && indexSuitabilityThreshold === v) ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.85)", lineHeight: 1.4, flexShrink: 0 }}
+                      >{lbl}</button>
+                    ))}
+                  </div>
                   {mobileFiltersActiveOpen && (
                     <div
                       style={{
@@ -3905,7 +3945,6 @@ export default function Home() {
                   )}
                 </div>
               )}
-
               <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
                 <button
                   type="button"

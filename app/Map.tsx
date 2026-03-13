@@ -82,7 +82,7 @@ export type IndexPrefs = {
   busWeight?: number;           // 0-10 importance (bus stop / metro / tram proximity)
   pharmacyWeight?: number;      // 0-10 importance (nearest community pharmacy distance)
   regionBboxes?: [number, number, number, number][] | null; // restrict scored cells to any of these [minLon, minLat, maxLon, maxLat] bboxes
-  indexFilterMode?: "off" | "lte" | "gte" | "area_only";
+  indexFilterMode?: "off" | "lte" | "gte" | "area_only" | "top_pct";
   indexFilterThreshold?: number; // 0..1
 };
 
@@ -6174,6 +6174,29 @@ function buildValueFilter(state: MapState) {
   return [op, ["coalesce", ["get", prop], 0], threshold] as any;
 }
 
+// For "top_pct" mode: given a percentile (0.1 = top 10%), return the absolute
+// score threshold by reading the actual index_score distribution from the current
+// cells source. Falls back to 0 safely if source is unavailable.
+function computeRelativeThreshold(map: maplibregl.Map, topPct: number): number {
+  try {
+    const src = map.getSource("cells") as any;
+    const data = src?._data;
+    if (!data?.features?.length) return 0;
+    const scores: number[] = [];
+    for (const f of data.features) {
+      const s = f?.properties?.index_score;
+      if (typeof s === "number" && s >= 0) scores.push(s);
+    }
+    if (!scores.length) return 0;
+    scores.sort((a, b) => a - b);
+    // top X%: show scores >= the (1 - pct) quantile
+    const idx = Math.floor((1 - topPct) * scores.length);
+    return scores[Math.min(idx, scores.length - 1)] ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
 function buildIndexFilter(indexPrefs: IndexPrefs | null | undefined) {
   if (!indexPrefs) return null;
   const mode = indexPrefs.indexFilterMode ?? "off";
@@ -6206,8 +6229,17 @@ function applyCombinedCellFilters(
   state: MapState,
   indexPrefs: IndexPrefs | null | undefined
 ) {
+  // For relative (top_pct) mode, compute the absolute score threshold from the
+  // live source distribution and translate it to a standard gte filter.
+  let effectivePrefs = indexPrefs;
+  if (indexPrefs?.indexFilterMode === "top_pct") {
+    const topPct = Math.max(0.001, Math.min(1, indexPrefs.indexFilterThreshold ?? 0.1));
+    const absThreshold = computeRelativeThreshold(map, topPct);
+    effectivePrefs = { ...indexPrefs, indexFilterMode: "gte", indexFilterThreshold: absThreshold };
+  }
+
   const valueFilter = buildValueFilter(state);
-  const indexFilter = buildIndexFilter(indexPrefs);
+  const indexFilter = buildIndexFilter(effectivePrefs);
   const combinedFilter = valueFilter && indexFilter
     ? (["all", valueFilter, indexFilter] as any)
     : (valueFilter ?? indexFilter);
