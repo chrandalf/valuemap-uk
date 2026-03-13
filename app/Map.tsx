@@ -630,7 +630,7 @@ export default function ValueMap({
         return Math.round(pct * 100); // integer slider % the caller should display
       } else {
         // Bottom: compute absolute score at this percentile from the bottom, switch to lte
-        const absThreshold = computeRelativeThreshold(map, pct);
+        const absThreshold = computeRelativeThreshold(pct);
         if (absThreshold === null) return -1; // not yet scored
         const updated: IndexPrefs = { ...prefs, indexFilterMode: "lte", indexFilterThreshold: absThreshold };
         indexPrefsRef.current = updated;
@@ -6218,29 +6218,15 @@ function buildValueFilter(state: MapState) {
   return [op, ["coalesce", ["get", prop], 0], threshold] as any;
 }
 
-// For "top_pct" mode: given a percentile (0.1 = top 10%), return the absolute
-// score threshold by reading the actual index_score distribution from the current
-// cells source. Returns null when features exist but none have index_score yet
-// (scoring not yet applied to the current data load) — callers must handle this.
-function computeRelativeThreshold(map: maplibregl.Map, topPct: number): number | null {
-  try {
-    const src = map.getSource("cells") as any;
-    const data = src?._data;
-    if (!data?.features?.length) return 0;
-    const scores: number[] = [];
-    for (const f of data.features) {
-      const s = f?.properties?.index_score;
-      if (typeof s === "number" && s >= 0) scores.push(s);
-    }
-    // null signals "features loaded but not yet scored" — distinct from empty source (0)
-    if (!scores.length) return null;
-    scores.sort((a, b) => a - b);
-    // top X%: show scores >= the (1 - pct) quantile
-    const idx = Math.floor((1 - topPct) * scores.length);
-    return scores[Math.min(idx, scores.length - 1)] ?? 0;
-  } catch {
-    return 0;
-  }
+// For "top_pct" mode: given a percentile (0.01 = top 1%), return the absolute score
+// threshold at the (1-pct) quantile of the most-recently-scored distribution.
+// Returns null if no scoring run has completed yet — callers must handle this.
+function computeRelativeThreshold(topPct: number): number | null {
+  const scores = _indexSortedScores;
+  if (!scores || !scores.length) return null;
+  // top X%: threshold = score at the (1-pct) quantile, i.e. score >= threshold keeps the top X%
+  const idx = Math.floor((1 - topPct) * scores.length);
+  return scores[Math.min(idx, scores.length - 1)] ?? 0;
 }
 
 function buildIndexFilter(indexPrefs: IndexPrefs | null | undefined) {
@@ -6275,16 +6261,16 @@ function applyCombinedCellFilters(
   state: MapState,
   indexPrefs: IndexPrefs | null | undefined
 ) {
-  // For relative (top_pct) mode, compute the absolute score threshold from the
-  // live source distribution and translate it to a standard gte filter.
-  // If computeRelativeThreshold returns null (data loaded but not yet scored),
-  // fall back to showing all scored cells rather than filtering incorrectly.
+  // For relative (top_pct) mode, look up the absolute score threshold from the
+  // cached sorted scores and translate to a standard gte filter.
+  // If computeRelativeThreshold returns null (no scoring run yet), fall back to
+  // showing all scored cells rather than filtering incorrectly.
   let effectivePrefs = indexPrefs;
   if (indexPrefs?.indexFilterMode === "top_pct") {
     const topPct = Math.max(0.001, Math.min(1, indexPrefs.indexFilterThreshold ?? 0.1));
-    const absThreshold = computeRelativeThreshold(map, topPct);
+    const absThreshold = computeRelativeThreshold(topPct);
     if (absThreshold === null) {
-      // Scores not yet applied to the current data — show all scored cells as fallback
+      // No scoring run completed yet — show all scored cells as fallback
       effectivePrefs = { ...indexPrefs, indexFilterMode: "area_only" };
     } else {
       effectivePrefs = { ...indexPrefs, indexFilterMode: "gte", indexFilterThreshold: absThreshold };
@@ -6363,6 +6349,10 @@ let _indexMetroTramCache: Array<{ lon: number; lat: number; name: string; stop_t
 let _indexMetroTramGrid: SpatialGrid<{ lon: number; lat: number; name: string; stop_type: string }> | null = null;
 let _indexPharmacyCache: Array<{ lon: number; lat: number; name: string; ods_code: string }> | null = null;
 let _indexPharmacyGrid: SpatialGrid<{ lon: number; lat: number; name: string; ods_code: string }> | null = null;
+// Sorted index_score values from the most recent scoring run, used by computeRelativeThreshold.
+// Built immediately after scoring so we never have to re-read src._data (which MapLibre may have
+// already handed off to its worker before we read it back).
+let _indexSortedScores: number[] | null = null;
 
 function buildSpatialGrid<T extends { lon: number; lat: number }>(points: T[], cellSize: number): SpatialGrid<T> {
   const buckets = new Map<number, T[]>();
@@ -7143,6 +7133,18 @@ async function applyIndexScoring(
 
     const baseScore = totalWeight > 0 ? totalScore / totalWeight : 0.5;
     props.index_score = totalWeight > 0 ? Math.max(0, baseScore * vetoMultiplier) : -1;
+  }
+
+  // Cache sorted scores immediately — before setData hands data off to the MapLibre worker.
+  // computeRelativeThreshold reads this cache; reading src._data after setData is unreliable.
+  {
+    const arr: number[] = [];
+    for (const f of fc.features) {
+      const s = (f as any)?.properties?.index_score;
+      if (typeof s === "number" && s >= 0) arr.push(s);
+    }
+    arr.sort((a, b) => a - b);
+    _indexSortedScores = arr;
   }
 
   src.setData(fc as any);
