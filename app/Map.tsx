@@ -1244,11 +1244,6 @@ export default function ValueMap({
       map.addSource("cells", {
         type: "geojson",
         data: { type: "FeatureCollection", features: [] },
-        // Larger buffer prevents polygon edges near tile boundaries from being
-        // clipped and disappearing when zoom level changes cause tile rebuilds.
-        buffer: 256,
-        // Stable per-feature IDs help MapLibre track features across tile rebuilds.
-        generateId: true,
   });
 
   map.addSource("flood-overlay", {

@@ -15,9 +15,11 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   const modelledMode = (["actual", "estimated", "model_only"] as const).includes(modelledParam as any)
     ? (modelledParam as "actual" | "estimated" | "model_only")
     : "blend";
-  // For blend/estimated/model_only on 1km median, keep sparse rows so applyModelledData
-  // can see them (it applies the real minTxCount threshold internally).
-  const effectiveMinTxCount = (grid === "1km" && metric === "median" && modelledMode !== "actual") ? 1 : minTxCount;
+  // For blend/estimated/model_only on 1km median: use the regular minTxCount threshold.
+  // Sparse rows (tx=1-2) are dropped from the actual set; applyModelledData's
+  // injection loop handles those cells via the modelledLookup (no-actual-data path).
+  // This halves the backfill work (351k → ~191k rows) without losing any model coverage.
+  const effectiveMinTxCount = minTxCount;
 
   if (!isGridKey(grid)) {
     return Response.json("Invalid grid. Use 1km|5km|10km|25km", { status: 400 });
@@ -938,9 +940,9 @@ function applyModelledData(
         // else drop (not enough data for actual or model)
       }
     }
-    // Inject cells with no actual data at all
+    // Inject cells with no actual data at all (require confidence>=1 to avoid noisy estimates)
     for (const [key, m] of modelledLookup) {
-      if (!actualByKey.has(key) && m.model_confidence >= 0) {
+      if (!actualByKey.has(key) && m.model_confidence >= 1) {
         const [gx, gy] = key.split("_").map(Number);
         output.push({ gx, gy, end_month: "", property_type: "ALL", new_build: "ALL", tx_count: 0, median: m.estimated_median, is_modelled: true, model_confidence: m.model_confidence, n_years_model: m.n_years, ratio_cv_model: m.ratio_cv, estimated_median: m.estimated_median });
       }
