@@ -612,19 +612,31 @@ export default function ValueMap({
   // from the live source distribution and returns it so the caller can sync React state.
   // Avoids the mode-lag bug where React state hasn't propagated to indexPrefsRef yet
   // at the moment the button click fires.
-  // Returns -1 if no scored data is available yet (caller should bail and not change state).
+  // Imperative ref for relative preset buttons.
+  // "top" direction: stays in top_pct mode — applyCombinedCellFilters computes the live
+  //   percentile internally from indexFilterThreshold. Returns the integer slider % (1, 10, 25).
+  // "bottom" direction: computes absolute score threshold from live distribution, switches to
+  //   lte mode, returns abs*100 as slider % — or -1 if data not yet scored.
   if (indexRelativeApplyRef != null) {
     indexRelativeApplyRef.current = (pct: number, direction: "top" | "bottom"): number => {
       const prefs = indexPrefsRef.current;
       const map = mapRef.current;
       if (!prefs || !map) return -1;
-      const absThreshold = computeRelativeThreshold(map, pct);
-      if (absThreshold === null) return -1; // scoring not yet applied to current data
-      const filterMode: IndexPrefs["indexFilterMode"] = direction === "bottom" ? "lte" : "gte";
-      const updated: IndexPrefs = { ...prefs, indexFilterMode: filterMode, indexFilterThreshold: absThreshold };
-      indexPrefsRef.current = updated;
-      applyCombinedCellFilters(map, stateRef.current, updated);
-      return absThreshold;
+      if (direction === "top") {
+        // Stay in top_pct — threshold IS the fractional percentile, live computation happens in applyCombinedCellFilters
+        const updated: IndexPrefs = { ...prefs, indexFilterMode: "top_pct", indexFilterThreshold: pct };
+        indexPrefsRef.current = updated;
+        applyCombinedCellFilters(map, stateRef.current, updated);
+        return Math.round(pct * 100); // integer slider % the caller should display
+      } else {
+        // Bottom: compute absolute score at this percentile from the bottom, switch to lte
+        const absThreshold = computeRelativeThreshold(map, pct);
+        if (absThreshold === null) return -1; // not yet scored
+        const updated: IndexPrefs = { ...prefs, indexFilterMode: "lte", indexFilterThreshold: absThreshold };
+        indexPrefsRef.current = updated;
+        applyCombinedCellFilters(map, stateRef.current, updated);
+        return Math.round(absThreshold * 100);
+      }
     };
   }
 

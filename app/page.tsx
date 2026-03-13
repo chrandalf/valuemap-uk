@@ -3803,7 +3803,15 @@ export default function Home() {
                 <Segment
                   options={(indexApplied.regionBboxes ?? []).length > 0 ? ["off", "area_only", "lte", "gte", "top_pct"] : ["off", "lte", "gte", "top_pct"]}
                   value={indexSuitabilityMode}
-                  onChange={(v) => setIndexSuitabilityMode(v as IndexSuitabilityMode)}
+                  onChange={(v) => {
+                    setIndexSuitabilityMode(v as IndexSuitabilityMode);
+                    // Reset to a sensible default when entering Top % mode so slider
+                    // never starts at 0 (which would show "top 0%").
+                    if (v === "top_pct") {
+                      setIndexSuitabilityThresholdLive(10);
+                      setIndexSuitabilityThreshold(10);
+                    }
+                  }}
                   renderOption={(v) => {
                     const labels: Record<string, string> = {
                       off: "All",
@@ -3855,12 +3863,14 @@ export default function Home() {
                           key={lbl}
                           type="button"
                           onClick={() => {
-                            const abs = indexRelativeApplyRef.current?.(pct, dir) ?? -1;
-                            if (abs < 0) return; // scores not applied yet, bail
-                            const mode: IndexSuitabilityMode = dir === "bottom" ? "lte" : "gte";
+                            // ref returns the integer slider % to display (top: e.g. 1/10/25, bottom: abs score %)
+                            // or -1 if not ready (data not loaded/scored yet — bail silently)
+                            const sliderVal = indexRelativeApplyRef.current?.(pct, dir) ?? -1;
+                            if (sliderVal < 0) return;
+                            const mode: IndexSuitabilityMode = dir === "bottom" ? "lte" : "top_pct";
                             setIndexSuitabilityMode(mode);
-                            setIndexSuitabilityThresholdLive(Math.round(abs * 100));
-                            setIndexSuitabilityThreshold(Math.round(abs * 100));
+                            setIndexSuitabilityThresholdLive(sliderVal);
+                            setIndexSuitabilityThreshold(sliderVal);
                           }}
                           style={{ cursor: "pointer", padding: "2px 7px", borderRadius: 999, fontSize: 10, fontWeight: 600, border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.8)", lineHeight: 1.4 }}
                         >{lbl}</button>
@@ -3917,12 +3927,12 @@ export default function Home() {
                         key={lbl}
                         type="button"
                         onClick={() => {
-                          const abs = indexRelativeApplyRef.current?.(pct, dir) ?? -1;
-                          if (abs < 0) return; // scores not applied yet, bail
-                          const mode: IndexSuitabilityMode = dir === "bottom" ? "lte" : "gte";
+                          const sliderVal = indexRelativeApplyRef.current?.(pct, dir) ?? -1;
+                          if (sliderVal < 0) return;
+                          const mode: IndexSuitabilityMode = dir === "bottom" ? "lte" : "top_pct";
                           setIndexSuitabilityMode(mode);
-                          setIndexSuitabilityThresholdLive(Math.round(abs * 100));
-                          setIndexSuitabilityThreshold(Math.round(abs * 100));
+                          setIndexSuitabilityThresholdLive(sliderVal);
+                          setIndexSuitabilityThreshold(sliderVal);
                         }}
                         style={{ cursor: "pointer", padding: "4px 8px", borderRadius: 999, fontSize: 10, fontWeight: 600, border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.85)", lineHeight: 1.4, flexShrink: 0 }}
                       >{lbl}</button>
