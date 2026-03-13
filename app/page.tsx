@@ -3855,7 +3855,8 @@ export default function Home() {
                           key={lbl}
                           type="button"
                           onClick={() => {
-                            const abs = indexRelativeApplyRef.current?.(pct, dir) ?? 0;
+                            const abs = indexRelativeApplyRef.current?.(pct, dir) ?? -1;
+                            if (abs < 0) return; // scores not applied yet, bail
                             const mode: IndexSuitabilityMode = dir === "bottom" ? "lte" : "gte";
                             setIndexSuitabilityMode(mode);
                             setIndexSuitabilityThresholdLive(Math.round(abs * 100));
@@ -3916,7 +3917,8 @@ export default function Home() {
                         key={lbl}
                         type="button"
                         onClick={() => {
-                          const abs = indexRelativeApplyRef.current?.(pct, dir) ?? 0;
+                          const abs = indexRelativeApplyRef.current?.(pct, dir) ?? -1;
+                          if (abs < 0) return; // scores not applied yet, bail
                           const mode: IndexSuitabilityMode = dir === "bottom" ? "lte" : "gte";
                           setIndexSuitabilityMode(mode);
                           setIndexSuitabilityThresholdLive(Math.round(abs * 100));

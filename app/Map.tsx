@@ -612,30 +612,14 @@ export default function ValueMap({
   // from the live source distribution and returns it so the caller can sync React state.
   // Avoids the mode-lag bug where React state hasn't propagated to indexPrefsRef yet
   // at the moment the button click fires.
+  // Returns -1 if no scored data is available yet (caller should bail and not change state).
   if (indexRelativeApplyRef != null) {
     indexRelativeApplyRef.current = (pct: number, direction: "top" | "bottom"): number => {
       const prefs = indexPrefsRef.current;
       const map = mapRef.current;
-      if (!prefs || !map) return 0;
+      if (!prefs || !map) return -1;
       const absThreshold = computeRelativeThreshold(map, pct);
-      const filterMode: IndexPrefs["indexFilterMode"] = direction === "bottom" ? "lte" : "gte";
-      const updated: IndexPrefs = { ...prefs, indexFilterMode: filterMode, indexFilterThreshold: absThreshold };
-      indexPrefsRef.current = updated;
-      applyCombinedCellFilters(map, stateRef.current, updated);
-      return absThreshold;
-    };
-  }
-
-  // Imperative ref for relative percentile jumps. Computes the absolute score
-  // threshold from the live source distribution and returns it so the caller
-  // can sync React state. Avoids the mode-lag bug where the React state update
-  // hasn't propagated to indexPrefsRef yet when the button click fires.
-  if (indexRelativeApplyRef != null) {
-    indexRelativeApplyRef.current = (pct: number, direction: "top" | "bottom"): number => {
-      const prefs = indexPrefsRef.current;
-      const map = mapRef.current;
-      if (!prefs || !map) return 0;
-      const absThreshold = computeRelativeThreshold(map, pct);
+      if (absThreshold === null) return -1; // scoring not yet applied to current data
       const filterMode: IndexPrefs["indexFilterMode"] = direction === "bottom" ? "lte" : "gte";
       const updated: IndexPrefs = { ...prefs, indexFilterMode: filterMode, indexFilterThreshold: absThreshold };
       indexPrefsRef.current = updated;
@@ -4603,8 +4587,13 @@ export default function ValueMap({
       if (needsFullRescore) {
         prevIndexScoringSignatureRef.current = nextSignature;
         void (async () => {
-          const ok = await applyIndexScoring(map, indexPrefs, stateRef.current, cellFcRef.current ?? undefined);
-          if (ok) onIndexScoringAppliedRef.current?.();
+          try {
+            const ok = await applyIndexScoring(map, indexPrefs, stateRef.current, cellFcRef.current ?? undefined);
+            if (ok) onIndexScoringAppliedRef.current?.();
+          } catch (e) {
+            console.error("applyIndexScoring threw unexpectedly", e);
+            onIndexScoringAppliedRef.current?.();
+          }
         })();
       } else {
         // Criteria unchanged — just re-apply filters and clear the pending spinner
@@ -6219,8 +6208,9 @@ function buildValueFilter(state: MapState) {
 
 // For "top_pct" mode: given a percentile (0.1 = top 10%), return the absolute
 // score threshold by reading the actual index_score distribution from the current
-// cells source. Falls back to 0 safely if source is unavailable.
-function computeRelativeThreshold(map: maplibregl.Map, topPct: number): number {
+// cells source. Returns null when features exist but none have index_score yet
+// (scoring not yet applied to the current data load) — callers must handle this.
+function computeRelativeThreshold(map: maplibregl.Map, topPct: number): number | null {
   try {
     const src = map.getSource("cells") as any;
     const data = src?._data;
@@ -6230,7 +6220,8 @@ function computeRelativeThreshold(map: maplibregl.Map, topPct: number): number {
       const s = f?.properties?.index_score;
       if (typeof s === "number" && s >= 0) scores.push(s);
     }
-    if (!scores.length) return 0;
+    // null signals "features loaded but not yet scored" — distinct from empty source (0)
+    if (!scores.length) return null;
     scores.sort((a, b) => a - b);
     // top X%: show scores >= the (1 - pct) quantile
     const idx = Math.floor((1 - topPct) * scores.length);
@@ -6274,11 +6265,18 @@ function applyCombinedCellFilters(
 ) {
   // For relative (top_pct) mode, compute the absolute score threshold from the
   // live source distribution and translate it to a standard gte filter.
+  // If computeRelativeThreshold returns null (data loaded but not yet scored),
+  // fall back to showing all scored cells rather than filtering incorrectly.
   let effectivePrefs = indexPrefs;
   if (indexPrefs?.indexFilterMode === "top_pct") {
     const topPct = Math.max(0.001, Math.min(1, indexPrefs.indexFilterThreshold ?? 0.1));
     const absThreshold = computeRelativeThreshold(map, topPct);
-    effectivePrefs = { ...indexPrefs, indexFilterMode: "gte", indexFilterThreshold: absThreshold };
+    if (absThreshold === null) {
+      // Scores not yet applied to the current data — show all scored cells as fallback
+      effectivePrefs = { ...indexPrefs, indexFilterMode: "area_only" };
+    } else {
+      effectivePrefs = { ...indexPrefs, indexFilterMode: "gte", indexFilterThreshold: absThreshold };
+    }
   }
 
   const valueFilter = buildValueFilter(state);
