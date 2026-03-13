@@ -559,6 +559,7 @@ export default function Home() {
       regionBboxes: indexApplied.regionBboxes ?? [],
       indexFilterMode: indexSuitabilityMode === "area_only" ? "area_only" : indexSuitabilityMode,
       indexFilterThreshold: indexSuitabilityThreshold / 100,
+      forceToken: indexToken,
     };
   }, [
     indexActive,

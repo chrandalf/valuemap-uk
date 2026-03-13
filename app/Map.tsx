@@ -84,6 +84,7 @@ export type IndexPrefs = {
   regionBboxes?: [number, number, number, number][] | null; // restrict scored cells to any of these [minLon, minLat, maxLon, maxLat] bboxes
   indexFilterMode?: "off" | "lte" | "gte" | "area_only" | "top_pct";
   indexFilterThreshold?: number; // 0..1
+  forceToken?: number; // increment to force a full rescore even when all other prefs are unchanged
 };
 
 export type LegendData =
@@ -4513,6 +4514,10 @@ export default function ValueMap({
       return !geoCacheRef.current.has(`${base}|core`) && !geoCacheRef.current.has(`${base}|full`);
     })();
     if (isColdLoad) {
+      // Also null the in-memory FC so the scoring effect cannot score stale/wrong-grid data
+      // while the new grid data is in-flight. applyIndexScoring will see no features, return
+      // false, and defer to this setRealData path to call it once the correct data arrives.
+      cellFcRef.current = null;
       try { src.setData({ type: "FeatureCollection", features: [] } as any); } catch { /* ignore */ }
     }
 
@@ -6345,6 +6350,7 @@ function buildIndexScoringSignature(prefs: IndexPrefs) {
     prefs.pharmacyWeight ?? 0,
     // Region bboxes must be included so changing the area always triggers a full rescore
     JSON.stringify(prefs.regionBboxes ?? []),
+    prefs.forceToken ?? 0,
   ].join("|");
 }
 
