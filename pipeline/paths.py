@@ -119,6 +119,7 @@ REQUIRED_PROPERTY_ASSET_NAMES = [
     "country_cells_10km.json.gz",
     "country_cells_25km.json.gz",
     "country_by_outward.json.gz",
+    "cells_1km_percentiles.json.gz",
 ]
 
 

@@ -4176,13 +4176,16 @@ export default function ValueMap({
         const cp = (cellFeats?.[0]?.properties ?? {}) as Record<string, unknown>;
         const cellMedian  = cp.median   !== undefined && cp.median   !== null ? Number(cp.median)   : undefined;
         const cellTxCount = cp.tx_count  !== undefined && cp.tx_count  !== null ? Number(cp.tx_count) : undefined;
-        const cellP25 = cp.p25 !== undefined && cp.p25 !== null ? Number(cp.p25) : undefined;
-        const cellP70 = cp.p70 !== undefined && cp.p70 !== null ? Number(cp.p70) : undefined;
-        const cellP90 = cp.p90 !== undefined && cp.p90 !== null ? Number(cp.p90) : undefined;
-        const cellPSource = cp.p_source ? String(cp.p_source) : undefined;
         const constituency = cp.constituency ? String(cp.constituency) : undefined;
         const rawGx = cp.gx !== undefined ? Number(cp.gx) : NaN;
         const rawGy = cp.gy !== undefined ? Number(cp.gy) : NaN;
+
+        // Fire percentile lookup in parallel with the delta fetch below.
+        // Percentiles are stored in a dedicated slim file (not the partition) to keep
+        // 1km partition sizes small — so we fetch them on demand at right-click time.
+        const _pctPromise = (stateRef.current.grid === "1km" && Number.isFinite(rawGx) && Number.isFinite(rawGy))
+          ? fetch(`/api/cell-percentiles?gx=${rawGx}&gy=${rawGy}`).then(r => r.ok ? r.json() : null).catch(() => null)
+          : Promise.resolve(null);
 
         // Fetch delta data from the authoritative deltas API (not from rendered features,
         // which only have delta_pct when the metric is already "delta").
@@ -4223,6 +4226,13 @@ export default function ValueMap({
             }
           } catch { /* use undefined if delta fetch fails */ }
         }
+
+        // Resolve percentile lookup (was fired in parallel with delta fetch)
+        const _pctData = await _pctPromise as { p25?: number; p70?: number; p90?: number; p_source?: string } | null;
+        const cellP25: number | undefined = _pctData?.p25 !== undefined ? Number(_pctData.p25) : undefined;
+        const cellP70: number | undefined = _pctData?.p70 !== undefined ? Number(_pctData.p70) : undefined;
+        const cellP90: number | undefined = _pctData?.p90 !== undefined ? Number(_pctData.p90) : undefined;
+        const cellPSource: string | undefined = _pctData?.p_source ? String(_pctData.p_source) : undefined;
 
         // ── EPC cell data summary for right-click panel ──
         let epcHtml: string | undefined;

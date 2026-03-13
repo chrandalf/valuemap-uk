@@ -599,9 +599,31 @@ def build_grid_outputs(df: pd.DataFrame, output_dir: Path, latest_end_month: pd.
 
         dump_json_gz(output_dir / f"grid_{g//1000}km_full.json.gz", rows)
 
+        if g == 1000:
+            # Build a compact percentile lookup for right-click lookups.
+            # Format: { "gx_gy": [p25, p70, p90, src_int] }  src: 0=direct 1=parent 2=national
+            # Only ALL/ALL rows from the latest end_month are included.
+            latest_em = max((r["end_month"] for r in rows), default=None)
+            src_map = {"direct": 0, "parent": 1, "national": 2}
+            pct_lookup: dict = {}
+            for r in rows:
+                if r["end_month"] == latest_em and r["property_type"] == "ALL" and r["new_build"] == "ALL":
+                    if "p70" in r:
+                        pct_lookup[f"{r['gx']}_{r['gy']}"] = [
+                            r.get("p25", 0), r.get("p70", 0), r.get("p90", 0),
+                            src_map.get(r.get("p_source", "direct"), 0),
+                        ]
+            dump_json_gz(output_dir / "cells_1km_percentiles.json.gz", pct_lookup)
+            print(f"  Percentile lookup written: {len(pct_lookup)} cells")
+            # Strip percentile fields from partition rows to keep them lightweight
+            _pct_keys = {"p25", "p70", "p90", "p_source"}
+            partition_rows = [{k: v for k, v in r.items() if k not in _pct_keys} for r in rows]
+        else:
+            partition_rows = rows
+
         # Also write partitioned files
         grid_label = f"{g // 1000}km"
-        n = write_partitions(rows, output_dir, grid_label, metric="median")
+        n = write_partitions(partition_rows, output_dir, grid_label, metric="median")
         print(f"  Partitions written: {grid_label}/median -> {n} files")
 
 
