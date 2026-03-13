@@ -6217,152 +6217,208 @@ async function applyIndexScoring(
   const fc: any = cellFc ?? (src as any)._data ?? null;
   if (!fc || !Array.isArray(fc.features) || fc.features.length === 0) return false;
 
-  // — Fetch flood data once, build grid index —
+  // ─── Hoist weights / key constants needed inside the parallel loaders ────
+  const busW = prefs.busWeight ?? 0;
+  const pharmW = prefs.pharmacyWeight ?? 0;
+  const metricProp = metricPropName(state.metric);
+  const indexPT = prefs.propertyType ?? "ALL";
+
+  // ─── Parallel data load ───────────────────────────────────────────────────
+  // All fetches are kicked off simultaneously so cold-cache startup time is
+  // bounded by the single slowest endpoint rather than the sequential sum of
+  // all of them (previously up to 8 sequential round-trips on first use).
+  const loaders: Promise<void>[] = [];
+  const ptRef = { lookup: null as Map<string, number> | null };
+
   if (_indexFloodCache === null) {
-    try {
-      const res = await fetch("/api/flood?plain=1");
-      if (res.ok) {
-        const payload = (await res.json()) as any;
-        _indexFloodCache = (Array.isArray(payload?.features) ? payload.features : [])
-          .filter((f: any) => f?.geometry?.type === "Point")
-          .map((f: any) => ({
-            lon: Number(f.geometry.coordinates[0]),
-            lat: Number(f.geometry.coordinates[1]),
-            riskScore: Number(f.properties?.risk_score ?? 0) || 0,
-          }));
-      } else {
+    loaders.push((async () => {
+      try {
+        const res = await fetch("/api/flood?plain=1");
+        if (res.ok) {
+          const payload = (await res.json()) as any;
+          _indexFloodCache = (Array.isArray(payload?.features) ? payload.features : [])
+            .filter((f: any) => f?.geometry?.type === "Point")
+            .map((f: any) => ({
+              lon: Number(f.geometry.coordinates[0]),
+              lat: Number(f.geometry.coordinates[1]),
+              riskScore: Number(f.properties?.risk_score ?? 0) || 0,
+            }));
+        } else {
+          _indexFloodCache = [];
+        }
+      } catch {
         _indexFloodCache = [];
       }
-    } catch {
-      _indexFloodCache = [];
-    }
-    _indexFloodGrid = null;
+      _indexFloodGrid = null;
+    })());
   }
 
-  // — Fetch school data once, build grid index —
   if (_indexSchoolCache === null) {
-    try {
-      const res = await fetch("/api/schools?plain=1");
-      if (res.ok) {
-        const payload = (await res.json()) as any;
-        _indexSchoolCache = (Array.isArray(payload?.features) ? payload.features : [])
-          .filter((f: any) => f?.geometry?.type === "Point")
-          .map((f: any) => ({
-            lon: Number(f.geometry.coordinates[0]),
-            lat: Number(f.geometry.coordinates[1]),
-            qualityScore: Number(f.properties?.quality_score ?? 0.5) || 0.5,
-            isGood: Boolean(f.properties?.is_good),
-            schoolName: String(f.properties?.school_name ?? ""),
-            urn: String(f.properties?.urn ?? ""),
-          }));
-      } else {
+    loaders.push((async () => {
+      try {
+        const res = await fetch("/api/schools?plain=1");
+        if (res.ok) {
+          const payload = (await res.json()) as any;
+          _indexSchoolCache = (Array.isArray(payload?.features) ? payload.features : [])
+            .filter((f: any) => f?.geometry?.type === "Point")
+            .map((f: any) => ({
+              lon: Number(f.geometry.coordinates[0]),
+              lat: Number(f.geometry.coordinates[1]),
+              qualityScore: Number(f.properties?.quality_score ?? 0.5) || 0.5,
+              isGood: Boolean(f.properties?.is_good),
+              schoolName: String(f.properties?.school_name ?? ""),
+              urn: String(f.properties?.urn ?? ""),
+            }));
+        } else {
+          _indexSchoolCache = [];
+        }
+      } catch {
         _indexSchoolCache = [];
       }
-    } catch {
-      _indexSchoolCache = [];
-    }
-    _indexSchoolGrid = null;
+      _indexSchoolGrid = null;
+    })());
   }
 
-  // — Fetch primary school data once, build grid index —
   if (_indexPrimarySchoolCache === null) {
-    try {
-      const res = await fetch("/api/schools?key=primary_school_overlay_points.geojson.gz&plain=1");
-      if (res.ok) {
-        const payload = (await res.json()) as any;
-        _indexPrimarySchoolCache = (Array.isArray(payload?.features) ? payload.features : [])
-          .filter((f: any) => f?.geometry?.type === "Point")
-          .map((f: any) => ({
-            lon: Number(f.geometry.coordinates[0]),
-            lat: Number(f.geometry.coordinates[1]),
-            ofstedGrade: Number(f.properties?.ofsted_grade ?? 0),
-            name: String(f.properties?.name ?? ""),
-            urn: String(f.properties?.urn ?? ""),
-          }));
-      } else {
+    loaders.push((async () => {
+      try {
+        const res = await fetch("/api/schools?key=primary_school_overlay_points.geojson.gz&plain=1");
+        if (res.ok) {
+          const payload = (await res.json()) as any;
+          _indexPrimarySchoolCache = (Array.isArray(payload?.features) ? payload.features : [])
+            .filter((f: any) => f?.geometry?.type === "Point")
+            .map((f: any) => ({
+              lon: Number(f.geometry.coordinates[0]),
+              lat: Number(f.geometry.coordinates[1]),
+              ofstedGrade: Number(f.properties?.ofsted_grade ?? 0),
+              name: String(f.properties?.name ?? ""),
+              urn: String(f.properties?.urn ?? ""),
+            }));
+        } else {
+          _indexPrimarySchoolCache = [];
+        }
+      } catch {
         _indexPrimarySchoolCache = [];
       }
-    } catch {
-      _indexPrimarySchoolCache = [];
-    }
-    _indexPrimarySchoolGrid = null;
+      _indexPrimarySchoolGrid = null;
+    })());
   }
 
-  // — Fetch station data once, build grid index —
   if (_indexStationCache === null) {
-    try {
-      const res = await fetch("/api/stations?plain=1");
-      if (res.ok) {
-        const payload = (await res.json()) as any;
-        _indexStationCache = (Array.isArray(payload?.features) ? payload.features : [])
-          .filter((f: any) => f?.geometry?.type === "Point")
-          .map((f: any) => ({
-            lon: Number(f.geometry.coordinates[0]),
-            lat: Number(f.geometry.coordinates[1]),
-            name: String(f.properties?.name ?? ""),
-            code: String(f.properties?.code ?? ""),
-          }));
-        _indexStationGrid = null;
+    loaders.push((async () => {
+      try {
+        const res = await fetch("/api/stations?plain=1");
+        if (res.ok) {
+          const payload = (await res.json()) as any;
+          _indexStationCache = (Array.isArray(payload?.features) ? payload.features : [])
+            .filter((f: any) => f?.geometry?.type === "Point")
+            .map((f: any) => ({
+              lon: Number(f.geometry.coordinates[0]),
+              lat: Number(f.geometry.coordinates[1]),
+              name: String(f.properties?.name ?? ""),
+              code: String(f.properties?.code ?? ""),
+            }));
+          _indexStationGrid = null;
+        }
+        // else: leave null → retry on next applyIndexScoring call
+      } catch {
+        // leave null → retry on next applyIndexScoring call
       }
-      // else: leave null → retry on next applyIndexScoring call
-    } catch {
-      // leave null → retry on next applyIndexScoring call
+    })());
+  }
+
+  if (busW > 0) {
+    if (_indexBusStopCache === null) {
+      loaders.push((async () => {
+        try {
+          const res = await fetch("/api/bus-stops?plain=1");
+          if (res.ok) {
+            const payload = (await res.json()) as any;
+            _indexBusStopCache = (Array.isArray(payload?.features) ? payload.features : [])
+              .filter((f: any) => f?.geometry?.type === "Point")
+              .map((f: any) => ({ lon: Number(f.geometry.coordinates[0]), lat: Number(f.geometry.coordinates[1]), name: String(f.properties?.name ?? ""), atco_code: String(f.properties?.atco_code ?? "") }));
+            _indexBusStopGrid = null;
+          } else { _indexBusStopCache = []; }
+        } catch { _indexBusStopCache = []; }
+      })());
+    }
+    if (_indexMetroTramCache === null) {
+      loaders.push((async () => {
+        try {
+          const res = await fetch("/api/bus-stops?key=metro_tram_overlay_points.geojson.gz&plain=1");
+          if (res.ok) {
+            const payload = (await res.json()) as any;
+            _indexMetroTramCache = (Array.isArray(payload?.features) ? payload.features : [])
+              .filter((f: any) => f?.geometry?.type === "Point")
+              .map((f: any) => ({ lon: Number(f.geometry.coordinates[0]), lat: Number(f.geometry.coordinates[1]), name: String(f.properties?.name ?? ""), stop_type: String(f.properties?.stop_type ?? "") }));
+            _indexMetroTramGrid = null;
+          } else { _indexMetroTramCache = []; }
+        } catch { _indexMetroTramCache = []; }
+      })());
     }
   }
 
-  // Build spatial grid indexes (skipped if already built)
+  if (pharmW > 0 && _indexPharmacyCache === null) {
+    loaders.push((async () => {
+      try {
+        const res = await fetch("/api/pharmacies?plain=1");
+        if (res.ok) {
+          const payload = (await res.json()) as any;
+          _indexPharmacyCache = (Array.isArray(payload?.features) ? payload.features : [])
+            .filter((f: any) => f?.geometry?.type === "Point")
+            .map((f: any) => ({ lon: Number(f.geometry.coordinates[0]), lat: Number(f.geometry.coordinates[1]), name: String(f.properties?.name ?? ""), ods_code: String(f.properties?.ods_code ?? "") }));
+          _indexPharmacyGrid = null;
+        } else { _indexPharmacyCache = []; }
+      } catch { _indexPharmacyCache = []; }
+    })());
+  }
+
+  // — Affordability cells: also kicked off in parallel —
+  const isDelta = isDeltaMetric(state.metric);
+  const endpoint = isDelta ? "/api/deltas" : "/api/cells";
+  const endMonth = isDelta ? undefined : state.endMonth ?? "LATEST";
+  const ptKey = `${state.grid}|${indexPT}|${state.newBuild}|${state.metric}|${endMonth ?? "LATEST"}`;
+  if (prefs.affordWeight > 0) {
+    if (_indexCellsCache?.key === ptKey) {
+      ptRef.lookup = _indexCellsCache.lookup;
+    } else {
+      loaders.push((async () => {
+        try {
+          const qs = new URLSearchParams({ grid: state.grid, propertyType: indexPT, newBuild: state.newBuild ?? "ALL" });
+          if (!isDelta) { qs.set("metric", state.metric); qs.set("endMonth", endMonth!); }
+          const res = await fetch(`${endpoint}?${qs.toString()}`);
+          if (res.ok) {
+            const payload = (await res.json()) as any;
+            const rows: any[] = Array.isArray(payload?.features) ? payload.features : (Array.isArray(payload?.rows) ? payload.rows : []);
+            const lookup = new Map<string, number>();
+            for (const item of rows) {
+              const p = item?.properties ?? item;
+              const gx = Number(p.gx); const gy = Number(p.gy);
+              const val = Number(p[metricProp] ?? 0) || 0;
+              if (Number.isFinite(gx) && Number.isFinite(gy) && val > 0) {
+                lookup.set(`${gx}_${gy}`, val);
+              }
+            }
+            _indexCellsCache = { key: ptKey, lookup };
+            ptRef.lookup = lookup;
+          }
+        } catch { /* use existing cell values */ }
+      })());
+    }
+  }
+
+  // Await all loaders simultaneously — bounded by slowest single endpoint.
+  if (loaders.length > 0) await Promise.all(loaders);
+
+  // Build all spatial grid indexes now that data is populated (skipped if already built)
   const GRID_CELL = 0.12; // ~13km buckets
   if (_indexFloodGrid === null) _indexFloodGrid = buildSpatialGrid(_indexFloodCache!, GRID_CELL);
   if (_indexSchoolGrid === null) _indexSchoolGrid = buildSpatialGrid(_indexSchoolCache!, GRID_CELL);
   if (_indexStationGrid === null && _indexStationCache !== null) _indexStationGrid = buildSpatialGrid(_indexStationCache, GRID_CELL);
   if (_indexPrimarySchoolGrid === null && _indexPrimarySchoolCache !== null) _indexPrimarySchoolGrid = buildSpatialGrid(_indexPrimarySchoolCache, GRID_CELL);
-
-  // — Lazily fetch bus stop data when bus scoring is needed —
-  const busW = prefs.busWeight ?? 0;
-  if (busW > 0) {
-    if (_indexBusStopCache === null) {
-      try {
-        const res = await fetch("/api/bus-stops?plain=1");
-        if (res.ok) {
-          const payload = (await res.json()) as any;
-          _indexBusStopCache = (Array.isArray(payload?.features) ? payload.features : [])
-            .filter((f: any) => f?.geometry?.type === "Point")
-            .map((f: any) => ({ lon: Number(f.geometry.coordinates[0]), lat: Number(f.geometry.coordinates[1]), name: String(f.properties?.name ?? ""), atco_code: String(f.properties?.atco_code ?? "") }));
-          _indexBusStopGrid = null;
-        } else { _indexBusStopCache = []; }
-      } catch { _indexBusStopCache = []; }
-    }
-    if (_indexMetroTramCache === null) {
-      try {
-        const res = await fetch("/api/bus-stops?key=metro_tram_overlay_points.geojson.gz&plain=1");
-        if (res.ok) {
-          const payload = (await res.json()) as any;
-          _indexMetroTramCache = (Array.isArray(payload?.features) ? payload.features : [])
-            .filter((f: any) => f?.geometry?.type === "Point")
-            .map((f: any) => ({ lon: Number(f.geometry.coordinates[0]), lat: Number(f.geometry.coordinates[1]), name: String(f.properties?.name ?? ""), stop_type: String(f.properties?.stop_type ?? "") }));
-          _indexMetroTramGrid = null;
-        } else { _indexMetroTramCache = []; }
-      } catch { _indexMetroTramCache = []; }
-    }
-    if (_indexBusStopGrid === null && _indexBusStopCache !== null) _indexBusStopGrid = buildSpatialGrid(_indexBusStopCache, GRID_CELL);
-    if (_indexMetroTramGrid === null && _indexMetroTramCache !== null) _indexMetroTramGrid = buildSpatialGrid(_indexMetroTramCache, GRID_CELL);
-  }
-
-  // — Lazily fetch pharmacy data when pharmacy scoring is needed —
-  const pharmW = prefs.pharmacyWeight ?? 0;
-  if (pharmW > 0 && _indexPharmacyCache === null) {
-    try {
-      const res = await fetch("/api/pharmacies?plain=1");
-      if (res.ok) {
-        const payload = (await res.json()) as any;
-        _indexPharmacyCache = (Array.isArray(payload?.features) ? payload.features : [])
-          .filter((f: any) => f?.geometry?.type === "Point")
-          .map((f: any) => ({ lon: Number(f.geometry.coordinates[0]), lat: Number(f.geometry.coordinates[1]), name: String(f.properties?.name ?? ""), ods_code: String(f.properties?.ods_code ?? "") }));
-        _indexPharmacyGrid = null;
-      } else { _indexPharmacyCache = []; }
-    } catch { _indexPharmacyCache = []; }
-    if (_indexPharmacyGrid === null && _indexPharmacyCache !== null) _indexPharmacyGrid = buildSpatialGrid(_indexPharmacyCache, GRID_CELL);
-  }
+  if (_indexBusStopGrid === null && _indexBusStopCache !== null) _indexBusStopGrid = buildSpatialGrid(_indexBusStopCache, GRID_CELL);
+  if (_indexMetroTramGrid === null && _indexMetroTramCache !== null) _indexMetroTramGrid = buildSpatialGrid(_indexMetroTramCache, GRID_CELL);
+  if (_indexPharmacyGrid === null && _indexPharmacyCache !== null) _indexPharmacyGrid = buildSpatialGrid(_indexPharmacyCache, GRID_CELL);
 
   const floodGrid = _indexFloodGrid;
   const schoolGrid = _indexSchoolGrid;
@@ -6372,40 +6428,9 @@ async function applyIndexScoring(
   // Walking distance thresholds for primary schools
   const PRIMARY_WALK_GOOD_METERS = 800;   // ≤800m (10-min walk) = full score
   const PRIMARY_WALK_MAX_METERS  = 3200;  // >3.2km (2 miles) = zero score
-  const metricProp = metricPropName(state.metric);
 
-  // — Fetch property-type-specific cell data for affordability reference —
-  let ptLookup: Map<string, number> | null = null;
-  const indexPT = prefs.propertyType ?? "ALL";
-  if (prefs.affordWeight > 0) {
-    const isDelta = isDeltaMetric(state.metric);
-    const endpoint = isDelta ? "/api/deltas" : "/api/cells";
-    const endMonth = isDelta ? undefined : state.endMonth ?? "LATEST";
-    const ptKey = `${state.grid}|${indexPT}|${state.newBuild}|${state.metric}|${endMonth ?? "LATEST"}`;
-    if (_indexCellsCache?.key === ptKey) {
-      ptLookup = _indexCellsCache.lookup;
-    } else {
-      try {
-        const qs = new URLSearchParams({ grid: state.grid, propertyType: indexPT, newBuild: state.newBuild ?? "ALL" });
-        if (!isDelta) { qs.set("metric", state.metric); qs.set("endMonth", endMonth!); }
-        const res = await fetch(`${endpoint}?${qs.toString()}`);
-        if (res.ok) {
-          const payload = (await res.json()) as any;
-          const rows: any[] = Array.isArray(payload?.features) ? payload.features : (Array.isArray(payload?.rows) ? payload.rows : []);
-          ptLookup = new Map<string, number>();
-          for (const item of rows) {
-            const p = item?.properties ?? item;
-            const gx = Number(p.gx); const gy = Number(p.gy);
-            const val = Number(p[metricProp] ?? 0) || 0;
-            if (Number.isFinite(gx) && Number.isFinite(gy) && val > 0) {
-              ptLookup.set(`${gx}_${gy}`, val);
-            }
-          }
-          _indexCellsCache = { key: ptKey, lookup: ptLookup };
-        }
-      } catch { /* use existing cell values */ }
-    }
-  }
+  // ptLookup resolved by the parallel affordability loader (or from cache above)
+  const ptLookup = ptRef.lookup;
 
   // Tight search radius for scoring (~8km), wide radius for data-coverage check (~50km)
   const NEAR_DEG = 0.08;
