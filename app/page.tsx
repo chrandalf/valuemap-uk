@@ -170,13 +170,23 @@ const IMP_LEVELS = [
   { label: "Off",   value: 0  },
 ] as const;
 
-// Flood uses risk-tolerance framing, not preference weight framing.
-// Must = zero tolerance (hard veto), Avoid = prefer low-risk, Allow = factor it in.
+// Flood & crime use risk-tolerance framing (not generic importance).
 const FLOOD_IMP_LEVELS = [
   { label: "Must",  value: 10 },
   { label: "Avoid", value: 4  },
   { label: "Allow", value: 2  },
   { label: "Off",   value: 0  },
+] as const;
+
+// Same risk-tolerance framing for crime.
+const CRIME_IMP_LEVELS = FLOOD_IMP_LEVELS;
+
+// Affordability uses budget-strictness framing.
+const AFFORD_IMP_LEVELS = [
+  { label: "Must",   value: 10 },
+  { label: "Prefer", value: 6  },
+  { label: "Guide",  value: 3  },
+  { label: "Off",    value: 0  },
 ] as const;
 
 type RegionCandidate = {
@@ -3175,7 +3185,7 @@ export default function Home() {
               </div>
               {/* Scrollable pickers — shows ~7 rows at once */}
               <div style={{ overflowY: "auto", maxHeight: 213, paddingRight: 2, scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.18) transparent" }}>
-              <ImportancePicker emoji="💰" label="Affordability" value={indexAffordWeight} onChange={setIndexAffordWeight} color="#facc15" />
+              <ImportancePicker emoji="💰" label="Affordability" value={indexAffordWeight} onChange={setIndexAffordWeight} color="#facc15" levels={AFFORD_IMP_LEVELS} />
               <ImportancePicker emoji="🌊" label="Flood risk"   value={indexFloodWeight}  onChange={setIndexFloodWeight}  color="#60a5fa" levels={FLOOD_IMP_LEVELS} />
               <ImportancePicker emoji="🏫" label="Schools (sec.)"  value={indexSchoolWeight}        onChange={setIndexSchoolWeight}        color="#22c55e" />
               <ImportancePicker emoji="🎒" label="Primary school" value={indexPrimarySchoolWeight} onChange={setIndexPrimarySchoolWeight} color="#86efac" />
@@ -3202,17 +3212,7 @@ export default function Home() {
                   </div>
                 )}
               </div>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                <span style={{ fontSize: 11, fontWeight: 600, flex: "0 0 auto", minWidth: 100 }}>🚔 Crime safety</span>
-                <div style={{ display: "flex", gap: 3 }}>
-                  {([{ label: "Must", value: 10 }, { label: "Want", value: 6 }, { label: "Nice", value: 3 }, { label: "Off", value: 0 }] as const).map(({ label: lbl, value: v }) => {
-                    const active = [0, 3, 6, 10].reduce<number>((best, l) => Math.abs(indexCrimeWeight - l) < Math.abs(indexCrimeWeight - best) ? l : best, 10);
-                    return (
-                      <button key={v} type="button" onClick={() => setIndexCrimeWeight(v)} style={{ cursor: "pointer", padding: "3px 8px", borderRadius: 6, fontSize: 10, fontWeight: active === v ? 700 : 400, border: active === v ? "1.5px solid #f97316" : "1px solid rgba(255,255,255,0.13)", background: active === v ? "#f9731630" : "rgba(255,255,255,0.04)", color: active === v ? "white" : "rgba(255,255,255,0.5)", lineHeight: 1.4, minWidth: 36, textAlign: "center" }}>{lbl}</button>
-                    );
-                  })}
-                </div>
-              </div>
+              <ImportancePicker emoji="🚔" label="Crime risk"   value={indexCrimeWeight}  onChange={setIndexCrimeWeight}  color="#f97316" levels={CRIME_IMP_LEVELS} />
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", padding: "5px 0", borderBottom: "1px solid rgba(255,255,255,0.06)", flexDirection: "column", gap: 4 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
                   <span style={{ fontSize: 11, fontWeight: 600, flex: "0 0 auto", minWidth: 100 }}>⚡ Heating fuel</span>

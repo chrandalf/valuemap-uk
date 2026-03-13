@@ -3352,12 +3352,12 @@ export default function ValueMap({
           }
         }
         if (prefs.floodWeight > 0)              html += wRow("🌊 Flood risk",            prefs.floodWeight,              bar(Number(p.ix_f  ?? 0.5), p.ix_fn === 1));
+        if ((prefs.crimeWeight ?? 0) > 0)        html += wRow("🚔 Crime risk",             prefs.crimeWeight!,                 bar(Number(p.ix_cr ?? 0.5), !Number.isFinite(Number(p.crime_local_score))));
         if (prefs.schoolWeight > 0)             html += wRow("🏫 Schools (secondary)",   prefs.schoolWeight,             bar(Number(p.ix_s  ?? 0.5), p.ix_sn === 1));
         if ((prefs.primarySchoolWeight ?? 0) > 0) html += wRow("🏫 Primary school nearby", prefs.primarySchoolWeight!,   bar(Number(p.ix_p  ?? 0.5), p.ix_pn === 1));
         if (prefs.trainWeight > 0)              html += wRow("🚂 Train station",          prefs.trainWeight,              bar(Number(p.ix_t  ?? 0.5), p.ix_tn === 1));
         if (prefs.coastWeight > 0)              html += wRow("🏖️ Coast",                 prefs.coastWeight,              bar(0.5, true));
         if ((prefs.ageWeight ?? 0) > 0) html += wRow(`👥 Community age (${(prefs.ageDirection ?? "young") === "old" ? "older" : "younger"})`, prefs.ageWeight!, bar(Number(p.ix_ag ?? 0.5), false));
-        if ((prefs.crimeWeight ?? 0) > 0) html += wRow("🚔 Crime safety", prefs.crimeWeight!, bar(Number(p.ix_cr ?? 0.5), !Number.isFinite(Number(p.crime_local_score))));
         if ((prefs.epcFuelWeight ?? 0) > 0) {
           const fuelLabels: Record<string, string> = { gas: "Gas", electric: "Electric", oil: "Oil", lpg: "LPG", no_gas: "No gas" };
           const fuelLabel = fuelLabels[prefs.epcFuelPreference ?? "gas"] ?? (prefs.epcFuelPreference ?? "gas");
@@ -7008,13 +7008,14 @@ async function applyIndexScoring(
     //   vetoW=2, score=0.4: multiplier = 0.8  (20% drag)
     const VETO_WEIGHT_CAP = 2.0;
     let vetoMultiplier = 1.0;
-    // Affordability: if the area is over budget and affordability matters, apply
-    // a hard drag proportional to how far over budget it is.  Using a higher cap
-    // (4.0 vs 2.0 for other criteria) means any weight ≥ 2 with affordScore = 0
-    // (area ≥ 160% of budget) drives the total to zero regardless of other scores.
+    // Affordability: cap scales with budget-strictness level so Must/Prefer/Guide differ:
+    //   Must(10)   cap=4.0 → worst-case mult=0   (hard zero when 60%+ over budget)
+    //   Prefer(6)  cap=1.6 → worst-case mult=0.2  (strong penalty but not a hard zero)
+    //   Guide(3)   cap=1.0 → worst-case mult=0.5  (rough halving when way over budget)
     if (prefs.affordWeight > 0 && affordScore < 0.5) {
       const shortfall = (0.5 - affordScore) / 0.5;
-      vetoMultiplier *= Math.max(0, 1 - Math.min(prefs.affordWeight, 4.0) * shortfall * 0.5);
+      const affordVetoCap = prefs.affordWeight >= 10 ? 4.0 : prefs.affordWeight >= 6 ? 1.6 : 1.0;
+      vetoMultiplier *= Math.max(0, 1 - Math.min(prefs.affordWeight, affordVetoCap) * shortfall * 0.5);
     }
     if (prefs.floodWeight > 0 && !floodNoData && floodScore < 0.5) {
       const shortfall = (0.5 - floodScore) / 0.5;
@@ -7039,7 +7040,12 @@ async function applyIndexScoring(
     }
     if (crimeW > 0 && crimeScore < 0.5) {
       const shortfall = (0.5 - crimeScore) / 0.5;
-      vetoMultiplier *= Math.max(0, 1 - Math.min(crimeW, VETO_WEIGHT_CAP) * shortfall * 0.5);
+      // Same per-level caps as flood (both are risk-tolerance criteria):
+      //   Must(10)  cap=2.0 → worst-case mult≈0    (near-zero for high-crime cells)
+      //   Avoid(4)  cap=1.4 → worst-case mult≈0.3  (strong penalty but survivable)
+      //   Allow(2)  cap=0.75 → worst-case mult≈0.6 (light nudge only)
+      const crimeVetoCap = crimeW >= 10 ? 2.0 : crimeW >= 4 ? 1.4 : 0.75;
+      vetoMultiplier *= Math.max(0, 1 - Math.min(crimeW, crimeVetoCap) * shortfall * 0.5);
     }
     if (busW > 0 && !busTransitNoData && busTransitScore < 0.5) {
       const shortfall = (0.5 - busTransitScore) / 0.5;
