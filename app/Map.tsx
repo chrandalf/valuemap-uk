@@ -4600,8 +4600,17 @@ export default function ValueMap({
         prevIndexScoringSignatureRef.current = nextSignature;
         void (async () => {
           try {
-            const ok = await applyIndexScoring(map, indexPrefs, stateRef.current, cellFcRef.current ?? undefined);
-            if (ok) onIndexScoringAppliedRef.current?.();
+            let ok = await applyIndexScoring(map, indexPrefs, stateRef.current, cellFcRef.current ?? undefined);
+            if (!ok) {
+              // Data not ready yet (cold load in progress) — wait for it then retry.
+              // setRealData debounce is 200ms + fetch; 1200ms covers the vast majority of cases.
+              await new Promise<void>((r) => setTimeout(r, 1200));
+              ok = await applyIndexScoring(map, indexPrefs, stateRef.current, cellFcRef.current ?? undefined);
+            }
+            // Clear spinner regardless — if still false after retry, better to unblock the user
+            // than leave the "Scoring areas..." overlay up forever.
+            if (ok) prevIndexActiveRef.current = true;
+            onIndexScoringAppliedRef.current?.();
           } catch (e) {
             console.error("applyIndexScoring threw unexpectedly", e);
             onIndexScoringAppliedRef.current?.();

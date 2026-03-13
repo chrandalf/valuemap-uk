@@ -3858,7 +3858,7 @@ export default function Home() {
                             : `Showing areas scoring ≤ ${indexSuitabilityThresholdLive}% — lower-scoring areas only`}
                   </div>
                   {indexSuitabilityMode === "top_pct" && (
-                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", gap: 4, flexWrap: "nowrap" }}>
                       {([{ label: "Top 1%", pct: 0.01, dir: "top" }, { label: "Top 10%", pct: 0.10, dir: "top" }, { label: "Top 25%", pct: 0.25, dir: "top" }, { label: "Bot 10%", pct: 0.10, dir: "bottom" }] as const).map(({ label: lbl, pct, dir }) => (
                         <button
                           key={lbl}
@@ -3923,21 +3923,6 @@ export default function Home() {
                     >
                       {mobileFiltersActiveOpen ? "Hide filters" : "Filters Active"}
                     </button>
-                    {([{ label: "Top 1%", pct: 0.01, dir: "top" }, { label: "Top 10%", pct: 0.10, dir: "top" }, { label: "Bot 10%", pct: 0.10, dir: "bottom" }] as const).map(({ label: lbl, pct, dir }) => (
-                      <button
-                        key={lbl}
-                        type="button"
-                        onClick={() => {
-                          const sliderVal = indexRelativeApplyRef.current?.(pct, dir) ?? -1;
-                          if (sliderVal < 0) return;
-                          const mode: IndexSuitabilityMode = dir === "bottom" ? "lte" : "top_pct";
-                          setIndexSuitabilityMode(mode);
-                          setIndexSuitabilityThresholdLive(sliderVal);
-                          setIndexSuitabilityThreshold(sliderVal);
-                        }}
-                        style={{ cursor: "pointer", padding: "4px 8px", borderRadius: 999, fontSize: 10, fontWeight: 600, border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.85)", lineHeight: 1.4, flexShrink: 0 }}
-                      >{lbl}</button>
-                    ))}
                   </div>
                   {mobileFiltersActiveOpen && (
                     <div
