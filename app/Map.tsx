@@ -429,6 +429,7 @@ export default function ValueMap({
   rgDismissToken,
   hintsEnabled,
   showRgLines,
+  prefetchGrids,
 }: {
   state: MapState;
   onLegendChange?: (legend: LegendData | null) => void;
@@ -465,6 +466,11 @@ export default function ValueMap({
   hintsEnabled?: boolean;
   /** Controls per-category visibility of right-click focus/connection lines on the map. Each key defaults to true. */
   showRgLines?: { flood?: boolean; school?: boolean; primarySchool?: boolean; station?: boolean; crime?: boolean; busStop?: boolean; pharmacy?: boolean };
+  /**
+   * Grid sizes to silently pre-fetch into the internal geo-cache without changing the displayed grid.
+   * Pass ["1km"] so 1km data is ready the moment Find My Area switches to it.
+   */
+  prefetchGrids?: GridSize[];
 }) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -516,6 +522,49 @@ export default function ValueMap({
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
+
+  // Silently pre-warm the geo cache for the requested grids without changing
+  // what is displayed. This lets Find My Area switch to 1km with a cache hit
+  // (instant display) rather than waiting for a fresh fetch.
+  useEffect(() => {
+    if (!prefetchGrids?.length) return;
+    const map = mapRef.current;
+    const warm = () => {
+      const isDelta = isDeltaMetric(state.metric);
+      if (isDelta) return; // delta grids are derived — skip
+      const endMonth = state.endMonth ?? "LATEST";
+      for (const grid of prefetchGrids) {
+        if (grid === state.grid) continue; // already loaded/loading as active grid
+        const cacheKey = `${grid}|${state.propertyType}|${state.newBuild}|${state.metric}|${endMonth}|${state.modelledMode ?? "blend"}|${VOTE_CELLS_DATA_VERSION}`;
+        if (geoCacheRef.current.has(cacheKey)) continue; // already cached
+        const qs = new URLSearchParams({
+          grid,
+          propertyType: state.propertyType ?? "ALL",
+          newBuild: state.newBuild ?? "ALL",
+          metric: state.metric,
+          endMonth,
+        });
+        if (grid === "1km") qs.set("modelled", state.modelledMode ?? "blend");
+        qs.set("voteDataVersion", VOTE_CELLS_DATA_VERSION);
+        (async () => {
+          try {
+            const res = await fetch(`/api/cells?${qs.toString()}`);
+            if (!res.ok) return;
+            const payload: any = await res.json();
+            const rows: any[] = Array.isArray(payload) ? payload : payload.rows;
+            if (!Array.isArray(rows)) return;
+            // Only cache if still not present (another request may have filled it)
+            if (!geoCacheRef.current.has(cacheKey)) {
+              geoCacheRef.current.set(cacheKey, rowsToGeoJsonSquares(rows, gridToMeters(grid)));
+            }
+          } catch { /* non-critical, silently ignore */ }
+        })();
+      }
+    };
+    if (map?.isStyleLoaded()) warm();
+    else map?.once("load", warm);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefetchGrids, state.metric, state.propertyType, state.newBuild, state.endMonth, state.modelledMode, state.grid]);
 
   useEffect(() => {
     easyColoursRef.current = easyColours ?? false;
@@ -4379,6 +4428,19 @@ export default function ValueMap({
 
     const abortController = new AbortController();
     const seq = ++requestSeqRef.current;
+
+    // On a cache miss, clear the cells source immediately so the user sees an
+    // instant blank → loading state rather than stale data for the debounce period.
+    const isColdLoad = (() => {
+      const isDelta = isDeltaMetric(state.metric);
+      const endMonth = isDelta ? "LATEST" : state.endMonth ?? "LATEST";
+      const ck = `${state.grid}|${state.propertyType}|${state.newBuild}|${state.metric}|${endMonth}|${state.modelledMode ?? "blend"}|${VOTE_CELLS_DATA_VERSION}`;
+      return !geoCacheRef.current.has(ck);
+    })();
+    if (isColdLoad) {
+      try { src.setData({ type: "FeatureCollection", features: [] } as any); } catch { /* ignore */ }
+    }
+
     setIsLoading(true);
 
     const debounceMs = 200;
@@ -4863,17 +4925,21 @@ export default function ValueMap({
           className="map-loading"
           style={{
             position: "absolute",
-            top: 12,
-            left: 12,
-            background: "rgba(0,0,0,0.7)",
+            bottom: 20,
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: "rgba(10,12,20,0.82)",
+            backdropFilter: "blur(4px)",
             color: "white",
-            padding: "6px 10px",
-            borderRadius: 6,
-            fontSize: 12,
+            padding: "7px 18px",
+            borderRadius: 99,
+            fontSize: 13,
             zIndex: 3,
+            pointerEvents: "none",
+            whiteSpace: "nowrap",
         }}
       >
-        Loading...
+        ⏳ Loading {state.grid} cells…
       </div>
       )}
       <div

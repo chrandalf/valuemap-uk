@@ -462,6 +462,8 @@ export default function Home() {
   const [indexActive, setIndexActive] = useState(false);
   const [indexScoringPending, setIndexScoringPending] = useState(false);
   const [indexToken, setIndexToken] = useState(0);
+  // Tracks the grid that was active before FMA auto-switched to 1km, so we can restore it on dismiss.
+  const gridBeforeFmaRef = useRef<GridSize | null>(null);
   const [indexBudget, setIndexBudget] = useState(0);
   const [indexPropertyType, setIndexPropertyType] = useState<string>("ALL");
   const [indexAffordWeight, setIndexAffordWeight] = useState(0);
@@ -719,6 +721,27 @@ export default function Home() {
       setIndexScoringPending(false);
     }
   }, [indexActive]);
+
+  // Auto-grid: switch to 1km when Find My Area opens so data is ready (or
+  // already pre-warmed) before the user clicks "Score areas".
+  // If the user dismisses without activating scoring, restore the previous grid.
+  useEffect(() => {
+    if (indexOpen) {
+      setGridMode("manual");
+      setState(s => {
+        if (s.grid !== "1km") {
+          gridBeforeFmaRef.current = s.grid;
+          return { ...s, grid: "1km" };
+        }
+        return s;
+      });
+    } else if (!indexActive && gridBeforeFmaRef.current !== null) {
+      const prev = gridBeforeFmaRef.current;
+      gridBeforeFmaRef.current = null;
+      setState(s => ({ ...s, grid: prev }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [indexOpen, indexActive]);
 
   useEffect(() => {
     if (introInitRef.current) return;
@@ -2163,6 +2186,7 @@ export default function Home() {
         onRightClickInfo={(info) => { setRightClickInfo(info); if (info) { setRgPanelMinimized(false); if (info.stage === "loading") setRgLinesShown({ flood: true, school: true, primarySchool: true, station: true, crime: true, busStop: true, pharmacy: true }); } }}
         rgDismissToken={rgDismissToken}
         showRgLines={rgLinesShown}
+        prefetchGrids={["1km"]}
         onPostcodeSearchResult={(result) => {
           const floodLookupActive = result.lookupMode !== "schools" && state.floodOverlayMode !== "off";
           const schoolLookupActive = result.lookupMode !== "flood" && state.schoolOverlayMode !== "off";
