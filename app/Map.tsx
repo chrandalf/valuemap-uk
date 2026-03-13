@@ -4477,7 +4477,8 @@ export default function ValueMap({
   if (initFc) cellFcRef.current = initFc;
   if (indexPrefsRef.current) {
     void applyIndexScoring(map, indexPrefsRef.current, stateRef.current, cellFcRef.current ?? undefined).then((ok) => {
-      if (ok) { prevIndexActiveRef.current = true; onIndexScoringAppliedRef.current?.(); }
+      if (ok) prevIndexActiveRef.current = true;
+      onIndexScoringAppliedRef.current?.();
     });
   }
 });
@@ -4524,7 +4525,8 @@ export default function ValueMap({
           if (fc) cellFcRef.current = fc;
           if (indexPrefsRef.current) {
             void applyIndexScoring(map, indexPrefsRef.current, stateRef.current, cellFcRef.current ?? undefined).then((ok) => {
-              if (ok) { prevIndexActiveRef.current = true; onIndexScoringAppliedRef.current?.(); }
+              if (ok) prevIndexActiveRef.current = true;
+              onIndexScoringAppliedRef.current?.();
             });
           }
           // If a cell colour overlay is active, setRealData/ensureAggregatesAndUpdate
@@ -4600,16 +4602,16 @@ export default function ValueMap({
         prevIndexScoringSignatureRef.current = nextSignature;
         void (async () => {
           try {
-            let ok = await applyIndexScoring(map, indexPrefs, stateRef.current, cellFcRef.current ?? undefined);
-            if (!ok) {
-              // Data not ready yet (cold load in progress) — wait for it then retry.
-              // setRealData debounce is 200ms + fetch; 1200ms covers the vast majority of cases.
-              await new Promise<void>((r) => setTimeout(r, 1200));
-              ok = await applyIndexScoring(map, indexPrefs, stateRef.current, cellFcRef.current ?? undefined);
+            const ok = await applyIndexScoring(map, indexPrefs, stateRef.current, cellFcRef.current ?? undefined);
+            if (ok) {
+              prevIndexActiveRef.current = true;
+              onIndexScoringAppliedRef.current?.();
+              return;
             }
-            // Clear spinner regardless — if still false after retry, better to unblock the user
-            // than leave the "Scoring areas..." overlay up forever.
-            if (ok) prevIndexActiveRef.current = true;
+            // No cell data available yet (cold load in progress).
+            // setRealData will call applyIndexScoring when data arrives and clear the spinner.
+            // Safety net: force-clear the spinner after 20 s in case that path also stalls.
+            await new Promise<void>(resolve => setTimeout(resolve, 20000));
             onIndexScoringAppliedRef.current?.();
           } catch (e) {
             console.error("applyIndexScoring threw unexpectedly", e);
@@ -6611,7 +6613,15 @@ async function applyIndexScoring(
   }
 
   // Await all loaders simultaneously — bounded by slowest single endpoint.
-  if (loaders.length > 0) await Promise.all(loaders);
+  // Cap at 12 s on slow connections: overlays that didn't finish in time contribute
+  // 0 to the score for this run; their caches are set when the fetch eventually
+  // completes so the next scoring call uses the full data.
+  if (loaders.length > 0) {
+    await Promise.race([
+      Promise.all(loaders),
+      new Promise<void>(resolve => setTimeout(resolve, 12000)),
+    ]);
+  }
 
   // Build all spatial grid indexes now that data is populated (skipped if already built)
   const GRID_CELL = 0.12; // ~13km buckets
