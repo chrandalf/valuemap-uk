@@ -170,6 +170,15 @@ const IMP_LEVELS = [
   { label: "Off",   value: 0  },
 ] as const;
 
+// Flood uses risk-tolerance framing, not preference weight framing.
+// Must = zero tolerance (hard veto), Avoid = prefer low-risk, Allow = factor it in.
+const FLOOD_IMP_LEVELS = [
+  { label: "Must",  value: 10 },
+  { label: "Avoid", value: 4  },
+  { label: "Allow", value: 2  },
+  { label: "Off",   value: 0  },
+] as const;
+
 type RegionCandidate = {
   label: string;
   context: string; // e.g. "County • South West England"
@@ -3167,7 +3176,7 @@ export default function Home() {
               {/* Scrollable pickers — shows ~7 rows at once */}
               <div style={{ overflowY: "auto", maxHeight: 213, paddingRight: 2, scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.18) transparent" }}>
               <ImportancePicker emoji="💰" label="Affordability" value={indexAffordWeight} onChange={setIndexAffordWeight} color="#facc15" />
-              <ImportancePicker emoji="🌊" label="Flood safety"  value={indexFloodWeight}  onChange={setIndexFloodWeight}  color="#60a5fa" />
+              <ImportancePicker emoji="🌊" label="Flood risk"   value={indexFloodWeight}  onChange={setIndexFloodWeight}  color="#60a5fa" levels={FLOOD_IMP_LEVELS} />
               <ImportancePicker emoji="🏫" label="Schools (sec.)"  value={indexSchoolWeight}        onChange={setIndexSchoolWeight}        color="#22c55e" />
               <ImportancePicker emoji="🎒" label="Primary school" value={indexPrimarySchoolWeight} onChange={setIndexPrimarySchoolWeight} color="#86efac" />
               <ImportancePicker emoji="🚂" label="Trains"        value={indexTrainWeight}  onChange={setIndexTrainWeight}  color="#f97316" />

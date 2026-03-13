@@ -3351,7 +3351,7 @@ export default function ValueMap({
             html += `<div style="font-size:10px;opacity:0.72;margin:-2px 0 5px 0;">Affordability reference median: <b>£${Math.round(affordRef).toLocaleString()}${unit}</b></div>`;
           }
         }
-        if (prefs.floodWeight > 0)              html += wRow("🌊 Flood safety",          prefs.floodWeight,              bar(Number(p.ix_f  ?? 0.5), p.ix_fn === 1));
+        if (prefs.floodWeight > 0)              html += wRow("🌊 Flood risk",            prefs.floodWeight,              bar(Number(p.ix_f  ?? 0.5), p.ix_fn === 1));
         if (prefs.schoolWeight > 0)             html += wRow("🏫 Schools (secondary)",   prefs.schoolWeight,             bar(Number(p.ix_s  ?? 0.5), p.ix_sn === 1));
         if ((prefs.primarySchoolWeight ?? 0) > 0) html += wRow("🏫 Primary school nearby", prefs.primarySchoolWeight!,   bar(Number(p.ix_p  ?? 0.5), p.ix_pn === 1));
         if (prefs.trainWeight > 0)              html += wRow("🚂 Train station",          prefs.trainWeight,              bar(Number(p.ix_t  ?? 0.5), p.ix_tn === 1));
@@ -7018,7 +7018,12 @@ async function applyIndexScoring(
     }
     if (prefs.floodWeight > 0 && !floodNoData && floodScore < 0.5) {
       const shortfall = (0.5 - floodScore) / 0.5;
-      vetoMultiplier *= Math.max(0, 1 - Math.min(prefs.floodWeight, VETO_WEIGHT_CAP) * shortfall * 0.5);
+      // Cap scales with the chosen risk-tolerance level so Must/Avoid/Allow differ meaningfully:
+      //   Must(10)  cap=2.0 → worst-case mult≈0.06 (near-zero for high-risk cells)
+      //   Avoid(4)  cap=1.4 → worst-case mult≈0.34 (strong penalty but survivable)
+      //   Allow(2)  cap=0.75 → worst-case mult≈0.65 (light nudge only)
+      const floodVetoCap = prefs.floodWeight >= 10 ? 2.0 : prefs.floodWeight >= 4 ? 1.4 : 0.75;
+      vetoMultiplier *= Math.max(0, 1 - Math.min(prefs.floodWeight, floodVetoCap) * shortfall * 0.5);
     }
     if (prefs.schoolWeight > 0 && !schoolNoData && schoolScore < 0.5) {
       const shortfall = (0.5 - schoolScore) / 0.5;
