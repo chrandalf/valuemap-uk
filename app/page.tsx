@@ -521,6 +521,7 @@ export default function Home() {
   const [indexSuitabilityThreshold, setIndexSuitabilityThreshold] = useState(65);
   const [indexSuitabilityThresholdLive, setIndexSuitabilityThresholdLive] = useState(65);
   const indexFilterApplyRef = useRef<((threshold: number) => void) | null>(null);
+  const indexRelativeApplyRef = useRef<((pct: number, direction: "top" | "bottom") => number) | null>(null);
   const [tourActive, setTourActive] = useState(false);
   const [tourStep, setTourStep] = useState(0);
   const [showMePulse, setShowMePulse] = useState(true);
@@ -2216,6 +2217,7 @@ export default function Home() {
         showRgLines={rgLinesShown}
         prefetchGrids={["1km"]}
         indexFilterApplyRef={indexFilterApplyRef}
+        indexRelativeApplyRef={indexRelativeApplyRef}
         onPostcodeSearchResult={(result) => {
           const floodLookupActive = result.lookupMode !== "schools" && state.floodOverlayMode !== "off";
           const schoolLookupActive = result.lookupMode !== "flood" && state.schoolOverlayMode !== "off";
@@ -3848,15 +3850,16 @@ export default function Home() {
                   </div>
                   {indexSuitabilityMode === "top_pct" && (
                     <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                      {([{ label: "Top 1%", v: 1, mode: "top_pct" }, { label: "Top 10%", v: 10, mode: "top_pct" }, { label: "Top 25%", v: 25, mode: "top_pct" }, { label: "Bot 10%", v: 10, mode: "lte" }] as const).map(({ label: lbl, v, mode }) => (
+                      {([{ label: "Top 1%", pct: 0.01, dir: "top" }, { label: "Top 10%", pct: 0.10, dir: "top" }, { label: "Top 25%", pct: 0.25, dir: "top" }, { label: "Bot 10%", pct: 0.10, dir: "bottom" }] as const).map(({ label: lbl, pct, dir }) => (
                         <button
                           key={lbl}
                           type="button"
                           onClick={() => {
-                            setIndexSuitabilityMode(mode as IndexSuitabilityMode);
-                            setIndexSuitabilityThresholdLive(v);
-                            setIndexSuitabilityThreshold(v);
-                            indexFilterApplyRef.current?.(v / 100);
+                            const abs = indexRelativeApplyRef.current?.(pct, dir) ?? 0;
+                            const mode: IndexSuitabilityMode = dir === "bottom" ? "lte" : "gte";
+                            setIndexSuitabilityMode(mode);
+                            setIndexSuitabilityThresholdLive(Math.round(abs * 100));
+                            setIndexSuitabilityThreshold(Math.round(abs * 100));
                           }}
                           style={{ cursor: "pointer", padding: "2px 7px", borderRadius: 999, fontSize: 10, fontWeight: 600, border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.8)", lineHeight: 1.4 }}
                         >{lbl}</button>
@@ -3908,17 +3911,18 @@ export default function Home() {
                     >
                       {mobileFiltersActiveOpen ? "Hide filters" : "Filters Active"}
                     </button>
-                    {([{ label: "Top 1%", v: 1, mode: "top_pct" }, { label: "Top 10%", v: 10, mode: "top_pct" }, { label: "Bot 10%", v: 10, mode: "lte" }] as const).map(({ label: lbl, v, mode }) => (
+                    {([{ label: "Top 1%", pct: 0.01, dir: "top" }, { label: "Top 10%", pct: 0.10, dir: "top" }, { label: "Bot 10%", pct: 0.10, dir: "bottom" }] as const).map(({ label: lbl, pct, dir }) => (
                       <button
                         key={lbl}
                         type="button"
                         onClick={() => {
-                          setIndexSuitabilityMode(mode as IndexSuitabilityMode);
-                          setIndexSuitabilityThresholdLive(v);
-                          setIndexSuitabilityThreshold(v);
-                          indexFilterApplyRef.current?.(v / 100);
+                          const abs = indexRelativeApplyRef.current?.(pct, dir) ?? 0;
+                          const mode: IndexSuitabilityMode = dir === "bottom" ? "lte" : "gte";
+                          setIndexSuitabilityMode(mode);
+                          setIndexSuitabilityThresholdLive(Math.round(abs * 100));
+                          setIndexSuitabilityThreshold(Math.round(abs * 100));
                         }}
-                        style={{ cursor: "pointer", padding: "4px 8px", borderRadius: 999, fontSize: 10, fontWeight: 600, border: "1px solid rgba(255,255,255,0.18)", background: (indexSuitabilityMode === mode && indexSuitabilityThreshold === v) ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.85)", lineHeight: 1.4, flexShrink: 0 }}
+                        style={{ cursor: "pointer", padding: "4px 8px", borderRadius: 999, fontSize: 10, fontWeight: 600, border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.85)", lineHeight: 1.4, flexShrink: 0 }}
                       >{lbl}</button>
                     ))}
                   </div>

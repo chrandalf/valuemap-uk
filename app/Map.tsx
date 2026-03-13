@@ -441,6 +441,7 @@ export default function ValueMap({
   showRgLines,
   prefetchGrids,
   indexFilterApplyRef,
+  indexRelativeApplyRef,
 }: {
   state: MapState;
   onLegendChange?: (legend: LegendData | null) => void;
@@ -488,6 +489,12 @@ export default function ValueMap({
    * to achieve sub-frame filter updates without triggering full component re-renders.
    */
   indexFilterApplyRef?: React.MutableRefObject<((threshold: number) => void) | null>;
+  /**
+   * Mutable ref for relative (percentile) preset jumps. Computes the absolute score threshold
+   * from the live source distribution and returns it so the caller can sync React state.
+   * pct: fraction of cells to show (0.1 = top/bottom 10%), direction: "top" or "bottom".
+   */
+  indexRelativeApplyRef?: React.MutableRefObject<((pct: number, direction: "top" | "bottom") => number) | null>;
 }) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -598,6 +605,42 @@ export default function ValueMap({
       const updated: IndexPrefs = { ...prefs, indexFilterThreshold: threshold };
       indexPrefsRef.current = updated;
       applyCombinedCellFilters(map, stateRef.current, updated);
+    };
+  }
+
+  // Imperative ref for relative percentile jumps. Computes the absolute score threshold
+  // from the live source distribution and returns it so the caller can sync React state.
+  // Avoids the mode-lag bug where React state hasn't propagated to indexPrefsRef yet
+  // at the moment the button click fires.
+  if (indexRelativeApplyRef != null) {
+    indexRelativeApplyRef.current = (pct: number, direction: "top" | "bottom"): number => {
+      const prefs = indexPrefsRef.current;
+      const map = mapRef.current;
+      if (!prefs || !map) return 0;
+      const absThreshold = computeRelativeThreshold(map, pct);
+      const filterMode: IndexPrefs["indexFilterMode"] = direction === "bottom" ? "lte" : "gte";
+      const updated: IndexPrefs = { ...prefs, indexFilterMode: filterMode, indexFilterThreshold: absThreshold };
+      indexPrefsRef.current = updated;
+      applyCombinedCellFilters(map, stateRef.current, updated);
+      return absThreshold;
+    };
+  }
+
+  // Imperative ref for relative percentile jumps. Computes the absolute score
+  // threshold from the live source distribution and returns it so the caller
+  // can sync React state. Avoids the mode-lag bug where the React state update
+  // hasn't propagated to indexPrefsRef yet when the button click fires.
+  if (indexRelativeApplyRef != null) {
+    indexRelativeApplyRef.current = (pct: number, direction: "top" | "bottom"): number => {
+      const prefs = indexPrefsRef.current;
+      const map = mapRef.current;
+      if (!prefs || !map) return 0;
+      const absThreshold = computeRelativeThreshold(map, pct);
+      const filterMode: IndexPrefs["indexFilterMode"] = direction === "bottom" ? "lte" : "gte";
+      const updated: IndexPrefs = { ...prefs, indexFilterMode: filterMode, indexFilterThreshold: absThreshold };
+      indexPrefsRef.current = updated;
+      applyCombinedCellFilters(map, stateRef.current, updated);
+      return absThreshold;
     };
   }
 
