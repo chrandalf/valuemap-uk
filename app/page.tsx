@@ -3371,8 +3371,9 @@ export default function Home() {
                   setIndexScoringPending(true);
                   setIndexActive(true);
                   setIndexToken((t) => t + 1);
-                  setIndexSuitabilityMode("gte");
-                  setIndexSuitabilityThreshold(50);
+                  setIndexSuitabilityMode("top_pct");
+                  setIndexSuitabilityThreshold(10);
+                  setIndexSuitabilityThresholdLive(10);
                   setIndexOpen(false);
                 }}
                 style={{
