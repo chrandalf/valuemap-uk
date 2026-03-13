@@ -1,6 +1,30 @@
 import type { R2Bucket } from "@cloudflare/workers-types";
 import { gunzipToString } from "../_lib/gzip";
 
+// Fields always present in a "core" response — sufficient for scoring (applyIndexScoring
+// reads crime_local_score, age_score, pct_* fuel, bb_avg_speed) and for all cell overlay
+// paint expressions (crime/age/epc/broadband/lb overlays colour from these fields).
+// Display-only extras (rates, counts, age bands, commute, vote) are omitted in core mode.
+const CORE_CELL_FIELDS = new Set<string>([
+  // Price partition base
+  "gx", "gy", "end_month", "property_type", "new_build", "median", "tx_count",
+  // Modelled price data
+  "is_modelled", "model_confidence", "estimated_median", "actual_median", "n_years_model", "ratio_cv_model",
+  // Geography
+  "country",
+  // Crime: 8 score fields for paint expressions + scoring (no rate/count data)
+  "crime_score", "crime_local_score", "violent_score", "violent_local_score",
+  "property_score", "property_local_score", "asb_score", "asb_local_score",
+  // Age: score field for paint expression + scoring (no band distribution)
+  "age_score",
+  // EPC fuel: pct fields for scoring + paint expression
+  "pct_gas", "pct_electric", "pct_oil", "pct_lpg",
+  // Broadband: speed for scoring + paint expression
+  "bb_avg_speed",
+  // Listed building: all fields (small lookup, lb_density needed for paint expression)
+  "lb_score", "lb_density", "lb_count", "lb_grade1", "lb_grade2s", "lb_grade2",
+]);
+
 export const onRequestGet = async ({ env, request }: { env: Env; request: Request }) => {
   const url = new URL(request.url);
 
@@ -20,6 +44,13 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   // injection loop handles those cells via the modelledLookup (no-actual-data path).
   // This halves the backfill work (351k → ~191k rows) without losing any model coverage.
   const effectiveMinTxCount = minTxCount;
+
+  // Field projection: "core" returns only fields needed for scoring + paint expressions,
+  // skipping the commute lookup (1.18 MB) and vote lookup (1.51 MB at 5km) and stripping
+  // display-only extras (crime rates/counts, age bands, bb detail, epc detail, vote).
+  // "full" returns everything (current behaviour) — used when commute/vote overlay active.
+  const rawFields = url.searchParams.get("fields") ?? "full";
+  const coreMode = rawFields === "core";
 
   if (!isGridKey(grid)) {
     return Response.json("Invalid grid. Use 1km|5km|10km|25km", { status: 400 });
@@ -67,7 +98,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     const cachedMerged = PARTITION_CACHE.get(mergedCacheKey);
     if (cachedMerged && now - cachedMerged.loadedAtMs <= CACHE_TTL_MS) {
       const rows = applyFilters(cachedMerged.rows, effectiveMinTxCount, metric);
-      let enriched = await backfillAll(env, grid, rows);
+      let enriched = await backfillAll(env, grid, rows, coreMode);
       if (grid === "1km" && metric === "median" && modelledMode !== "actual") {
         const modelledLookup = await getCachedModelledLookup(env, canonicalPropertyType, newBuild).catch(() => null);
         if (modelledLookup) enriched = applyModelledData(enriched, modelledLookup, modelledMode as "blend" | "estimated" | "model_only", minTxCount);
@@ -88,7 +119,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     const rawMerged = mergePartitionRows(validPartitions);
     PARTITION_CACHE.set(mergedCacheKey, { rows: rawMerged, loadedAtMs: Date.now() });
     const rows = applyFilters(rawMerged, effectiveMinTxCount, metric);
-    let enriched = await backfillAll(env, grid, rows);
+    let enriched = await backfillAll(env, grid, rows, coreMode);
     if (grid === "1km" && metric === "median" && modelledMode !== "actual") {
       const modelledLookup = await getCachedModelledLookup(env, canonicalPropertyType, newBuild).catch(() => null);
       if (modelledLookup) enriched = applyModelledData(enriched, modelledLookup, modelledMode as "blend" | "estimated" | "model_only", minTxCount);
@@ -104,7 +135,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   const cached = PARTITION_CACHE.get(partitionKey);
   if (cached && now - cached.loadedAtMs <= CACHE_TTL_MS) {
     const rows = applyFilters(cached.rows, effectiveMinTxCount, metric);
-    let enriched = await backfillAll(env, grid, rows);
+    let enriched = await backfillAll(env, grid, rows, coreMode);
     if (grid === "1km" && metric === "median" && modelledMode !== "actual") {
       const modelledLookup = await getCachedModelledLookup(env, canonicalPropertyType, newBuild).catch(() => null);
       if (modelledLookup) enriched = applyModelledData(enriched, modelledLookup, modelledMode as "blend" | "estimated" | "model_only", minTxCount);
@@ -128,7 +159,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   PARTITION_CACHE.set(partitionKey, { rows: rawRows, loadedAtMs: Date.now() });
 
   const rows = applyFilters(rawRows, effectiveMinTxCount, metric);
-  let enriched = await backfillAll(env, grid, rows);
+  let enriched = await backfillAll(env, grid, rows, coreMode);
   if (grid === "1km" && metric === "median" && modelledMode !== "actual") {
     const modelledLookup = await getCachedModelledLookup(env, canonicalPropertyType, newBuild).catch(() => null);
     if (modelledLookup) enriched = applyModelledData(enriched, modelledLookup, modelledMode as "blend" | "estimated" | "model_only", minTxCount);
@@ -952,15 +983,19 @@ function applyModelledData(
   return output;
 }
 
-/** Fetch vote/commute/age/country lookups in parallel, then enrich rows in a single pass. */
-async function backfillAll(env: Env, grid: GridKey, rows: CellRow[]): Promise<CellRow[]> {
+/** Fetch vote/commute/age/country lookups in parallel, then enrich rows in a single pass.
+ * coreMode = true: skips commute + vote lookups (saves ~1.18 MB + 1.51 MB R2 reads) and
+ * projects the output to CORE_CELL_FIELDS only, halving the JSON response size.
+ */
+async function backfillAll(env: Env, grid: GridKey, rows: CellRow[], coreMode = false): Promise<CellRow[]> {
   // vote_cells_1km.json.gz is ~2 MB compressed / ~20 MB uncompressed — loading it
   // alongside a large 1km partition on a cold isolate reliably hits the Worker CPU
   // time limit, so we skip vote overlay for 1km.
+  // In core mode we also skip vote for all other grids (saves 1.51 MB at 5km).
   // Country is always sourced from the dedicated slim country_cells_{grid}.json.gz
   // file (44 KB for 1km, <5 KB for other grids) rather than from the vote file,
   // so it remains available for flood/school scoring regardless of vote load status.
-  const votePromise = grid === "1km"
+  const votePromise = (grid === "1km" || coreMode)
     ? Promise.resolve(null)
     : getCachedVoteLookup(env, grid).catch(() => null);
 
@@ -971,10 +1006,15 @@ async function backfillAll(env: Env, grid: GridKey, rows: CellRow[]): Promise<Ce
   const broadbandGrid: GridKey = grid === "1km" ? "5km" : grid;
   const broadbandPromise = getCachedBroadbandLookup(env, broadbandGrid).catch(() => null);
 
+  // commute_cells_1km.json.gz is ~1.18 MB compressed — skip in core mode.
+  const commutePromise = coreMode
+    ? Promise.resolve(null)
+    : getCachedCommuteLookup(env, grid).catch(() => null);
+
   const [voteLookup, countryLookup, commuteLookup, ageLookup, crimeLookup, epcFuelLookup, broadbandLookup, lbLookup] = await Promise.all([
     votePromise,
     getCachedCountryLookup(env, grid).catch(() => null),
-    getCachedCommuteLookup(env, grid).catch(() => null),
+    commutePromise,
     getCachedAgeLookup(env, grid).catch(() => null),
     getCachedCrimeLookup(env, grid).catch(() => null),
     getCachedEpcFuelLookup(env, grid).catch(() => null),
@@ -1064,6 +1104,16 @@ async function backfillAll(env: Env, grid: GridKey, rows: CellRow[]): Promise<Ce
       const lb_density = epc_n > 0 ? lb.raw / epc_n : null;
       out = { ...out, lb_score: lb.score, lb_count: lb.count, lb_grade1: lb.grade1, lb_grade2s: lb.grade2s, lb_grade2: lb.grade2,
         ...(lb_density !== null ? { lb_density } : {}) };
+    }
+
+    // Project to core fields only — strips display-only extras (crime rates/counts,
+    // age bands, commute, broadband detail, epc detail, vote) to reduce response size.
+    if (coreMode) {
+      const projected: Record<string, unknown> = {};
+      for (const k of CORE_CELL_FIELDS) {
+        if (k in out) projected[k] = (out as any)[k];
+      }
+      return projected as any;
     }
 
     return out;

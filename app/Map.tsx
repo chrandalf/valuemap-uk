@@ -291,6 +291,16 @@ const PHARMACY_GREAT_METERS   = 800;    // ≤800m (10-min walk) = full score
 const PHARMACY_MAX_METERS     = 5_000;  // ≥5000m (few-min drive) = zero
 
 const VOTE_CELLS_DATA_VERSION = process.env.NEXT_PUBLIC_VOTE_CELLS_DATA_VERSION ?? "20260222b";
+
+// Compute which field tier to request from the cells API.
+// "core" skips commute + vote lookups (saves ~2.7 MB R2 reads on the Worker) and
+// returns only the fields needed for scoring and overlay paint expressions.
+// "full" returns everything — needed when commute or vote overlay is active.
+function computeFieldsTier(state: MapState): "core" | "full" {
+  if ((state.commuteOverlayMode ?? "off") !== "off") return "full";
+  if ((state.voteOverlayMode   ?? "off") !== "off") return "full";
+  return "core";
+}
 const COMMUTE_CELLS_DATA_VERSION = process.env.NEXT_PUBLIC_COMMUTE_CELLS_DATA_VERSION ?? "20260301a";
 const AGE_CELLS_DATA_VERSION = process.env.NEXT_PUBLIC_AGE_CELLS_DATA_VERSION ?? "20260301a";
 
@@ -542,8 +552,9 @@ export default function ValueMap({
       const endMonth = state.endMonth ?? "LATEST";
       for (const grid of prefetchGrids) {
         if (grid === state.grid) continue; // already loaded/loading as active grid
-        const cacheKey = `${grid}|${state.propertyType}|${state.newBuild}|${state.metric}|${endMonth}|${state.modelledMode ?? "blend"}|${VOTE_CELLS_DATA_VERSION}`;
-        if (geoCacheRef.current.has(cacheKey)) continue; // already cached
+        const basePrefetchKey = `${grid}|${state.propertyType}|${state.newBuild}|${state.metric}|${endMonth}|${state.modelledMode ?? "blend"}|${VOTE_CELLS_DATA_VERSION}`;
+        const cacheKey = `${basePrefetchKey}|core`;
+        if (geoCacheRef.current.has(cacheKey) || geoCacheRef.current.has(`${basePrefetchKey}|full`)) continue; // already cached
         const qs = new URLSearchParams({
           grid,
           propertyType: state.propertyType ?? "ALL",
@@ -552,6 +563,7 @@ export default function ValueMap({
           endMonth,
         });
         if (grid === "1km") qs.set("modelled", state.modelledMode ?? "blend");
+        qs.set("fields", "core");
         qs.set("voteDataVersion", VOTE_CELLS_DATA_VERSION);
         (async () => {
           try {
@@ -4457,8 +4469,8 @@ export default function ValueMap({
     const isColdLoad = (() => {
       const isDelta = isDeltaMetric(state.metric);
       const endMonth = isDelta ? "LATEST" : state.endMonth ?? "LATEST";
-      const ck = `${state.grid}|${state.propertyType}|${state.newBuild}|${state.metric}|${endMonth}|${state.modelledMode ?? "blend"}|${VOTE_CELLS_DATA_VERSION}`;
-      return !geoCacheRef.current.has(ck);
+      const base = `${state.grid}|${state.propertyType}|${state.newBuild}|${state.metric}|${endMonth}|${state.modelledMode ?? "blend"}|${VOTE_CELLS_DATA_VERSION}`;
+      return !geoCacheRef.current.has(`${base}|core`) && !geoCacheRef.current.has(`${base}|full`);
     })();
     if (isColdLoad) {
       try { src.setData({ type: "FeatureCollection", features: [] } as any); } catch { /* ignore */ }
@@ -5648,8 +5660,11 @@ async function setRealData(
   const endpoint = isDelta ? "/api/deltas" : "/api/cells";
 
   const endMonth = isDelta ? undefined : state.endMonth ?? "LATEST";
-  const cacheKey = `${state.grid}|${state.propertyType}|${state.newBuild}|${state.metric}|${endMonth ?? "LATEST"}|${state.modelledMode ?? "blend"}|${VOTE_CELLS_DATA_VERSION}`;
-  const cached = cache.get(cacheKey);
+  const fields = isDelta ? "full" : computeFieldsTier(state);
+  const baseCacheKey = `${state.grid}|${state.propertyType}|${state.newBuild}|${state.metric}|${endMonth ?? "LATEST"}|${state.modelledMode ?? "blend"}|${VOTE_CELLS_DATA_VERSION}`;
+  const cacheKey = `${baseCacheKey}|${fields}`;
+  // For core requests: full data (a superset) is also fine to use from cache
+  const cached = cache.get(cacheKey) ?? (fields === "core" ? cache.get(`${baseCacheKey}|full`) : undefined);
   if (cached) {
     const src = map.getSource("cells") as maplibregl.GeoJSONSource;
     src.setData(cached);
@@ -5684,6 +5699,7 @@ async function setRealData(
     if (state.grid === "1km") {
       qs.set("modelled", state.modelledMode ?? "blend");
     }
+    qs.set("fields", fields);
   }
   qs.set("voteDataVersion", VOTE_CELLS_DATA_VERSION);
 
@@ -5793,7 +5809,7 @@ async function ensureAggregatesAndUpdate(
     // 1) ensure 25km aggregate for the overlay (unchanged behaviour)
     const endMonth = state.endMonth ?? "LATEST";
     const key25 = `25km|${state.propertyType}|${state.newBuild}|${state.metric}|${endMonth}|${state.modelledMode ?? "blend"}|${VOTE_CELLS_DATA_VERSION}`;
-    let fc25 = cache.get(key25);
+    let fc25 = cache.get(`${key25}|full`) ?? cache.get(`${key25}|core`);
 
     if (!fc25) {
       const qs25 = new URLSearchParams({
@@ -5812,7 +5828,7 @@ async function ensureAggregatesAndUpdate(
           const rows25: ApiRow[] = Array.isArray(payload25) ? payload25 : payload25.rows;
           if (Array.isArray(rows25)) {
             fc25 = rowsToGeoJsonSquares(rows25, gridToMeters("25km"));
-            cache.set(key25, fc25);
+            cache.set(`${key25}|full`, fc25);
           }
         } else {
           // eslint-disable-next-line no-console
@@ -5839,7 +5855,7 @@ async function ensureAggregatesAndUpdate(
 
     // 2) ensure current-grid aggregate for colour breaks (per-grid deciles)
     const keyCur = `${state.grid}|${state.propertyType}|${state.newBuild}|${state.metric}|${endMonth}|${state.modelledMode ?? "blend"}|${VOTE_CELLS_DATA_VERSION}`;
-    let fcCur = cache.get(keyCur);
+    let fcCur = cache.get(`${keyCur}|full`) ?? cache.get(`${keyCur}|core`);
 
     if (!fcCur) {
       // try to reuse the current map source data before fetching
@@ -5848,7 +5864,7 @@ async function ensureAggregatesAndUpdate(
         const srcData: any = src ? (src as any)._data ?? null : null;
         if (srcData && Array.isArray(srcData.features) && srcData.features.length > 0) {
           fcCur = srcData;
-          cache.set(keyCur, fcCur);
+          cache.set(`${keyCur}|full`, fcCur);
         }
       } catch (e) {
         // ignore
@@ -5873,7 +5889,7 @@ async function ensureAggregatesAndUpdate(
           const rowsCur: ApiRow[] = Array.isArray(payloadCur) ? payloadCur : payloadCur.rows;
           if (Array.isArray(rowsCur)) {
             fcCur = rowsToGeoJsonSquares(rowsCur, gridToMeters(state.grid));
-            cache.set(keyCur, fcCur);
+            cache.set(`${keyCur}|full`, fcCur);
           }
         } else {
           // eslint-disable-next-line no-console
