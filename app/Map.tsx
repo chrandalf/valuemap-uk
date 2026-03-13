@@ -629,8 +629,8 @@ export default function ValueMap({
         applyCombinedCellFilters(map, stateRef.current, updated);
         return Math.round(pct * 100); // integer slider % the caller should display
       } else {
-        // Bottom: compute absolute score at this percentile from the bottom, switch to lte
-        const absThreshold = computeRelativeThreshold(pct);
+        // Bottom: compute the score at the bottomPct-th quantile from the low end, switch to lte
+        const absThreshold = computeBottomThreshold(pct);
         if (absThreshold === null) return -1; // not yet scored
         const updated: IndexPrefs = { ...prefs, indexFilterMode: "lte", indexFilterThreshold: absThreshold };
         indexPrefsRef.current = updated;
@@ -6229,6 +6229,16 @@ function computeRelativeThreshold(topPct: number): number | null {
   return scores[Math.min(idx, scores.length - 1)] ?? 0;
 }
 
+// For "bottom %" presets: return the score at the bottomPct-th quantile from the low end.
+// score <= result keeps only the bottom X% of cells.
+function computeBottomThreshold(bottomPct: number): number | null {
+  const scores = _indexSortedScores;
+  if (!scores || !scores.length) return null;
+  // bottom X%: threshold = score at the pct-th quantile from the bottom
+  const idx = Math.floor(bottomPct * scores.length);
+  return scores[Math.min(idx, scores.length - 1)] ?? 0;
+}
+
 function buildIndexFilter(indexPrefs: IndexPrefs | null | undefined) {
   if (!indexPrefs) return null;
   const mode = indexPrefs.indexFilterMode ?? "off";
@@ -6251,7 +6261,11 @@ function buildIndexFilter(indexPrefs: IndexPrefs | null | undefined) {
 
   const threshold = Math.max(0, Math.min(1, Number(indexPrefs.indexFilterThreshold ?? 0.6)));
   const op = mode === "lte" ? "<=" : ">=";
-  const rangeFilter = [op, score, threshold] as any;
+  const rawScore = ["get", "index_score"] as any;
+  // For lte (weak areas / bottom %), also require score >= 0 to exclude -1 (no-data) cells
+  const rangeFilter = mode === "lte"
+    ? (["all", [">=", rawScore, 0], [op, rawScore, threshold]] as any)
+    : ([op, score, threshold] as any);
   if (inRegion) return ["all", inRegion, rangeFilter] as any;
   return rangeFilter;
 }
