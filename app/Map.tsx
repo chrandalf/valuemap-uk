@@ -430,6 +430,7 @@ export default function ValueMap({
   hintsEnabled,
   showRgLines,
   prefetchGrids,
+  indexFilterApplyRef,
 }: {
   state: MapState;
   onLegendChange?: (legend: LegendData | null) => void;
@@ -471,6 +472,12 @@ export default function ValueMap({
    * Pass ["1km"] so 1km data is ready the moment Find My Area switches to it.
    */
   prefetchGrids?: GridSize[];
+  /**
+   * Mutable ref that Map.tsx populates with a function for applying an index-score filter threshold
+   * directly (bypassing the React state → useMemo → prop chain). Used by the match-score slider
+   * to achieve sub-frame filter updates without triggering full component re-renders.
+   */
+  indexFilterApplyRef?: React.MutableRefObject<((threshold: number) => void) | null>;
 }) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -565,6 +572,22 @@ export default function ValueMap({
     else map?.once("load", warm);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefetchGrids, state.metric, state.propertyType, state.newBuild, state.endMonth, state.modelledMode, state.grid]);
+
+  // Populate the imperative filter-apply ref so the match-score slider can call
+  // applyCombinedCellFilters directly, bypassing the React state → useMemo → prop
+  // change → useEffect chain. Setting a MutableRefObject in the render function is
+  // intentional and idiomatic — the function always reads current values from refs.
+  if (indexFilterApplyRef != null) {
+    indexFilterApplyRef.current = (threshold: number) => {
+      const prefs = indexPrefsRef.current;
+      if (!prefs) return;
+      const map = mapRef.current;
+      if (!map) return;
+      const updated: IndexPrefs = { ...prefs, indexFilterThreshold: threshold };
+      indexPrefsRef.current = updated;
+      applyCombinedCellFilters(map, stateRef.current, updated);
+    };
+  }
 
   useEffect(() => {
     easyColoursRef.current = easyColours ?? false;
@@ -1221,6 +1244,11 @@ export default function ValueMap({
       map.addSource("cells", {
         type: "geojson",
         data: { type: "FeatureCollection", features: [] },
+        // Larger buffer prevents polygon edges near tile boundaries from being
+        // clipped and disappearing when zoom level changes cause tile rebuilds.
+        buffer: 256,
+        // Stable per-feature IDs help MapLibre track features across tile rebuilds.
+        generateId: true,
   });
 
   map.addSource("flood-overlay", {

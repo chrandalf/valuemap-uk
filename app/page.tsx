@@ -500,6 +500,8 @@ export default function Home() {
   });
   const [indexSuitabilityMode, setIndexSuitabilityMode] = useState<IndexSuitabilityMode>("off");
   const [indexSuitabilityThreshold, setIndexSuitabilityThreshold] = useState(65);
+  const [indexSuitabilityThresholdLive, setIndexSuitabilityThresholdLive] = useState(65);
+  const indexFilterApplyRef = useRef<((threshold: number) => void) | null>(null);
   const [tourActive, setTourActive] = useState(false);
   const [tourStep, setTourStep] = useState(0);
   const [showMePulse, setShowMePulse] = useState(true);
@@ -742,6 +744,11 @@ export default function Home() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [indexOpen, indexActive]);
+
+  // Keep the live slider value in sync with committed value (e.g. when reset to 65)
+  useEffect(() => {
+    setIndexSuitabilityThresholdLive(indexSuitabilityThreshold);
+  }, [indexSuitabilityThreshold]);
 
   useEffect(() => {
     if (introInitRef.current) return;
@@ -2187,6 +2194,7 @@ export default function Home() {
         rgDismissToken={rgDismissToken}
         showRgLines={rgLinesShown}
         prefetchGrids={["1km"]}
+        indexFilterApplyRef={indexFilterApplyRef}
         onPostcodeSearchResult={(result) => {
           const floodLookupActive = result.lookupMode !== "schools" && state.floodOverlayMode !== "off";
           const schoolLookupActive = result.lookupMode !== "flood" && state.schoolOverlayMode !== "off";
@@ -3803,8 +3811,13 @@ export default function Home() {
                     min={0}
                     max={100}
                     step={1}
-                    value={indexSuitabilityThreshold}
-                    onChange={(e) => setIndexSuitabilityThreshold(Number(e.target.value))}
+                    value={indexSuitabilityThresholdLive}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      setIndexSuitabilityThresholdLive(v);
+                      indexFilterApplyRef.current?.(v / 100);
+                    }}
+                    onPointerUp={(e) => setIndexSuitabilityThreshold(Number((e.target as HTMLInputElement).value))}
                     style={{ width: "100%", accentColor: "#22c55e", opacity: indexSuitabilityMode === "off" || indexSuitabilityMode === "area_only" ? 0.55 : 1 }}
                     disabled={indexSuitabilityMode === "off" || indexSuitabilityMode === "area_only"}
                   />
@@ -3814,8 +3827,8 @@ export default function Home() {
                       : indexSuitabilityMode === "area_only"
                         ? "All scored areas within selected region(s)"
                         : indexSuitabilityMode === "gte"
-                          ? `Showing areas scoring ≥ ${indexSuitabilityThreshold}% — raise to narrow further`
-                          : `Showing areas scoring ≤ ${indexSuitabilityThreshold}% — lower-scoring areas only`}
+                          ? `Showing areas scoring ≥ ${indexSuitabilityThresholdLive}% — raise to narrow further`
+                          : `Showing areas scoring ≤ ${indexSuitabilityThresholdLive}% — lower-scoring areas only`}
                   </div>
                 </div>
               </div>
