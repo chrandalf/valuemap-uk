@@ -443,6 +443,7 @@ export default function ValueMap({
   prefetchGrids,
   indexFilterApplyRef,
   indexRelativeApplyRef,
+  programmaticRgRequest,
 }: {
   state: MapState;
   onLegendChange?: (legend: LegendData | null) => void;
@@ -496,6 +497,8 @@ export default function ValueMap({
    * pct: fraction of cells to show (0.1 = top/bottom 10%), direction: "top" or "bottom".
    */
   indexRelativeApplyRef?: React.MutableRefObject<((pct: number, direction: "top" | "bottom") => number) | null>;
+  /** When token changes, programmatically triggers a right-click info search at the given coords. */
+  programmaticRgRequest?: { lat: number; lon: number; token: number } | null;
 }) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -514,6 +517,7 @@ export default function ValueMap({
   const tapToSearchRef = useRef<boolean>(!!tapToSearch);
   const onRightClickInfoRef = useRef<typeof onRightClickInfo>(onRightClickInfo);
   const clearRgOverlayRef = useRef<(() => void) | null>(null);
+  const doReverseGeocodeRef = useRef<((lon: number, lat: number) => void) | null>(null);
   const rgClickMarkerRef = useRef<maplibregl.Marker | null>(null);
   const locateMarkerRef = useRef<maplibregl.Marker | null>(null);
 
@@ -686,6 +690,13 @@ export default function ValueMap({
     if (!rgDismissToken) return;
     clearRgOverlayRef.current?.();
   }, [rgDismissToken]);
+
+  // Programmatic right-click search triggered from outside (e.g. "View on map" from Price Check).
+  useEffect(() => {
+    if (!programmaticRgRequest || programmaticRgRequest.token < 1) return;
+    doReverseGeocodeRef.current?.(programmaticRgRequest.lon, programmaticRgRequest.lat);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [programmaticRgRequest?.token]);
 
   // Toggle per-category visibility of right-click focus/connection lines.
   useEffect(() => {
@@ -4423,6 +4434,7 @@ export default function ValueMap({
       }
     })();
   }; // end doReverseGeocode
+  doReverseGeocodeRef.current = doReverseGeocode;
 
   map.on("contextmenu", (e) => {
     e.originalEvent.preventDefault();

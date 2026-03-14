@@ -564,6 +564,9 @@ export default function Home() {
   const [pcError, setPcError] = useState<string | null>(null);
   const [pcResult, setPcResult] = useState<PriceCheckResult | null>(null);
   const [pcCoords, setPcCoords] = useState<{ lat: number; lon: number } | null>(null);
+  const [priceCheckMinimized, setPriceCheckMinimized] = useState(false);
+  const [pcRgRequest, setPcRgRequest] = useState<{ lat: number; lon: number; token: number } | null>(null);
+  const pcRgTokenRef = useRef(0);
   const introInitRef = useRef(false);
   const urlHydratedRef = useRef(false);
   const supportersScrollerRef = useRef<HTMLDivElement | null>(null);
@@ -2295,6 +2298,7 @@ export default function Home() {
         rgDismissToken={rgDismissToken}
         showRgLines={rgLinesShown}
         prefetchGrids={["1mile"]}
+        programmaticRgRequest={pcRgRequest}
         indexFilterApplyRef={indexFilterApplyRef}
         indexRelativeApplyRef={indexRelativeApplyRef}
         onPostcodeSearchResult={(result) => {
@@ -3118,44 +3122,73 @@ export default function Home() {
         const askGbp = parseFloat(pcAskingPrice.replace(/[£,\s]/g, "")) || 0;
         const sqft = parseFloat(pcSqft) || 0;
         const r = pcResult;
-        // Determine "fair value": prefer actual median, then estimated, then parent
-        const fairValue = r
-          ? (r.median ?? r.estimated_median ?? r.parent_median ?? null)
-          : null;
-        const hasData = fairValue !== null && fairValue > 0;
-        // Ratio: asking vs fair value
-        const askRatio = hasData && askGbp > 0 ? askGbp / fairValue! : null;
-        // Verdict tier
-        const verdictTier = askRatio === null ? null
-          : askRatio < 0.85  ? { label: "Strong value — well below market",    col: "#16a34a", emoji: "🟢" }
-          : askRatio < 0.95  ? { label: "Below market — looks fair",            col: "#22c55e", emoji: "✅" }
-          : askRatio < 1.05  ? { label: "Fairly priced — within normal range",  col: "#84cc16", emoji: "✅" }
-          : askRatio < 1.15  ? { label: "Slightly above typical",               col: "#eab308", emoji: "🟡" }
-          : askRatio < 1.30  ? { label: "Overpriced — above the local market",  col: "#f97316", emoji: "🟠" }
-          : askRatio < 1.50  ? { label: "Significantly overpriced",             col: "#ef4444", emoji: "🔴" }
-          :                    { label: "Taking the piss",                      col: "#dc2626", emoji: "🚨" };
-        // Bar: range from 0 to barMax
-        const barMax = hasData && r
-          ? Math.max(
-              (r.p90 ?? fairValue! * 1.3) * 1.2,
-              askGbp > 0 ? askGbp * 1.15 : 0,
-              fairValue! * 1.5
-            )
-          : 1;
-        const toPct = (v: number) => Math.min(100, Math.max(0, (v / barMax) * 100));
         const fmtGbp = (v: number) => `£${Math.round(v / 1000)}k`;
-        // PPSF
-        const ppsfAsk = sqft > 0 && askGbp > 0 ? askGbp / sqft : null;
+
+        // ── Ppsf path (primary — floor area is required) ──────────────────
+        const ppsfAsk  = sqft > 0 && askGbp > 0 ? askGbp / sqft : null;
         const ppsfFair = r?.median_ppsf ?? null;
         const ppsfRatio = ppsfAsk && ppsfFair ? ppsfAsk / ppsfFair : null;
-        const ppsfTier = ppsfRatio === null ? null
-          : ppsfRatio < 0.85  ? { label: "Good value per ft²",              col: "#16a34a" }
-          : ppsfRatio < 1.05  ? { label: "Typical price per ft²",           col: "#84cc16" }
-          : ppsfRatio < 1.20  ? { label: "Above typical per ft²",           col: "#eab308" }
-          : ppsfRatio < 1.40  ? { label: "Pricey per ft²",                  col: "#f97316" }
-          :                     { label: "Very expensive per ft²",          col: "#ef4444" };
+        const usePpsf = ppsfRatio !== null;   // have both inputs — use ppsf as primary
+
+        // ── Absolute GBP fallback (when no ppsf benchmark in data) ────────
+        const fairValueAbs = r ? (r.median ?? r.estimated_median ?? r.parent_median ?? null) : null;
+        const absRatio = !usePpsf && fairValueAbs && askGbp > 0 ? askGbp / fairValueAbs : null;
+
+        // ── Active ratio drives everything ─────────────────────────────────
+        const activeRatio = usePpsf ? ppsfRatio : absRatio;
+        const hasData = usePpsf ? true : (fairValueAbs !== null && fairValueAbs > 0);
+
+        // Verdict tier (shared scale)
+        const verdictTier = activeRatio === null ? null
+          : activeRatio < 0.85  ? { label: "Strong value — well below market",    col: "#16a34a", emoji: "🟢" }
+          : activeRatio < 0.95  ? { label: "Below market — looks fair",            col: "#22c55e", emoji: "✅" }
+          : activeRatio < 1.05  ? { label: "Fairly priced — within normal range",  col: "#84cc16", emoji: "✅" }
+          : activeRatio < 1.15  ? { label: "Slightly above typical",               col: "#eab308", emoji: "🟡" }
+          : activeRatio < 1.30  ? { label: "Overpriced — above the local market",  col: "#f97316", emoji: "🟠" }
+          : activeRatio < 1.50  ? { label: "Significantly overpriced",             col: "#ef4444", emoji: "🔴" }
+          :                        { label: "Taking the piss",                     col: "#dc2626", emoji: "🚨" };
+
+        // ── Bar axis ───────────────────────────────────────────────────────
+        // When ppsf: infer ppsf percentile bands from GBP bands ÷ typical sqft
+        // (reasonable approximation — assumes size distribution is similar across bands)
+        const typicalSqft = ppsfFair && fairValueAbs && fairValueAbs > 0 ? fairValueAbs / ppsfFair : null;
+        const p25v  = usePpsf && r?.p25 && typicalSqft ? r.p25 / typicalSqft : (r?.p25 ?? null);
+        const p70v  = usePpsf && r?.p70 && typicalSqft ? r.p70 / typicalSqft : (r?.p70 ?? null);
+        const p90v  = usePpsf && r?.p90 && typicalSqft ? r.p90 / typicalSqft : (r?.p90 ?? null);
+        const fairV = usePpsf ? ppsfFair! : fairValueAbs;
+        const askV  = usePpsf ? ppsfAsk!  : askGbp;
+        const fmtV  = usePpsf
+          ? (v: number) => `£${Math.round(v)}/ft²`
+          : (v: number) => fmtGbp(v);
+
+        const barMax = fairV && askV
+          ? Math.max((p90v ?? fairV * 1.3) * 1.2, askV * 1.15, fairV * 1.5)
+          : 1;
+        const toPct = (v: number) => Math.min(100, Math.max(0, (v / barMax) * 100));
         const inputStyle: React.CSSProperties = { width: "100%", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, color: "white", padding: "7px 10px", fontSize: 12, outline: "none", boxSizing: "border-box" };
         const labelStyle: React.CSSProperties = { fontSize: 10, opacity: 0.65, marginBottom: 3, display: "block", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" };
+
+        // ── Minimised pill ──────────────────────────────────────────────────
+        if (priceCheckMinimized) {
+          return (
+            <div
+              style={{ position: "fixed", bottom: 56, right: 12, zIndex: frontZ("priceCheck", 46), display: "flex", alignItems: "center", gap: 8, background: "rgba(10,12,20,0.95)", border: "1px solid rgba(250,204,21,0.35)", borderRadius: 24, padding: "6px 12px", boxShadow: "0 4px 18px rgba(0,0,0,0.5)", cursor: "default", color: "white", fontSize: 12, fontFamily: "var(--font-sans), Inter, system-ui, sans-serif", backdropFilter: "blur(8px)" }}
+              onMouseDown={() => bringToFront("priceCheck")}
+            >
+              <span style={{ fontWeight: 600 }}>
+                🏠 Price check
+                {verdictTier && <span style={{ marginLeft: 6, color: verdictTier.col }}>{verdictTier.emoji}</span>}
+              </span>
+              <button type="button" title="Restore" onClick={() => setPriceCheckMinimized(false)}
+                style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.1)", color: "white", borderRadius: 999, width: 22, height: 22, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12, padding: 0 }}
+              >↑</button>
+              <button type="button" title="Close" onClick={() => { setPriceCheckOpen(false); setPriceCheckMinimized(false); }}
+                style={{ cursor: "pointer", border: "none", background: "transparent", color: "rgba(255,255,255,0.45)", fontSize: 14, lineHeight: 1, padding: 0 }}
+              >✕</button>
+            </div>
+          );
+        }
+
         return (
           <div
             style={{ position: "fixed", inset: 0, zIndex: frontZ("priceCheck", 46), display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.45)", backdropFilter: "blur(3px)" }}
@@ -3169,7 +3202,10 @@ export default function Home() {
               {/* Header */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                 <div style={{ fontWeight: 700, fontSize: 15 }}>🏠 Price check</div>
-                <button type="button" onClick={() => setPriceCheckOpen(false)} style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "white", width: 26, height: 26, borderRadius: 999, fontSize: 15, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <button type="button" title="Minimise" onClick={() => setPriceCheckMinimized(true)} style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "white", width: 26, height: 26, borderRadius: 999, fontSize: 14, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>–</button>
+                  <button type="button" onClick={() => { setPriceCheckOpen(false); setPriceCheckMinimized(false); }} style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "white", width: 26, height: 26, borderRadius: 999, fontSize: 15, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+                </div>
               </div>
               <div style={{ fontSize: 11, opacity: 0.6, marginBottom: 14, lineHeight: 1.35 }}>Enter a property&apos;s postcode and asking price to see how it sits against what has actually sold nearby.</div>
 
@@ -3235,10 +3271,19 @@ export default function Home() {
                   {verdictTier && askGbp > 0 && (
                     <div style={{ background: `${verdictTier.col}22`, border: `1px solid ${verdictTier.col}55`, borderRadius: 10, padding: "10px 14px", marginBottom: 14 }}>
                       <div style={{ fontWeight: 700, fontSize: 14, color: verdictTier.col }}>{verdictTier.emoji} {verdictTier.label}</div>
-                      {askRatio !== null && (
+                      {activeRatio !== null && (
                         <div style={{ fontSize: 11, opacity: 0.8, marginTop: 3 }}>
-                          Asking <b>{askRatio > 1 ? `${((askRatio - 1) * 100).toFixed(0)}% above` : `${((1 - askRatio) * 100).toFixed(0)}% below`}</b> the local typical price
-                          {r.tx_count > 0 && <span style={{ opacity: 0.6 }}> · based on {r.tx_count} local sale{r.tx_count !== 1 ? "s" : ""}</span>}
+                          Asking price per ft² is <b>{activeRatio > 1 ? `${((activeRatio - 1) * 100).toFixed(0)}% above` : `${((1 - activeRatio) * 100).toFixed(0)}% below`}</b> the local typical
+                          {usePpsf
+                            ? <> · <b>£{Math.round(ppsfAsk!)}/ft²</b> vs typical <b>£{Math.round(ppsfFair!)}/ft²</b></>
+                            : <span style={{ color: "#9ca3af" }}> · <em>(no ppsf benchmark — using absolute price)</em></span>
+                          }
+                          {r.tx_count > 0 && <span style={{ opacity: 0.6 }}> · {r.tx_count} local sale{r.tx_count !== 1 ? "s" : ""}</span>}
+                        </div>
+                      )}
+                      {!usePpsf && (
+                        <div style={{ fontSize: 10, marginTop: 6, color: "#fbbf24", opacity: 0.85 }}>
+                          ⚠ No price-per-sq-ft data for this area — absolute price comparison may not account for property size differences.
                         </div>
                       )}
                     </div>
@@ -3251,53 +3296,79 @@ export default function Home() {
                   )}
 
                   {/* Distribution bar */}
-                  {hasData && r.p25 && r.p70 && r.p90 && (
+                  {hasData && fairV && p25v && p70v && p90v && askV && (
                     <div style={{ marginBottom: 16 }}>
-                      <div style={{ fontSize: 10, opacity: 0.55, marginBottom: 6, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>Local price distribution</div>
+                      <div style={{ fontSize: 10, opacity: 0.55, marginBottom: 6, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                        {usePpsf ? "Price per sq ft distribution" : "Local price distribution (absolute)"}
+                      </div>
                       {/* Bar */}
                       <div style={{ position: "relative", height: 20, borderRadius: 6, overflow: "visible", marginBottom: 8 }}>
                         {/* Track: coloured gradient segments */}
                         <div style={{ position: "absolute", inset: 0, borderRadius: 6, display: "flex", overflow: "hidden" }}>
-                          <div style={{ width: `${toPct(r.p25)}%`, background: "#166534" }} />
-                          <div style={{ width: `${toPct(fairValue!) - toPct(r.p25)}%`, background: "#16a34a" }} />
-                          <div style={{ width: `${toPct(r.p70) - toPct(fairValue!)}%`, background: "#eab308" }} />
-                          <div style={{ width: `${toPct(r.p90) - toPct(r.p70)}%`, background: "#f97316" }} />
+                          <div style={{ width: `${toPct(p25v)}%`, background: "#166534" }} />
+                          <div style={{ width: `${toPct(fairV) - toPct(p25v)}%`, background: "#16a34a" }} />
+                          <div style={{ width: `${toPct(p70v) - toPct(fairV)}%`, background: "#eab308" }} />
+                          <div style={{ width: `${toPct(p90v) - toPct(p70v)}%`, background: "#f97316" }} />
                           <div style={{ flex: 1, background: "#dc2626" }} />
                         </div>
-                        {/* Reference ticks: median */}
-                        <div style={{ position: "absolute", left: `${toPct(fairValue!)}%`, top: 0, bottom: 0, width: 2, background: "rgba(255,255,255,0.6)", transform: "translateX(-50%)" }} />
-                        {/* Asking price needle */}
-                        {askGbp > 0 && (
-                          <div style={{ position: "absolute", left: `${toPct(askGbp)}%`, top: -8, transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center", pointerEvents: "none", zIndex: 2 }}>
-                            <div style={{ fontSize: 9, fontWeight: 700, color: verdictTier?.col ?? "white", whiteSpace: "nowrap", background: "rgba(10,12,20,0.9)", padding: "1px 4px", borderRadius: 3 }}>Ask</div>
-                            <div style={{ width: 0, height: 0, borderLeft: "5px solid transparent", borderRight: "5px solid transparent", borderTop: `7px solid ${verdictTier?.col ?? "white"}` }} />
-                          </div>
-                        )}
-                      </div>
-                      {/* Axis labels */}
-                      <div style={{ position: "relative", height: 16, fontSize: 9, opacity: 0.65 }}>
-                        <span style={{ position: "absolute", left: `${toPct(r.p25)}%`, transform: "translateX(-50%)" }}>p25<br/>{fmtGbp(r.p25)}</span>
-                        <span style={{ position: "absolute", left: `${toPct(fairValue!)}%`, transform: "translateX(-50%)", fontWeight: 700, opacity: 0.9 }}>Typical<br/>{fmtGbp(fairValue!)}</span>
-                        <span style={{ position: "absolute", left: `${toPct(r.p70)}%`, transform: "translateX(-50%)" }}>p70<br/>{fmtGbp(r.p70)}</span>
-                        <span style={{ position: "absolute", left: `${toPct(r.p90)}%`, transform: "translateX(-50%)" }}>p90<br/>{fmtGbp(r.p90)}</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* PPSF sub-section */}
-                  {ppsfAsk && ppsfFair && ppsfTier && (
-                    <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: "10px 12px", marginBottom: 12 }}>
-                      <div style={{ fontSize: 10, opacity: 0.55, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>Price per sq ft</div>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <div>
-                          <span style={{ fontSize: 18, fontWeight: 700 }}>£{Math.round(ppsfAsk)}</span>
-                          <span style={{ fontSize: 10, opacity: 0.6 }}>/ft² asking</span>
-                        </div>
-                        <div style={{ textAlign: "right" }}>
-                          <span style={{ fontSize: 12, opacity: 0.75 }}>Typical: £{Math.round(ppsfFair)}/ft²</span>
+                        {/* Median tick */}
+                        <div style={{ position: "absolute", left: `${toPct(fairV)}%`, top: 0, bottom: 0, width: 2, background: "rgba(255,255,255,0.6)", transform: "translateX(-50%)" }} />
+                        {/* Ask needle */}
+                        <div style={{ position: "absolute", left: `${toPct(askV)}%`, top: -8, transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center", pointerEvents: "none", zIndex: 2 }}>
+                          <div style={{ fontSize: 9, fontWeight: 700, color: verdictTier?.col ?? "white", whiteSpace: "nowrap", background: "rgba(10,12,20,0.9)", padding: "1px 4px", borderRadius: 3 }}>Ask</div>
+                          <div style={{ width: 0, height: 0, borderLeft: "5px solid transparent", borderRight: "5px solid transparent", borderTop: `7px solid ${verdictTier?.col ?? "white"}` }} />
                         </div>
                       </div>
-                      <div style={{ marginTop: 6, fontSize: 11, fontWeight: 600, color: ppsfTier.col }}>{ppsfTier.label}</div>
+                      {/* Axis labels – de-overlapped with tick + connector lines */}
+                      {(() => {
+                        const pts = [
+                          { pct: toPct(p25v!), text: "p25",     sub: fmtV(p25v!),  bold: false },
+                          { pct: toPct(p70v!), text: "p70",     sub: fmtV(p70v!),  bold: false },
+                          { pct: toPct(fairV!),text: "Typical", sub: fmtV(fairV!), bold: true  },
+                          { pct: toPct(p90v!), text: "p90",     sub: fmtV(p90v!),  bold: false },
+                        ].sort((a, b) => a.pct - b.pct);
+                        // De-overlap: push labels apart horizontally (half-width ≈ 9% of bar)
+                        const HW = 9;
+                        const placed = pts.map(p => ({ ...p, x: p.pct }));
+                        for (let i = 1; i < placed.length; i++) {
+                          const minX = placed[i - 1].x + HW * 2;
+                          if (placed[i].x < minX) placed[i].x = minX;
+                        }
+                        for (let i = placed.length - 1; i >= 0; i--) {
+                          const maxX = i === placed.length - 1 ? 100 - HW : placed[i + 1].x - HW * 2;
+                          if (placed[i].x > maxX) placed[i].x = Math.max(HW, maxX);
+                        }
+                        return (
+                          <svg width="100%" height="42" style={{ display: "block", overflow: "visible", marginTop: 2 }}>
+                            {placed.map((pt, i) => {
+                              const tickX = `${pts[i].pct}%`;
+                              const labelX = `${pt.x}%`;
+                              const displaced = Math.abs(pts[i].pct - pt.x) > 2;
+                              return (
+                                <g key={pt.text} opacity={pt.bold ? 0.9 : 0.65}>
+                                  {/* Tick at bar position */}
+                                  <line x1={tickX} y1="0" x2={tickX} y2={displaced ? 14 : 7} stroke="rgba(255,255,255,0.4)" strokeWidth="1" />
+                                  {/* Diagonal connector to label anchor when displaced */}
+                                  {displaced && (
+                                    <line x1={tickX} y1="14" x2={labelX} y2="22" stroke="rgba(255,255,255,0.2)" strokeWidth="0.8" strokeDasharray="2,2" />
+                                  )}
+                                  {/* Label name */}
+                                  <text x={labelX} y={displaced ? 32 : 18} textAnchor="middle" fill="white" fontSize="9" fontWeight={pt.bold ? "700" : "400"} fontFamily="system-ui,sans-serif">
+                                    {pt.text}
+                                  </text>
+                                  {/* Label value */}
+                                  <text x={labelX} y={displaced ? 42 : 28} textAnchor="middle" fill="white" fontSize="8.5" fontWeight={pt.bold ? "700" : "400"} fontFamily="system-ui,sans-serif">
+                                    {pt.sub}
+                                  </text>
+                                </g>
+                              );
+                            })}
+                          </svg>
+                        );
+                      })()}
+                      {usePpsf && typicalSqft && (
+                        <div style={{ fontSize: 9, opacity: 0.45, marginTop: 2 }}>Percentile bands inferred from GBP distribution · assumed typical size {Math.round(typicalSqft)} ft²</div>
+                      )}
                     </div>
                   )}
 
@@ -3307,13 +3378,20 @@ export default function Home() {
                       {r.tx_count > 0 && <span>📊 {r.tx_count} sale{r.tx_count !== 1 ? "s" : ""} in this cell</span>}
                       {r.end_month && <span>📅 Data to {r.end_month.slice(0, 7)}</span>}
                       {r.is_modelled && <span style={{ color: "#fbbf24" }}>🤖 Modelled estimate{r.model_confidence === 2 ? " (good confidence)" : " (low confidence)"}</span>}
-                      {r.parent_median && r.tx_count < 10 && <span>📍 Area median (5km): £{Math.round(r.parent_median / 1000)}k</span>}
+                      {r.parent_median && r.tx_count < 10 && <span>📍 Area median (5km): {fmtGbp(r.parent_median)}</span>}
                       {r.p_source === "parent" && <span style={{ color: "#9ca3af" }}>⚠ Percentiles from parent area</span>}
                       {r.p_source === "national" && <span style={{ color: "#9ca3af" }}>⚠ Percentiles national estimate</span>}
                     </div>
                     {pcCoords && (
                       <button type="button"
-                        onClick={() => { const t = ++flyToSeqRef.current; setFlyToRequest({ center: [pcCoords.lon, pcCoords.lat], zoom: 14, token: t }); }}
+                        onClick={() => {
+                          const t = ++flyToSeqRef.current;
+                          setFlyToRequest({ center: [pcCoords.lon, pcCoords.lat], zoom: 14, token: t });
+                          const rgTok = ++pcRgTokenRef.current;
+                          setPcRgRequest({ lat: pcCoords.lat, lon: pcCoords.lon, token: rgTok });
+                          setPriceCheckMinimized(true);
+                          setRgPanelMinimized(false);
+                        }}
                         style={{ marginTop: 8, cursor: "pointer", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 6, color: "white", padding: "4px 10px", fontSize: 10 }}
                       >🗺 View on map</button>
                     )}
