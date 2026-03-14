@@ -6776,10 +6776,13 @@ async function applyIndexScoring(
           cellValue = lookedUp;
           affordDataQuality = 0;
           // Outlier guard: when a model estimate is available (blend mode, 1mile grid),
-          // check if the raw actual deviates strongly from the estimate. A 120k actual
-          // against a 290k estimate is almost certainly a sparse-data outlier. Blend
-          // toward the estimate proportionally — cells with many sales keep full actual
-          // weight; sparse cells with only 1–2 transactions lean on the model.
+          // check if the raw actual deviates strongly from the estimate.
+          // Two tiers:
+          //   < 0.3× estimate  → almost certainly a different asset class (park/mobile homes,
+          //                       garages, commercial) — ignore the actual entirely regardless
+          //                       of how many sales there were.
+          //   0.3–0.6× or >1.7× → sparse-data outlier — blend toward the estimate; cells
+          //                       with 20+ sales earn full trust in the actual.
           const estRaw = Number(props.estimated_median ?? 0);
           if (estRaw > 0) {
             // Type-adjust the ALL-type estimate to match the indexPT property type
@@ -6787,10 +6790,14 @@ async function applyIndexScoring(
             const toRatio   = TYPE_RATIO[indexPT] ?? 1.0;
             const adjustedEst = estRaw * (toRatio / fromRatio);
             const outlierRatio = lookedUp / adjustedEst;
-            if (outlierRatio < 0.6 || outlierRatio > 1.7) {
-              // Actual looks like an outlier vs the model estimate.
-              // tx_count here is for the displayed filter type — use as proxy for
-              // how much raw data exists; 20+ sales earns full trust in the actual.
+            if (outlierRatio < 0.3) {
+              // Extreme divergence — asset class mismatch (e.g. park homes at £22k vs
+              // residential estimate of £450k). Discard the actual entirely.
+              cellValue = adjustedEst;
+              affordDataQuality = 2;
+            } else if (outlierRatio < 0.6 || outlierRatio > 1.7) {
+              // Moderate outlier — blend proportionally by sales count.
+              // 20+ sales earns full trust in the actual.
               const txCount = Number(props.tx_count ?? 0);
               const actualTrust = Math.min(1, txCount / 20);
               cellValue = actualTrust * lookedUp + (1 - actualTrust) * adjustedEst;
@@ -7198,11 +7205,17 @@ async function applyIndexScoring(
 
   // Cache sorted scores immediately — before setData hands data off to the MapLibre worker.
   // computeRelativeThreshold reads this cache; reading src._data after setData is unreliable.
+  // When regions are active, only include in-region cells (ix_oor=0) so that "top 1%"
+  // means top 1% of cells *within the selected area*, not top 1% of all UK cells.
   {
+    const hasRegions = (prefs.regionBboxes?.length ?? 0) > 0;
     const arr: number[] = [];
     for (const f of fc.features) {
-      const s = (f as any)?.properties?.index_score;
-      if (typeof s === "number" && s >= 0) arr.push(s);
+      const fp = (f as any)?.properties;
+      const s = fp?.index_score;
+      if (typeof s === "number" && s >= 0) {
+        if (!hasRegions || (fp?.ix_oor ?? 0) === 0) arr.push(s);
+      }
     }
     arr.sort((a, b) => a - b);
     _indexSortedScores = arr;
