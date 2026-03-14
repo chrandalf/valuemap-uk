@@ -23,9 +23,9 @@ export default function DescriptionPage() {
 
         <Section title="Choose your grid size">
           <ul>
-            <li><strong>25 km</strong> — national overview. Good for spotting broad regional price divides and the London premium.</li>
-            <li><strong>10 km</strong> — regional. City hinterlands, satellite towns, and commuter belts.</li>
-            <li><strong>5 km</strong> — local. Individual towns and their variation. The smallest size that shows price change over time.</li>
+            <li><strong>15 mi</strong> — national overview. Good for spotting broad regional price divides and the London premium.</li>
+            <li><strong>6 mi</strong> — regional. City hinterlands, satellite towns, and commuter belts.</li>
+            <li><strong>3 mi</strong> — local. Individual towns and their variation. The smallest size that shows price change over time.</li>
             <li><strong>1 mile</strong> — neighbourhood detail. Use this to narrow down specific streets once you&apos;ve shortlisted an area.</li>
           </ul>
         </Section>
@@ -35,19 +35,19 @@ export default function DescriptionPage() {
             <li><strong>Median price</strong> — the middle sold price for all transactions in a cell. Reliable and outlier-resistant.</li>
             <li><strong>£/ft²</strong> — price per square foot using EPC-registered floor areas. Lets you compare flat-heavy areas with house-dominated ones on a like-for-like basis. England only.</li>
             <li><strong>Change £</strong> — absolute price movement over the selected period. Shows where prices have moved most in cash terms.</li>
-            <li><strong>Change %</strong> — percentage price movement. Normalises for price level, so a 20% rise in a £150k area is directly comparable to 20% in a £500k area. Available at 5 km and above only.</li>
+            <li><strong>Change %</strong> — percentage price movement. Normalises for price level, so a 20% rise in a £150k area is directly comparable to 20% in a £500k area. Available at 3 mi and above only.</li>
           </ul>
         </Section>
 
         <Section title="◆ Price estimates at 1 mile">
           <p>Many 1 mile cells — particularly in rural areas, or when you filter to a short period or a specific property type — don&apos;t have enough real sales to show a reliable median. The map&apos;s built-in statistical model fills those gaps with an estimate, so you get coverage across the whole country rather than a patchwork of blank cells.</p>
           <p style={{ marginTop: 8 }}><strong>How the estimates are produced</strong></p>
-          <p>For each 1 mile cell the model looks back over historical years and measures how that cell&apos;s median price has typically compared to the surrounding 5 km cell. If a particular 1 mile cell has consistently traded about 12% above its 5 km parent, the model multiplies today&apos;s 5 km median by that same ratio to produce an estimate. Cells with more years of consistent data earn a higher confidence rating. Where a 1 mile cell has no history at all, the model simply inherits the parent 5 km median directly.</p>
+          <p>For each 1 mile cell the model looks back over historical years and measures how that cell&apos;s median price has typically compared to the surrounding 3 mi cell. If a particular 1 mile cell has consistently traded about 12% above its 3 mi parent, the model multiplies today&apos;s 3 mi median by that same ratio to produce an estimate. Cells with more years of consistent data earn a higher confidence rating. Where a 1 mile cell has no history at all, the model simply inherits the parent 3 mi median directly.</p>
           <p style={{ marginTop: 8 }}><strong>Confidence levels shown in popups</strong></p>
           <ul>
             <li><strong>High</strong> — multiple years of stable ratio data. Likely within ±10% of the true market price.</li>
             <li><strong>Medium</strong> — some ratio history; a reasonable fit but wider margin of uncertainty.</li>
-            <li><strong>Low</strong> — no 1 km history; inherits the 5 km parent median. Treat as a rough guide only.</li>
+            <li><strong>Low</strong> — no 1 mile history; inherits the 3 mi parent median. Treat as a rough guide only.</li>
           </ul>
           <p style={{ marginTop: 8 }}><strong>Viewing modes</strong> (1 mile grid, Median price only)</p>
           <ul>

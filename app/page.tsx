@@ -102,6 +102,13 @@ const METRIC_LABEL: Record<Metric, string> = {
   delta_pct: "Change (%)",
 };
 
+const GRID_LABEL: Record<GridSize, string> = {
+  "1mile": "1mi",
+  "5km":   "3mi",
+  "10km":  "6mi",
+  "25km":  "15mi",
+};
+
 const isDeltaMetric = (metric: Metric) => metric === "delta_gbp" || metric === "delta_pct";
 
 const PROPERTY_LABEL: Record<PropertyType, string> = {
@@ -1462,7 +1469,7 @@ export default function Home() {
   const anyOverlayActive = state.floodOverlayMode !== "off" || state.schoolOverlayMode !== "off" || state.primarySchoolOverlayMode !== "off" || state.stationOverlayMode !== "off" || state.crimeOverlayMode !== "off" || state.crimeCellMode !== "off" || state.voteOverlayMode !== "off" || state.commuteOverlayMode !== "off" || state.ageOverlayMode !== "off" || state.epcFuelOverlayMode !== "off" || state.broadbandCellOverlayMode !== "off" || state.listedBuildingCellOverlayMode !== "off" || state.busStopOverlayMode !== "off" || state.pharmacyOverlayMode !== "off" || state.listedBuildingOverlayMode !== "off" || state.planningOverlayMode !== "off" || state.holidayLetOverlayMode !== "off";
 
   const currentFiltersSummary =
-    `Grid: ${state.grid} · Metric: ${METRIC_LABEL[state.metric]} · ` +
+    `Grid: ${GRID_LABEL[state.grid as GridSize]} · Metric: ${METRIC_LABEL[state.metric]} · ` +
     `Type: ${propertyTypeLabel(state.propertyType)} · New build: ${NEWBUILD_LABEL[state.newBuild]} · ` +
     `Period: ${periodLabel} · Flood: ${floodOverlayLabel} · Schools: ${schoolOverlayLabel} · ` +
     `Primary schools: ${state.primarySchoolOverlayMode === "off" ? "Off" : state.primarySchoolOverlayMode === "on" ? "On" : "On (hide cells)"} · ` +
@@ -1476,7 +1483,7 @@ export default function Home() {
     `Internet: ${state.broadbandCellOverlayMode !== "on" ? "Off" : state.broadbandCellMetric === "avg_speed" ? "On (Avg speed)" : state.broadbandCellMetric === "pct_sfbb" ? "On (% SFBB+)" : "On (% Fibre)"} · ` +
     `Heritage: ${state.listedBuildingCellOverlayMode === "on" ? "On" : "Off"}`;
   const headerFilterSummary =
-    `${state.grid} · ${METRIC_LABEL[state.metric]} · ${propertyTypeLabel(state.propertyType)} · ${NEWBUILD_LABEL[state.newBuild]} · ${periodLabel}`;
+    `${GRID_LABEL[state.grid as GridSize]} · ${METRIC_LABEL[state.metric]} · ${propertyTypeLabel(state.propertyType)} · ${NEWBUILD_LABEL[state.newBuild]} · ${periodLabel}`;
   const headerMedianSummary =
     !isDeltaMetric(state.metric) && medianLegend
       ? `${formatMetricFilterValue(state.metric, medianLegend.breaks[0])}–${formatMetricFilterValue(state.metric, medianLegend.breaks[medianLegend.breaks.length - 1])}`
@@ -1881,7 +1888,7 @@ export default function Home() {
     {
       target: "[data-tour='quick-dock']",
       title: "Step 1 — The quick-filter dock",
-      text: "This side dock is your fastest way to change settings. Right now it's showing the Grid options. I've selected 25km — see how each square covers a huge area? Perfect for the national overview.",
+      text: "This side dock is your fastest way to change settings. Right now it's showing the Grid options. I've selected 15mi — see how each square covers a huge area? Perfect for the national overview.",
       placement: "right" as const,
       enterDelay: 700,
       onEnter: () => {
@@ -1896,8 +1903,8 @@ export default function Home() {
     /* 17 — Demo: 5km grid */
     {
       target: "[data-tour='quick-dock']",
-      title: "Step 2 — Switch to 5km",
-      text: "Now I've tapped 5km. More squares appear, showing finer local variation. You can go down to 1 mile for street-level detail. Watch how the map updates instantly.",
+      title: "Step 2 — Switch to 3mi",
+      text: "Now I've tapped 3mi. More squares appear, showing finer local variation. You can go down to 1 mile for street-level detail. Watch how the map updates instantly.",
       placement: "right" as const,
       enterDelay: 700,
       onEnter: () => { setState((s) => ({ ...s, grid: "5km" })); },
@@ -2848,6 +2855,7 @@ export default function Home() {
                 options={isDeltaMetric(state.metric) ? ["5km", "10km", "25km"] : ["1mile", "5km", "10km", "25km"]}
                 value={state.grid}
                 onChange={(v) => { setGridMode("manual"); setState((s) => ({ ...s, grid: v as GridSize })); }}
+                renderOption={(v) => GRID_LABEL[v as GridSize]}
               />
             </ControlRow>
             {isDeltaMetric(state.metric) && state.grid === "1mile" && (
@@ -4208,7 +4216,7 @@ export default function Home() {
                   setState((s) => ({ ...s, grid: "25km" }));
                 }}
               >
-                25km
+                15mi
               </button>
               <button
                 type="button"
@@ -4218,7 +4226,7 @@ export default function Home() {
                   setState((s) => ({ ...s, grid: "10km" }));
                 }}
               >
-                10km
+                6mi
               </button>
               <button
                 type="button"
@@ -4228,7 +4236,7 @@ export default function Home() {
                   setState((s) => ({ ...s, grid: "5km" }));
                 }}
               >
-                5km
+                3mi
               </button>
               <button
                 type="button"

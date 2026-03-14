@@ -124,19 +124,19 @@ export default function InstructionsPage() {
 
         <Section title="Grid size — start wide, zoom narrow">
           <ul>
-            <li><strong>25 km</strong> — national overview. Shows broad regional patterns and north/south divides.</li>
-            <li><strong>10 km</strong> — regional level. City catchment areas and commuter belt edges become clear.</li>
-            <li><strong>5 km</strong> — local level. Individual towns and their price gradients. Change (delta) metrics available from here upward.</li>
-            <li><strong>1 km</strong> — neighbourhood level. Street-by-street variation. Best for comparing specific postcodes.</li>
+            <li><strong>15 mi</strong> — national overview. Shows broad regional patterns and north/south divides.</li>
+            <li><strong>6 mi</strong> — regional level. City catchment areas and commuter belt edges become clear.</li>
+            <li><strong>3 mi</strong> — local level. Individual towns and their price gradients. Change (delta) metrics available from here upward.</li>
+            <li><strong>1 mi</strong> — neighbourhood level. Street-by-street variation. Best for comparing specific postcodes.</li>
           </ul>
-          <p style={{ marginTop: 6, opacity: 0.7, fontSize: 13 }}>Start at 10 km for context, then zoom and switch to 1 km once you know roughly where to look.</p>
+          <p style={{ marginTop: 6, opacity: 0.7, fontSize: 13 }}>Start at 6 mi for context, then zoom and switch to 1 mile once you know roughly where to look.</p>
         </Section>
 
         <Section title="Metrics">
           <ul>
             <li><strong>Median price</strong> — middle sale price in a cell. Robust against outliers. Best for general comparisons.</li>
             <li><strong>Price per ft² (£/ft²)</strong> — normalises for property size. Better for comparing a city flat market with a village houses market. England only (requires EPC floor-area data).</li>
-            <li><strong>Change GBP / Change %</strong> — price movement from earliest to latest period in the selected date range. Shows momentum. Available at 5 km+.</li>
+            <li><strong>Change GBP / Change %</strong> — price movement from earliest to latest period in the selected date range. Shows momentum. Available at 3 mi+.</li>
           </ul>
         </Section>
 
@@ -191,10 +191,10 @@ export default function InstructionsPage() {
         <Section title="Tips for combining both modes">
           <ol>
             <li>Run <strong>Find My Area</strong> at a national level to identify 2–3 candidate regions.</li>
-            <li>Switch to <strong>manual mode</strong>, zoom into each region at 5 km, and check Change % to see which has price momentum in your favour.</li>
+            <li>Switch to <strong>manual mode</strong>, zoom into each region at 3 mi, and check Change % to see which has price momentum in your favour.</li>
             <li>Toggle <strong>Crime overlay (Relative)</strong> within a promising area to spot the safer pockets.</li>
             <li>Toggle <strong>Flood overlay</strong> to rule out flood-plain pockets.</li>
-            <li>Zoom to <strong>1 km grid</strong> and check <strong>£/ft²</strong> to compare value for money between streets.</li>
+            <li>Zoom to <strong>1 mile grid</strong> and check <strong>£/ft²</strong> to compare value for money between streets.</li>
             <li>Right-click a high-scoring, flood-safe, low-crime cell → click a postcode → open Zoopla to reality-check asking prices.</li>
             <li>Use <Kbd>📍 Locate me</Kbd> if you visit the area for an instant on-the-ground score check.</li>
           </ol>
