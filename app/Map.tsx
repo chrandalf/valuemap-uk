@@ -3496,14 +3496,14 @@ export default function ValueMap({
         : "";
 
       if (hasCommute) {
-        // Stacked bar segments: WFH | <5km | 5-10 | 10-20 | 20-60 | 60km+
+        // Stacked bar segments: WFH | <3mi | 3-6mi | 6-12mi | 12-37mi | 37mi+
         const bands: Array<[string, number, string]> = [
-          ["WFH",    wfh,   "#15803d"],
-          ["<5km",   lt5,   "#86efac"],
-          ["5–10",   s5_10, "#fef08a"],
-          ["10–20",  s10_20,"#fb923c"],
-          ["20–60",  s20_60,"#ef4444"],
-          ["60km+",  p60,   "#7f1d1d"],
+          ["WFH",      wfh,   "#15803d"],
+          ["<3mi",     lt5,   "#86efac"],
+          ["3–6mi",    s5_10, "#fef08a"],
+          ["6–12mi",   s10_20,"#fb923c"],
+          ["12–37mi",  s20_60,"#ef4444"],
+          ["37mi+",    p60,   "#7f1d1d"],
         ];
         const total = bands.reduce((s, [, v]) => s + (isFinite(v) ? v : 0), 0) || 100;
         const barSegs = bands
@@ -3516,7 +3516,7 @@ export default function ValueMap({
         ).join("<span style='opacity:0.35'> · </span>");
         const html = `
           <div style="font-family:system-ui;font-size:12px;line-height:1.4;min-width:200px;">
-            <div style="font-weight:700;margin-bottom:5px;">🚗 Mean commute: ${meanDist.toFixed(1)} km</div>
+            <div style="font-weight:700;margin-bottom:5px;">🚗 Mean commute: ${(meanDist * 0.621).toFixed(1)} mi</div>
             <div style="display:flex;height:10px;border-radius:4px;overflow:hidden;margin-bottom:6px;">${barSegs}</div>
             <div style="font-size:10px;line-height:1.8;">${statsRows}</div>
             ${propHtml}
@@ -3879,8 +3879,8 @@ export default function ValueMap({
     onRightClickInfoRef.current?.({ stage: 'loading', clickLat: lat, clickLng: lng });
     setRgClickDot(lng, lat);
     const lineTargets: [number, number][] = [];
-    // Format metres → "450m" or "3.2km"
-    const fmtDist = (m: number) => m < 1000 ? `${Math.round(m)}m` : `${(m / 1000).toFixed(1)}km`;
+    // Format metres → "450m" or "1.2mi"
+    const fmtDist = (m: number) => m < 400 ? `${Math.round(m)}m` : `${(m / 1609.34).toFixed(1)}mi`;
 
     // Lazy-load each dataset (cached after first call, identical to applyIndexScoring logic)
     const ensureFlood = async () => {
@@ -4217,7 +4217,7 @@ export default function ValueMap({
             lineTargets.push([nearBus.lon, nearBus.lat]);
             setBusStopSearchFocus(map, { lon: nearBus.lon, lat: nearBus.lat, name: nearBus.name }, { lon: lng, lat });
           } else {
-            busStopHtml = '<span style="color:#9ca3af">No bus stop within 3km</span>';
+            busStopHtml = '<span style="color:#9ca3af">No bus stop within 2mi</span>';
           }
         }
         if (metroTramG) {
@@ -4249,7 +4249,7 @@ export default function ValueMap({
             lineTargets.push([nearPharm.lon, nearPharm.lat]);
             setPharmacySearchFocus(map, { lon: nearPharm.lon, lat: nearPharm.lat, name: nearPharm.name }, { lon: lng, lat });
           } else {
-            pharmacyHtml = '<span style="color:#9ca3af">No pharmacy within 10km</span>';
+            pharmacyHtml = '<span style="color:#9ca3af">No pharmacy within 6mi</span>';
           }
         }
 
@@ -6775,6 +6775,28 @@ async function applyIndexScoring(
         if (lookedUp != null && lookedUp > 0) {
           cellValue = lookedUp;
           affordDataQuality = 0;
+          // Outlier guard: when a model estimate is available (blend mode, 1mile grid),
+          // check if the raw actual deviates strongly from the estimate. A 120k actual
+          // against a 290k estimate is almost certainly a sparse-data outlier. Blend
+          // toward the estimate proportionally — cells with many sales keep full actual
+          // weight; sparse cells with only 1–2 transactions lean on the model.
+          const estRaw = Number(props.estimated_median ?? 0);
+          if (estRaw > 0) {
+            // Type-adjust the ALL-type estimate to match the indexPT property type
+            const fromRatio = TYPE_RATIO[state.propertyType] ?? 1.0;
+            const toRatio   = TYPE_RATIO[indexPT] ?? 1.0;
+            const adjustedEst = estRaw * (toRatio / fromRatio);
+            const outlierRatio = lookedUp / adjustedEst;
+            if (outlierRatio < 0.6 || outlierRatio > 1.7) {
+              // Actual looks like an outlier vs the model estimate.
+              // tx_count here is for the displayed filter type — use as proxy for
+              // how much raw data exists; 20+ sales earns full trust in the actual.
+              const txCount = Number(props.tx_count ?? 0);
+              const actualTrust = Math.min(1, txCount / 20);
+              cellValue = actualTrust * lookedUp + (1 - actualTrust) * adjustedEst;
+              affordDataQuality = 2; // blended — treat as estimated
+            }
+          }
         } else {
           // Type-specific data missing for this cell — estimate from the overall/displayed
           // cell median using the ratio of the desired type to the current map filter type.

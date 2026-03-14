@@ -1059,10 +1059,10 @@ export default function Home() {
             <div key={i} style={{ flex: 1, backgroundColor: c }} />
           ))}
         </div>
-        <div style={{ textAlign: "right", fontSize: 11, opacity: 0.85 }}>Long (17km+)</div>
+        <div style={{ textAlign: "right", fontSize: 11, opacity: 0.85 }}>Long (11mi+)</div>
       </div>
       <div style={{ marginTop: 6, display: "flex", justifyContent: "space-between", fontSize: 10, opacity: 0.6 }}>
-        <span>0 km</span><span>~4 km</span><span>~7 km</span><span>~10 km</span><span>~14 km</span><span>17 km</span>
+        <span>0</span><span>~2.5mi</span><span>~4mi</span><span>~6mi</span><span>~9mi</span><span>11mi</span>
       </div>
       <div style={{ marginTop: 6, fontSize: 11, opacity: 0.8, lineHeight: 1.35 }}>
         Mean distance travelled to work per 1km² census area (LSOA). Census 2021, England &amp; Wales only.
@@ -1431,7 +1431,7 @@ export default function Home() {
       return { title: `${fuelLabel} heating filter`, min: 0, max: 100, step: 1, format: (v: number) => `${v}%` };
     }
     if (activeCellOverlay === "age") return { title: "Elderly mix filter", min: 0, max: 100, step: 1, format: (v: number) => `${v}% older residents` };
-    return { title: "Commute distance filter", min: 0, max: 30, step: 0.5, format: (v: number) => `${v} km average` };
+    return { title: "Commute distance filter", min: 0, max: 30, step: 0.5, format: (v: number) => `${(v * 0.621).toFixed(1)} mi avg` };
   })() : null;
   const valueFilterLabel = overlayFilterPanelConfig
     ? (state.valueFilterMode === "off"
