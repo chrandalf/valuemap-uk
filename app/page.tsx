@@ -1089,11 +1089,11 @@ export default function Home() {
       </div>
       <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", gap: 4, fontSize: 10 }}>
         {[
-          ["#b45309", "Under 15"],
-          ["#fbbf24", "15–24"],
-          ["#e5e7eb", "25–44"],
-          ["#60a5fa", "45–64"],
-          ["#1e3a8a", "65+"],
+          ["#60a5fa", "Under 15"],
+          ["#34d399", "15–24"],
+          ["#facc15", "25–44"],
+          ["#fb923c", "45–64"],
+          ["#f87171", "65+"],
         ].map(([col, lbl]) => (
           <span key={lbl} style={{ display: "flex", alignItems: "center", gap: 3, opacity: 0.75 }}>
             <span style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: col, flexShrink: 0, display: "inline-block" }} />
