@@ -4,7 +4,7 @@ import { gunzipToString } from "../_lib/gzip";
 // Fields always present in a "core" response — sufficient for scoring (applyIndexScoring
 // reads crime_local_score, age_score, pct_* fuel, bb_avg_speed) and for all cell overlay
 // paint expressions (crime/age/epc/broadband/lb overlays colour from these fields).
-// Display-only extras (rates, counts, age bands, commute, vote) are omitted in core mode.
+// Display-only extras (rates, counts, commute, vote) are omitted in core mode.
 const CORE_CELL_FIELDS = new Set<string>([
   // Price partition base
   "gx", "gy", "end_month", "property_type", "new_build", "median", "tx_count",
@@ -15,8 +15,8 @@ const CORE_CELL_FIELDS = new Set<string>([
   // Crime: 8 score fields for paint expressions + scoring (no rate/count data)
   "crime_score", "crime_local_score", "violent_score", "violent_local_score",
   "property_score", "property_local_score", "asb_score", "asb_local_score",
-  // Age: score field for paint expression + scoring (no band distribution)
-  "age_score",
+  // Age: score + band distribution for paint expression, scoring, and popup display
+  "age_score", "mean_age", "pct_under_15", "pct_15_24", "pct_25_44", "pct_45_64", "pct_65_plus",
   // EPC fuel: pct fields for scoring + paint expression
   "pct_gas", "pct_electric", "pct_oil", "pct_lpg",
   // Broadband: speed for scoring + paint expression
@@ -1105,7 +1105,7 @@ async function backfillAll(env: Env, grid: GridKey, rows: CellRow[], coreMode = 
     }
 
     // Project to core fields only — strips display-only extras (crime rates/counts,
-    // age bands, commute, broadband detail, epc detail, vote) to reduce response size.
+    // commute, broadband detail, epc detail, vote) to reduce response size.
     if (coreMode) {
       const projected: Record<string, unknown> = {};
       for (const k of CORE_CELL_FIELDS) {
