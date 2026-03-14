@@ -95,6 +95,26 @@ type OutcodeRank = {
   weight: number;
 };
 
+type PriceCheckResult = {
+  end_month: string;
+  gx: number;
+  gy: number;
+  median: number | null;
+  actual_median: number | null;
+  estimated_median: number | null;
+  tx_count: number;
+  is_modelled: boolean;
+  model_confidence: number;
+  n_years_model: number;
+  median_ppsf: number | null;
+  p25: number | null;
+  p70: number | null;
+  p90: number | null;
+  p_source: string | null;
+  parent_median: number | null;
+  parent_tx_count: number;
+};
+
 const METRIC_LABEL: Record<Metric, string> = {
   median: "Median",
   median_ppsf: "Price / ft²",
@@ -534,6 +554,16 @@ export default function Home() {
   const [showMePulse, setShowMePulse] = useState(true);
   const [flyToRequest, setFlyToRequest] = useState<{ center: [number, number]; zoom: number; token: number } | null>(null);
   const flyToSeqRef = useRef(0);
+  // Price check panel
+  const [priceCheckOpen, setPriceCheckOpen] = useState(false);
+  const [pcPostcode, setPcPostcode] = useState("");
+  const [pcAskingPrice, setPcAskingPrice] = useState("");
+  const [pcSqft, setPcSqft] = useState("");
+  const [pcPropertyType, setPcPropertyType] = useState<"ALL" | "D" | "S" | "T" | "F">("ALL");
+  const [pcStatus, setPcStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [pcError, setPcError] = useState<string | null>(null);
+  const [pcResult, setPcResult] = useState<PriceCheckResult | null>(null);
+  const [pcCoords, setPcCoords] = useState<{ lat: number; lon: number } | null>(null);
   const introInitRef = useRef(false);
   const urlHydratedRef = useRef(false);
   const supportersScrollerRef = useRef<HTMLDivElement | null>(null);
@@ -690,6 +720,47 @@ export default function Home() {
     const zoom = Math.max(5, Math.min(10, Math.round(Math.log2(8 / bboxSpan) + 7)));
     const t = ++flyToSeqRef.current;
     setFlyToRequest({ center: [cx, cy], zoom, token: t });
+  };
+
+  const handlePriceCheck = async () => {
+    const rawPostcode = pcPostcode.trim().toUpperCase().replace(/\s+/g, "");
+    if (!rawPostcode) { setPcError("Please enter a postcode."); return; }
+    const askGbp = parseFloat(pcAskingPrice.replace(/[£,\s]/g, ""));
+    if (!Number.isFinite(askGbp) || askGbp <= 0) { setPcError("Please enter a valid asking price."); return; }
+    const sqftVal = parseFloat(pcSqft.replace(/[,\s]/g, ""));
+    if (!Number.isFinite(sqftVal) || sqftVal <= 0) { setPcError("Please enter the floor area in sq ft — this is needed to compare like-for-like."); return; }
+    setPcStatus("loading");
+    setPcError(null);
+    setPcResult(null);
+    setPcCoords(null);
+    try {
+      const pcRes = await fetch(`https://api.postcodes.io/postcodes/${encodeURIComponent(rawPostcode)}`);
+      if (!pcRes.ok) throw new Error("Postcode not found — please check and try again.");
+      const pcData = (await pcRes.json()) as any;
+      const eastings = Number(pcData?.result?.eastings);
+      const northings = Number(pcData?.result?.northings);
+      const lat = Number(pcData?.result?.latitude);
+      const lon = Number(pcData?.result?.longitude);
+      if (!Number.isFinite(eastings) || !Number.isFinite(northings) || eastings === 0 || northings === 0) {
+        throw new Error("Could not map this postcode to a grid position. Scottish postcodes may have limited support.");
+      }
+      const gx = Math.floor(eastings / 1600) * 1600;
+      const gy = Math.floor(northings / 1600) * 1600;
+      const valRes = await fetch(`/api/valuation?gx=${gx}&gy=${gy}&propertyType=${pcPropertyType}`);
+      if (!valRes.ok) {
+        const errBody = await valRes.json().catch(() => ({})) as any;
+        throw new Error(errBody.error ?? "Valuation data unavailable for this area.");
+      }
+      const valData = (await valRes.json()) as PriceCheckResult;
+      setPcCoords({ lat, lon });
+      setPcResult(valData);
+      setPcStatus("done");
+      const t = ++flyToSeqRef.current;
+      setFlyToRequest({ center: [lon, lat], zoom: 13, token: t });
+    } catch (err) {
+      setPcError(err instanceof Error ? err.message : "Something went wrong.");
+      setPcStatus("error");
+    }
   };
 
   const handleRegionGeocode = async (query: string) => {
@@ -2326,6 +2397,7 @@ export default function Home() {
                   {([
                     { label: filtersOpen ? "🗂 Filters (open)" : "🗂 Filters", action: () => { setFiltersOpen(v => !v); setControlsDropOpen(false); bringToFront("filters"); } },
                     { label: "🔍 Find my area", action: () => { setIndexOpen(v => !v); setControlsDropOpen(false); bringToFront("index"); } },
+                    { label: "🏠 Price check", action: () => { setPriceCheckOpen(v => !v); setControlsDropOpen(false); bringToFront("priceCheck"); } },
                     { label: rgLog.length > 0 ? `📋 Search log (${rgLog.length})` : "📋 Search log", action: () => { setRgLogOpen(v => !v); setControlsDropOpen(false); } },
                     { label: "↺  Reset all", action: () => { resetAll(); } },
                   ] as Array<{ label: string; action: () => void }>).map(({ label, action }) => (
@@ -3040,6 +3112,218 @@ export default function Home() {
       )}
 
 
+
+      {/* Price Check – centered modal */}
+      {priceCheckOpen && (() => {
+        const askGbp = parseFloat(pcAskingPrice.replace(/[£,\s]/g, "")) || 0;
+        const sqft = parseFloat(pcSqft) || 0;
+        const r = pcResult;
+        // Determine "fair value": prefer actual median, then estimated, then parent
+        const fairValue = r
+          ? (r.median ?? r.estimated_median ?? r.parent_median ?? null)
+          : null;
+        const hasData = fairValue !== null && fairValue > 0;
+        // Ratio: asking vs fair value
+        const askRatio = hasData && askGbp > 0 ? askGbp / fairValue! : null;
+        // Verdict tier
+        const verdictTier = askRatio === null ? null
+          : askRatio < 0.85  ? { label: "Strong value — well below market",    col: "#16a34a", emoji: "🟢" }
+          : askRatio < 0.95  ? { label: "Below market — looks fair",            col: "#22c55e", emoji: "✅" }
+          : askRatio < 1.05  ? { label: "Fairly priced — within normal range",  col: "#84cc16", emoji: "✅" }
+          : askRatio < 1.15  ? { label: "Slightly above typical",               col: "#eab308", emoji: "🟡" }
+          : askRatio < 1.30  ? { label: "Overpriced — above the local market",  col: "#f97316", emoji: "🟠" }
+          : askRatio < 1.50  ? { label: "Significantly overpriced",             col: "#ef4444", emoji: "🔴" }
+          :                    { label: "Taking the piss",                      col: "#dc2626", emoji: "🚨" };
+        // Bar: range from 0 to barMax
+        const barMax = hasData && r
+          ? Math.max(
+              (r.p90 ?? fairValue! * 1.3) * 1.2,
+              askGbp > 0 ? askGbp * 1.15 : 0,
+              fairValue! * 1.5
+            )
+          : 1;
+        const toPct = (v: number) => Math.min(100, Math.max(0, (v / barMax) * 100));
+        const fmtGbp = (v: number) => `£${Math.round(v / 1000)}k`;
+        // PPSF
+        const ppsfAsk = sqft > 0 && askGbp > 0 ? askGbp / sqft : null;
+        const ppsfFair = r?.median_ppsf ?? null;
+        const ppsfRatio = ppsfAsk && ppsfFair ? ppsfAsk / ppsfFair : null;
+        const ppsfTier = ppsfRatio === null ? null
+          : ppsfRatio < 0.85  ? { label: "Good value per ft²",              col: "#16a34a" }
+          : ppsfRatio < 1.05  ? { label: "Typical price per ft²",           col: "#84cc16" }
+          : ppsfRatio < 1.20  ? { label: "Above typical per ft²",           col: "#eab308" }
+          : ppsfRatio < 1.40  ? { label: "Pricey per ft²",                  col: "#f97316" }
+          :                     { label: "Very expensive per ft²",          col: "#ef4444" };
+        const inputStyle: React.CSSProperties = { width: "100%", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, color: "white", padding: "7px 10px", fontSize: 12, outline: "none", boxSizing: "border-box" };
+        const labelStyle: React.CSSProperties = { fontSize: 10, opacity: 0.65, marginBottom: 3, display: "block", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" };
+        return (
+          <div
+            style={{ position: "fixed", inset: 0, zIndex: frontZ("priceCheck", 46), display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.45)", backdropFilter: "blur(3px)" }}
+            onClick={(e) => { if (e.target === e.currentTarget) setPriceCheckOpen(false); }}
+            onMouseDown={() => bringToFront("priceCheck")}
+          >
+            <div
+              style={{ width: 420, maxWidth: "calc(100vw - 24px)", maxHeight: "calc(100vh - 48px)", overflow: "auto", padding: "16px 18px", borderRadius: 16, background: "rgba(10,12,20,0.97)", border: "1px solid rgba(250,204,21,0.3)", backdropFilter: "blur(12px)", color: "white", fontSize: 12, fontFamily: "var(--font-sans), Inter, system-ui, sans-serif", lineHeight: 1.4, boxShadow: "0 8px 40px rgba(0,0,0,0.5)" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>🏠 Price check</div>
+                <button type="button" onClick={() => setPriceCheckOpen(false)} style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "white", width: 26, height: 26, borderRadius: 999, fontSize: 15, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+              </div>
+              <div style={{ fontSize: 11, opacity: 0.6, marginBottom: 14, lineHeight: 1.35 }}>Enter a property&apos;s postcode and asking price to see how it sits against what has actually sold nearby.</div>
+
+              {/* Form */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <label style={labelStyle}>Postcode</label>
+                  <input
+                    type="text" placeholder="e.g. SW1A 1AA"
+                    value={pcPostcode} onChange={(e) => setPcPostcode(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") handlePriceCheck(); }}
+                    style={inputStyle}
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>Asking price (£)</label>
+                  <input
+                    type="text" placeholder="e.g. 350000"
+                    value={pcAskingPrice} onChange={(e) => setPcAskingPrice(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") handlePriceCheck(); }}
+                    style={inputStyle}
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>Floor area (ft²)</label>
+                  <input
+                    type="text" placeholder="e.g. 950"
+                    value={pcSqft} onChange={(e) => setPcSqft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") handlePriceCheck(); }}
+                    style={inputStyle}
+                  />
+                </div>
+              </div>
+
+              {/* Property type */}
+              <div style={{ marginBottom: 14 }}>
+                <label style={labelStyle}>Property type</label>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {(["ALL", "D", "S", "T", "F"] as const).map((pt) => {
+                    const labels: Record<string, string> = { ALL: "All", D: "Detached", S: "Semi", T: "Terraced", F: "Flat" };
+                    const active = pcPropertyType === pt;
+                    return (
+                      <button key={pt} type="button" onClick={() => { setPcPropertyType(pt); setPcStatus("idle"); setPcResult(null); }}
+                        style={{ flex: 1, padding: "4px 0", borderRadius: 7, fontSize: 10, fontWeight: active ? 700 : 400, border: active ? "1.5px solid #fbbf24" : "1px solid rgba(255,255,255,0.13)", background: active ? "rgba(251,191,36,0.15)" : "rgba(255,255,255,0.04)", color: active ? "#fbbf24" : "rgba(255,255,255,0.6)", cursor: "pointer" }}
+                      >{labels[pt]}</button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Submit */}
+              <button type="button" onClick={handlePriceCheck} disabled={pcStatus === "loading"}
+                style={{ width: "100%", padding: "9px 0", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: pcStatus === "loading" ? "default" : "pointer", border: "none", background: pcStatus === "loading" ? "rgba(255,255,255,0.1)" : "linear-gradient(135deg,#f59e0b,#d97706)", color: pcStatus === "loading" ? "rgba(255,255,255,0.4)" : "white", marginBottom: 14 }}
+              >{pcStatus === "loading" ? "Checking…" : "Check this price"}</button>
+
+              {/* Error */}
+              {pcError && <div style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.35)", borderRadius: 8, padding: "8px 12px", fontSize: 11, color: "#fca5a5", marginBottom: 12 }}>{pcError}</div>}
+
+              {/* Results */}
+              {pcStatus === "done" && r && (
+                <div>
+                  {/* Verdict headline */}
+                  {verdictTier && askGbp > 0 && (
+                    <div style={{ background: `${verdictTier.col}22`, border: `1px solid ${verdictTier.col}55`, borderRadius: 10, padding: "10px 14px", marginBottom: 14 }}>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: verdictTier.col }}>{verdictTier.emoji} {verdictTier.label}</div>
+                      {askRatio !== null && (
+                        <div style={{ fontSize: 11, opacity: 0.8, marginTop: 3 }}>
+                          Asking <b>{askRatio > 1 ? `${((askRatio - 1) * 100).toFixed(0)}% above` : `${((1 - askRatio) * 100).toFixed(0)}% below`}</b> the local typical price
+                          {r.tx_count > 0 && <span style={{ opacity: 0.6 }}> · based on {r.tx_count} local sale{r.tx_count !== 1 ? "s" : ""}</span>}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {!hasData && (
+                    <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: 10, padding: "10px 14px", fontSize: 11, opacity: 0.75, marginBottom: 14 }}>
+                      ⚠ Insufficient local sales data for this cell.
+                      {r.parent_median && <span> Nearest area median: <b>{fmtGbp(r.parent_median)}</b></span>}
+                    </div>
+                  )}
+
+                  {/* Distribution bar */}
+                  {hasData && r.p25 && r.p70 && r.p90 && (
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: 10, opacity: 0.55, marginBottom: 6, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>Local price distribution</div>
+                      {/* Bar */}
+                      <div style={{ position: "relative", height: 20, borderRadius: 6, overflow: "visible", marginBottom: 8 }}>
+                        {/* Track: coloured gradient segments */}
+                        <div style={{ position: "absolute", inset: 0, borderRadius: 6, display: "flex", overflow: "hidden" }}>
+                          <div style={{ width: `${toPct(r.p25)}%`, background: "#166534" }} />
+                          <div style={{ width: `${toPct(fairValue!) - toPct(r.p25)}%`, background: "#16a34a" }} />
+                          <div style={{ width: `${toPct(r.p70) - toPct(fairValue!)}%`, background: "#eab308" }} />
+                          <div style={{ width: `${toPct(r.p90) - toPct(r.p70)}%`, background: "#f97316" }} />
+                          <div style={{ flex: 1, background: "#dc2626" }} />
+                        </div>
+                        {/* Reference ticks: median */}
+                        <div style={{ position: "absolute", left: `${toPct(fairValue!)}%`, top: 0, bottom: 0, width: 2, background: "rgba(255,255,255,0.6)", transform: "translateX(-50%)" }} />
+                        {/* Asking price needle */}
+                        {askGbp > 0 && (
+                          <div style={{ position: "absolute", left: `${toPct(askGbp)}%`, top: -8, transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center", pointerEvents: "none", zIndex: 2 }}>
+                            <div style={{ fontSize: 9, fontWeight: 700, color: verdictTier?.col ?? "white", whiteSpace: "nowrap", background: "rgba(10,12,20,0.9)", padding: "1px 4px", borderRadius: 3 }}>Ask</div>
+                            <div style={{ width: 0, height: 0, borderLeft: "5px solid transparent", borderRight: "5px solid transparent", borderTop: `7px solid ${verdictTier?.col ?? "white"}` }} />
+                          </div>
+                        )}
+                      </div>
+                      {/* Axis labels */}
+                      <div style={{ position: "relative", height: 16, fontSize: 9, opacity: 0.65 }}>
+                        <span style={{ position: "absolute", left: `${toPct(r.p25)}%`, transform: "translateX(-50%)" }}>p25<br/>{fmtGbp(r.p25)}</span>
+                        <span style={{ position: "absolute", left: `${toPct(fairValue!)}%`, transform: "translateX(-50%)", fontWeight: 700, opacity: 0.9 }}>Typical<br/>{fmtGbp(fairValue!)}</span>
+                        <span style={{ position: "absolute", left: `${toPct(r.p70)}%`, transform: "translateX(-50%)" }}>p70<br/>{fmtGbp(r.p70)}</span>
+                        <span style={{ position: "absolute", left: `${toPct(r.p90)}%`, transform: "translateX(-50%)" }}>p90<br/>{fmtGbp(r.p90)}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* PPSF sub-section */}
+                  {ppsfAsk && ppsfFair && ppsfTier && (
+                    <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: "10px 12px", marginBottom: 12 }}>
+                      <div style={{ fontSize: 10, opacity: 0.55, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>Price per sq ft</div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div>
+                          <span style={{ fontSize: 18, fontWeight: 700 }}>£{Math.round(ppsfAsk)}</span>
+                          <span style={{ fontSize: 10, opacity: 0.6 }}>/ft² asking</span>
+                        </div>
+                        <div style={{ textAlign: "right" }}>
+                          <span style={{ fontSize: 12, opacity: 0.75 }}>Typical: £{Math.round(ppsfFair)}/ft²</span>
+                        </div>
+                      </div>
+                      <div style={{ marginTop: 6, fontSize: 11, fontWeight: 600, color: ppsfTier.col }}>{ppsfTier.label}</div>
+                    </div>
+                  )}
+
+                  {/* Context footer */}
+                  <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: "10px 12px", fontSize: 10, opacity: 0.75, lineHeight: 1.5 }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 14px" }}>
+                      {r.tx_count > 0 && <span>📊 {r.tx_count} sale{r.tx_count !== 1 ? "s" : ""} in this cell</span>}
+                      {r.end_month && <span>📅 Data to {r.end_month.slice(0, 7)}</span>}
+                      {r.is_modelled && <span style={{ color: "#fbbf24" }}>🤖 Modelled estimate{r.model_confidence === 2 ? " (good confidence)" : " (low confidence)"}</span>}
+                      {r.parent_median && r.tx_count < 10 && <span>📍 Area median (5km): £{Math.round(r.parent_median / 1000)}k</span>}
+                      {r.p_source === "parent" && <span style={{ color: "#9ca3af" }}>⚠ Percentiles from parent area</span>}
+                      {r.p_source === "national" && <span style={{ color: "#9ca3af" }}>⚠ Percentiles national estimate</span>}
+                    </div>
+                    {pcCoords && (
+                      <button type="button"
+                        onClick={() => { const t = ++flyToSeqRef.current; setFlyToRequest({ center: [pcCoords.lon, pcCoords.lat], zoom: 14, token: t }); }}
+                        style={{ marginTop: 8, cursor: "pointer", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 6, color: "white", padding: "4px 10px", fontSize: 10 }}
+                      >🗺 View on map</button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Find My Area – centered modal */}
       {indexOpen && (
