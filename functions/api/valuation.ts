@@ -171,9 +171,9 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
         cell.estimated_median = mod.estimated_median;
         cell.model_confidence = mod.model_confidence;
         cell.n_years_model = mod.n_years_model;
-        // If actual is sparse (< 3 tx), treat as modelled
-        if (!cell.median || Number(cell.tx_count ?? 0) < 3) {
-          cell.actual_median = cell.median;
+        // Prefer the model estimate over sparse actuals (< 10 transactions)
+        if (!cell.median || Number(cell.tx_count ?? 0) < 10) {
+          cell.actual_median = cell.median ?? undefined;
           cell.median = mod.estimated_median;
           cell.is_modelled = true;
         }

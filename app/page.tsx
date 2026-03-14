@@ -3126,12 +3126,42 @@ export default function Home() {
 
         // ── Ppsf path (primary — floor area is required) ──────────────────
         const ppsfAsk  = sqft > 0 && askGbp > 0 ? askGbp / sqft : null;
-        const ppsfFair = r?.median_ppsf ?? null;
+        const ppsfRaw  = r?.median_ppsf ?? null;
+
+        // ── Size-adjustment for non-typical floor areas ────────────────────
+        // ppsf follows a power law: larger properties command less per ft².
+        // log(price) = α + β·log(sqft)  →  β ≈ 0.65 for UK residential
+        // adjustedPpsf = medianPpsf × (typicalSqft / sqft)^(1-β)
+        // When sqft === typicalSqft the factor is exactly 1.0 (no change).
+        // We only apply when we can compute typicalSqft (need both medianPpsf and a median GBP).
+        const SIZE_BETA = 0.65; // size elasticity: 1% more floor area → 0.65% more price
+        const fairValueAbsRaw = r
+          ? (r.p_source === "parent" || r.p_source === "national")
+            ? (r.parent_median ?? r.estimated_median ?? r.median ?? null)
+            : (r?.tx_count ?? 0) < 10
+              ? (r.estimated_median ?? r.median ?? r.parent_median ?? null)
+              : (r.median ?? r.estimated_median ?? r.parent_median ?? null)
+          : null;
+        const typicalSqftVal = ppsfRaw && fairValueAbsRaw && fairValueAbsRaw > 0
+          ? fairValueAbsRaw / ppsfRaw
+          : null;
+        const sizeAdjFactor = typicalSqftVal && sqft > 0
+          ? Math.pow(typicalSqftVal / sqft, 1 - SIZE_BETA)
+          : 1;
+        const ppsfFair  = ppsfRaw !== null ? ppsfRaw * sizeAdjFactor : null;
+        const sizeAdjApplied = typicalSqftVal !== null && Math.abs(sizeAdjFactor - 1) > 0.02;
+
         const ppsfRatio = ppsfAsk && ppsfFair ? ppsfAsk / ppsfFair : null;
         const usePpsf = ppsfRatio !== null;   // have both inputs — use ppsf as primary
 
         // ── Absolute GBP fallback (when no ppsf benchmark in data) ────────
-        const fairValueAbs = r ? (r.median ?? r.estimated_median ?? r.parent_median ?? null) : null;
+        // When percentile bands come from the parent area (p_source=="parent"|"national"),
+        // use parent_median as the reference so the verdict and bar use the same data source.
+        // (Cell median may be based on very few sales and would contradict the parent-area bands.)
+        const usesParentPercentiles = r?.p_source === "parent" || r?.p_source === "national";
+        // When actuals are thin (< 10 tx) prefer the model estimate over the raw cell median.
+        const thinActuals = (r?.tx_count ?? 0) < 10;
+        const fairValueAbs = fairValueAbsRaw;
         const absRatio = !usePpsf && fairValueAbs && askGbp > 0 ? askGbp / fairValueAbs : null;
 
         // ── Active ratio drives everything ─────────────────────────────────
@@ -3151,10 +3181,9 @@ export default function Home() {
         // ── Bar axis ───────────────────────────────────────────────────────
         // When ppsf: infer ppsf percentile bands from GBP bands ÷ typical sqft
         // (reasonable approximation — assumes size distribution is similar across bands)
-        const typicalSqft = ppsfFair && fairValueAbs && fairValueAbs > 0 ? fairValueAbs / ppsfFair : null;
-        const p25v  = usePpsf && r?.p25 && typicalSqft ? r.p25 / typicalSqft : (r?.p25 ?? null);
-        const p70v  = usePpsf && r?.p70 && typicalSqft ? r.p70 / typicalSqft : (r?.p70 ?? null);
-        const p90v  = usePpsf && r?.p90 && typicalSqft ? r.p90 / typicalSqft : (r?.p90 ?? null);
+        const p25v  = usePpsf && r?.p25 && typicalSqftVal ? r.p25 / typicalSqftVal : (r?.p25 ?? null);
+        const p70v  = usePpsf && r?.p70 && typicalSqftVal ? r.p70 / typicalSqftVal : (r?.p70 ?? null);
+        const p90v  = usePpsf && r?.p90 && typicalSqftVal ? r.p90 / typicalSqftVal : (r?.p90 ?? null);
         const fairV = usePpsf ? ppsfFair! : fairValueAbs;
         const askV  = usePpsf ? ppsfAsk!  : askGbp;
         const fmtV  = usePpsf
@@ -3275,7 +3304,7 @@ export default function Home() {
                         <div style={{ fontSize: 11, opacity: 0.8, marginTop: 3 }}>
                           Asking price per ft² is <b>{activeRatio > 1 ? `${((activeRatio - 1) * 100).toFixed(0)}% above` : `${((1 - activeRatio) * 100).toFixed(0)}% below`}</b> the local typical
                           {usePpsf
-                            ? <> · <b>£{Math.round(ppsfAsk!)}/ft²</b> vs typical <b>£{Math.round(ppsfFair!)}/ft²</b></>
+                            ? <> · <b>£{Math.round(ppsfAsk!)}/ft²</b> vs size-adjusted typical <b>£{Math.round(ppsfFair!)}/ft²</b>{sizeAdjApplied && typicalSqftVal ? <span style={{ color: "#9ca3af" }}> (local median £{Math.round(ppsfRaw!)}/ft² · adjusted for {Math.round(sqft).toLocaleString()} ft² vs typical {Math.round(typicalSqftVal)} ft²)</span> : null}</>
                             : <span style={{ color: "#9ca3af" }}> · <em>(no ppsf benchmark — using absolute price)</em></span>
                           }
                           {r.tx_count > 0 && <span style={{ opacity: 0.6 }}> · {r.tx_count} local sale{r.tx_count !== 1 ? "s" : ""}</span>}
@@ -3283,7 +3312,12 @@ export default function Home() {
                       )}
                       {!usePpsf && (
                         <div style={{ fontSize: 10, marginTop: 6, color: "#fbbf24", opacity: 0.85 }}>
-                          ⚠ No price-per-sq-ft data for this area — absolute price comparison may not account for property size differences.
+                          {usesParentPercentiles
+                            ? `⚠ Only ${r.tx_count} local sale${r.tx_count !== 1 ? "s" : ""} — comparison uses area median (5km radius).`
+                            : thinActuals && r.estimated_median
+                              ? `⚠ Only ${r.tx_count} local sale${r.tx_count !== 1 ? "s" : ""} — using modelled estimate as fair value reference.`
+                              : "⚠ No price-per-sq-ft data for this area — absolute price comparison may not account for property size differences."
+                          }
                         </div>
                       )}
                     </div>
@@ -3366,8 +3400,8 @@ export default function Home() {
                           </svg>
                         );
                       })()}
-                      {usePpsf && typicalSqft && (
-                        <div style={{ fontSize: 9, opacity: 0.45, marginTop: 2 }}>Percentile bands inferred from GBP distribution · assumed typical size {Math.round(typicalSqft)} ft²</div>
+                      {usePpsf && typicalSqftVal && (
+                        <div style={{ fontSize: 9, opacity: 0.45, marginTop: 2 }}>Percentile bands inferred from GBP distribution · assumed typical size {Math.round(typicalSqftVal)} ft²{sizeAdjApplied ? ` · fair value ppsf adjusted for size (×${sizeAdjFactor.toFixed(2)})` : ""}</div>
                       )}
                     </div>
                   )}
