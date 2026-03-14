@@ -148,15 +148,11 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     const partKey1 = `cells/1mile/median/${endMonth1}/${propertyType}_ALL.json.gz`;
     const partKey5 = `cells/5km/median/${endMonth5}/ALL_ALL.json.gz`;
 
-    const [rows1, rows5, pcts, modelledLookup, ppsf1Rows] = await Promise.all([
+    const [rows1, rows5, pcts, modelledLookup] = await Promise.all([
       getPartitionRows(env, partKey1),
       getPartitionRows(env, partKey5),
       getPercentiles(env),
       getModelledLookup(env, propertyType, "ALL").catch(() => null),
-      // Also load the PPSF partition (separate metric)
-      endMonth1
-        ? getPartitionRows(env, `cells/1mile/median_ppsf/${endMonth1}/${propertyType}_ALL.json.gz`).catch(() => null)
-        : Promise.resolve(null),
     ]);
 
     // Find the 1mile cell
@@ -180,9 +176,8 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
       }
     }
 
-    // Find PPSF
-    const ppsfCell = ppsf1Rows?.find(r => r.gx === gx1 && r.gy === gy1) ?? null;
-    const medianPpsf = ppsfCell?.median ?? null;
+    // Find PPSF — it's a field on the same median partition row, not a separate file
+    const medianPpsf = rawCell?.median_ppsf ?? null;
 
     // Find the 5km parent cell
     const parentCell = rows5?.find(r => r.gx === gx5 && r.gy === gy5) ?? null;
