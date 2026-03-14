@@ -98,28 +98,28 @@ MODEL_VOTE_BLOCKS_BY_CONSTITUENCY_CSV = MODEL_VOTE_DIR / "ge2024_vote_blocks_by_
 MODEL_VOTE_BLOCKS_MAP_GEOJSON = MODEL_VOTE_DIR / "ge2024_vote_blocks_map.geojson"
 
 REQUIRED_PROPERTY_ASSET_NAMES = [
-    "grid_1km_full.json.gz",
+    "grid_1mile_full.json.gz",
     "grid_5km_full.json.gz",
     "grid_10km_full.json.gz",
     "grid_25km_full.json.gz",
-    "grid_1km_ppsf_full.json.gz",
+    "grid_1mile_ppsf_full.json.gz",
     "grid_5km_ppsf_full.json.gz",
     "grid_10km_ppsf_full.json.gz",
     "grid_25km_ppsf_full.json.gz",
     "deltas_overall_5km.json.gz",
     "deltas_overall_10km.json.gz",
     "deltas_overall_25km.json.gz",
-    "postcode_outcode_index_1km.json.gz",
+    "postcode_outcode_index_1mile.json.gz",
     "postcode_outcode_index_5km.json.gz",
     "postcode_outcode_index_10km.json.gz",
     "postcode_outcode_index_25km.json.gz",
     # Slim country lookup assets (built by build_country_lookup_assets.py)
-    "country_cells_1km.json.gz",
+    "country_cells_1mile.json.gz",
     "country_cells_5km.json.gz",
     "country_cells_10km.json.gz",
     "country_cells_25km.json.gz",
     "country_by_outward.json.gz",
-    "cells_1km_percentiles.json.gz",
+    "cells_1mile_percentiles.json.gz",
 ]
 
 

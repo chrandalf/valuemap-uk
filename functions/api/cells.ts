@@ -39,7 +39,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   const modelledMode = (["actual", "estimated", "model_only"] as const).includes(modelledParam as any)
     ? (modelledParam as "actual" | "estimated" | "model_only")
     : "blend";
-  // For blend/estimated/model_only on 1km median: use the regular minTxCount threshold.
+  // For blend/estimated/model_only on 1mile median: use the regular minTxCount threshold.
   // Sparse rows (tx=1-2) are dropped from the actual set; applyModelledData's
   // injection loop handles those cells via the modelledLookup (no-actual-data path).
   // This halves the backfill work (351k → ~191k rows) without losing any model coverage.
@@ -53,7 +53,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   const coreMode = rawFields === "core";
 
   if (!isGridKey(grid)) {
-    return Response.json("Invalid grid. Use 1km|5km|10km|25km", { status: 400 });
+    return Response.json("Invalid grid. Use 1mile|5km|10km|25km", { status: 400 });
   }
 
   if (!isCellsMetric(metric)) {
@@ -99,7 +99,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     if (cachedMerged && now - cachedMerged.loadedAtMs <= CACHE_TTL_MS) {
       const rows = applyFilters(cachedMerged.rows, effectiveMinTxCount, metric);
       let enriched = await backfillAll(env, grid, rows, coreMode);
-      if (grid === "1km" && metric === "median" && modelledMode !== "actual") {
+      if (grid === "1mile" && metric === "median" && modelledMode !== "actual") {
         const modelledLookup = await getCachedModelledLookup(env, canonicalPropertyType, newBuild).catch(() => null);
         if (modelledLookup) enriched = applyModelledData(enriched, modelledLookup, modelledMode as "blend" | "estimated" | "model_only", minTxCount);
       }
@@ -120,7 +120,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     PARTITION_CACHE.set(mergedCacheKey, { rows: rawMerged, loadedAtMs: Date.now() });
     const rows = applyFilters(rawMerged, effectiveMinTxCount, metric);
     let enriched = await backfillAll(env, grid, rows, coreMode);
-    if (grid === "1km" && metric === "median" && modelledMode !== "actual") {
+    if (grid === "1mile" && metric === "median" && modelledMode !== "actual") {
       const modelledLookup = await getCachedModelledLookup(env, canonicalPropertyType, newBuild).catch(() => null);
       if (modelledLookup) enriched = applyModelledData(enriched, modelledLookup, modelledMode as "blend" | "estimated" | "model_only", minTxCount);
     }
@@ -136,7 +136,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   if (cached && now - cached.loadedAtMs <= CACHE_TTL_MS) {
     const rows = applyFilters(cached.rows, effectiveMinTxCount, metric);
     let enriched = await backfillAll(env, grid, rows, coreMode);
-    if (grid === "1km" && metric === "median" && modelledMode !== "actual") {
+    if (grid === "1mile" && metric === "median" && modelledMode !== "actual") {
       const modelledLookup = await getCachedModelledLookup(env, canonicalPropertyType, newBuild).catch(() => null);
       if (modelledLookup) enriched = applyModelledData(enriched, modelledLookup, modelledMode as "blend" | "estimated" | "model_only", minTxCount);
     }
@@ -160,7 +160,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
 
   const rows = applyFilters(rawRows, effectiveMinTxCount, metric);
   let enriched = await backfillAll(env, grid, rows, coreMode);
-  if (grid === "1km" && metric === "median" && modelledMode !== "actual") {
+  if (grid === "1mile" && metric === "median" && modelledMode !== "actual") {
     const modelledLookup = await getCachedModelledLookup(env, canonicalPropertyType, newBuild).catch(() => null);
     if (modelledLookup) enriched = applyModelledData(enriched, modelledLookup, modelledMode as "blend" | "estimated" | "model_only", minTxCount);
   }
@@ -169,13 +169,13 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
 
 /* ---------- types ---------- */
 
-type GridKey = "1km" | "5km" | "10km" | "25km";
+type GridKey = "1mile" | "5km" | "10km" | "25km";
 type CellsMetric = "median" | "median_ppsf";
 type PropertyType = "ALL" | "D" | "S" | "T" | "F";
 type NewBuild = "ALL" | "Y" | "N";
 
 function isGridKey(v: string): v is GridKey {
-  return v === "1km" || v === "5km" || v === "10km" || v === "25km";
+  return v === "1mile" || v === "5km" || v === "10km" || v === "25km";
 }
 
 function isCellsMetric(v: string): v is CellsMetric {
@@ -233,7 +233,7 @@ type CellRow = {
   p25?: number;                // 25th percentile price (GBP)
   p70?: number;                // 70th percentile price (GBP)
   p90?: number;                // 90th percentile price (GBP)
-  p_source?: string;           // "direct" | "parent" | "national" (1km only)
+  p_source?: string;           // "direct" | "parent" | "national" (1mile only)
 };
 
 type VoteCellRow = {
@@ -459,7 +459,7 @@ const VOTE_CACHE_BY_GRID: Partial<Record<GridKey, Map<string, VoteCellValue>>> =
 
 function voteKeyForGrid(grid: GridKey) {
   switch (grid) {
-    case "1km": return "vote_cells_1km.json.gz";
+    case "1mile": return "vote_cells_1mile.json.gz";
     case "5km": return "vote_cells_5km.json.gz";
     case "10km": return "vote_cells_10km.json.gz";
     case "25km": return "vote_cells_25km.json.gz";
@@ -519,12 +519,12 @@ async function backfillVotes(env: Env, grid: GridKey, rows: CellRow[]): Promise<
 
 /* ---------- slim country lookup (all grids) ---------- */
 
-// country_cells_{grid}.json.gz is a nested dict {gx_km: {gy_km: country_char}}
+// country_cells_{grid}.json.gz is a nested dict {gx: {gy: country_char}}
 // built from vote_cells_{grid} by build_country_lookup_assets.py.
-// Sizes: 1km=44 KB, 5km=5 KB, 10km=1.3 KB, 25km=0.4 KB compressed.
+// Sizes: 1mile=44 KB, 5km=5 KB, 10km=1.3 KB, 25km=0.4 KB compressed.
 // Loading this separately from the vote file means country is always available
 // for flood/school scoring even if the vote lookup fails, and decouples country
-// from the large vote_cells_1km.json.gz file (2 MB compressed).
+// from the large vote_cells_1mile.json.gz file (2 MB compressed).
 const COUNTRY_CACHE_BY_GRID: Partial<Record<GridKey, Map<string, string> | null>> = {};
 
 async function getCachedCountryLookup(env: Env, grid: GridKey): Promise<Map<string, string> | null> {
@@ -542,15 +542,13 @@ async function getCachedCountryLookup(env: Env, grid: GridKey): Promise<Map<stri
 
   const gz = await obj.arrayBuffer();
   const jsonText = await gunzipToString(gz);
-  // nested {gx_km_str: {gy_km_str: country_char}}
+  // nested {gx_str: {gy_str: country_char}}
   const nested = JSON.parse(jsonText) as Record<string, Record<string, string>>;
 
   const lookup = new Map<string, string>();
-  for (const [gxKm, ys] of Object.entries(nested)) {
-    const gx = String(Number(gxKm) * 1000);
-    for (const [gyKm, country] of Object.entries(ys)) {
-      const gy = String(Number(gyKm) * 1000);
-      lookup.set(`${gx}_${gy}`, country);
+  for (const [gxKey, ys] of Object.entries(nested)) {
+    for (const [gyKey, country] of Object.entries(ys)) {
+      lookup.set(`${gxKey}_${gyKey}`, country);
     }
   }
 
@@ -564,7 +562,7 @@ const COMMUTE_CACHE_BY_GRID: Partial<Record<GridKey, { lookup: Map<string, Commu
 
 function commuteKeyForGrid(grid: GridKey) {
   switch (grid) {
-    case "1km":  return "commute_cells_1km.json.gz";
+    case "1mile":  return "commute_cells_1mile.json.gz";
     case "5km":  return "commute_cells_5km.json.gz";
     case "10km": return "commute_cells_10km.json.gz";
     case "25km": return "commute_cells_25km.json.gz";
@@ -637,7 +635,7 @@ const AGE_CACHE_BY_GRID: Partial<Record<GridKey, { lookup: Map<string, AgeCellVa
 
 function ageKeyForGrid(grid: GridKey) {
   switch (grid) {
-    case "1km":  return "age_cells_1km.json.gz";
+    case "1mile":  return "age_cells_1mile.json.gz";
     case "5km":  return "age_cells_5km.json.gz";
     case "10km": return "age_cells_10km.json.gz";
     case "25km": return "age_cells_25km.json.gz";
@@ -710,7 +708,7 @@ const CRIME_CACHE_BY_GRID: Partial<Record<GridKey, { lookup: Map<string, CrimeCe
 
 function crimeKeyForGrid(grid: GridKey) {
   switch (grid) {
-    case "1km":  return "crime_cells_1km.json.gz";
+    case "1mile":  return "crime_cells_1mile.json.gz";
     case "5km":  return "crime_cells_5km.json.gz";
     case "10km": return "crime_cells_10km.json.gz";
     case "25km": return "crime_cells_25km.json.gz";
@@ -766,7 +764,7 @@ const EPC_FUEL_CACHE_BY_GRID: Partial<Record<GridKey, { lookup: Map<string, EpcF
 
 function epcFuelKeyForGrid(grid: GridKey) {
   switch (grid) {
-    case "1km":  return "epc_fuel_cells_1km.json.gz";
+    case "1mile":  return "epc_fuel_cells_1mile.json.gz";
     case "5km":  return "epc_fuel_cells_5km.json.gz";
     case "10km": return "epc_fuel_cells_10km.json.gz";
     case "25km": return "epc_fuel_cells_25km.json.gz";
@@ -877,7 +875,7 @@ async function getCachedModelledLookup(
   propertyType: string,
   newBuild: string,
 ): Promise<Map<string, ModelledRow> | null> {
-  const cacheMapKey = `modelled_1km_${propertyType}_${newBuild}`;
+  const cacheMapKey = `modelled_1mile_${propertyType}_${newBuild}`;
   const now = Date.now();
   const cached = MODELLED_CACHE.get(cacheMapKey);
   if (cached && now - cached.loadedAtMs <= CACHE_TTL_MS) {
@@ -988,25 +986,25 @@ function applyModelledData(
  * projects the output to CORE_CELL_FIELDS only, halving the JSON response size.
  */
 async function backfillAll(env: Env, grid: GridKey, rows: CellRow[], coreMode = false): Promise<CellRow[]> {
-  // vote_cells_1km.json.gz is ~2 MB compressed / ~20 MB uncompressed — loading it
-  // alongside a large 1km partition on a cold isolate reliably hits the Worker CPU
-  // time limit, so we skip vote overlay for 1km.
+  // vote_cells_1mile.json.gz is ~2 MB compressed / ~20 MB uncompressed — loading it
+  // alongside a large 1mile partition on a cold isolate reliably hits the Worker CPU
+  // time limit, so we skip vote overlay for 1mile.
   // In core mode we also skip vote for all other grids (saves 1.51 MB at 5km).
   // Country is always sourced from the dedicated slim country_cells_{grid}.json.gz
-  // file (44 KB for 1km, <5 KB for other grids) rather than from the vote file,
+  // file (44 KB for 1mile, <5 KB for other grids) rather than from the vote file,
   // so it remains available for flood/school scoring regardless of vote load status.
-  const votePromise = (grid === "1km" || coreMode)
+  const votePromise = (grid === "1mile" || coreMode)
     ? Promise.resolve(null)
     : getCachedVoteLookup(env, grid).catch(() => null);
 
-  // broadband_cells_1km.json.gz is 632 KB compressed — loading it alongside all
-  // other 1km backfills risks hitting the Worker CPU limit (same issue as vote at 1km).
+  // broadband_cells_1mile.json.gz is 632 KB compressed — loading it alongside all
+  // other 1mile backfills risks hitting the Worker CPU limit (same issue as vote at 1mile).
   // Broadband infrastructure doesn't vary meaningfully at sub-5km resolution, so we
-  // always use the 5km lookup (51 KB) and snap 1km cell coordinates up to 5km.
-  const broadbandGrid: GridKey = grid === "1km" ? "5km" : grid;
+  // always use the 5km lookup (51 KB) and snap 1mile cell coordinates up to 5km.
+  const broadbandGrid: GridKey = grid === "1mile" ? "5km" : grid;
   const broadbandPromise = getCachedBroadbandLookup(env, broadbandGrid).catch(() => null);
 
-  // commute_cells_1km.json.gz is ~1.18 MB compressed — skip in core mode.
+  // commute_cells_1mile.json.gz is ~1.18 MB compressed — skip in core mode.
   const commutePromise = coreMode
     ? Promise.resolve(null)
     : getCachedCommuteLookup(env, grid).catch(() => null);
@@ -1026,11 +1024,11 @@ async function backfillAll(env: Env, grid: GridKey, rows: CellRow[], coreMode = 
     let out: any = row;
     const key = `${row.gx}_${row.gy}`;
 
-    // Stamp country from the slim lookup first (works for all grids including 1km)
+    // Stamp country from the slim lookup first (works for all grids including 1mile)
     const country = countryLookup?.get(key);
     if (country) out = { ...out, country };
 
-    // Vote overlay fields (excludes 1km to avoid CPU timeout; country already set above)
+    // Vote overlay fields (excludes 1mile to avoid CPU timeout; country already set above)
     const vote = voteLookup?.get(key);
     if (vote) out = { ...out,
       pct_progressive: vote.pct_progressive,
@@ -1092,7 +1090,7 @@ async function backfillAll(env: Env, grid: GridKey, rows: CellRow[], coreMode = 
     };
 
     const broadband = broadbandLookup?.get(
-      grid === "1km"
+      grid === "1mile"
         ? `${Math.floor(row.gx / 5000) * 5000}_${Math.floor(row.gy / 5000) * 5000}`
         : key
     );

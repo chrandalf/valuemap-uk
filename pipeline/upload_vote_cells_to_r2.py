@@ -129,7 +129,7 @@ def main():
 
     data_dir = Path(args.data_dir)
     files = [
-        data_dir / "vote_cells_1km.json.gz",
+        data_dir / "vote_cells_1mile.json.gz",
         data_dir / "vote_cells_5km.json.gz",
         data_dir / "vote_cells_10km.json.gz",
         data_dir / "vote_cells_25km.json.gz",

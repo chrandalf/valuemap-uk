@@ -284,7 +284,8 @@ df_en["NORTH1M"] = pd.to_numeric(df_en["y"], errors="coerce")
 df_en = df_en.dropna(subset=["EAST1M","NORTH1M"]).copy()
 
 # %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:34:02.781119Z","iopub.execute_input":"2026-02-07T08:34:02.781563Z","iopub.status.idle":"2026-02-07T08:34:20.423039Z","shell.execute_reply.started":"2026-02-07T08:34:02.781523Z","shell.execute_reply":"2026-02-07T08:34:20.421844Z"},"jupyter":{"outputs_hidden":false}}
-GRID_SIZES = [1000, 5000, 10000, 25000]  # metres
+GRID_SIZES = [1600, 5000, 10000, 25000]  # metres
+GRID_LABEL_MAP = {1600: "1mile", 5000: "5km", 10000: "10km", 25000: "25km"}
 
 for g in GRID_SIZES:
     df_en[f"gx_{g}"] = (df_en["EAST1M"] // g) * g
@@ -306,16 +307,16 @@ def make_cells(df, g):
     cells["y1"] = cells["gy"] + g
     return cells
 
-cells_1km  = make_cells(df_en, 1000)
-cells_5km  = make_cells(df_en, 5000)
-cells_10km = make_cells(df_en, 10000)
-cells_25km = make_cells(df_en, 25000)
+cells_1mile = make_cells(df_en, 1600)
+cells_5km   = make_cells(df_en, 5000)
+cells_10km  = make_cells(df_en, 10000)
+cells_25km  = make_cells(df_en, 25000)
 
 # %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:34:48.135000Z","iopub.execute_input":"2026-02-07T08:34:48.135936Z","iopub.status.idle":"2026-02-07T08:34:48.141678Z","shell.execute_reply.started":"2026-02-07T08:34:48.135902Z","shell.execute_reply":"2026-02-07T08:34:48.140496Z"},"jupyter":{"outputs_hidden":false}}
-print("1km:",  len(cells_1km))
-print("5km:",  len(cells_5km))
-print("10km:", len(cells_10km))
-print("25km:", len(cells_25km))
+print("1mile:", len(cells_1mile))
+print("5km:",   len(cells_5km))
+print("10km:",  len(cells_10km))
+print("25km:",  len(cells_25km))
 
 # %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:34:57.505801Z","iopub.execute_input":"2026-02-07T08:34:57.506114Z","iopub.status.idle":"2026-02-07T08:35:01.962319Z","shell.execute_reply.started":"2026-02-07T08:34:57.506089Z","shell.execute_reply":"2026-02-07T08:35:01.961274Z"},"jupyter":{"outputs_hidden":false}}
 df["pc_key"] = df["postcode"].astype("string").str.replace(" ", "", regex=False).str.upper()
@@ -329,7 +330,7 @@ df_en["EAST1M"]  = pd.to_numeric(df_en["EAST1M"], errors="coerce")
 df_en["NORTH1M"] = pd.to_numeric(df_en["NORTH1M"], errors="coerce")
 df_en = df_en.dropna(subset=["EAST1M","NORTH1M"]).copy()
 
-for g in [1000, 5000, 10000, 25000]:
+for g in [1600, 5000, 10000, 25000]:
     df_en[f"gx_{g}"] = ((df_en["EAST1M"] // g) * g).astype("int64")
     df_en[f"gy_{g}"] = ((df_en["NORTH1M"] // g) * g).astype("int64")
     df_en[f"cell_{g}"] = df_en[f"gx_{g}"].astype(str) + "_" + df_en[f"gy_{g}"].astype(str)
@@ -338,7 +339,7 @@ for g in [1000, 5000, 10000, 25000]:
 lookup_cols = [
     "pc_key",
     "EAST1M", "NORTH1M",
-    "gx_1000", "gy_1000", "cell_1000",
+    "gx_1600", "gy_1600", "cell_1600",
     "gx_5000", "gy_5000", "cell_5000",
     "gx_10000", "gy_10000", "cell_10000",
     "gx_25000", "gy_25000", "cell_25000",
@@ -567,7 +568,7 @@ def upload_to_r2_if_configured(paths):
 
 postcode_lookup = df_en[[
     "PCDS",
-    "cell_1000", "cell_5000", "cell_10000", "cell_25000",
+    "cell_1600", "cell_5000", "cell_10000", "cell_25000",
 ]].copy()
 
 # Extract outcode (area) from full postcode and normalise
@@ -577,7 +578,7 @@ postcode_lookup["outcode"] = (
 postcode_lookup = postcode_lookup.dropna(subset=["outcode"]).copy()
 
 # Split each cell string (e.g. "385000_801000") into separate X/Y columns per grid size
-for g in [1000, 5000, 10000, 25000]:
+for g in [1600, 5000, 10000, 25000]:
     cell_col = f"cell_{g}"
     x_col = f"cell_{g}_x"
     y_col = f"cell_{g}_y"
@@ -591,11 +592,11 @@ for g in [1000, 5000, 10000, 25000]:
         postcode_lookup[y_col] = pd.Series([pd.NA] * len(postcode_lookup), dtype="Int64")
 
 # Drop the original full postcode string column (`PCDS`) and the combined `cell_*` columns
-drop_cells = [f"cell_{g}" for g in [1000, 5000, 10000, 25000]] + ["PCDS"]
+drop_cells = [f"cell_{g}" for g in [1600, 5000, 10000, 25000]] + ["PCDS"]
 postcode_lookup = postcode_lookup.drop(columns=[c for c in drop_cells if c in postcode_lookup.columns])
 
 # Deduplicate by outcode + all grid X/Y coordinate pairs
-dedupe_cols = ["outcode"] + [f"cell_{g}_x" for g in [1000, 5000, 10000, 25000]] + [f"cell_{g}_y" for g in [1000, 5000, 10000, 25000]]
+dedupe_cols = ["outcode"] + [f"cell_{g}_x" for g in [1600, 5000, 10000, 25000]] + [f"cell_{g}_y" for g in [1600, 5000, 10000, 25000]]
 postcode_lookup = postcode_lookup.drop_duplicates(subset=dedupe_cols)
 
 # Save as parquet (compact, fast) and JSON (portable)
@@ -628,9 +629,9 @@ def build_outcode_index(df_lookup: pd.DataFrame, g: int) -> dict:
         index[cell] = sorted(group["outcode"].astype(str).unique().tolist())
     return index
 
-for g in [1000, 5000, 10000, 25000]:
+for g in [1600, 5000, 10000, 25000]:
     index = build_outcode_index(postcode_lookup, g)
-    out_path = str(OUTPUT_DIR / f"postcode_outcode_index_{g//1000}km.json.gz")
+    out_path = str(OUTPUT_DIR / f"postcode_outcode_index_{GRID_LABEL_MAP[g]}.json.gz")
     dump_json_gz(out_path, index)
     WRITTEN_ARTIFACTS.append(out_path)
     print("Wrote postcode outcode index:", out_path, "cells:", len(index))
@@ -761,15 +762,15 @@ grid_5km_annual = make_grid_annual_stack_levels(
 )
 
 # %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:40:19.878700Z","iopub.execute_input":"2026-02-07T08:40:19.879210Z","iopub.status.idle":"2026-02-07T08:40:28.617959Z","shell.execute_reply.started":"2026-02-07T08:40:19.879176Z","shell.execute_reply":"2026-02-07T08:40:28.616954Z"},"jupyter":{"outputs_hidden":false}}
-grid_1km_annual = make_grid_annual_stack_levels(
+grid_1mile_annual = make_grid_annual_stack_levels(
     df,
-    g=1000,
+    g=1600,
     min_sales=3,
     years_back=1   # latest + last 10 yearly snapshots
 )
 
 # %% [code] {"execution":{"iopub.status.busy":"2026-02-07T08:40:33.102561Z","iopub.execute_input":"2026-02-07T08:40:33.103772Z","iopub.status.idle":"2026-02-07T08:40:33.420669Z","shell.execute_reply.started":"2026-02-07T08:40:33.103735Z","shell.execute_reply":"2026-02-07T08:40:33.419637Z"},"jupyter":{"outputs_hidden":false}}
-grid_1km_annual.to_parquet("/kaggle/working/grid_1km_annual.parquet", index=False)
+grid_1mile_annual.to_parquet("/kaggle/working/grid_1mile_annual.parquet", index=False)
 grid_5km_annual.to_parquet("/kaggle/working/grid_5km_annual.parquet", index=False)
 grid_10km_annual.to_parquet("/kaggle/working/grid_10km_annual.parquet", index=False)
 grid_25km_annual.to_parquet("/kaggle/working/grid_25km_annual.parquet", index=False)
@@ -787,7 +788,7 @@ OUTPUT_DIR = Path(os.getenv("OUTPUT_DIR", "/kaggle/working"))
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # quick runtime checks
-for n in ("grid_1km_annual","grid_5km_annual","grid_10km_annual","grid_25km_annual"):
+for n in ("grid_1mile_annual","grid_5km_annual","grid_10km_annual","grid_25km_annual"):
     if n not in globals():
         raise RuntimeError(f"{n} not found — run make_grid_annual_stack_levels first")
 
@@ -798,7 +799,7 @@ OUTPUT_DIR = Path(os.getenv("OUTPUT_DIR", "/kaggle/working"))
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 for grid_size, grid_annual in [
-    (1000, grid_1km_annual),
+    (1600, grid_1mile_annual),
     (5000, grid_5km_annual),
     (10000, grid_10km_annual),
     (25000, grid_25km_annual),
@@ -818,7 +819,7 @@ for grid_size, grid_annual in [
     keep = ["gx","gy","end_month","property_type","new_build","median","tx_count"]
     d = d[keep].dropna(subset=["gx","gy","median"]).copy()
 
-    out_path = str(OUTPUT_DIR / f"grid_{g//1000}km_full.json.gz")
+    out_path = str(OUTPUT_DIR / f"grid_{GRID_LABEL_MAP[g]}_full.json.gz")
     dump_json_gz(out_path, dataframe_records_json_safe(d))
     WRITTEN_ARTIFACTS.append(out_path)
 
@@ -827,12 +828,12 @@ for grid_size, grid_annual in [
 # Extract and store metadata: available date ranges for each dataset
 grid_metadata = {}
 for grid_size, grid_annual in [
-    (1000, grid_1km_annual),
+    (1600, grid_1mile_annual),
     (5000, grid_5km_annual),
     (10000, grid_10km_annual),
     (25000, grid_25km_annual),
 ]:
-    grid_label = f"{grid_size // 1000}km"
+    grid_label = GRID_LABEL_MAP[grid_size]
     earliest = pd.to_datetime(grid_annual["end_month"].min()).strftime("%Y-%m-%d")
     latest = pd.to_datetime(grid_annual["end_month"].max()).strftime("%Y-%m-%d")
     grid_metadata[grid_label] = {
@@ -1092,7 +1093,7 @@ def build_overall_deltas(grid_annual: pd.DataFrame, min_sales: int = 3) -> pd.Da
 
 # %% [code] {"jupyter":{"outputs_hidden":false},"execution":{"iopub.status.busy":"2026-02-07T08:42:03.551532Z","iopub.execute_input":"2026-02-07T08:42:03.551863Z","iopub.status.idle":"2026-02-07T08:42:09.483713Z","shell.execute_reply.started":"2026-02-07T08:42:03.551837Z","shell.execute_reply":"2026-02-07T08:42:09.482537Z"}}
 # Example: Compute overall deltas for all property types across 5km, 10km, 25km grids
-# (Skip 1km to avoid excessive data volume)
+# (Skip 1mile to avoid excessive data volume)
 
 delta_metadata = {}
 

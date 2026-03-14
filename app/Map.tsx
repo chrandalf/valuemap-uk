@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 
-type GridSize = "1km" | "5km" | "10km" | "25km";
+type GridSize = "1mile" | "5km" | "10km" | "25km";
 type Metric = "median" | "median_ppsf" | "delta_gbp" | "delta_pct";
 type ValueFilterMode = "off" | "lte" | "gte";
 type FloodOverlayMode = "off" | "on" | "on_hide_cells";
@@ -481,7 +481,7 @@ export default function ValueMap({
   showRgLines?: { flood?: boolean; school?: boolean; primarySchool?: boolean; station?: boolean; crime?: boolean; busStop?: boolean; pharmacy?: boolean };
   /**
    * Grid sizes to silently pre-fetch into the internal geo-cache without changing the displayed grid.
-   * Pass ["1km"] so 1km data is ready the moment Find My Area switches to it.
+   * Pass ["1mile"] so 1mile data is ready the moment Find My Area switches to it.
    */
   prefetchGrids?: GridSize[];
   /**
@@ -549,7 +549,7 @@ export default function ValueMap({
   }, [state]);
 
   // Silently pre-warm the geo cache for the requested grids without changing
-  // what is displayed. This lets Find My Area switch to 1km with a cache hit
+  // what is displayed. This lets Find My Area switch to 1mile with a cache hit
   // (instant display) rather than waiting for a fresh fetch.
   useEffect(() => {
     if (!prefetchGrids?.length) return;
@@ -570,7 +570,7 @@ export default function ValueMap({
           metric: state.metric,
           endMonth,
         });
-        if (grid === "1km") qs.set("modelled", state.modelledMode ?? "blend");
+        if (grid === "1mile") qs.set("modelled", state.modelledMode ?? "blend");
         qs.set("fields", "core");
         qs.set("voteDataVersion", VOTE_CELLS_DATA_VERSION);
         (async () => {
@@ -3832,8 +3832,8 @@ export default function ValueMap({
       const currentZoom = map.getZoom();
       // Zoom thresholds match autoGridForZoom in page.tsx:
       //   < 5.6 → 25km grid → zoom to 8.0 (lands on 5km)
-      //   < 7.0 → 10km grid → zoom to 8.5 (lands on 5km, approaching 1km)
-      //   < 8.2 → 5km grid  → zoom to 9.5 (lands on 1km)
+      //   < 7.0 → 10km grid → zoom to 8.5 (lands on 5km, approaching 1mile)
+      //   < 8.2 → 5km grid  → zoom to 9.5 (lands on 1mile)
       const targetZoom = currentZoom < 5.6 ? 8.0 : currentZoom < 7.0 ? 8.5 : currentZoom < 8.2 ? 9.5 : null;
       if (targetZoom !== null) {
         map.flyTo({ center: [cLon, cLat], zoom: targetZoom, duration: 900 });
@@ -4306,8 +4306,8 @@ export default function ValueMap({
 
         // Fire percentile lookup in parallel with the delta fetch below.
         // Percentiles are stored in a dedicated slim file (not the partition) to keep
-        // 1km partition sizes small — so we fetch them on demand at right-click time.
-        const _pctPromise = (stateRef.current.grid === "1km" && Number.isFinite(rawGx) && Number.isFinite(rawGy))
+        // 1mile partition sizes small — so we fetch them on demand at right-click time.
+        const _pctPromise = (stateRef.current.grid === "1mile" && Number.isFinite(rawGx) && Number.isFinite(rawGy))
           ? fetch(`/api/cell-percentiles?gx=${rawGx}&gy=${rawGy}`).then(r => r.ok ? r.json() : null).catch(() => null)
           : Promise.resolve(null);
 
@@ -5756,7 +5756,7 @@ async function setRealData(
   if (!isDelta) {
     qs.set("metric", state.metric);
     qs.set("endMonth", endMonth!);
-    if (state.grid === "1km") {
+    if (state.grid === "1mile") {
       qs.set("modelled", state.modelledMode ?? "blend");
     }
     qs.set("fields", fields);
@@ -6197,9 +6197,9 @@ function updateOverlayFromFeatureCollection(
   }
 }
 
-function gridToMeters(grid: "1km" | "5km" | "10km" | "25km") {
+function gridToMeters(grid: "1mile" | "5km" | "10km" | "25km") {
   switch (grid) {
-    case "1km": return 1000;
+    case "1mile": return 1600;
     case "5km": return 5000;
     case "10km": return 10000;
     case "25km": return 25000;
@@ -6661,7 +6661,7 @@ async function applyIndexScoring(
   // ─── Flood pre-pass: compute worst-case severity score for every cell ───
   // Flood points are only considered if they fall **within the cell itself**.
   // We compute the cell's half-diagonal in metres from its corner coordinates and
-  // use that as the search radius.  This means a 1km cell only looks ~0.7km from
+  // use that as the search radius.  This means a 1mile cell only looks ~1.1km from
   // its centre — a flood zone in the next valley simply doesn't count.
   // Score = max severityWeight among all flood points inside the cell (no proximity
   // weighting needed — if it's in the cell, it counts at full strength).

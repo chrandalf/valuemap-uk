@@ -15,18 +15,18 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "UK House Price Map | Grid-Based Property Prices by Area",
   description:
-    "Explore UK house prices on an interactive grid map using 1km–25km areas. View median prices and recent changes based on Land Registry data.",
+    "Explore UK house prices on an interactive grid map using 1 mile – 25km areas. View median prices and recent changes based on Land Registry data.",
   openGraph: {
     title: "UK House Price Map | Grid-Based Property Prices by Area",
     description:
-      "Explore UK house prices on an interactive grid map using 1km–25km areas. View median prices and recent changes based on Land Registry data.",
+      "Explore UK house prices on an interactive grid map using 1 mile – 25km areas. View median prices and recent changes based on Land Registry data.",
     type: "website",
   },
   twitter: {
     card: "summary",
     title: "UK House Price Map | Grid-Based Property Prices by Area",
     description:
-      "Explore UK house prices on an interactive grid map using 1km–25km areas. View median prices and recent changes based on Land Registry data.",
+      "Explore UK house prices on an interactive grid map using 1 mile – 25km areas. View median prices and recent changes based on Land Registry data.",
   },
 };
 

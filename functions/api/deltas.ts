@@ -10,7 +10,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   const newBuild = (url.searchParams.get("newBuild") ?? "ALL").toUpperCase();
 
   if (!isGridKey(grid)) {
-    return Response.json("Invalid grid. Use 5km|10km|25km (1km excluded)", { status: 400 });
+    return Response.json("Invalid grid. Use 5km|10km|25km (1mile excluded)", { status: 400 });
   }
 
   // ---- load + cache delta data (PER GRID) ----

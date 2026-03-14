@@ -1,9 +1,9 @@
-"""build_price_model.py — Ratio estimator for sparse 1km cells.
+"""build_price_model.py — Ratio estimator for sparse 1mile cells.
 
-For each 1km cell × (property_type, new_build) combo:
-  1. Map each 1km cell to its parent 5km cell
+For each 1mile cell × (property_type, new_build) combo:
+  1. Map each 1mile cell to its parent 5km cell
   2. Collect historical years where BOTH have ≥ MIN_SALES sales
-  3. Compute ratio_t = median_1km_t / median_5km_t per year
+  3. Compute ratio_t = median_1mile_t / median_5km_t per year
   4. mean_ratio  = mean(ratio_t)
   5. ratio_cv    = std(ratio_t) / mean_ratio   (stability measure)
   6. estimated_median = mean_ratio × current_5km_median
@@ -15,13 +15,13 @@ Confidence tiers (stored as model_confidence):
   1 = Medium: n_years ≥ 2  AND ratio_cv < 0.30
   0 = Low   : fewer data or high variance — injected but treated with caution
 
-NOTE on the 1km parquet:
-  The current grid_1km_annual.parquet was built with years_back=1, giving at most
+NOTE on the 1mile parquet:
+  The current grid_1mile_annual.parquet was built with years_back=1, giving at most
   2 historical snapshots per cell. This caps n_years at 2 and max confidence at Medium.
   Re-build with years_back=10 (matching the 5km/10km parquets) to unlock High confidence.
 
 Output (per property_type × new_build combination):
-  data/model/property/modelled_1km_{PT}_{NB}.json.gz
+  data/model/property/modelled_1mile_{PT}_{NB}.json.gz
   Schema per row:
     {gx, gy, estimated_median, model_confidence, n_years, ratio_cv}
 
@@ -77,7 +77,7 @@ def dump_gz(path: Path, records: list[dict]) -> None:
 
 
 def build_for_combo(
-    df_1km: pd.DataFrame,
+    df_1mile: pd.DataFrame,
     df_5km: pd.DataFrame,
     df_10km: pd.DataFrame,
     property_type: str,
@@ -90,7 +90,7 @@ def build_for_combo(
             (df["property_type"] == property_type) & (df["new_build"] == new_build)
         ].copy()
 
-    pt1 = filt(df_1km)
+    pt1 = filt(df_1mile)
     pt5 = filt(df_5km)
     pt10 = filt(df_10km) if not df_10km.empty else pd.DataFrame()
 
@@ -103,7 +103,7 @@ def build_for_combo(
     gx5 = next(c for c in pt5.columns if c.startswith("gx_"))
     gy5 = next(c for c in pt5.columns if c.startswith("gy_"))
 
-    # ── Derive parent grid coordinates from 1km cell ───────────────────────────
+    # ── Derive parent grid coordinates from 1mile cell ───────────────────────────
     step5  = int(gx5.split("_")[1])   # e.g. 5000
     step10 = 10000
 
@@ -137,10 +137,10 @@ def build_for_combo(
     hist5 = pt5[pt5["sales_12m"] >= MIN_SALES][[gx5, gy5, "end_month", "median_price_12m", "sales_12m"]].copy()
     hist5 = hist5.rename(columns={gx5: "pgx5", gy5: "pgy5", "median_price_12m": "med5"})
 
-    # ── Filter 1km rows to those with enough sales ────────────────────────────
+    # ── Filter 1mile rows to those with enough sales ────────────────────────────
     hist1 = pt1[pt1["sales_12m"] >= MIN_SALES].copy()
 
-    # ── Merge 1km rows with 5km parent (same end_month) ──────────────────────
+    # ── Merge 1mile rows with 5km parent (same end_month) ──────────────────────
     joined = hist1.merge(hist5, on=["end_month", "pgx5", "pgy5"], how="left")
     joined["ratio5"] = joined["median_price_12m"] / joined["med5"]
     # Sanity bounds — genuine local premiums are never 10× the surrounding median
@@ -162,7 +162,7 @@ def build_for_combo(
             key: grp for key, grp in hist10_merged.groupby([gx1, gy1])
         }
 
-    # ── Build estimate per 1km cell ───────────────────────────────────────────
+    # ── Build estimate per 1mile cell ───────────────────────────────────────────
     results: list[dict] = []
 
     for (gx_val, gy_val), grp in joined.groupby([gx1, gy1]):
@@ -220,7 +220,7 @@ def build_for_combo(
                                 "ratio_cv": round(cv, 3),
                             })
 
-    # ── Fallback: cover all 1km cells that appeared in pt1 but got no ratio estimate ─
+    # ── Fallback: cover all 1mile cells that appeared in pt1 but got no ratio estimate ─
     # Vectorised anti-join against already-estimated cells, then merge to parent medians.
     estimated_df = pd.DataFrame(results, columns=["gx", "gy"]) if results else pd.DataFrame(columns=["gx", "gy"])
     all_cells = pt1[[gx1, gy1]].drop_duplicates().copy()
@@ -265,12 +265,12 @@ def build_for_combo(
 
 def run_combo(pt: str, nb: str) -> int:
     """Run a single (property_type, new_build) combo in-process with full cleanup."""
-    df_1km  = load_annual("1km")
+    df_1mile = load_annual("1mile")
     df_5km  = load_annual("5km")
     df_10km = load_annual("10km")
-    rows = build_for_combo(df_1km, df_5km, df_10km, pt, nb)
+    rows = build_for_combo(df_1mile, df_5km, df_10km, pt, nb)
     n = len(rows)
-    out_path = MODEL_PROPERTY / f"modelled_1km_{pt}_{nb}.json.gz"
+    out_path = MODEL_PROPERTY / f"modelled_1mile_{pt}_{nb}.json.gz"
     dump_gz(out_path, rows)
     return n
 
@@ -301,7 +301,7 @@ def main() -> None:
                 print(f"FAILED (exit {result.returncode})")
                 failed.append(f"{pt}/{nb}")
             else:
-                out_path = MODEL_PROPERTY / f"modelled_1km_{pt}_{nb}.json.gz"
+                out_path = MODEL_PROPERTY / f"modelled_1mile_{pt}_{nb}.json.gz"
                 if out_path.exists():
                     total_rows += int(
                         __import__("json").loads(

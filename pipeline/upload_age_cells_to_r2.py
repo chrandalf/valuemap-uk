@@ -3,7 +3,7 @@
 Upload age_cells_<grid>.json.gz artifacts to Cloudflare R2.
 
 Reads from MODEL_CENSUS_DIR (pipeline/data/model/census/):
-  age_cells_1km.json.gz
+  age_cells_1mile.json.gz
   age_cells_5km.json.gz
   age_cells_10km.json.gz
   age_cells_25km.json.gz
@@ -154,7 +154,7 @@ def main() -> None:
 
     data_dir = Path(args.data_dir)
     files = [
-        data_dir / "age_cells_1km.json.gz",
+        data_dir / "age_cells_1mile.json.gz",
         data_dir / "age_cells_5km.json.gz",
         data_dir / "age_cells_10km.json.gz",
         data_dir / "age_cells_25km.json.gz",

@@ -7,7 +7,7 @@ Reads:
 
 Joins every postcode to its LSOA crime stats, snaps to 4 grid sizes, and
 writes one gzipped JSON file per grid into MODEL_CRIME_DIR:
-  crime_cells_1km.json.gz
+  crime_cells_1mile.json.gz
   crime_cells_5km.json.gz
   crime_cells_10km.json.gz
   crime_cells_25km.json.gz
@@ -62,7 +62,7 @@ from paths import (
 ONSPD_DEFAULT = RAW_PROPERTY_DIR / "ONSPD_Online_latest_Postcode_Centroids_.csv"
 
 GRID_SIZES: list[tuple[str, int]] = [
-    ("1km",  1_000),
+    ("1mile", 1_600),
     ("5km",  5_000),
     ("10km", 10_000),
     ("25km", 25_000),
@@ -78,7 +78,7 @@ W_TOTAL    = W_VIOLENT + W_PROPERTY + W_ASB  # 5.3
 # weight to give the local rank vs the national rank.
 # At 25km, pure national (local adds no meaningful context over that scale).
 LOCAL_CONFIG: dict[str, dict] = {
-    "1km":  {"radius_m": 15_000, "local_weight": 0.85},
+    "1mile": {"radius_m": 15_000, "local_weight": 0.85},
     "5km":  {"radius_m": 30_000, "local_weight": 0.60},
     "10km": {"radius_m": 60_000, "local_weight": 0.30},
     "25km": {"radius_m":       0, "local_weight": 0.00},

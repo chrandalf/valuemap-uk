@@ -33,7 +33,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     const indexKey = indexKeyMatch ? indexKeyMatch[0] : defaultIndexKey;
 
     if (!isGridKey(grid)) {
-      return Response.json("Invalid grid. Use 1km|5km|10km|25km", { status: 400 });
+      return Response.json("Invalid grid. Use 1mile|5km|10km|25km", { status: 400 });
     }
     if (!cell) {
       return Response.json("Missing cell", { status: 400 });
@@ -71,10 +71,10 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
 
 /* ---------- types ---------- */
 
-type GridKey = "1km" | "5km" | "10km" | "25km";
+type GridKey = "1mile" | "5km" | "10km" | "25km";
 
 function isGridKey(v: string): v is GridKey {
-  return v === "1km" || v === "5km" || v === "10km" || v === "25km";
+  return v === "1mile" || v === "5km" || v === "10km" || v === "25km";
 }
 
 interface Env {
@@ -87,7 +87,7 @@ interface Env {
 type PostcodeRow = {
   pc_key?: string;
   postcode?: string;
-  cell_1000?: string;
+  cell_1600?: string;
   cell_5000?: string;
   cell_10000?: string;
   cell_25000?: string;

@@ -83,7 +83,7 @@ def collect_assets(
     if include_vote:
         files.extend(
             [
-                vote_dir / "vote_cells_1km.json.gz",
+                vote_dir / "vote_cells_1mile.json.gz",
                 vote_dir / "vote_cells_5km.json.gz",
                 vote_dir / "vote_cells_10km.json.gz",
                 vote_dir / "vote_cells_25km.json.gz",
@@ -114,24 +114,24 @@ def collect_assets(
                 files.append(manifest_file)
     if include_crime:
         files.append(crime_dir / "crime_overlay_lsoa.geojson.gz")
-        for grid in ("1km", "5km", "10km", "25km"):
+        for grid in ("1mile", "5km", "10km", "25km"):
             p = crime_dir / f"crime_cells_{grid}.json.gz"
             if p.exists():
                 files.append(p)
     if include_epc:
         for kind in ("fuel", "age"):
-            for grid in ("1km", "5km", "10km", "25km"):
+            for grid in ("1mile", "5km", "10km", "25km"):
                 p = epc_dir / f"epc_{kind}_cells_{grid}.json.gz"
                 if p.exists():
                     files.append(p)
     if include_model:
         for pt in ("ALL", "D", "S", "T", "F"):
             for nb in ("ALL", "Y", "N"):
-                p = model_property_dir / f"modelled_1km_{pt}_{nb}.json.gz"
+                p = model_property_dir / f"modelled_1mile_{pt}_{nb}.json.gz"
                 if p.exists():
                     files.append(p)
     if include_broadband:
-        for grid in ("1km", "5km", "10km", "25km"):
+        for grid in ("1mile", "5km", "10km", "25km"):
             p = broadband_dir / f"broadband_cells_{grid}.json.gz"
             if p.exists():
                 files.append(p)
@@ -148,7 +148,7 @@ def collect_assets(
             if p.exists():
                 files.append(p)
     if include_listed_building_cells:
-        for grid in ("1km", "5km", "10km", "25km"):
+        for grid in ("1mile", "5km", "10km", "25km"):
             p = listed_building_cells_dir / f"listed_building_cells_{grid}.json.gz"
             if p.exists():
                 files.append(p)

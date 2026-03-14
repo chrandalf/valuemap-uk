@@ -12,12 +12,13 @@ import pandas as pd
 
 from paths import MODEL_PROPERTY_DIR, RAW_EPC_DIR, RAW_PROPERTY_DIR, ensure_pipeline_dirs
 
-GRID_SIZES = [1000, 5000, 10000, 25000]
+GRID_SIZES = [1600, 5000, 10000, 25000]
 DELTA_GRID_SIZES = [5000, 10000, 25000]
-MEDIAN_YEARS_BACK_BY_GRID = {1000: 0, 5000: 5, 10000: 5, 25000: 5}
-PPSF_YEARS_BACK_BY_GRID = {1000: 0, 5000: 5, 10000: 5, 25000: 5}
-# 1km cells with fewer than this many transactions borrow their percentile shape
-# from the parent 5km cell (scaled to the 1km cell's own median).
+GRID_LABEL_MAP = {1600: "1mile", 5000: "5km", 10000: "10km", 25000: "25km"}
+MEDIAN_YEARS_BACK_BY_GRID = {1600: 0, 5000: 5, 10000: 5, 25000: 5}
+PPSF_YEARS_BACK_BY_GRID = {1600: 0, 5000: 5, 10000: 5, 25000: 5}
+# 1mile cells with fewer than this many transactions borrow their percentile shape
+# from the parent 5km cell (scaled to the 1mile cell's own median).
 PERCENTILE_DIRECT_TX_THRESHOLD = 10
 # Hard-coded last-resort ratios used when no parent 5km data is available.
 DEFAULT_RATIOS: dict[str, float] = {"r25": 0.78, "r70": 1.24, "r90": 1.65}
@@ -469,21 +470,21 @@ def compute_national_ratios(agg_5km: pd.DataFrame) -> dict[tuple[str, str], dict
     return ratios
 
 
-def apply_1km_percentile_borrowing(
-    agg_1km: pd.DataFrame,
+def apply_1mile_percentile_borrowing(
+    agg_1mile: pd.DataFrame,
     agg_5km: pd.DataFrame,
     national_ratios: dict[tuple[str, str], dict[str, float]],
 ) -> pd.DataFrame:
-    """For 1km cells with < PERCENTILE_DIRECT_TX_THRESHOLD sales, replace their
+    """For 1mile cells with < PERCENTILE_DIRECT_TX_THRESHOLD sales, replace their
     directly-computed percentiles with values borrowed from the parent 5km cell
-    (scaled by the 1km cell's median).  Falls back to national ratios when no
+    (scaled by the 1mile cell's median).  Falls back to national ratios when no
     parent 5km cell is available.
     """
-    agg = agg_1km.copy()
+    agg = agg_1mile.copy()
 
-    # Parent 5km grid coordinates for each 1km cell
-    agg["_pgx"] = ((agg["gx_1000"] // 5000) * 5000).astype("int64")
-    agg["_pgy"] = ((agg["gy_1000"] // 5000) * 5000).astype("int64")
+    # Parent 5km grid coordinates for each 1mile cell
+    agg["_pgx"] = ((agg["gx_1600"] // 5000) * 5000).astype("int64")
+    agg["_pgy"] = ((agg["gy_1600"] // 5000) * 5000).astype("int64")
 
     # Build ratio lookup from well-sampled 5km cells
     if not agg_5km.empty and "p25" in agg_5km.columns:
@@ -555,7 +556,7 @@ def yearly_end_months(month_col: pd.Series, years_back: int) -> list[pd.Timestam
 
 def build_grid_outputs(df: pd.DataFrame, output_dir: Path, latest_end_month: pd.Timestamp) -> None:
     # Pre-compute 5km aggregate for the latest 12-month window.  Used to borrow
-    # percentile shapes into 1km cells with < PERCENTILE_DIRECT_TX_THRESHOLD sales.
+    # percentile shapes into 1mile cells with < PERCENTILE_DIRECT_TX_THRESHOLD sales.
     latest_start = (latest_end_month - pd.DateOffset(months=11)).to_period("M").to_timestamp()
     latest_window = df[(df["month"] >= latest_start) & (df["month"] <= latest_end_month)].copy()
     parent_5km_agg = aggregate_segments(latest_window, 5000) if not latest_window.empty else pd.DataFrame()
@@ -575,8 +576,8 @@ def build_grid_outputs(df: pd.DataFrame, output_dir: Path, latest_end_month: pd.
                 continue
 
             agg = aggregate_segments(window, g)
-            if g == 1000:
-                agg = apply_1km_percentile_borrowing(agg, parent_5km_agg, national_ratios)
+            if g == 1600:
+                agg = apply_1mile_percentile_borrowing(agg, parent_5km_agg, national_ratios)
             end_month_str = pd.to_datetime(end_month).strftime("%Y-%m-%d")
             for r in agg.itertuples(index=False):
                 row: dict = {
@@ -593,13 +594,13 @@ def build_grid_outputs(df: pd.DataFrame, output_dir: Path, latest_end_month: pd.
                     row["p25"] = int(round(float(raw_p25)))
                     row["p70"] = int(round(float(getattr(r, "p70"))))
                     row["p90"] = int(round(float(getattr(r, "p90"))))
-                if g == 1000:
+                if g == 1600:
                     row["p_source"] = str(getattr(r, "p_source", "direct"))
                 rows.append(row)
 
-        dump_json_gz(output_dir / f"grid_{g//1000}km_full.json.gz", rows)
+        dump_json_gz(output_dir / f"grid_{GRID_LABEL_MAP[g]}_full.json.gz", rows)
 
-        if g == 1000:
+        if g == 1600:
             # Build a compact percentile lookup for right-click lookups.
             # Format: { "gx_gy": [p25, p70, p90, src_int] }  src: 0=direct 1=parent 2=national
             # Only ALL/ALL rows from the latest end_month are included.
@@ -613,7 +614,7 @@ def build_grid_outputs(df: pd.DataFrame, output_dir: Path, latest_end_month: pd.
                             r.get("p25", 0), r.get("p70", 0), r.get("p90", 0),
                             src_map.get(r.get("p_source", "direct"), 0),
                         ]
-            dump_json_gz(output_dir / "cells_1km_percentiles.json.gz", pct_lookup)
+            dump_json_gz(output_dir / "cells_1mile_percentiles.json.gz", pct_lookup)
             print(f"  Percentile lookup written: {len(pct_lookup)} cells")
             # Strip percentile fields from partition rows to keep them lightweight
             _pct_keys = {"p25", "p70", "p90", "p_source"}
@@ -622,7 +623,7 @@ def build_grid_outputs(df: pd.DataFrame, output_dir: Path, latest_end_month: pd.
             partition_rows = rows
 
         # Also write partitioned files
-        grid_label = f"{g // 1000}km"
+        grid_label = GRID_LABEL_MAP[g]
         n = write_partitions(partition_rows, output_dir, grid_label, metric="median")
         print(f"  Partitions written: {grid_label}/median -> {n} files")
 
@@ -630,7 +631,7 @@ def build_grid_outputs(df: pd.DataFrame, output_dir: Path, latest_end_month: pd.
 def build_ppsf_outputs(df: pd.DataFrame, epc_latest: pd.DataFrame, output_dir: Path) -> None:
     if df.empty:
         for g in GRID_SIZES:
-            dump_json_gz(output_dir / f"grid_{g//1000}km_ppsf_full.json.gz", [])
+            dump_json_gz(output_dir / f"grid_{GRID_LABEL_MAP[g]}_ppsf_full.json.gz", [])
         return
 
     joined = df.merge(epc_latest, on=["postcode_key", "paon_key"], how="left")
@@ -648,7 +649,7 @@ def build_ppsf_outputs(df: pd.DataFrame, epc_latest: pd.DataFrame, output_dir: P
     filled = filled[filled["TOTAL_FLOOR_AREA_FILLED"].notna() & (filled["TOTAL_FLOOR_AREA_FILLED"] > 0)].copy()
     if filled.empty:
         for g in GRID_SIZES:
-            dump_json_gz(output_dir / f"grid_{g//1000}km_ppsf_full.json.gz", [])
+            dump_json_gz(output_dir / f"grid_{GRID_LABEL_MAP[g]}_ppsf_full.json.gz", [])
         return
 
     filled["price_per_sqft"] = filled["price"] / (filled["TOTAL_FLOOR_AREA_FILLED"] * SQFT_PER_M2)
@@ -684,10 +685,10 @@ def build_ppsf_outputs(df: pd.DataFrame, epc_latest: pd.DataFrame, output_dir: P
                     }
                 )
 
-        dump_json_gz(output_dir / f"grid_{g//1000}km_ppsf_full.json.gz", rows)
+        dump_json_gz(output_dir / f"grid_{GRID_LABEL_MAP[g]}_ppsf_full.json.gz", rows)
 
         # Also write partitioned files
-        grid_label = f"{g // 1000}km"
+        grid_label = GRID_LABEL_MAP[g]
         n = write_partitions(rows, output_dir, grid_label, metric="median_ppsf")
         print(f"  Partitions written: {grid_label}/median_ppsf -> {n} files")
 
@@ -717,7 +718,7 @@ def build_delta_outputs(df: pd.DataFrame, output_dir: Path, latest_end_month: pd
 
         merged = early.merge(late, on=[gx, gy, "property_type", "new_build"], how="inner")
         if merged.empty:
-            dump_json_gz(output_dir / f"deltas_overall_{g//1000}km.json.gz", [])
+            dump_json_gz(output_dir / f"deltas_overall_{GRID_LABEL_MAP[g]}.json.gz", [])
             continue
 
         merged["delta_gbp"] = merged["price_latest"] - merged["price_earliest"]
@@ -750,7 +751,7 @@ def build_delta_outputs(df: pd.DataFrame, output_dir: Path, latest_end_month: pd
                 }
             )
 
-        dump_json_gz(output_dir / f"deltas_overall_{g//1000}km.json.gz", rows)
+        dump_json_gz(output_dir / f"deltas_overall_{GRID_LABEL_MAP[g]}.json.gz", rows)
 
 
 def build_postcode_indexes(onspd: pd.DataFrame, output_dir: Path) -> None:
@@ -768,7 +769,7 @@ def build_postcode_indexes(onspd: pd.DataFrame, output_dir: Path) -> None:
         for cell_key, grp in tmp.groupby("cell"):
             index[str(cell_key)] = sorted(grp["outcode"].astype("string").str.upper().unique().tolist())
 
-        dump_json_gz(output_dir / f"postcode_outcode_index_{g//1000}km.json.gz", index)
+        dump_json_gz(output_dir / f"postcode_outcode_index_{GRID_LABEL_MAP[g]}.json.gz", index)
 
 
 def parse_args() -> argparse.Namespace:

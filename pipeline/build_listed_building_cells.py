@@ -2,7 +2,7 @@
 build_listed_building_cells.py
 ─────────────────────────────
 Aggregates listed building points into grid cells at four resolutions
-(1km, 5km, 10km, 25km) and writes listed_building_cells_{grid}.json.gz.
+(1mile, 5km, 10km, 25km) and writes listed_building_cells_{grid}.json.gz.
 
 Grading weights:
   Grade I    → 3 pts   (most significant)
@@ -35,7 +35,7 @@ from paths import MODEL_TRANSIT_DIR, MODEL_LISTED_BUILDING_CELLS_DIR
 INPUT_FILE = MODEL_TRANSIT_DIR / "listed_building_overlay_points.geojson.gz"
 
 GRIDS = {
-    "1km":  1000,
+    "1mile": 1600,
     "5km":  5000,
     "10km": 10_000,
     "25km": 25_000,

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import ValueMap, { type LegendData, type LocateMeResult, type IndexPrefs, type RgLogEntry, type RightClickInfoData } from "./Map";
 import GuidedTour, { type TourStep } from "./components/GuidedTour";
 
-type GridSize = "1km" | "5km" | "10km" | "25km";
+type GridSize = "1mile" | "5km" | "10km" | "25km";
 type Metric = "median" | "median_ppsf" | "delta_gbp" | "delta_pct";
 type PropertyType = "ALL" | "D" | "S" | "T" | "F"; // Detached / Semi / Terraced / Flat
 type NewBuild = "ALL" | "Y" | "N";
@@ -346,7 +346,7 @@ export default function Home() {
       const crimeCell = p.get("crimeCell");
       const crimeCellScaleParam = p.get("crimeCellScale");
       const crimeCellSub = p.get("crimeCellSub");
-      const GRIDS: GridSize[] = ["1km", "5km", "10km", "25km"];
+      const GRIDS: GridSize[] = ["1mile", "5km", "10km", "25km"];
       const METRICS: Metric[] = ["median", "median_ppsf", "delta_gbp", "delta_pct"];
       const TYPES: PropertyType[] = ["ALL", "D", "S", "T", "F"];
       const NEWBUILDS: NewBuild[] = ["ALL", "Y", "N"];
@@ -481,7 +481,7 @@ export default function Home() {
   const [indexActive, setIndexActive] = useState(false);
   const [indexScoringPending, setIndexScoringPending] = useState(false);
   const [indexToken, setIndexToken] = useState(0);
-  // Tracks the grid that was active before FMA auto-switched to 1km, so we can restore it on dismiss.
+  // Tracks the grid that was active before FMA auto-switched to 1mile, so we can restore it on dismiss.
   const gridBeforeFmaRef = useRef<GridSize | null>(null);
   const [indexBudget, setIndexBudget] = useState(0);
   const [indexPropertyType, setIndexPropertyType] = useState<string>("ALL");
@@ -745,16 +745,16 @@ export default function Home() {
     }
   }, [indexActive]);
 
-  // Auto-grid: switch to 1km when Find My Area opens so data is ready (or
+  // Auto-grid: switch to 1mile when Find My Area opens so data is ready (or
   // already pre-warmed) before the user clicks "Score areas".
   // If the user dismisses without activating scoring, restore the previous grid.
   useEffect(() => {
     if (indexOpen) {
       setGridMode("manual");
       setState(s => {
-        if (s.grid !== "1km") {
+        if (s.grid !== "1mile") {
           gridBeforeFmaRef.current = s.grid;
-          return { ...s, grid: "1km" };
+          return { ...s, grid: "1mile" };
         }
         return s;
       });
@@ -837,7 +837,7 @@ export default function Home() {
   }, []);
 
   const autoGridForZoom = (zoom: number, metric: Metric): GridSize => {
-    if (zoom >= 8.2) return isDeltaMetric(metric) ? "5km" : "1km";
+    if (zoom >= 8.2) return isDeltaMetric(metric) ? "5km" : "1mile";
     if (zoom >= 7.0) return "5km";
     if (zoom >= 5.6) return "10km";
     return "25km";
@@ -855,7 +855,7 @@ export default function Home() {
 
   useEffect(() => {
     if (gridMode !== "auto") return;
-    if (isDeltaMetric(state.metric) && state.grid === "1km") {
+    if (isDeltaMetric(state.metric) && state.grid === "1mile") {
       setState((s) => ({ ...s, grid: "5km" }));
     }
   }, [gridMode, state.metric, state.grid]);
@@ -1339,8 +1339,8 @@ export default function Home() {
           )}
         </>
       )}
-      {/* modelled footnote when blend/estimated on 1km */}
-      {state.grid === "1km" && (state.modelledMode ?? "blend") !== "actual" && (
+      {/* modelled footnote when blend/estimated on 1mile */}
+      {state.grid === "1mile" && (state.modelledMode ?? "blend") !== "actual" && (
         <div style={{ fontSize: 10, opacity: 0.55, marginTop: 6 }}>◆ = estimated from local trend</div>
       )}
       </>
@@ -1728,7 +1728,7 @@ export default function Home() {
     {
       target: null,
       title: "Step 5 — Pressing Score Areas",
-      text: "I've tapped the green \"Score Areas\" button. The map is now calculating how well every 1km cell matches your preferences — watch the colours change…",
+      text: "I've tapped the green \"Score Areas\" button. The map is now calculating how well every 1 mile cell matches your preferences — watch the colours change…",
       placement: "center" as const,
       enterDelay: 500,
       autoAdvanceOnly: true,
@@ -1744,7 +1744,7 @@ export default function Home() {
         setIndexCoastWeight(0);
         setIndexApplied({ budget: 350000, propertyType: "ALL", affordWeight: 7, floodWeight: 8, schoolWeight: 6, trainWeight: 0, coastWeight: 0, ageWeight: 0, crimeWeight: 0 });
         setGridMode("manual");
-        setState((s) => ({ ...s, grid: "1km" }));
+        setState((s) => ({ ...s, grid: "1mile" }));
         setIndexScoringPending(true);
         setIndexActive(true);
         setIndexToken((t) => t + 1);
@@ -1770,7 +1770,7 @@ export default function Home() {
     {
       target: null,
       title: "Step 7 — Reading the cell colours",
-      text: "Each coloured square is a 1km area. Bright green = 80%+ match, yellow = 40–60%, red = below 30%. Zoom in with your scroll wheel to see individual cells more clearly, or zoom out to see the bigger picture. Try clicking a cell on the map!",
+      text: "Each coloured square is a 1 mile area. Bright green = 80%+ match, yellow = 40–60%, red = below 30%. Zoom in with your scroll wheel to see individual cells more clearly, or zoom out to see the bigger picture. Try clicking a cell on the map!",
       placement: "top-center" as const,
       noOverlay: true,
       enterDelay: 1200,
@@ -1897,7 +1897,7 @@ export default function Home() {
     {
       target: "[data-tour='quick-dock']",
       title: "Step 2 — Switch to 5km",
-      text: "Now I've tapped 5km. More squares appear, showing finer local variation. You can go down to 1km for street-level detail. Watch how the map updates instantly.",
+      text: "Now I've tapped 5km. More squares appear, showing finer local variation. You can go down to 1 mile for street-level detail. Watch how the map updates instantly.",
       placement: "right" as const,
       enterDelay: 700,
       onEnter: () => { setState((s) => ({ ...s, grid: "5km" })); },
@@ -2216,7 +2216,7 @@ export default function Home() {
         onRightClickInfo={(info) => { setRightClickInfo(info); if (info) { setRgPanelMinimized(false); if (info.stage === "loading") setRgLinesShown({ flood: true, school: true, primarySchool: true, station: true, crime: true, busStop: true, pharmacy: true }); } }}
         rgDismissToken={rgDismissToken}
         showRgLines={rgLinesShown}
-        prefetchGrids={["1km"]}
+        prefetchGrids={["1mile"]}
         indexFilterApplyRef={indexFilterApplyRef}
         indexRelativeApplyRef={indexRelativeApplyRef}
         onPostcodeSearchResult={(result) => {
@@ -2361,7 +2361,7 @@ export default function Home() {
                     </span>
                   </button>
                   <div style={{ height: 1, background: "rgba(255,255,255,0.1)", margin: "4px 0" }} />
-                  <div style={{ padding: "5px 14px 3px", fontSize: 10, opacity: 0.45 }}>Price estimates (1km)</div>
+                  <div style={{ padding: "5px 14px 3px", fontSize: 10, opacity: 0.45 }}>Price estimates (1 mile)</div>
                   <div style={{ display: "flex", gap: 3, padding: "0 14px 6px" }}>
                     {(["actual", "blend", "estimated", "model_only"] as const).map((m) => (
                       <button
@@ -2845,13 +2845,13 @@ export default function Home() {
           <div id="filters-panel" data-tour="filters-panel" className="controls" data-open="true" style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
             <ControlRow label="Grid">
               <Segment
-                options={isDeltaMetric(state.metric) ? ["5km", "10km", "25km"] : ["1km", "5km", "10km", "25km"]}
+                options={isDeltaMetric(state.metric) ? ["5km", "10km", "25km"] : ["1mile", "5km", "10km", "25km"]}
                 value={state.grid}
                 onChange={(v) => { setGridMode("manual"); setState((s) => ({ ...s, grid: v as GridSize })); }}
               />
             </ControlRow>
-            {isDeltaMetric(state.metric) && state.grid === "1km" && (
-              <div style={{ fontSize: 11, color: "#ff9999", fontStyle: "italic", marginTop: -4 }}>1km deltas unavailable</div>
+            {isDeltaMetric(state.metric) && state.grid === "1mile" && (
+              <div style={{ fontSize: 11, color: "#ff9999", fontStyle: "italic", marginTop: -4 }}>1 mile deltas unavailable</div>
             )}
             <ControlRow label="Metric">
               <Segment options={["median", "median_ppsf", "delta_gbp", "delta_pct"]} value={state.metric} onChange={(v) => setState((s) => ({ ...s, metric: v as Metric }))} renderOption={(v) => METRIC_LABEL[v as Metric]} />
@@ -3368,7 +3368,7 @@ export default function Home() {
                     regionLabels: indexRegions.map(r => r.label),
                   });
                   setGridMode("manual");
-                  setState((s) => ({ ...s, grid: "1km" }));
+                  setState((s) => ({ ...s, grid: "1mile" }));
                   setIndexScoringPending(true);
                   setIndexActive(true);
                   setIndexToken((t) => t + 1);
@@ -4141,14 +4141,14 @@ export default function Home() {
               <button
                 type="button"
                 className={state.metric === "delta_gbp" ? "mobile-grid-btn active" : "mobile-grid-btn"}
-                onClick={() => setState((s) => ({ ...s, metric: "delta_gbp", grid: s.grid === "1km" ? "5km" : s.grid }))}
+                onClick={() => setState((s) => ({ ...s, metric: "delta_gbp", grid: s.grid === "1mile" ? "5km" : s.grid }))}
               >
                 Δ GBP
               </button>
               <button
                 type="button"
                 className={state.metric === "delta_pct" ? "mobile-grid-btn active" : "mobile-grid-btn"}
-                onClick={() => setState((s) => ({ ...s, metric: "delta_pct", grid: s.grid === "1km" ? "5km" : s.grid }))}
+                onClick={() => setState((s) => ({ ...s, metric: "delta_pct", grid: s.grid === "1mile" ? "5km" : s.grid }))}
               >
                 Δ %
               </button>
@@ -4233,14 +4233,14 @@ export default function Home() {
               <button
                 type="button"
                 disabled={state.metric !== "median" && state.metric !== "median_ppsf"}
-                className={gridMode === "manual" && state.grid === "1km" ? "mobile-grid-btn active" : "mobile-grid-btn"}
+                className={gridMode === "manual" && state.grid === "1mile" ? "mobile-grid-btn active" : "mobile-grid-btn"}
                 onClick={() => {
                   if (state.metric !== "median" && state.metric !== "median_ppsf") return;
                   setGridMode("manual");
-                  setState((s) => ({ ...s, grid: "1km" }));
+                  setState((s) => ({ ...s, grid: "1mile" }));
                 }}
               >
-                1km
+                1mi
               </button>
             </>
           )}

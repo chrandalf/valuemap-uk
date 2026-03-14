@@ -7,7 +7,7 @@ Reads:
 
 Joins every postcode to its LSOA commute stats, snaps to 4 grid sizes, and
 writes one gzipped JSON file per grid into MODEL_CENSUS_DIR:
-  commute_cells_1km.json.gz
+  commute_cells_1mile.json.gz
   commute_cells_5km.json.gz
   commute_cells_10km.json.gz
   commute_cells_25km.json.gz
@@ -39,7 +39,7 @@ from paths import (
 ONSPD_DEFAULT = RAW_PROPERTY_DIR / "ONSPD_Online_latest_Postcode_Centroids_.csv"
 
 GRID_SIZES: list[tuple[str, int]] = [
-    ("1km",  1_000),
+    ("1mile", 1_600),
     ("5km",  5_000),
     ("10km", 10_000),
     ("25km", 25_000),

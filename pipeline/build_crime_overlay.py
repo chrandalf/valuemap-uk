@@ -105,7 +105,7 @@ def _download(url: str, dest: Path) -> None:
                     mb = downloaded / (1024 * 1024)
                     print(f"\r  {mb:.0f} MB  ({pct:.1f}%)     ", end="", flush=True)
         print()  # newline after progress
-    tmp.rename(dest)
+    tmp.replace(dest)
     print(f"Download complete: {dest.stat().st_size / (1024 * 1024):.0f} MB")
 
 

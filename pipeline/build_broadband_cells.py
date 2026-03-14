@@ -5,7 +5,7 @@ Source: Ofcom Connected Nations Update — fixed broadband coverage ZIP
         (202507_fixed_broadband_coverage_r01.zip or similar)
         Place in pipeline/data/raw/broadband/
 
-Join:   ONSPD postcode → OA21CD → BNG easting/northing → grid cells (1km/5km/10km/25km)
+Join:   ONSPD postcode → OA21CD → BNG easting/northing → grid cells (1mile/5km/10km/25km)
 
 For each Output Area we compute:
   bb_avg_speed  — premises-weighted average max available download speed (Mbit/s)
@@ -23,7 +23,7 @@ Speed band midpoints used for bb_avg_speed:
 
 For each grid cell we aggregate all three metrics as postcode-count-weighted means.
 
-Output: broadband_cells_{1km,5km,10km,25km}.json.gz
+Output: broadband_cells_{1mile,5km,10km,25km}.json.gz
         Each row: {"gx": <int>, "gy": <int>, "bb_avg_speed": <float>,
                    "bb_pct_sfbb": <float>, "bb_pct_fast": <float>}
 """
@@ -56,7 +56,7 @@ BAND_COLS: list[tuple[str, float]] = [
     ("Number of premises with >=300Mbit/s download speed",  500.0),
 ]
 
-GRIDS: dict[str, int] = {"1km": 1000, "5km": 5000, "10km": 10000, "25km": 25000}
+GRIDS: dict[str, int] = {"1mile": 1600, "5km": 5000, "10km": 10000, "25km": 25000}
 
 
 def snap(v: int, step: int) -> int:

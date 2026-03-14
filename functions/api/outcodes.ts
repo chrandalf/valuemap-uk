@@ -11,7 +11,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     const endMonthParam = (url.searchParams.get("endMonth") ?? "LATEST").toUpperCase();
 
     if (!isGridKey(grid)) {
-      return Response.json("Invalid grid. Use 1km|5km|10km|25km", { status: 400 });
+      return Response.json("Invalid grid. Use 1mile|5km|10km|25km", { status: 400 });
     }
 
     const data = await getCachedGrid(env, grid);
@@ -93,10 +93,10 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
 
 /* ---------- types ---------- */
 
-type GridKey = "1km" | "5km" | "10km" | "25km";
+type GridKey = "1mile" | "5km" | "10km" | "25km";
 
 function isGridKey(v: string): v is GridKey {
-  return v === "1km" || v === "5km" || v === "10km" || v === "25km";
+  return v === "1mile" || v === "5km" || v === "10km" || v === "25km";
 }
 
 type CellRow = {
@@ -132,8 +132,8 @@ const CACHE_BY_GRID: Partial<Record<GridKey, CacheEntry>> = {};
 
 function r2KeyForGrid(grid: GridKey) {
   switch (grid) {
-    case "1km":
-      return "grid_1km_full.json.gz";
+    case "1mile":
+      return "grid_1mile_full.json.gz";
     case "5km":
       return "grid_5km_full.json.gz";
     case "10km":

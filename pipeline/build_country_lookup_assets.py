@@ -1,7 +1,7 @@
 """
 Build slim country-lookup assets for all grid sizes plus an outward-code table:
 
-1. country_cells_{grid}.json.gz  (grid = 1km / 5km / 10km / 25km)
+1. country_cells_{grid}.json.gz  (grid = 1mile / 5km / 10km / 25km)
    Nested dict {str(gx_km): {str(gy_km): country_char}}
    Derived from vote_cells_{grid}.json.gz which has country on every row.
    Sizes: ~44 KB / 5 KB / 1.3 KB / 0.4 KB compressed.
@@ -12,7 +12,7 @@ Build slim country-lookup assets for all grid sizes plus an outward-code table:
    by majority count.  ~6 KB compressed.
 
 Writes outputs to:
-  pipeline/data/publish/property/country_cells_1km.json.gz
+  pipeline/data/publish/property/country_cells_1mile.json.gz
   pipeline/data/publish/property/country_cells_5km.json.gz
   pipeline/data/publish/property/country_cells_10km.json.gz
   pipeline/data/publish/property/country_cells_25km.json.gz
@@ -35,7 +35,7 @@ ONSPD_CSV = RAW_DIR / "property" / "ONSPD_Online_latest_Postcode_Centroids_.csv"
 OUT_DIR = PUBLISH_DIR / "property"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-GRIDS = ["1km", "5km", "10km", "25km"]
+GRIDS = ["1mile", "5km", "10km", "25km"]
 
 # ── Country code normalisation ─────────────────────────────────────────────────
 # CTRY25CD values in ONSPD → single-char country used throughout the codebase
@@ -76,14 +76,14 @@ for grid in GRIDS:
     country_dist = collections.Counter(r["country"] for r in vote_rows if r.get("country"))
     print("  Country distribution:", dict(country_dist))
 
-    # Build nested dict: gx_km → gy_km → country_char
+    # Build nested dict: gx → gy → country_char
     nested: dict[str, dict[str, str]] = {}
     for r in vote_rows:
         c = r.get("country")
         if not c:
             continue
-        gx_k = str(r["gx"] // 1000)
-        gy_k = str(r["gy"] // 1000)
+        gx_k = str(r["gx"])
+        gy_k = str(r["gy"])
         if gx_k not in nested:
             nested[gx_k] = {}
         nested[gx_k][gy_k] = c

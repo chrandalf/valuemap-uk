@@ -82,7 +82,7 @@ DEFAULT_EPC   = RAW_EPC_DIR / "epc_enriched_all.csv.gz"
 DEFAULT_ONSPD = RAW_PROPERTY_DIR / "ONSPD_Online_latest_Postcode_Centroids_.csv"
 
 GRID_SIZES: list[tuple[str, int]] = [
-    ("1km",  1_000),
+    ("1mile", 1_600),
     ("5km",  5_000),
     ("10km", 10_000),
     ("25km", 25_000),

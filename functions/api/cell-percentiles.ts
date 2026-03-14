@@ -29,7 +29,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   if (!_cache || now - _cacheLoadedAt > CACHE_TTL_MS) {
     const bucket: R2Bucket = env.BRICKGRID_BUCKET ?? env.R2 as R2Bucket;
     if (!bucket) return Response.json({ error: "R2 binding not found" }, { status: 500 });
-    const obj = await bucket.get("cells_1km_percentiles.json.gz");
+    const obj = await bucket.get("cells_1mile_percentiles.json.gz");
     if (!obj) return Response.json({ error: "Lookup file not found" }, { status: 503 });
     const gz = await obj.arrayBuffer();
     const text = await gunzipToString(gz);

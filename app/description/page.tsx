@@ -26,7 +26,7 @@ export default function DescriptionPage() {
             <li><strong>25 km</strong> — national overview. Good for spotting broad regional price divides and the London premium.</li>
             <li><strong>10 km</strong> — regional. City hinterlands, satellite towns, and commuter belts.</li>
             <li><strong>5 km</strong> — local. Individual towns and their variation. The smallest size that shows price change over time.</li>
-            <li><strong>1 km</strong> — neighbourhood detail. Use this to narrow down specific streets once you&apos;ve shortlisted an area.</li>
+            <li><strong>1 mile</strong> — neighbourhood detail. Use this to narrow down specific streets once you&apos;ve shortlisted an area.</li>
           </ul>
         </Section>
 
@@ -39,17 +39,17 @@ export default function DescriptionPage() {
           </ul>
         </Section>
 
-        <Section title="◆ Price estimates at 1km">
-          <p>Many 1 km cells — particularly in rural areas, or when you filter to a short period or a specific property type — don&apos;t have enough real sales to show a reliable median. The map&apos;s built-in statistical model fills those gaps with an estimate, so you get coverage across the whole country rather than a patchwork of blank cells.</p>
+        <Section title="◆ Price estimates at 1 mile">
+          <p>Many 1 mile cells — particularly in rural areas, or when you filter to a short period or a specific property type — don&apos;t have enough real sales to show a reliable median. The map&apos;s built-in statistical model fills those gaps with an estimate, so you get coverage across the whole country rather than a patchwork of blank cells.</p>
           <p style={{ marginTop: 8 }}><strong>How the estimates are produced</strong></p>
-          <p>For each 1 km cell the model looks back over historical years and measures how that cell&apos;s median price has typically compared to the surrounding 5 km cell. If a particular 1 km cell has consistently traded about 12% above its 5 km parent, the model multiplies today&apos;s 5 km median by that same ratio to produce an estimate. Cells with more years of consistent data earn a higher confidence rating. Where a 1 km cell has no history at all, the model simply inherits the parent 5 km median directly.</p>
+          <p>For each 1 mile cell the model looks back over historical years and measures how that cell&apos;s median price has typically compared to the surrounding 5 km cell. If a particular 1 mile cell has consistently traded about 12% above its 5 km parent, the model multiplies today&apos;s 5 km median by that same ratio to produce an estimate. Cells with more years of consistent data earn a higher confidence rating. Where a 1 mile cell has no history at all, the model simply inherits the parent 5 km median directly.</p>
           <p style={{ marginTop: 8 }}><strong>Confidence levels shown in popups</strong></p>
           <ul>
             <li><strong>High</strong> — multiple years of stable ratio data. Likely within ±10% of the true market price.</li>
             <li><strong>Medium</strong> — some ratio history; a reasonable fit but wider margin of uncertainty.</li>
             <li><strong>Low</strong> — no 1 km history; inherits the 5 km parent median. Treat as a rough guide only.</li>
           </ul>
-          <p style={{ marginTop: 8 }}><strong>Viewing modes</strong> (1 km grid, Median price only)</p>
+          <p style={{ marginTop: 8 }}><strong>Viewing modes</strong> (1 mile grid, Median price only)</p>
           <ul>
             <li><strong>Actual</strong> — only real sold-price data, minimum transaction threshold enforced. Sparse cells are blank.</li>
             <li><strong>Blend</strong> — actual data where it exists; model estimates fill in sparse and empty cells. Cell popups show both the actual figure and the model estimate side-by-side so you can judge how well they align.</li>
@@ -72,7 +72,7 @@ export default function DescriptionPage() {
         <GroupHeading title="2. Find My Area, your priorities turned into a match score" />
 
         <Section title="How it works">
-          <p>Find My Area converts your personal priorities into a single match score for every 1 km cell in the UK. Tell it what matters to you — affordability, flood safety, schools, transport, crime, community age — and it colours the whole map by how well each area fits. Green is a good match, red is a poor one.</p>
+          <p>Find My Area converts your personal priorities into a single match score for every 1 mile cell in the UK. Tell it what matters to you — affordability, flood safety, schools, transport, crime, community age — and it colours the whole map by how well each area fits. Green is a good match, red is a poor one.</p>
           <ul>
             <li>Each criterion you activate contributes a 0–1 component score.</li>
             <li>Scores are combined as a weighted average using the importance level you set: Off, Nice to have, Want, or Must have.</li>
@@ -182,7 +182,7 @@ export default function DescriptionPage() {
         <Section title="Coverage by feature">
           <ul>
             <li><strong>Price grid (median, change)</strong> — England ✅, Wales ✅, Scotland ✅ (partial)</li>
-            <li><strong>Price estimates (1km blend/model modes)</strong> — England ✅, Wales ✅, Scotland ✅ (partial)</li>
+            <li><strong>Price estimates (1 mile blend/model modes)</strong> — England ✅, Wales ✅, Scotland ✅ (partial)</li>
             <li><strong>Price per ft²</strong> — England ✅, Wales ❌, Scotland ❌</li>
             <li><strong>Flood risk</strong> — England ✅, Wales ❌, Scotland ❌</li>
             <li><strong>Schools</strong> — England ✅, Wales ❌, Scotland ❌</li>
@@ -196,7 +196,7 @@ export default function DescriptionPage() {
         <Section title="Important limitations">
           <ul>
             <li>This is an exploratory tool, not a valuation or professional advice service. Use it to identify patterns and shortlist areas, then verify with official and professional sources before making any decisions.</li>
-            <li>Grid-cell medians are aggregate statistics — a single 1 km cell may contain varied micromarkets. Always click through to postcodes and individual listings for ground truth.</li>
+            <li>Grid-cell medians are aggregate statistics — a single 1 mile cell may contain varied micromarkets. Always click through to postcodes and individual listings for ground truth.</li>
             <li>Flood, school, and crime scoring highlights patterns; it does not replace an Environmental Search, an Ofsted report, or a detailed police crime lookup.</li>
             <li>Election data reflects GE2024 results and will age as political conditions change.</li>
           </ul>

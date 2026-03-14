@@ -211,9 +211,9 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Build compact vote-by-cell artifacts from constituency vote polygons.")
     parser.add_argument("--vote-geojson", default=str(MODEL_VOTE_BLOCKS_MAP_GEOJSON), help="Path to ge2024_vote_blocks_map.geojson")
     parser.add_argument("--grid-rows", help="Path to grid_<size>_full.json.gz for a single grid")
-    parser.add_argument("--grid-meters", type=int, choices=[1000, 5000, 10000, 25000], help="Grid size in meters")
+    parser.add_argument("--grid-meters", type=int, choices=[1600, 5000, 10000, 25000], help="Grid size in meters")
     parser.add_argument("--output", help="Output .json.gz path for single-grid mode")
-    parser.add_argument("--input-dir", default=str(PUBLIC_DATA_DIR), help="Directory containing grid_1km_full.json.gz etc (all-grid mode)")
+    parser.add_argument("--input-dir", default=str(PUBLIC_DATA_DIR), help="Directory containing grid_1mile_full.json.gz etc (all-grid mode)")
     parser.add_argument("--output-dir", default=str(MODEL_VOTE_DIR), help="Output directory for vote_cells_<grid>.json.gz (all-grid mode)")
     parser.add_argument("--tile-deg", type=float, default=0.25, help="Spatial index tile size in degrees")
     return parser.parse_args()
@@ -245,7 +245,7 @@ def main():
     input_dir = Path(args.input_dir)
     output_dir = Path(args.output_dir)
     jobs = [
-        ("1km", 1000),
+        ("1mile", 1600),
         ("5km", 5000),
         ("10km", 10000),
         ("25km", 25000),
