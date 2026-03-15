@@ -42,6 +42,7 @@ type IndexScoringPrefs = {
   schoolWeight: number;
   primarySchoolWeight?: number;
   trainWeight: number;
+  trainMaxDistMiles?: number;
   coastWeight: number;
   ageWeight?: number;
   ageDirection?: "young" | "old";
@@ -517,6 +518,7 @@ export default function Home() {
   const [indexSchoolWeight, setIndexSchoolWeight] = useState(0);
   const [indexPrimarySchoolWeight, setIndexPrimarySchoolWeight] = useState(0);
   const [indexTrainWeight, setIndexTrainWeight] = useState(0);
+  const [indexTrainMaxDist, setIndexTrainMaxDist] = useState(5);
   const [indexCoastWeight, setIndexCoastWeight] = useState(0);
   const [indexAgeWeight, setIndexAgeWeight] = useState(0);
   const [indexAgeDirection, setIndexAgeDirection] = useState<"young" | "old">("young");
@@ -587,6 +589,7 @@ export default function Home() {
       schoolWeight: indexApplied.schoolWeight,
       primarySchoolWeight: indexApplied.primarySchoolWeight ?? 0,
       trainWeight: indexApplied.trainWeight,
+      trainMaxDistMiles: indexApplied.trainMaxDistMiles,
       coastWeight: indexApplied.coastWeight,
       ageWeight: indexApplied.ageWeight ?? 0,
       ageDirection: indexApplied.ageDirection ?? "young",
@@ -677,6 +680,7 @@ export default function Home() {
     setIndexSchoolWeight(0);
     setIndexPrimarySchoolWeight(0);
     setIndexTrainWeight(0);
+    setIndexTrainMaxDist(5);
     setIndexCoastWeight(0);
     setIndexAgeWeight(0);
     setIndexAgeDirection("young");
@@ -3599,6 +3603,19 @@ export default function Home() {
               <ImportancePicker emoji="🏫" label="Schools (sec.)"  value={indexSchoolWeight}        onChange={setIndexSchoolWeight}        color="#22c55e" />
               <ImportancePicker emoji="🎒" label="Primary school" value={indexPrimarySchoolWeight} onChange={setIndexPrimarySchoolWeight} color="#86efac" />
               <ImportancePicker emoji="🚂" label="Trains"        value={indexTrainWeight}  onChange={setIndexTrainWeight}  color="#f97316" />
+              {indexTrainWeight === 10 && (
+                <div style={{ display: "flex", alignItems: "center", gap: 6, paddingLeft: 8, paddingBottom: 5 }}>
+                  <span style={{ fontSize: 10, opacity: 0.65, whiteSpace: "nowrap" }}>Must be within</span>
+                  <div style={{ display: "flex", gap: 3 }}>
+                    {([1, 2, 5, 10, 20] as const).map((m) => (
+                      <button key={m} type="button" onClick={() => setIndexTrainMaxDist(m)}
+                        style={{ cursor: "pointer", padding: "2px 7px", borderRadius: 6, fontSize: 10, fontWeight: indexTrainMaxDist === m ? 700 : 400, border: indexTrainMaxDist === m ? "1.5px solid #f97316" : "1px solid rgba(255,255,255,0.13)", background: indexTrainMaxDist === m ? "#f9731625" : "rgba(255,255,255,0.04)", color: indexTrainMaxDist === m ? "white" : "rgba(255,255,255,0.5)", lineHeight: 1.4 }}>
+                        {m}mi
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", padding: "5px 0", borderBottom: "1px solid rgba(255,255,255,0.06)", flexDirection: "column", gap: 4 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
                   <span style={{ fontSize: 11, fontWeight: 600, flex: "0 0 auto", minWidth: 100 }}>👥 Community age</span>
@@ -3759,6 +3776,7 @@ export default function Home() {
                     schoolWeight: indexSchoolWeight,
                     primarySchoolWeight: indexPrimarySchoolWeight,
                     trainWeight: indexTrainWeight,
+                    trainMaxDistMiles: indexTrainWeight === 10 ? indexTrainMaxDist : undefined,
                     coastWeight: indexCoastWeight,
                     ageWeight: indexAgeWeight,
                     ageDirection: indexAgeDirection,

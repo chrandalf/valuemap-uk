@@ -72,6 +72,7 @@ export type IndexPrefs = {
   schoolWeight: number;        // 0-10 importance (secondary school quality)
   primarySchoolWeight?: number; // 0-10 importance (nearest primary school walking distance)
   trainWeight: number;          // 0-10 importance (nearest station distance)
+  trainMaxDistMiles?: number;   // when set (Must mode): hard cap — cells beyond this are zeroed; score is linear up to this distance
   coastWeight: number;          // 0-10 importance (placeholder for now)
   ageWeight?: number;       // 0-10 importance (community age mix)
   ageDirection?: "young" | "old"; // prefer younger or older communities
@@ -6351,7 +6352,7 @@ function buildIndexScoringSignature(prefs: IndexPrefs) {
     prefs.schoolWeight,
     prefs.primarySchoolWeight ?? 0,
     prefs.trainWeight,
-    prefs.coastWeight,
+    prefs.trainMaxDistMiles ?? 0,
     prefs.ageWeight ?? 0,
     prefs.ageDirection ?? "young",
     prefs.crimeWeight ?? 0,
@@ -6972,30 +6973,51 @@ async function applyIndexScoring(
     props.ix_pn = primarySchoolNoData ? 1 : 0;
 
     // 4) Train station proximity — score by distance to nearest station
+    // When trainMaxDistMiles is set (Must mode):
+    //   - The cap distance IS the "good" threshold; score is 1 up to the cap.
+    //   - Beyond the cap, score is 0 and the veto multiplier zeroes the cell.
+    //   - Within the cap, score scales 1→0.5 from 0 to cap (so "0.5 miles away" in a
+    //     5-mile cap area still scores better than "4.9 miles away").
+    //   - Cap < 0.5 miles → treat as 0.5 miles (cell is ~1 mile wide; closer is impossible to guarantee).
+    // When no cap (normal mode): linear decay from 1 at 1 mile → 0 at 10 miles.
     let trainScore = 0.5;
     let trainNoData = false;
     if (prefs.trainWeight > 0) {
+      const capMiles = prefs.trainMaxDistMiles != null ? Math.max(0.5, prefs.trainMaxDistMiles) : null;
+      const capMeters = capMiles != null ? capMiles * 1_609.34 : null;
+      // Effective "good" threshold: cap when set, else 1 mile
+      const goodMeters = capMeters ?? STATION_GOOD_DISTANCE_METERS;
+      // Effective "zero" threshold: cap when set, else 10 miles
+      const maxMeters  = capMeters ?? STATION_MAX_DISTANCE_METERS;
+
       // Wide check: any station data within ~80km?
       const wideStation = stationGrid ? querySpatialGrid(stationGrid, cLon, cLat, DATA_DEG * 3) : [];
       if (wideStation.length === 0) {
-        // No dataset coverage (e.g. remote island with no station data).
-        // Exclude from scoring.
         trainNoData = true;
         trainScore = 0.5;
       } else {
-        // Find nearest station
         let minDist = Infinity;
         for (const sp of wideStation) {
           const d = haversineDistanceMeters(cLat, cLon, sp.lat, sp.lon);
           if (d < minDist) minDist = d;
         }
-        if (minDist <= STATION_GOOD_DISTANCE_METERS) {
-          trainScore = 1.0; // within 1 mile — full score
-        } else if (minDist >= STATION_MAX_DISTANCE_METERS) {
-          trainScore = 0.0; // beyond 20 miles — zero
+        if (capMeters != null) {
+          // Cap mode: hard zero beyond cap, smooth 1.0→0.5 within cap
+          if (minDist > capMeters) {
+            trainScore = 0.0; // beyond cap — will be zeroed by veto
+          } else {
+            // Scale 1.0 at 0 metres → 0.5 at exactly the cap
+            trainScore = 1.0 - 0.5 * (minDist / capMeters);
+          }
         } else {
-          // Linear decay between 1 mile and 20 miles
-          trainScore = 1 - (minDist - STATION_GOOD_DISTANCE_METERS) / (STATION_MAX_DISTANCE_METERS - STATION_GOOD_DISTANCE_METERS);
+          // Normal mode: full score within 1 mile, linear decay to 0 at 10 miles
+          if (minDist <= goodMeters) {
+            trainScore = 1.0;
+          } else if (minDist >= maxMeters) {
+            trainScore = 0.0;
+          } else {
+            trainScore = 1 - (minDist - goodMeters) / (maxMeters - goodMeters);
+          }
         }
         totalScore += prefs.trainWeight * trainScore;
         totalWeight += prefs.trainWeight;
@@ -7190,8 +7212,13 @@ async function applyIndexScoring(
       vetoMultiplier *= Math.max(0, 1 - Math.min(primaryW, VETO_WEIGHT_CAP) * shortfall * 0.5);
     }
     if (prefs.trainWeight > 0 && !trainNoData && trainScore < 0.5) {
-      const shortfall = (0.5 - trainScore) / 0.5;
-      vetoMultiplier *= Math.max(0, 1 - Math.min(prefs.trainWeight, VETO_WEIGHT_CAP) * shortfall * 0.5);
+      if (prefs.trainMaxDistMiles != null && trainScore === 0) {
+        // Hard cap exceeded — absolute veto regardless of weight slider
+        vetoMultiplier = 0;
+      } else {
+        const shortfall = (0.5 - trainScore) / 0.5;
+        vetoMultiplier *= Math.max(0, 1 - Math.min(prefs.trainWeight, VETO_WEIGHT_CAP) * shortfall * 0.5);
+      }
     }
     if (crimeW > 0 && crimeScore < 0.5) {
       const shortfall = (0.5 - crimeScore) / 0.5;
