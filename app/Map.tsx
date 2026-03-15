@@ -6349,7 +6349,7 @@ async function ensureAggregatesAndUpdate(
 
       const effectiveMedianExpr = [
         "case",
-        ["all", ["<", ["get", "tx_count"], 3], [">", ["coalesce", ["get", "estimated_median"], 0], 0]],
+        ["all", ["<", ["get", "tx_count"], 5], [">", ["coalesce", ["get", "estimated_median"], 0], 0]],
         ["get", "estimated_median"],
         ["get", "median"],
       ];
@@ -6407,7 +6407,7 @@ function computeWeightedQuantiles(fc: any, metric: Metric, probs: number[]) {
   for (const f of features) {
     const p = f.properties || {};
     let raw: number;
-    if (metricProp === "median" && Number(p.tx_count ?? 0) < 3 && p.estimated_median != null && Number(p.estimated_median) > 0) {
+    if (metricProp === "median" && Number(p.tx_count ?? 0) < 5 && p.estimated_median != null && Number(p.estimated_median) > 0) {
       raw = Number(p.estimated_median);
     } else {
       raw = Number(p[metricProp] ?? NaN);
