@@ -263,6 +263,8 @@ def run_transit() -> None:
         transit/bus_stop_overlay_points.geojson.gz
         transit/metro_tram_overlay_points.geojson.gz
         transit/pharmacy_overlay_points.geojson.gz
+        transit/pub_overlay_points.geojson.gz
+        transit/supermarket_overlay_points.geojson.gz
         transit/listed_building_overlay_points.geojson.gz
         transit/planning_application_overlay_points.geojson.gz
         transit/holiday_let_overlay_points.geojson.gz
@@ -307,6 +309,22 @@ def run_transit() -> None:
             str(SCRIPT_DIR / "build_holiday_let_points.py"),
             "--output",
             str(MODEL_TRANSIT_DIR / "holiday_let_overlay_points.geojson.gz"),
+        ],
+    )
+    run_step(
+        "transit-pubs",
+        [
+            str(SCRIPT_DIR / "build_pub_points.py"),
+            "--output",
+            str(MODEL_TRANSIT_DIR / "pub_overlay_points.geojson.gz"),
+        ],
+    )
+    run_step(
+        "transit-supermarkets",
+        [
+            str(SCRIPT_DIR / "build_supermarket_points.py"),
+            "--output",
+            str(MODEL_TRANSIT_DIR / "supermarket_overlay_points.geojson.gz"),
         ],
     )
 

@@ -30,6 +30,8 @@ type VoteColorScale = "relative" | "absolute";
 type GridMode = "auto" | "manual";
 type BusStopOverlayMode = "off" | "on" | "on_hide_cells";
 type PharmacyOverlayMode = "off" | "on" | "on_hide_cells";
+type PubOverlayMode = "off" | "on" | "on_hide_cells";
+type SupermarketOverlayMode = "off" | "on" | "on_hide_cells";
 type ListedBuildingOverlayMode = "off" | "on" | "on_hide_cells";
 type PlanningOverlayMode = "off" | "on" | "on_hide_cells";
 type HolidayLetOverlayMode = "off" | "on" | "on_hide_cells";
@@ -52,6 +54,8 @@ type IndexScoringPrefs = {
   broadbandWeight?: number;
   busWeight?: number;
   pharmacyWeight?: number;
+  pubWeight?: number;
+  supermarketWeight?: number;
   regionBboxes?: [number, number, number, number][] | null;
   regionLabels?: string[] | null;
 };
@@ -83,6 +87,8 @@ type MapState = {
   listedBuildingCellOverlayMode: ListedBuildingCellOverlayMode;
   busStopOverlayMode: BusStopOverlayMode;
   pharmacyOverlayMode: PharmacyOverlayMode;
+  pubOverlayMode: PubOverlayMode;
+  supermarketOverlayMode: SupermarketOverlayMode;
   listedBuildingOverlayMode: ListedBuildingOverlayMode;
   planningOverlayMode: PlanningOverlayMode;
   holidayLetOverlayMode: HolidayLetOverlayMode;
@@ -346,6 +352,8 @@ export default function Home() {
       listedBuildingCellOverlayMode: "off",
       busStopOverlayMode: "off",
       pharmacyOverlayMode: "off",
+      pubOverlayMode: "off",
+      supermarketOverlayMode: "off",
       listedBuildingOverlayMode: "off",
       planningOverlayMode: "off",
       holidayLetOverlayMode: "off",
@@ -413,6 +421,8 @@ export default function Home() {
         listedBuildingCellOverlayMode: "off",
         busStopOverlayMode: "off",
         pharmacyOverlayMode: "off",
+        pubOverlayMode: "off",
+        supermarketOverlayMode: "off",
         listedBuildingOverlayMode: "off",
         planningOverlayMode: "off",
         holidayLetOverlayMode: "off",
@@ -478,7 +488,7 @@ export default function Home() {
   const [rightClickInfo, setRightClickInfo] = useState<RightClickInfoData | null>(null);
   const [rgPanelMinimized, setRgPanelMinimized] = useState(false);
   const [rgDismissToken, setRgDismissToken] = useState(0);
-  const [rgLinesShown, setRgLinesShown] = useState({ flood: true, school: true, primarySchool: true, station: true, crime: true, busStop: true, pharmacy: true });
+  const [rgLinesShown, setRgLinesShown] = useState({ flood: true, school: true, primarySchool: true, station: true, crime: true, busStop: true, pharmacy: true, pub: true, supermarket: true });
   const [rgRestoreFlash, setRgRestoreFlash] = useState(false);
   const overlaysWasOpenRef = useRef(false);
   const [locateMeToken, setLocateMeToken] = useState(0);
@@ -528,6 +538,8 @@ export default function Home() {
   const [indexBroadbandWeight, setIndexBroadbandWeight] = useState(0);
   const [indexBusWeight, setIndexBusWeight] = useState(0);
   const [indexPharmacyWeight, setIndexPharmacyWeight] = useState(0);
+  const [indexPubWeight, setIndexPubWeight] = useState(0);
+  const [indexSupermarketWeight, setIndexSupermarketWeight] = useState(0);
   const [indexRegions, setIndexRegions] = useState<RegionCandidate[]>([]);
   const [indexRegionInput, setIndexRegionInput] = useState("");
   const [indexRegionLoading, setIndexRegionLoading] = useState(false);
@@ -545,6 +557,8 @@ export default function Home() {
     crimeWeight: 0,
     busWeight: 0,
     pharmacyWeight: 0,
+    pubWeight: 0,
+    supermarketWeight: 0,
   });
   const [indexSuitabilityMode, setIndexSuitabilityMode] = useState<IndexSuitabilityMode>("off");
   const [indexSuitabilityThreshold, setIndexSuitabilityThreshold] = useState(65);
@@ -599,6 +613,8 @@ export default function Home() {
       broadbandWeight: indexApplied.broadbandWeight ?? 0,
       busWeight: indexApplied.busWeight ?? 0,
       pharmacyWeight: indexApplied.pharmacyWeight ?? 0,
+      pubWeight: indexApplied.pubWeight ?? 0,
+      supermarketWeight: indexApplied.supermarketWeight ?? 0,
       regionBboxes: indexApplied.regionBboxes ?? [],
       indexFilterMode: indexSuitabilityMode === "area_only" ? "area_only" : indexSuitabilityMode,
       indexFilterThreshold: indexSuitabilityThreshold / 100,
@@ -639,6 +655,8 @@ export default function Home() {
     listedBuildingCellOverlayMode: "off",
     busStopOverlayMode: "off",
     pharmacyOverlayMode: "off",
+    pubOverlayMode: "off",
+    supermarketOverlayMode: "off",
     listedBuildingOverlayMode: "off",
     planningOverlayMode: "off",
     holidayLetOverlayMode: "off",
@@ -690,6 +708,8 @@ export default function Home() {
     setIndexBroadbandWeight(0);
     setIndexBusWeight(0);
     setIndexPharmacyWeight(0);
+    setIndexPubWeight(0);
+    setIndexSupermarketWeight(0);
     setIndexValidationError(null);
     setIndexRegions([]);
     setIndexRegionInput("");
@@ -710,10 +730,12 @@ export default function Home() {
       broadbandWeight: 0,
       busWeight: 0,
       pharmacyWeight: 0,
+      pubWeight: 0,
+      supermarketWeight: 0,
       regionBboxes: [],
       regionLabels: [],
     });
-    setRgLinesShown({ flood: true, school: true, primarySchool: true, station: true, crime: true, busStop: true, pharmacy: true });
+    setRgLinesShown({ flood: true, school: true, primarySchool: true, station: true, crime: true, busStop: true, pharmacy: true, pub: true, supermarket: true });
   };
 
   const applyRegionCandidate = (c: RegionCandidate) => {
@@ -1544,7 +1566,7 @@ export default function Home() {
       ? "Off"
       : "On";
   const voteScaleLabel = state.voteColorScale === "relative" ? "Relative" : "Absolute";
-  const anyOverlayActive = state.floodOverlayMode !== "off" || state.schoolOverlayMode !== "off" || state.primarySchoolOverlayMode !== "off" || state.stationOverlayMode !== "off" || state.crimeOverlayMode !== "off" || state.crimeCellMode !== "off" || state.voteOverlayMode !== "off" || state.commuteOverlayMode !== "off" || state.ageOverlayMode !== "off" || state.epcFuelOverlayMode !== "off" || state.broadbandCellOverlayMode !== "off" || state.listedBuildingCellOverlayMode !== "off" || state.busStopOverlayMode !== "off" || state.pharmacyOverlayMode !== "off" || state.listedBuildingOverlayMode !== "off" || state.planningOverlayMode !== "off" || state.holidayLetOverlayMode !== "off";
+  const anyOverlayActive = state.floodOverlayMode !== "off" || state.schoolOverlayMode !== "off" || state.primarySchoolOverlayMode !== "off" || state.stationOverlayMode !== "off" || state.crimeOverlayMode !== "off" || state.crimeCellMode !== "off" || state.voteOverlayMode !== "off" || state.commuteOverlayMode !== "off" || state.ageOverlayMode !== "off" || state.epcFuelOverlayMode !== "off" || state.broadbandCellOverlayMode !== "off" || state.listedBuildingCellOverlayMode !== "off" || state.busStopOverlayMode !== "off" || state.pharmacyOverlayMode !== "off" || state.pubOverlayMode !== "off" || state.supermarketOverlayMode !== "off" || state.listedBuildingOverlayMode !== "off" || state.planningOverlayMode !== "off" || state.holidayLetOverlayMode !== "off";
 
   const currentFiltersSummary =
     `Grid: ${GRID_LABEL[state.grid as GridSize]} · Metric: ${METRIC_LABEL[state.metric]} · ` +
@@ -1725,7 +1747,7 @@ export default function Home() {
     setTourActive(true);
     setShowMePulse(false);
     // Reset map to default view
-    setState((s) => ({ ...s, grid: "5km", metric: "median", propertyType: "ALL", floodOverlayMode: "off", schoolOverlayMode: "off", primarySchoolOverlayMode: "off", stationOverlayMode: "off", crimeOverlayMode: "off", crimeCellMode: "off", voteOverlayMode: "off", commuteOverlayMode: "off", ageOverlayMode: "off", epcFuelOverlayMode: "off", epcFuelType: "gas", broadbandCellOverlayMode: "off", broadbandCellMetric: "avg_speed", listedBuildingCellOverlayMode: "off", busStopOverlayMode: "off", pharmacyOverlayMode: "off", listedBuildingOverlayMode: "off", planningOverlayMode: "off", holidayLetOverlayMode: "off" }));
+    setState((s) => ({ ...s, grid: "5km", metric: "median", propertyType: "ALL", floodOverlayMode: "off", schoolOverlayMode: "off", primarySchoolOverlayMode: "off", stationOverlayMode: "off", crimeOverlayMode: "off", crimeCellMode: "off", voteOverlayMode: "off", commuteOverlayMode: "off", ageOverlayMode: "off", epcFuelOverlayMode: "off", epcFuelType: "gas", broadbandCellOverlayMode: "off", broadbandCellMetric: "avg_speed", listedBuildingCellOverlayMode: "off", busStopOverlayMode: "off", pharmacyOverlayMode: "off", pubOverlayMode: "off", supermarketOverlayMode: "off", listedBuildingOverlayMode: "off", planningOverlayMode: "off", holidayLetOverlayMode: "off" }));
     const t = ++flyToSeqRef.current;
     setFlyToRequest({ center: [-1.5, 53.5], zoom: 5, token: t });
   }, []);
@@ -2298,7 +2320,7 @@ export default function Home() {
         rgLogCount={rgLog.length}
         onOpenLog={() => setRgLogOpen(true)}
         onLocationLogged={(entry) => setRgLog((prev) => [entry, ...prev])}
-        onRightClickInfo={(info) => { setRightClickInfo(info); if (info) { setRgPanelMinimized(false); if (info.stage === "loading") setRgLinesShown({ flood: true, school: true, primarySchool: true, station: true, crime: true, busStop: true, pharmacy: true }); } }}
+        onRightClickInfo={(info) => { setRightClickInfo(info); if (info) { setRgPanelMinimized(false); if (info.stage === "loading") setRgLinesShown({ flood: true, school: true, primarySchool: true, station: true, crime: true, busStop: true, pharmacy: true, pub: true, supermarket: true }); } }}
         rgDismissToken={rgDismissToken}
         showRgLines={rgLinesShown}
         prefetchGrids={["1mile"]}
@@ -2558,7 +2580,7 @@ export default function Home() {
                   }}>{label}</button>
                 );
 
-                const linesBtn = (key: "flood" | "school" | "primarySchool" | "station" | "crime" | "busStop" | "pharmacy") =>
+                const linesBtn = (key: "flood" | "school" | "primarySchool" | "station" | "crime" | "busStop" | "pharmacy" | "pub" | "supermarket") =>
                   rightClickInfo?.stage === "ready" ? (
                     <button type="button" onClick={() => setRgLinesShown(v => ({ ...v, [key]: !v[key] }))} style={{
                       cursor: "pointer", border: "none", background: "transparent", flexShrink: 0,
@@ -2639,6 +2661,8 @@ export default function Home() {
                         {row("🔴", "Crime",        <>{ob("Off", state.crimeOverlayMode === "off", () => setState(s => ({ ...s, crimeOverlayMode: "off" as CrimeOverlayMode })))}{ob("On", state.crimeOverlayMode === "on", () => setState(s => ({ ...s, crimeOverlayMode: "on" as CrimeOverlayMode })))}{ob("Hide", state.crimeOverlayMode === "on_hide_cells", () => setState(s => ({ ...s, crimeOverlayMode: "on_hide_cells" as CrimeOverlayMode })))}</>, linesBtn("crime"))}
                         {row("🚌", "Bus & metro",  <>{ob("Off", state.busStopOverlayMode === "off", () => setState(s => ({ ...s, busStopOverlayMode: "off" as BusStopOverlayMode })))}{ob("On", state.busStopOverlayMode === "on", () => setState(s => ({ ...s, busStopOverlayMode: "on" as BusStopOverlayMode })))}{ob("Hide", state.busStopOverlayMode === "on_hide_cells", () => setState(s => ({ ...s, busStopOverlayMode: "on_hide_cells" as BusStopOverlayMode })))}</>, linesBtn("busStop"))}
                         {row("💊", "Pharmacy",     <>{ob("Off", state.pharmacyOverlayMode === "off", () => setState(s => ({ ...s, pharmacyOverlayMode: "off" as PharmacyOverlayMode })))}{ob("On", state.pharmacyOverlayMode === "on", () => setState(s => ({ ...s, pharmacyOverlayMode: "on" as PharmacyOverlayMode })))}{ob("Hide", state.pharmacyOverlayMode === "on_hide_cells", () => setState(s => ({ ...s, pharmacyOverlayMode: "on_hide_cells" as PharmacyOverlayMode })))}</>, linesBtn("pharmacy"))}
+                        {row("🍺", "Pubs/bars",    <>{ob("Off", state.pubOverlayMode === "off", () => setState(s => ({ ...s, pubOverlayMode: "off" as PubOverlayMode })))}{ob("On", state.pubOverlayMode === "on", () => setState(s => ({ ...s, pubOverlayMode: "on" as PubOverlayMode })))}{ob("Hide", state.pubOverlayMode === "on_hide_cells", () => setState(s => ({ ...s, pubOverlayMode: "on_hide_cells" as PubOverlayMode })))}</>, linesBtn("pub"))}
+                        {row("🛒", "Food shops",   <>{ob("Off", state.supermarketOverlayMode === "off", () => setState(s => ({ ...s, supermarketOverlayMode: "off" as SupermarketOverlayMode })))}{ob("On", state.supermarketOverlayMode === "on", () => setState(s => ({ ...s, supermarketOverlayMode: "on" as SupermarketOverlayMode })))}{ob("Hide", state.supermarketOverlayMode === "on_hide_cells", () => setState(s => ({ ...s, supermarketOverlayMode: "on_hide_cells" as SupermarketOverlayMode })))}</>, linesBtn("supermarket"))}
                         {row("🏛️", "Listed",       <>{ob("Off", state.listedBuildingOverlayMode === "off", () => setState(s => ({ ...s, listedBuildingOverlayMode: "off" as ListedBuildingOverlayMode })))}{ob("On", state.listedBuildingOverlayMode === "on", () => setState(s => ({ ...s, listedBuildingOverlayMode: "on" as ListedBuildingOverlayMode })))}{ob("Hide", state.listedBuildingOverlayMode === "on_hide_cells", () => setState(s => ({ ...s, listedBuildingOverlayMode: "on_hide_cells" as ListedBuildingOverlayMode })))}</>)}
                         <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0 2px" }}>
                           <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.07)" }} />
@@ -3671,6 +3695,8 @@ export default function Home() {
                 levels={[{ label: "Fibre", value: 10 }, { label: "Cable", value: 6 }, { label: "SFBB", value: 3 }, { label: "Off", value: 0 }]} />
               <ImportancePicker emoji="🚌" label="Bus & metro *" value={indexBusWeight} onChange={setIndexBusWeight} color="#38bdf8" />
               <ImportancePicker emoji="💊" label="Pharmacy *" value={indexPharmacyWeight} onChange={setIndexPharmacyWeight} color="#f59e0b" />
+              <ImportancePicker emoji="🍺" label="Pubs/bars *" value={indexPubWeight} onChange={setIndexPubWeight} color="#84cc16" />
+              <ImportancePicker emoji="🛒" label="Food shops *" value={indexSupermarketWeight} onChange={setIndexSupermarketWeight} color="#06b6d4" />
               </div>{/* end scrollable pickers */}
             </div>
 
@@ -3757,7 +3783,7 @@ export default function Home() {
                   // — Validate before scoring —
                   const totalW = indexAffordWeight + indexFloodWeight + indexSchoolWeight +
                     indexPrimarySchoolWeight + indexTrainWeight + indexCoastWeight + indexAgeWeight + indexCrimeWeight +
-                    indexEpcFuelWeight + indexBroadbandWeight + indexBusWeight + indexPharmacyWeight;
+                    indexEpcFuelWeight + indexBroadbandWeight + indexBusWeight + indexPharmacyWeight + indexPubWeight + indexSupermarketWeight;
                   if (totalW === 0) {
                     setIndexValidationError("Please set at least one criterion above Off before scoring.");
                     return;
@@ -3786,6 +3812,8 @@ export default function Home() {
                     broadbandWeight: indexBroadbandWeight,
                     busWeight: indexBusWeight,
                     pharmacyWeight: indexPharmacyWeight,
+                    pubWeight: indexPubWeight,
+                    supermarketWeight: indexSupermarketWeight,
                     regionBboxes: indexRegions.map(r => r.bbox),
                     regionLabels: indexRegions.map(r => r.label),
                   });
@@ -4845,6 +4873,8 @@ export default function Home() {
                 { icon: "🔴", label: "Crime",       html: rightClickInfo.crimeHtml },
                 { icon: "🚌", label: "Bus/metro",   html: rightClickInfo.busStopHtml ?? "" },
                 { icon: "💊", label: "Pharmacy",    html: rightClickInfo.pharmacyHtml ?? "" },
+                { icon: "🍺", label: "Pubs/bars",   html: rightClickInfo.pubHtml ?? "" },
+                { icon: "🛒", label: "Food shops",  html: rightClickInfo.supermarketHtml ?? "" },
               ] as const).map(({ icon, label, html }) => (
                 <div key={label} style={{ display: "flex", gap: 6, alignItems: "flex-start", padding: "4px 0", borderBottom: "1px solid #f9fafb" }}>
                   <span style={{ width: 16, flexShrink: 0, textAlign: "center", paddingTop: 1 }}>{icon}</span>
@@ -4955,6 +4985,8 @@ export default function Home() {
                 { icon: "🔴", label: "Crime",       html: rightClickInfo.crimeHtml },
                 { icon: "🚌", label: "Bus/metro",   html: rightClickInfo.busStopHtml ?? "" },
                 { icon: "💊", label: "Pharmacy",    html: rightClickInfo.pharmacyHtml ?? "" },
+                { icon: "🍺", label: "Pubs/bars",   html: rightClickInfo.pubHtml ?? "" },
+                { icon: "🛒", label: "Food shops",  html: rightClickInfo.supermarketHtml ?? "" },
               ] as const).map(({ icon, label, html }) => (
                 <div key={label} style={{ display: "flex", gap: 6, alignItems: "flex-start", padding: "4px 0", borderBottom: "1px solid #f9fafb" }}>
                   <span style={{ width: 16, flexShrink: 0, textAlign: "center", paddingTop: 1 }}>{icon}</span>

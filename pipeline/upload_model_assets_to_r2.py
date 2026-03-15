@@ -9,6 +9,15 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from zipfile import ZIP_DEFLATED, ZipFile
 
+# Load .env from .venv-7 if present
+_env_file = Path(__file__).resolve().parent.parent / ".venv-7" / ".env"
+if _env_file.exists():
+    for _line in _env_file.read_text().splitlines():
+        _line = _line.strip()
+        if _line and not _line.startswith("#") and "=" in _line:
+            _k, _, _v = _line.partition("=")
+            os.environ.setdefault(_k.strip(), _v.strip())
+
 from paths import (
     MODEL_EPC_DIR,
     MODEL_PROPERTY_DIR,
@@ -140,6 +149,8 @@ def collect_assets(
             "bus_stop_overlay_points.geojson.gz",
             "metro_tram_overlay_points.geojson.gz",
             "pharmacy_overlay_points.geojson.gz",
+            "pub_overlay_points.geojson.gz",
+            "supermarket_overlay_points.geojson.gz",
             "listed_building_overlay_points.geojson.gz",
             "planning_application_overlay_points.geojson.gz",
             "holiday_let_overlay_points.geojson.gz",

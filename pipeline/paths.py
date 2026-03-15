@@ -47,6 +47,8 @@ PUBLISH_TRANSIT_DIR = PUBLISH_DIR / "transit"
 MODEL_BUS_STOP_OVERLAY_POINTS = MODEL_TRANSIT_DIR / "bus_stop_overlay_points.geojson.gz"
 MODEL_METRO_TRAM_OVERLAY_POINTS = MODEL_TRANSIT_DIR / "metro_tram_overlay_points.geojson.gz"
 MODEL_PHARMACY_OVERLAY_POINTS = MODEL_TRANSIT_DIR / "pharmacy_overlay_points.geojson.gz"
+MODEL_PUB_OVERLAY_POINTS = MODEL_TRANSIT_DIR / "pub_overlay_points.geojson.gz"
+MODEL_SUPERMARKET_OVERLAY_POINTS = MODEL_TRANSIT_DIR / "supermarket_overlay_points.geojson.gz"
 
 PUBLIC_DATA_DIR = ROOT / "public" / "data"
 
