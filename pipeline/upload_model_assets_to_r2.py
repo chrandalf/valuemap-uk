@@ -149,6 +149,7 @@ def collect_assets(
             "bus_stop_overlay_points.geojson.gz",
             "metro_tram_overlay_points.geojson.gz",
             "pharmacy_overlay_points.geojson.gz",
+            "gp_surgery_overlay_points.geojson.gz",
             "pub_overlay_points.geojson.gz",
             "supermarket_overlay_points.geojson.gz",
             "listed_building_overlay_points.geojson.gz",
