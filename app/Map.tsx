@@ -4154,6 +4154,8 @@ export default function ValueMap({
     setCrimeSearchFocus(map, null, null);
     setBusStopSearchFocus(map, null, null);
     setPharmacySearchFocus(map, null, null);
+    setPubSearchFocus(map, null, null);
+    setSupermarketSearchFocus(map, null, null);
   };
   clearRgOverlayRef.current = clearRgOverlay;
   const closeActiveRg = () => {
