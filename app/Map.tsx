@@ -7823,8 +7823,15 @@ function rowsToGeoJsonSquares(rows: ApiRow[], g: number) {
 
 function getFillColorExpression(metric: Metric, easy = false) {
   if (metric === "median") {
+    // Use estimated_median for coloring when tx_count is low and an estimate exists
+    const medianValue = [
+      "case",
+      ["all", ["<", ["get", "tx_count"], 4], [">", ["coalesce", ["get", "estimated_median"], 0], 0]],
+      ["get", "estimated_median"],
+      ["get", "median"],
+    ];
     if (easy) return [
-      "interpolate", ["linear"], ["get", "median"],
+      "interpolate", ["linear"], medianValue,
       100000,  "#440154", // dark purple (cheap) — Viridis
       200000,  "#3b528b",
       300000,  "#21918c",
@@ -7835,7 +7842,7 @@ function getFillColorExpression(metric: Metric, easy = false) {
       1000000, "#fde725", // bright yellow (expensive)
     ] as any;
     return [
-    "interpolate", ["linear"], ["get", "median"],
+    "interpolate", ["linear"], medianValue,
     100000,  "#2c7bb6", // deep blue (cheap)
     200000,  "#00a6ca", // cyan
     300000,  "#00ccbc", // teal
