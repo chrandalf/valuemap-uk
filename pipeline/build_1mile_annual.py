@@ -73,7 +73,7 @@ def make_grid_annual_stack_levels(df, g, min_sales=3, years_back=10):
 GRID = 1600
 YEARS_BACK_LOAD = 10  # load enough history for annual stacking
 YEARS_BACK_ANNUAL = 1  # annual snapshots (matches Kaggle config for 1mile)
-MIN_SALES = 3
+MIN_SALES = 1          # include cells with just 1 sale — model estimate handles noise
 
 
 def main() -> None:

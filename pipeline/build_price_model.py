@@ -45,7 +45,7 @@ MODEL_PROPERTY = ROOT / "pipeline" / "data" / "model" / "property"
 
 PROPERTY_TYPES = ["ALL", "D", "S", "T", "F"]
 NEW_BUILDS = ["ALL", "Y", "N"]
-MIN_SALES = 3
+MIN_SALES = 1          # include cells with just 1 sale — model estimate handles noise
 MIN_CV_FLOOR = 1e-6  # avoid division by zero when all ratios are identical
 
 
