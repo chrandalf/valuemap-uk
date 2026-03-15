@@ -6625,7 +6625,15 @@ function buildValueFilter(state: MapState) {
   const threshold = state.valueThreshold;
   if (!Number.isFinite(threshold)) return null;
   const prop = metricPropName(state.metric);
-  return [op, ["coalesce", ["get", prop], 0], threshold] as any;
+  // Use estimated_median for cells with low tx_count (same threshold as coloring)
+  const effectiveValue = prop === "median"
+    ? ["case",
+        ["all", ["<", ["get", "tx_count"], 5], [">", ["coalesce", ["get", "estimated_median"], 0], 0]],
+        ["get", "estimated_median"],
+        ["coalesce", ["get", "median"], 0],
+      ]
+    : ["coalesce", ["get", prop], 0];
+  return [op, effectiveValue, threshold] as any;
 }
 
 // For "top_pct" mode: given a percentile (0.01 = top 1%), return the absolute score
@@ -7037,7 +7045,10 @@ async function applyIndexScoring(
             for (const item of rows) {
               const p = item?.properties ?? item;
               const gx = Number(p.gx); const gy = Number(p.gy);
-              const val = Number(p[metricProp] ?? 0) || 0;
+              const txCount = Number(p.tx_count ?? 0);
+              const rawVal = Number(p[metricProp] ?? 0) || 0;
+              const estVal = Number(p.estimated_median ?? 0) || 0;
+              const val = (metricProp === "median" && txCount < 5 && estVal > 0) ? estVal : rawVal;
               if (Number.isFinite(gx) && Number.isFinite(gy) && val > 0) {
                 lookup.set(`${gx}_${gy}`, val);
               }
@@ -7241,7 +7252,11 @@ async function applyIndexScoring(
         } else {
           // Type-specific data missing for this cell — estimate from the overall/displayed
           // cell median using the ratio of the desired type to the current map filter type.
-          const baseVal = Number(props[metricProp] ?? 0) || 0;
+          const txCount = Number(props.tx_count ?? 0);
+          const estVal = Number(props.estimated_median ?? 0) || 0;
+          const baseVal = (metricProp === "median" && txCount < 5 && estVal > 0)
+            ? estVal
+            : Number(props[metricProp] ?? 0) || 0;
           if (baseVal > 0) {
             const fromRatio = TYPE_RATIO[state.propertyType] ?? 1.0;
             const toRatio   = TYPE_RATIO[indexPT] ?? 1.0;
@@ -7250,7 +7265,11 @@ async function applyIndexScoring(
           }
         }
       } else {
-        const fallback = Number(props[metricProp] ?? 0) || 0;
+        const txCount = Number(props.tx_count ?? 0);
+        const estVal = Number(props.estimated_median ?? 0) || 0;
+        const fallback = (metricProp === "median" && txCount < 5 && estVal > 0)
+          ? estVal
+          : Number(props[metricProp] ?? 0) || 0;
         if (fallback > 0) {
           cellValue = fallback;
           affordDataQuality = 0;
