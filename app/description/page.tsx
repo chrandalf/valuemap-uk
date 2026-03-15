@@ -100,6 +100,20 @@ export default function DescriptionPage() {
           <p>Once Find My Area is running, an Area match slider appears. Drag it to show only cells above (or below) a threshold — 60% and above shows only good matches, below 40% reveals areas that score poorly on your criteria.</p>
         </Section>
 
+        <Section title="Top 1% and Top 10% — the fastest way to find your best areas">
+          <p>The quickest shortcut once your criteria are set. Press <strong>Top 1%</strong>, <strong>Top 10%</strong>, or <strong>Top 25%</strong> and the map instantly hides everything except the highest-scoring cells for your combination of priorities. Only the cream of the map stays visible — everything else fades out.</p>
+          <ul>
+            <li><strong>Top 1%</strong> — the very best 1 in 100 cells. A tight, unambiguous shortlist of areas the data rates highly on every criterion you care about.</li>
+            <li><strong>Top 10%</strong> — a broader shortlist. More cells visible, but still well above the national average for your chosen mix of priorities.</li>
+            <li><strong>Top 25%</strong> — the upper quarter. Useful if you want to see a wider range of contenders before narrowing down.</li>
+            <li><strong>Bot 10%</strong> — the lowest-scoring cells on your criteria. Handy for checking what the map considers a poor fit, or for inverting your search.</li>
+          </ul>
+          <p style={{ marginTop: 8 }}>The percentiles are calculated <em>relative to the area currently in view</em>. If you zoom to a specific region or use the region filter, Top 1% means the best 1% of cells within that region — not the best 1% of all UK cells. This means the shortlist adapts to wherever you&apos;re looking, so a city-focused search competes only against other urban cells.</p>
+          <p style={{ marginTop: 8 }}><strong>The best available compromise, not a guarantee</strong></p>
+          <p>If your criteria are strict — a low budget, excellent schools, low crime, and no flood risk all at once — no cell may score highly. Top 1% will still show results: it shows the cells that come closest to your ideal, even if none of them tick every box. Think of it as &quot;the least-bad options given your constraints&quot; rather than a promise that every highlighted cell fully meets your needs. If the cells shown still look mediocre, try relaxing one or two criteria — or lowering the weight of a nice-to-have — to see more promising areas emerge.</p>
+          <p style={{ marginTop: 8, opacity: 0.75, fontStyle: "italic" }}>After pressing a preset, the Area match slider updates to reflect the threshold. You can then fine-tune by dragging the slider manually.</p>
+        </Section>
+
         {/* ── SECTION 3: OVERLAYS ── */}
         <GroupHeading title="3. Overlays, add context on top of prices" />
 
