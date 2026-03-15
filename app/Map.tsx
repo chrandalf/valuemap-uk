@@ -6347,10 +6347,18 @@ async function ensureAggregatesAndUpdate(
       const sourceFc = fcCur || fc25;
       if (sourceFc) breaks = computeWeightedQuantiles(sourceFc, state.metric, QUANTILE_PROBS);
 
+      const effectiveMedianExpr = [
+        "case",
+        ["all", ["<", ["get", "tx_count"], 3], [">", ["coalesce", ["get", "estimated_median"], 0], 0]],
+        ["get", "estimated_median"],
+        ["get", "median"],
+      ];
+      const colorMetric: string | any[] = metricPropName(state.metric) === "median" ? effectiveMedianExpr : metricPropName(state.metric);
+
       if (breaks && breaks.length > 0 && breaks.every((v) => Number.isFinite(v)) && hasVariance(breaks)) {
         const colors = makeTailColors(easy);
         const safeBreaks = ensureStrictlyIncreasingBreaks(breaks);
-        const expr = buildTailColorExpression(metricPropName(state.metric), safeBreaks, colors, true);
+        const expr = buildTailColorExpression(colorMetric, safeBreaks, colors, true);
         if (!overlayActive && map.getLayer("cells-fill")) {
           map.setPaintProperty("cells-fill", "fill-color", expr);
         }
@@ -6364,7 +6372,7 @@ async function ensureAggregatesAndUpdate(
           const linearBreaks = ensureStrictlyIncreasingBreaks(
             buildLinearBreaks(stats.min, stats.max, QUANTILE_PROBS.length)
           );
-          const expr = buildTailColorExpression(metricPropName(state.metric), linearBreaks, colors, true);
+          const expr = buildTailColorExpression(colorMetric, linearBreaks, colors, true);
           if (!overlayActive && map.getLayer("cells-fill")) {
             map.setPaintProperty("cells-fill", "fill-color", expr);
           }
@@ -6398,7 +6406,12 @@ function computeWeightedQuantiles(fc: any, metric: Metric, probs: number[]) {
 
   for (const f of features) {
     const p = f.properties || {};
-    const raw = Number(p[metricProp] ?? NaN);
+    let raw: number;
+    if (metricProp === "median" && Number(p.tx_count ?? 0) < 3 && p.estimated_median != null && Number(p.estimated_median) > 0) {
+      raw = Number(p.estimated_median);
+    } else {
+      raw = Number(p[metricProp] ?? NaN);
+    }
     if (!isFinite(raw)) continue;
     const weight = Number(p.tx_count ?? 0) > 0 ? Number(p.tx_count) : 1;
     values.push({ v: raw, w: weight });
@@ -6492,9 +6505,10 @@ function buildDeltaColorExpression(metric: string, stops: number[], colors: stri
   return expr as any;
 }
 
-function buildTailColorExpression(metric: string, breaks: number[], colors: string[], useLog = false) {
+function buildTailColorExpression(metric: string | any[], breaks: number[], colors: string[], useLog = false) {
   // build a step expression: start with color for values < first threshold
-  const input = useLog ? ["ln", ["max", ["get", metric], 1]] : ["get", metric];
+  const rawInput = typeof metric === "string" ? ["get", metric] : metric;
+  const input = useLog ? ["ln", ["max", rawInput, 1]] : rawInput;
   const expr: any[] = ["step", input, colors[0]];
   // push threshold,value pairs for remaining colors
   for (let i = 1; i < breaks.length && i < colors.length; i++) {
