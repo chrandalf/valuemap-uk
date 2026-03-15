@@ -6950,6 +6950,7 @@ function buildIndexScoringSignature(prefs: IndexPrefs) {
     prefs.broadbandWeight ?? 0,
     prefs.busWeight ?? 0,
     prefs.pharmacyWeight ?? 0,
+    prefs.gpWeight ?? 0,
     prefs.pubWeight ?? 0,
     prefs.supermarketWeight ?? 0,
     // Region bboxes must be included so changing the area always triggers a full rescore
@@ -7197,7 +7198,8 @@ async function applyIndexScoring(
     })());
   }
 
-  if (gpW > 0 && _indexGpCache === null) {
+  if (gpW > 0 && (_indexGpCache === null || (_indexGpCache.length === 0 && _indexGpGrid == null))) {
+    _indexGpCache = null; // reset stale empty cache so fetch is retried
     loaders.push((async () => {
       try {
         const res = await fetch("/api/gp-surgeries?plain=1");
