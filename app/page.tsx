@@ -501,6 +501,8 @@ export default function Home() {
   const [locateMeSummary, setLocateMeSummary] = useState<string | null>(null);
   const [supporterNames, setSupporterNames] = useState<string[]>([]);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const [indexDragPos, setIndexDragPos] = useState({ x: 0, y: 0 });
+  const indexDragRef = useRef({ active: false, startX: 0, startY: 0, ox: 0, oy: 0 });
   const [gridMode, setGridMode] = useState<GridMode>("manual");
   const [mapStats, setMapStats] = useState<{ label: string; value: string; txCount: number } | null>(null);
   const [mapZoom, setMapZoom] = useState<number | null>(null);
@@ -861,6 +863,9 @@ export default function Home() {
       setIndexScoringPending(false);
     }
   }, [indexActive]);
+
+  // Reset drag position each time the modal opens so it starts centered.
+  useEffect(() => { if (indexOpen) setIndexDragPos({ x: 0, y: 0 }); }, [indexOpen]);
 
   // Auto-grid: switch to 1mile when Find My Area opens so data is ready (or
   // already pre-warmed) before the user clicks "Score areas".
@@ -3488,6 +3493,7 @@ export default function Home() {
             justifyContent: "center",
             background: "rgba(0,0,0,0.45)",
             backdropFilter: "blur(3px)",
+            // Pointer events pass through to panel; backdrop click handled via onClick
           }}
           onClick={(e) => { if (e.target === e.currentTarget) setIndexOpen(false); }}
           onMouseDown={() => bringToFront("index")}
@@ -3512,10 +3518,38 @@ export default function Home() {
               fontFamily: "var(--font-sans), Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif",
               lineHeight: compactIndexUi ? 1.3 : 1.4,
               boxShadow: "0 8px 40px rgba(0,0,0,0.5)",
+              // Desktop: draggable via transform; mobile: nudge down a touch
+              ...(compactIndexUi
+                ? { marginTop: 36 }
+                : { transform: `translate(${indexDragPos.x}px, ${indexDragPos.y}px)`, willChange: "transform" }),
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: compactIndexUi ? 7 : 10 }}>
+            <div
+              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: compactIndexUi ? 7 : 10, ...(!compactIndexUi ? { cursor: "grab", userSelect: "none" } : {}) }}
+              onMouseDown={!compactIndexUi ? (e) => {
+                if (e.button !== 0) return;
+                // Don't start drag if clicking the close button
+                if ((e.target as HTMLElement).closest("button")) return;
+                e.preventDefault();
+                const ox = indexDragPos.x, oy = indexDragPos.y;
+                indexDragRef.current = { active: true, startX: e.clientX, startY: e.clientY, ox, oy };
+                const onMove = (ev: MouseEvent) => {
+                  if (!indexDragRef.current.active) return;
+                  setIndexDragPos({
+                    x: indexDragRef.current.ox + ev.clientX - indexDragRef.current.startX,
+                    y: indexDragRef.current.oy + ev.clientY - indexDragRef.current.startY,
+                  });
+                };
+                const onUp = () => {
+                  indexDragRef.current.active = false;
+                  window.removeEventListener("mousemove", onMove);
+                  window.removeEventListener("mouseup", onUp);
+                };
+                window.addEventListener("mousemove", onMove);
+                window.addEventListener("mouseup", onUp);
+              } : undefined}
+            >
               <div style={{ fontWeight: 700, fontSize: compactIndexUi ? 14 : 15 }}>🔍 Find my area</div>
               <button
                 type="button"
