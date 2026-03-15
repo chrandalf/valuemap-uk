@@ -34,7 +34,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   const propertyType = (url.searchParams.get("propertyType") ?? "ALL").toUpperCase();
   const newBuild = (url.searchParams.get("newBuild") ?? "ALL").toUpperCase();
   const endMonthParam = (url.searchParams.get("endMonth") ?? "LATEST").toUpperCase();
-  const minTxCount = Math.max(1, Number.parseInt(url.searchParams.get("minTxCount") ?? "3", 10) || 3);
+  const minTxCount = Math.max(1, Number.parseInt(url.searchParams.get("minTxCount") ?? "1", 10) || 1);
   const modelledParam = url.searchParams.get("modelled") ?? "blend";
   const modelledMode = (["actual", "estimated", "model_only"] as const).includes(modelledParam as any)
     ? (modelledParam as "actual" | "estimated" | "model_only")
