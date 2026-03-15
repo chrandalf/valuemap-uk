@@ -7572,6 +7572,12 @@ async function applyIndexScoring(
     props.ix_phmn = pharmacyNoData ? 1 : 0;
 
     // 11) Pub/bar proximity
+    // 11) Pub/bar score = 60% average-distance score + 40% count score.
+    // Average distance: mean of all pubs within PUB_MAX_METERS, scored same
+    // scale as before (≤GREAT=1.0, ≥MAX=0.0). Using the average rather than
+    // nearest means 8 pubs at 600m avg scores better than 1 pub at 600m.
+    // Count score: 1=0.2, 3=0.6, 5+=1.0 (capped). The two components give
+    // balanced credit for "close options" vs "many options".
     let pubScore = 0.5;
     let pubNoData = false;
     if (pubW > 0) {
@@ -7579,26 +7585,42 @@ async function applyIndexScoring(
       if (widePub.length === 0) {
         pubNoData = true;
       } else if (_indexPubGrid) {
-        let minPubDist = Infinity;
+        let pubDistSum = 0;
+        let pubInRangeCount = 0;
         for (const sp of querySpatialGrid(_indexPubGrid, cLon, cLat, 0.04)) {
           const d = haversineDistanceMeters(cLat, cLon, sp.lat, sp.lon);
-          if (d < minPubDist) minPubDist = d;
+          if (d <= PUB_MAX_METERS) { pubDistSum += d; pubInRangeCount++; }
         }
-        if (minPubDist <= PUB_GREAT_METERS) {
-          pubScore = 1.0;
-        } else if (minPubDist <= PUB_MAX_METERS) {
-          pubScore = 1 - (minPubDist - PUB_GREAT_METERS) / (PUB_MAX_METERS - PUB_GREAT_METERS);
+        if (pubInRangeCount > 0) {
+          const avgPubDist = pubDistSum / pubInRangeCount;
+          let pubAvgDistScore: number;
+          if (avgPubDist <= PUB_GREAT_METERS) {
+            pubAvgDistScore = 1.0;
+          } else {
+            pubAvgDistScore = 1 - (avgPubDist - PUB_GREAT_METERS) / (PUB_MAX_METERS - PUB_GREAT_METERS);
+          }
+          const pubCountScore = Math.min(1.0, pubInRangeCount / 5);
+          pubScore = 0.6 * pubAvgDistScore + 0.4 * pubCountScore;
+          totalScore += pubW * pubScore;
+          totalWeight += pubW;
         } else {
+          // No pubs within max range — score by nearest regardless
+          let minPubDist = Infinity;
+          for (const sp of widePub) {
+            const d = haversineDistanceMeters(cLat, cLon, sp.lat, sp.lon);
+            if (d < minPubDist) minPubDist = d;
+          }
           pubScore = 0.0;
+          totalScore += pubW * pubScore;
+          totalWeight += pubW;
         }
-        totalScore += pubW * pubScore;
-        totalWeight += pubW;
       }
     }
     props.ix_pub = pubScore;
     props.ix_pubn = pubNoData ? 1 : 0;
 
-    // 12) Supermarket / food shop proximity
+    // 12) Supermarket / food shop score = 60% average-distance + 40% count.
+    // Same logic as pubs above.
     let supermarketScore = 0.5;
     let supermarketNoData = false;
     if (smktW > 0) {
@@ -7606,20 +7628,29 @@ async function applyIndexScoring(
       if (wideSmkt.length === 0) {
         supermarketNoData = true;
       } else if (_indexSupermarketGrid) {
-        let minSmktDist = Infinity;
+        let smktDistSum = 0;
+        let smktInRangeCount = 0;
         for (const sp of querySpatialGrid(_indexSupermarketGrid, cLon, cLat, 0.06)) {
           const d = haversineDistanceMeters(cLat, cLon, sp.lat, sp.lon);
-          if (d < minSmktDist) minSmktDist = d;
+          if (d <= SUPERMARKET_MAX_METERS) { smktDistSum += d; smktInRangeCount++; }
         }
-        if (minSmktDist <= SUPERMARKET_GREAT_METERS) {
-          supermarketScore = 1.0;
-        } else if (minSmktDist <= SUPERMARKET_MAX_METERS) {
-          supermarketScore = 1 - (minSmktDist - SUPERMARKET_GREAT_METERS) / (SUPERMARKET_MAX_METERS - SUPERMARKET_GREAT_METERS);
+        if (smktInRangeCount > 0) {
+          const avgSmktDist = smktDistSum / smktInRangeCount;
+          let smktAvgDistScore: number;
+          if (avgSmktDist <= SUPERMARKET_GREAT_METERS) {
+            smktAvgDistScore = 1.0;
+          } else {
+            smktAvgDistScore = 1 - (avgSmktDist - SUPERMARKET_GREAT_METERS) / (SUPERMARKET_MAX_METERS - SUPERMARKET_GREAT_METERS);
+          }
+          const smktCountScore = Math.min(1.0, smktInRangeCount / 5);
+          supermarketScore = 0.6 * smktAvgDistScore + 0.4 * smktCountScore;
+          totalScore += smktW * supermarketScore;
+          totalWeight += smktW;
         } else {
           supermarketScore = 0.0;
+          totalScore += smktW * supermarketScore;
+          totalWeight += smktW;
         }
-        totalScore += smktW * supermarketScore;
-        totalWeight += smktW;
       }
     }
     props.ix_smkt = supermarketScore;
