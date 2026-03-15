@@ -619,6 +619,7 @@ export default function Home() {
       broadbandWeight: indexApplied.broadbandWeight ?? 0,
       busWeight: indexApplied.busWeight ?? 0,
       pharmacyWeight: indexApplied.pharmacyWeight ?? 0,
+      gpWeight: indexApplied.gpWeight ?? 0,
       pubWeight: indexApplied.pubWeight ?? 0,
       supermarketWeight: indexApplied.supermarketWeight ?? 0,
       regionBboxes: indexApplied.regionBboxes ?? [],
