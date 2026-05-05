@@ -853,6 +853,39 @@ export default function Home() {
     overlaysWasOpenRef.current = overlaysDropOpen;
   }, [overlaysDropOpen]);
 
+  // GA4 — fire `overlay_toggle` events whenever any overlay-related state field changes.
+  // `prevStateRef` lets us diff and emit only the fields that actually moved.
+  // Skips initial mount so default "off" values don't get logged as toggles.
+  const prevOverlayStateRef = useRef<MapState | null>(null);
+  useEffect(() => {
+    const prev = prevOverlayStateRef.current;
+    prevOverlayStateRef.current = state;
+    if (prev === null) return; // initial mount
+
+    const overlayKeys: (keyof MapState)[] = [
+      "floodOverlayMode", "schoolOverlayMode", "primarySchoolOverlayMode",
+      "stationOverlayMode", "crimeOverlayMode", "crimeCellMode",
+      "crimeCellScale", "crimeCellSubMode", "voteOverlayMode", "voteColorScale",
+      "commuteOverlayMode", "ageOverlayMode", "epcFuelOverlayMode", "epcFuelType",
+      "broadbandCellOverlayMode", "broadbandCellMetric",
+      "listedBuildingCellOverlayMode", "busStopOverlayMode", "pharmacyOverlayMode",
+      "gpOverlayMode", "pubOverlayMode", "supermarketOverlayMode",
+      "listedBuildingOverlayMode", "planningOverlayMode", "holidayLetOverlayMode",
+    ];
+
+    const gtag = (window as unknown as { gtag?: (...a: unknown[]) => void }).gtag;
+    if (typeof gtag !== "function") return;
+
+    for (const key of overlayKeys) {
+      if (prev[key] !== state[key]) {
+        gtag("event", "overlay_toggle", {
+          overlay: String(key).replace(/OverlayMode$|Mode$/, ""),
+          mode: String(state[key] ?? ""),
+        });
+      }
+    }
+  }, [state]);
+
   useEffect(() => {
     if (!activePostcodeSearch.trim()) return;
     setPostcodeSearchToken((v) => v + 1);
